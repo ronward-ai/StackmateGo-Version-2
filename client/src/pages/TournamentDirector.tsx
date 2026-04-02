@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearch } from 'wouter';
 import PokerTimer from './PokerTimer';
 import { useAuth } from '@/hooks/useAuth';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function TournamentDirector() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
@@ -98,13 +99,15 @@ function TournamentDirector() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 rounded-xl shadow-lg mb-4">
-            <h1 className="text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
+        <div className="w-full max-w-4xl mx-auto p-4 space-y-6">
+          <div className="flex justify-between items-center mb-8">
+            <Skeleton className="h-12 w-64" />
+            <Skeleton className="h-10 w-32" />
           </div>
-          <div className="space-y-2">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Authenticating director access...</p>
+          <Skeleton className="h-[400px] w-full rounded-xl" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-[300px] w-full rounded-xl" />
+            <Skeleton className="h-[300px] w-full rounded-xl" />
           </div>
         </div>
       </div>

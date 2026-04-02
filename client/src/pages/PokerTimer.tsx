@@ -27,6 +27,7 @@ import RankingsSection from '@/components/RankingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import DirectorCoordinationPanel from '@/components/DirectorCoordinationPanel';
+import TournamentOverBanner from '@/components/TournamentOverBanner';
 
 function UserMenu() {
   const { user, isAuthenticated, isAnonymous, logout } = useAuth();
@@ -375,28 +376,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
           const eliminatedPlayers = tournament.state.players.filter(p => p.isActive === false);
 
           if (activePlayers.length === 1 && tournament.state.players.length > 1 && eliminatedPlayers.length > 0) {
-            return (
-              <div className="mb-6 relative overflow-hidden">
-                <div className="bg-gradient-to-r from-yellow-400 via-red-500 to-pink-500 p-8 rounded-xl shadow-2xl border-4 border-yellow-300">
-                  <div className="text-center">
-                    <div className="text-6xl md:text-8xl font-black text-white drop-shadow-lg mb-4 animate-pulse">
-                      🏆 TOURNAMENT OVER 🏆
-                    </div>
-                    <div className="text-2xl md:text-3xl font-bold text-white drop-shadow-md mb-2">
-                      WINNER: {activePlayers[0]?.name}
-                    </div>
-                    <div className="text-lg text-yellow-100">
-                      Congratulations on your victory!
-                    </div>
-                  </div>
-                  {/* Decorative elements */}
-                  <div className="absolute top-4 left-4 text-4xl animate-bounce">🎉</div>
-                  <div className="absolute top-4 right-4 text-4xl animate-bounce delay-150">🎊</div>
-                  <div className="absolute bottom-4 left-8 text-3xl animate-pulse">✨</div>
-                  <div className="absolute bottom-4 right-8 text-3xl animate-pulse delay-300">⭐</div>
-                </div>
-              </div>
-            );
+            return <TournamentOverBanner winnerName={activePlayers[0]?.name || 'Unknown'} />;
           }
           return null;
         })()}
@@ -429,14 +409,14 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             />
           </div>
           <Tabs defaultValue="players" className="w-full">
-            <TabsList className="flex w-full overflow-x-auto hide-scrollbar">
-              <TabsTrigger value="players" variant="players" className="flex-1 min-w-[80px]">Players</TabsTrigger>
-              <TabsTrigger value="tables" variant="tables" className="flex-1 min-w-[80px]">Tables</TabsTrigger>
-              <TabsTrigger value="levels" variant="timer" className="flex-1 min-w-[80px]">Levels</TabsTrigger>
-              <TabsTrigger value="buyins" variant="buy-ins" className="flex-1 min-w-[80px]">Structure</TabsTrigger>
-              <TabsTrigger value="league" variant="league" className="flex-1 min-w-[80px]">League</TabsTrigger>
-              <TabsTrigger value="qr" variant="timer" className="flex-1 min-w-[80px]">Access</TabsTrigger>
-              <TabsTrigger value="settings" variant="settings" className="flex-1 min-w-[80px]">Settings</TabsTrigger>
+            <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center">
+              <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
+              <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Tables</TabsTrigger>
+              <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
+              <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
+              <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
+              <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">Access</TabsTrigger>
+              <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
             </TabsList>
 
             <TabsContent value="players" className="mt-6">

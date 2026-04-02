@@ -63,6 +63,8 @@ interface TournamentData {
   };
 }
 
+import { Skeleton } from '@/components/ui/skeleton';
+
 function TournamentParticipantView() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
   const id = params.tournamentId || params.id;
@@ -315,19 +317,15 @@ function TournamentParticipantView() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading tournament...</p>
-              {id && (
-                <p className="text-sm text-muted-foreground">Tournament ID: {id}</p>
-              )}
-              <div className="mt-4">
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors text-sm"
-                >
-                  Refresh Page
-                </button>
+            <div className="space-y-6 w-full max-w-4xl mx-auto p-4">
+              <div className="flex justify-between items-center mb-8">
+                <Skeleton className="h-12 w-64" />
+                <Skeleton className="h-10 w-32" />
+              </div>
+              <Skeleton className="h-[400px] w-full rounded-xl" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Skeleton className="h-[300px] w-full rounded-xl" />
+                <Skeleton className="h-[300px] w-full rounded-xl" />
               </div>
             </div>
           )}

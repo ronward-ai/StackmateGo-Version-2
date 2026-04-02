@@ -40,7 +40,7 @@ export async function setupVite(app: Express, server: Server) {
         interval: 1000
       },
       host: '0.0.0.0',
-      allowedHosts: true, // Allow all hosts including Replit dynamic URLs
+      allowedHosts: true, // Allow all hosts
     },
     appType: "custom",
   });

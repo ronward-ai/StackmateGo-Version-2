@@ -3,7 +3,7 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { log } from "./vite";
 
-// Set Vite allowed hosts to fix "Blocked request" error on Replit
+// Set Vite allowed hosts to fix "Blocked request" error
 // process.env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS = '.replit.dev'; // Removed as Vite is disabled
 
 const app = express();

@@ -431,7 +431,7 @@
   animation: flash 1s ease-in-out;
 }
 
-/* Replit-inspired gradient backgrounds */
+/* Gradient backgrounds */
 .gradient-bg-primary {
   background:
     radial-gradient(circle at 20% 20%, hsl(var(--primary)) 0%, transparent 50%),
