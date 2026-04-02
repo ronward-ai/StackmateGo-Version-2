@@ -1,0 +1,6 @@
+{
+  "dialect": "postgresql",
+  "schema": "./shared/schema.ts",
+  "out": "./migrations",
+  "driver": "neon-serverless"
+}

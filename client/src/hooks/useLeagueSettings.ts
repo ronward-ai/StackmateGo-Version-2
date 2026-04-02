@@ -1,0 +1,512 @@
+import { useState, useCallback, useEffect } from 'react';
+import {
+  LeagueSettings,
+  PointsSystem,
+  DEFAULT_LEAGUE_SETTINGS,
+  PositionPoints,
+  POINTS_SYSTEMS
+} from '@/types/leagueSettings';
+import { useAuth } from './useAuth';
+import { db, collections } from '@/lib/firebase';
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { sanitizeForFirestore } from '@/lib/utils';
+
+export function useLeagueSettings(overrideOwnerId?: string) {
+  const { user, isAnonymous } = useAuth();
+
+  const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
+
+  // Store saved settings from database
+  const [savedSettings, setSavedSettings] = useState<Array<{
+    id: string | number;
+    name: string;
+    settings: LeagueSettings;
+    isDefault: boolean;
+  }>>([]);
+
+  const [settings, setSettings] = useState<LeagueSettings>(() => {
+    try {
+      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+        console.warn('localStorage not available, using default settings');
+        return DEFAULT_LEAGUE_SETTINGS;
+      }
+      const saved = localStorage.getItem('leagueSettings');
+      if (!saved) {
+        return DEFAULT_LEAGUE_SETTINGS;
+      }
+      const parsed = JSON.parse(saved);
+
+      // Validate the parsed settings have required fields
+      if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) {
+        console.warn('Invalid league settings found, using defaults');
+        return DEFAULT_LEAGUE_SETTINGS;
+      }
+
+      // Ensure pointsSystem has proper structure
+      if (!parsed.pointsSystem.formula) {
+        console.warn('Invalid points system structure, using defaults');
+        return DEFAULT_LEAGUE_SETTINGS;
+      }
+
+      // Ensure statsToDisplay has all possible stats
+      const completeStatsToDisplay = {
+        ...DEFAULT_LEAGUE_SETTINGS.statsToDisplay,
+        ...parsed.statsToDisplay
+      };
+
+      const loadedSettings = {
+        ...DEFAULT_LEAGUE_SETTINGS,
+        ...parsed,
+        statsToDisplay: completeStatsToDisplay,
+        pointsSystem: {
+          ...DEFAULT_LEAGUE_SETTINGS.pointsSystem,
+          ...parsed.pointsSystem,
+          formula: {
+            ...parsed.pointsSystem.formula
+          }
+        }
+      };
+
+      return loadedSettings;
+    } catch (error) {
+      console.error('Failed to load league settings:', error);
+      return DEFAULT_LEAGUE_SETTINGS;
+    }
+  });
+
+  // Save settings to localStorage
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && settings) {
+        localStorage.setItem('leagueSettings', JSON.stringify(settings));
+      }
+    } catch (error) {
+      console.error('Failed to save league settings:', error);
+    }
+  }, [settings]);
+
+  // Listen for settings reload events
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      try {
+        if (typeof window === 'undefined') return;
+
+        const saved = localStorage.getItem('leagueSettings');
+        if (!saved) return;
+
+        const parsed = JSON.parse(saved);
+
+        // Validate the parsed settings have required fields
+        if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) {
+          return;
+        }
+
+        // Ensure pointsSystem has proper structure
+        if (!parsed.pointsSystem.formula) {
+          return;
+        }
+
+        // Ensure statsToDisplay has all possible stats
+        const completeStatsToDisplay = {
+          ...DEFAULT_LEAGUE_SETTINGS.statsToDisplay,
+          ...parsed.statsToDisplay
+        };
+
+        const reloadedSettings = {
+          ...DEFAULT_LEAGUE_SETTINGS,
+          ...parsed,
+          statsToDisplay: completeStatsToDisplay,
+          pointsSystem: {
+            ...parsed.pointsSystem,
+            formula: {
+              ...parsed.pointsSystem.formula
+            }
+          }
+        };
+
+        setSettings(reloadedSettings);
+      } catch (error) {
+        console.error('Failed to reload league settings:', error);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('leagueSettingsChanged', handleSettingsChange);
+      return () => window.removeEventListener('leagueSettingsChanged', handleSettingsChange);
+    }
+  }, []);
+
+  // Calculate points based on current points system
+  const calculatePoints = useCallback((
+    position: number, 
+    totalPlayers: number, 
+    knockouts: number = 0,
+    buyIn: number = 0,
+    totalCost: number = 0,
+    prizepool: number = 0
+  ): number => {
+    try {
+      if (!settings?.pointsSystem?.formula) {
+        return 0;
+      }
+
+      const { formula } = settings.pointsSystem;
+
+      switch (formula.type) {
+        case 'logarithmic': {
+          const baseMultiplier = formula.baseMultiplier || 10;
+          const winnerMultiplier = formula.winnerMultiplier || 1.5;
+          const points = baseMultiplier * Math.log(totalPlayers - position + 2);
+          return position === 1
+            ? Math.floor(points * winnerMultiplier)
+            : Math.floor(points);
+        }
+
+        case 'squareRoot': {
+          const baseMultiplier = formula.baseMultiplier || 10;
+          const winnerMultiplier = formula.winnerMultiplier || 1.2;
+          const points = baseMultiplier * Math.sqrt(totalPlayers - position + 1);
+          return position === 1
+            ? Math.floor(points * winnerMultiplier)
+            : Math.floor(points);
+        }
+
+        case 'linear': {
+          const baseMultiplier = formula.baseMultiplier || 10;
+          const winnerMultiplier = formula.winnerMultiplier || 1.0;
+          const points = baseMultiplier * (totalPlayers - position + 1);
+          return position === 1
+            ? Math.floor(points * winnerMultiplier)
+            : Math.floor(points);
+        }
+
+        case 'fixed': {
+          return formula.fixedPoints || 10;
+        }
+
+        case 'custom': {
+          if (!formula.customFormula?.trim()) {
+            return 0;
+          }
+
+          try {
+            // Create safe evaluation context with variables
+            const safeEval = new Function(
+              'f', 'p', 'k', 'b', 'c', 'z',
+              'position', 'totalPlayers', 'knockouts', 'buyIn', 'totalCost', 'prizepool',
+              'Math', 
+              `"use strict"; return (${formula.customFormula})`
+            );
+            const result = safeEval(
+              position, totalPlayers, knockouts, buyIn, totalCost, prizepool,
+              position, totalPlayers, knockouts, buyIn, totalCost, prizepool,
+              Math
+            );
+
+            const finalResult = Math.floor(Number(result)) || 0;
+            return Math.max(0, finalResult); // Ensure non-negative points
+          } catch (error) {
+            console.error('Error evaluating custom formula:', error, 'Formula:', formula.customFormula);
+            return 0;
+          }
+        }
+
+        default:
+          return 0;
+      }
+    } catch (error) {
+      console.error('Error calculating points:', error);
+      return 0;
+    }
+  }, [settings]);
+
+  // Update entire settings
+  const updateSettings = useCallback((newSettings: LeagueSettings) => {
+    setSettings(newSettings);
+  }, []);
+
+  // Update specific parts of settings
+  const updatePointsSystem = useCallback((pointsSystem: PointsSystem) => {
+    setSettings(prev => ({ ...prev, pointsSystem }));
+  }, []);
+
+  const updateStatsToTrack = useCallback((statsToTrack: LeagueSettings['statsToTrack']) => {
+    setSettings(prev => ({ ...prev, statsToTrack }));
+  }, []);
+
+  const updateStatsToDisplay = useCallback((statsToDisplay: Partial<LeagueSettings['statsToDisplay']>) => {
+    setSettings(prev => ({
+      ...prev,
+      statsToDisplay: {
+        ...prev.statsToDisplay,
+        ...statsToDisplay
+      }
+    }));
+  }, []);
+
+  const updateDisplaySettings = useCallback((displaySettings: LeagueSettings['displaySettings']) => {
+    setSettings(prev => ({ ...prev, displaySettings }));
+  }, []);
+
+  const updateSeasonSettings = useCallback((seasonSettings: LeagueSettings['seasonSettings']) => {
+    setSettings(prev => ({ ...prev, seasonSettings }));
+  }, []);
+
+  // Reset to defaults
+  const resetToDefaults = useCallback(() => {
+    setSettings(DEFAULT_LEAGUE_SETTINGS);
+  }, []);
+
+  // Update custom formula
+  const updateCustomFormula = useCallback((formula: string) => {
+    setSettings(prev => ({
+      ...prev,
+      pointsSystem: {
+        ...prev.pointsSystem,
+        formula: {
+          ...prev.pointsSystem.formula,
+          customFormula: formula
+        }
+      }
+    }));
+  }, []);
+
+  // Set a predefined points system
+  const setPointsSystemType = useCallback((type: keyof typeof POINTS_SYSTEMS) => {
+    const systemTemplate = POINTS_SYSTEMS[type] as any;
+    setSettings(prev => {
+      const newPointsSystem = { ...systemTemplate };
+
+      // If switching to custom type, try to restore the previous custom formula
+      if (type === 'custom') {
+        // First try to get from current settings if switching back
+        if (prev.pointsSystem.formula.type === 'custom' && prev.pointsSystem.formula.customFormula) {
+          newPointsSystem.formula = {
+            ...newPointsSystem.formula,
+            customFormula: prev.pointsSystem.formula.customFormula as string
+          };
+        } else {
+          // Try to restore the most recent custom formula from database
+          const recentCustomSettings = savedSettings.find(s =>
+            s.settings.pointsSystem.formula.type === 'custom' &&
+            s.settings.pointsSystem.formula.customFormula
+          );
+
+          if (recentCustomSettings) {
+            newPointsSystem.formula = {
+              ...newPointsSystem.formula,
+              customFormula: recentCustomSettings.settings.pointsSystem.formula.customFormula as string
+            };
+          }
+        }
+      }
+
+      return {
+        ...prev,
+        pointsSystem: newPointsSystem
+      };
+    });
+  }, [savedSettings]);
+
+  // Load saved settings from database
+  useEffect(() => {
+    if (!targetOwnerId) return;
+
+    const q = query(collections.leagueSettings, where('userId', '==', targetOwnerId));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      try {
+        const data = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as any[];
+
+        setSavedSettings(data);
+
+        // Load default settings if available
+        const defaultSettings = data.find((s: any) => s.isDefault);
+        if (defaultSettings) {
+          setSettings(defaultSettings.settings);
+        }
+      } catch (error) {
+        console.error('Error processing settings snapshot:', error);
+      }
+    }, (error) => {
+      console.error('Failed to load saved settings:', error);
+    });
+
+    return () => unsubscribe();
+  }, [targetOwnerId]);
+
+  // Keep loadSavedSettings for manual refresh if needed, but it's mostly handled by the listener now
+  const loadSavedSettings = useCallback(async () => {
+    // This is now a no-op since the listener handles it, but we keep it for API compatibility
+    console.log('loadSavedSettings called manually, but settings are now real-time');
+  }, []);
+
+  // Save settings to database
+  const saveSettingsToDatabase = useCallback(async (name: string, isDefault: boolean = false) => {
+    if (!user?.id) {
+      console.warn('User not authenticated, cannot save to database');
+      return;
+    }
+
+    try {
+      const newSetting = sanitizeForFirestore({
+        userId: user.id,
+        name,
+        settings,
+        isDefault,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      const docRef = await addDoc(collections.leagueSettings, newSetting);
+      
+      const savedSetting = {
+        id: docRef.id,
+        ...newSetting
+      };
+      
+      setSavedSettings(prev => [...prev, savedSetting as any]);
+    } catch (error) {
+      console.error('Error saving settings to database:', error);
+    }
+  }, [settings, user?.id]);
+
+  // Load settings from database by ID
+  const loadSettingsFromDatabase = useCallback((settingId: string | number) => {
+    const savedSetting = savedSettings.find(s => s.id === settingId);
+    if (savedSetting) {
+      setSettings(savedSetting.settings);
+    }
+  }, [savedSettings]);
+
+  // Delete settings from database
+  const deleteSettingsFromDatabase = useCallback(async (settingId: string | number) => {
+    if (!user?.id) return;
+
+    try {
+      await deleteDoc(doc(db, 'leagueSettings', String(settingId)));
+      setSavedSettings(prev => prev.filter(s => s.id !== settingId));
+    } catch (error) {
+      console.error('Error deleting settings from database:', error);
+    }
+  }, [user?.id]);
+
+  // Save custom formula as a template
+  const saveCustomFormulaTemplate = useCallback(async (formulaName: string, formula: string) => {
+    if (!user?.id) {
+      console.warn('User not authenticated, cannot save custom formula');
+      return;
+    }
+
+    const templateSettings = {
+      ...DEFAULT_LEAGUE_SETTINGS,
+      pointsSystem: {
+        ...DEFAULT_LEAGUE_SETTINGS.pointsSystem,
+        ...POINTS_SYSTEMS.custom,
+        formula: {
+          ...POINTS_SYSTEMS.custom.formula,
+          customFormula: formula
+        }
+      }
+    };
+
+    try {
+      const newSetting = sanitizeForFirestore({
+        userId: user.id,
+        name: `Custom Formula: ${formulaName}`,
+        settings: templateSettings,
+        isDefault: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      const docRef = await addDoc(collections.leagueSettings, newSetting);
+      
+      const savedTemplate = {
+        id: docRef.id,
+        ...newSetting
+      };
+      
+      setSavedSettings(prev => [...prev, savedTemplate as any]);
+      return savedTemplate;
+    } catch (error) {
+      console.error('Error saving custom formula template:', error);
+    }
+  }, [user?.id]);
+
+  // Get saved custom formulas
+  const getSavedCustomFormulas = useCallback(() => {
+    return savedSettings.filter(s =>
+      s.name.startsWith('Custom Formula:') &&
+      s.settings.pointsSystem.formula.type === 'custom'
+    );
+  }, [savedSettings]);
+
+  // Load settings from database when user changes
+  useEffect(() => {
+    if (targetOwnerId) {
+      loadSavedSettings();
+    }
+  }, [targetOwnerId, loadSavedSettings]);
+
+  // Update formula parameters for algorithmic systems
+  const updateFormulaParameter = useCallback((param: string, value: number | number[]) => {
+    const currentFormula = settings.pointsSystem.formula;
+    updatePointsSystem({
+      ...settings.pointsSystem,
+      formula: {
+        ...currentFormula,
+        [param]: value
+      }
+    });
+  }, [settings.pointsSystem, updatePointsSystem]);
+
+  // Placeholder functions for export/import/save/delete custom formula, and reload settings.
+  // These would need actual implementation based on your application's logic.
+  const exportSettings = useCallback(() => {
+    // Export settings functionality
+  }, []);
+
+  const importSettings = useCallback(() => {
+    // Import settings functionality
+  }, []);
+
+  const saveCustomFormula = useCallback((formulaName: string, formula: string) => {
+    // Logic to save custom formula
+  }, []);
+
+  const deleteCustomFormula = useCallback((formulaId: string) => {
+    // Logic to delete custom formula
+  }, []);
+
+  const reloadSettings = useCallback(() => {
+    // Logic to reload settings, potentially from localStorage or a default state
+    setSettings(DEFAULT_LEAGUE_SETTINGS); // Example: reset to default
+  }, []);
+
+
+  return {
+    settings,
+    savedSettings,
+    calculatePoints,
+    updateSettings,
+    updatePointsSystem,
+    updateStatsToTrack,
+    updateStatsToDisplay,
+    updateDisplaySettings,
+    updateSeasonSettings,
+    resetToDefaults,
+    updateCustomFormula,
+    setPointsSystemType,
+    availablePointsSystems: POINTS_SYSTEMS,
+    updateFormulaParameter,
+    saveSettingsToDatabase,
+    loadSettingsFromDatabase,
+    deleteSettingsFromDatabase,
+    loadSavedSettings,
+    saveCustomFormulaTemplate,
+    getSavedCustomFormulas
+  };
+}

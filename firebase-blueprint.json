@@ -1,0 +1,319 @@
+{
+  "entities": {
+    "PlayerName": {
+      "title": "PlayerName",
+      "description": "Reusable player names",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "createdAt"]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "Player model",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "knockouts": { "type": "number" },
+        "tournamentId": { "type": "number" }
+      },
+      "required": ["name", "knockouts", "tournamentId"]
+    },
+    "BlindLevel": {
+      "title": "BlindLevel",
+      "description": "Blind Level model",
+      "type": "object",
+      "properties": {
+        "small": { "type": "number" },
+        "big": { "type": "number" },
+        "ante": { "type": "number" },
+        "duration": { "type": "number" },
+        "tournamentId": { "type": "number" },
+        "levelOrder": { "type": "number" }
+      },
+      "required": ["small", "big", "ante", "duration", "tournamentId", "levelOrder"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Tournament model",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "currentLevel": { "type": "number" },
+        "secondsLeft": { "type": "number" },
+        "isRunning": { "type": "boolean" },
+        "buyIn": { "type": "number" },
+        "enableSounds": { "type": "boolean" },
+        "enableVoice": { "type": "boolean" },
+        "showSeconds": { "type": "boolean" },
+        "showNextLevel": { "type": "boolean" },
+        "accessCode": { "type": "string" },
+        "directorCode": { "type": "string" },
+        "participantCode": { "type": "string" }
+      },
+      "required": ["name", "currentLevel", "secondsLeft", "isRunning", "buyIn", "enableSounds", "enableVoice", "showSeconds", "showNextLevel"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User storage table",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "profileImageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "TournamentParticipant": {
+      "title": "TournamentParticipant",
+      "description": "Tournament participants with role-based access",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "number" },
+        "userId": { "type": "string" },
+        "playerName": { "type": "string" },
+        "tableNumber": { "type": "number" },
+        "seatNumber": { "type": "number" },
+        "isDirector": { "type": "boolean" },
+        "role": { "type": "string" },
+        "isAnonymous": { "type": "boolean" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["tournamentId", "userId", "playerName", "isDirector", "role", "isAnonymous", "joinedAt"]
+    },
+    "TableAssignment": {
+      "title": "TableAssignment",
+      "description": "Table assignments",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "number" },
+        "tableNumber": { "type": "number" },
+        "seatNumber": { "type": "number" },
+        "playerId": { "type": "string" },
+        "playerName": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["tournamentId", "tableNumber", "seatNumber", "isActive"]
+    },
+    "League": {
+      "title": "League",
+      "description": "Leagues - organize players and tournaments",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "currentSeasonName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId", "isPublic"]
+    },
+    "LeagueMember": {
+      "title": "LeagueMember",
+      "description": "League members - who can access/manage each league",
+      "type": "object",
+      "properties": {
+        "leagueId": { "type": "number" },
+        "userId": { "type": "string" },
+        "role": { "type": "string" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leagueId", "userId", "role"]
+    },
+    "Season": {
+      "title": "Season",
+      "description": "Seasons - organize tournaments and player stats by time period",
+      "type": "object",
+      "properties": {
+        "leagueId": { "type": "number" },
+        "name": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "numberOfGames": { "type": "number" },
+        "status": { "type": "string" },
+        "pointsSystemConfig": { "type": "object" },
+        "settings": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leagueId", "name", "startDate", "endDate", "numberOfGames", "status"]
+    },
+    "LeaguePlayer": {
+      "title": "LeaguePlayer",
+      "description": "League players - the actual poker players with statistics",
+      "type": "object",
+      "properties": {
+        "leagueId": { "type": "number" },
+        "seasonId": { "type": "number" },
+        "name": { "type": "string" },
+        "totalPoints": { "type": "number" },
+        "gamesPlayed": { "type": "number" },
+        "knockouts": { "type": "number" },
+        "firstPlaces": { "type": "number" },
+        "secondPlaces": { "type": "number" },
+        "thirdPlaces": { "type": "number" },
+        "finalTableAppearances": { "type": "number" },
+        "totalWinnings": { "type": "number" },
+        "totalBuyIns": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leagueId", "seasonId", "name", "totalPoints", "gamesPlayed", "knockouts", "firstPlaces", "secondPlaces", "thirdPlaces", "finalTableAppearances", "totalWinnings", "totalBuyIns"]
+    },
+    "TournamentResult": {
+      "title": "TournamentResult",
+      "description": "Tournament results - individual tournament performance",
+      "type": "object",
+      "properties": {
+        "leagueId": { "type": "number" },
+        "seasonId": { "type": "number" },
+        "leaguePlayerId": { "type": "number" },
+        "tournamentDate": { "type": "string", "format": "date-time" },
+        "tournamentName": { "type": "string" },
+        "position": { "type": "number" },
+        "totalPlayers": { "type": "number" },
+        "points": { "type": "number" },
+        "knockouts": { "type": "number" },
+        "prizeMoney": { "type": "number" },
+        "buyIn": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["leagueId", "seasonId", "leaguePlayerId", "tournamentDate", "position", "totalPlayers"]
+    },
+    "ActiveTournament": {
+      "title": "ActiveTournament",
+      "description": "Active tournaments table for real-time tournament management",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "currentLevel": { "type": "number" },
+        "secondsLeft": { "type": "number" },
+        "isRunning": { "type": "boolean" },
+        "participantCode": { "type": "string" },
+        "directorCode": { "type": "string" },
+        "buyIn": { "type": "number" },
+        "blindLevels": { "type": "array" },
+        "settings": { "type": "object" },
+        "prizeStructure": { "type": "object" },
+        "players": { "type": "array" },
+        "status": { "type": "string" },
+        "lastDirectorHeartbeat": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "directorCode", "blindLevels", "settings", "prizeStructure"]
+    },
+    "TournamentSnapshot": {
+      "title": "TournamentSnapshot",
+      "description": "Tournament snapshots for recovery and history",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "number" },
+        "snapshotData": { "type": "object" },
+        "snapshotType": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "snapshotData"]
+    },
+    "LeagueSettings": {
+      "title": "LeagueSettings",
+      "description": "League settings",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "settings": { "type": "object" },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "settings", "isDefault"]
+    },
+    "TournamentTemplate": {
+      "title": "TournamentTemplate",
+      "description": "Saved tournament templates for users",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "blindLevels": { "type": "array" },
+        "prizeStructure": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId", "blindLevels", "prizeStructure"]
+    }
+  },
+  "firestore": {
+    "playerNames": {
+      "schema": "PlayerName",
+      "description": "Reusable player names"
+    },
+    "players": {
+      "schema": "Player",
+      "description": "Player model"
+    },
+    "blindLevels": {
+      "schema": "BlindLevel",
+      "description": "Blind Level model"
+    },
+    "tournaments": {
+      "schema": "Tournament",
+      "description": "Tournament model"
+    },
+    "users": {
+      "schema": "User",
+      "description": "User storage table"
+    },
+    "tournamentParticipants": {
+      "schema": "TournamentParticipant",
+      "description": "Tournament participants with role-based access"
+    },
+    "tableAssignments": {
+      "schema": "TableAssignment",
+      "description": "Table assignments"
+    },
+    "leagues": {
+      "schema": "League",
+      "description": "Leagues - organize players and tournaments"
+    },
+    "leagueMembers": {
+      "schema": "LeagueMember",
+      "description": "League members - who can access/manage each league"
+    },
+    "seasons": {
+      "schema": "Season",
+      "description": "Seasons - organize tournaments and player stats by time period"
+    },
+    "leaguePlayers": {
+      "schema": "LeaguePlayer",
+      "description": "League players - the actual poker players with statistics"
+    },
+    "tournamentResults": {
+      "schema": "TournamentResult",
+      "description": "Tournament results - individual tournament performance"
+    },
+    "activeTournaments": {
+      "schema": "ActiveTournament",
+      "description": "Active tournaments table for real-time tournament management"
+    },
+    "tournamentSnapshots": {
+      "schema": "TournamentSnapshot",
+      "description": "Tournament snapshots for recovery and history"
+    },
+    "leagueSettings": {
+      "schema": "LeagueSettings",
+      "description": "League settings"
+    },
+    "tournamentTemplates": {
+      "schema": "TournamentTemplate",
+      "description": "Saved tournament templates for users"
+    }
+  }
+}

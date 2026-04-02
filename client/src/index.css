@@ -1,0 +1,1393 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+
+/* Testing auto-restart mechanism */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 11% 10%;
+  --foreground: 0 0% 95%;
+  --muted: 210 8% 18%;
+  --muted-foreground: 210 8% 65%;
+  --popover: 210 12% 12%;
+  --popover-foreground: 0 0% 95%;
+  --card: 210 10% 14%;
+  --card-foreground: 0 0% 95%;
+  --border: 210 8% 22%;
+  --input: 210 10% 16%;
+  --primary: 180 85% 45%;
+  --primary-foreground: 210 12% 8%;
+  --secondary: 210 15% 25%;
+  --secondary-foreground: 0 0% 95%;
+  --accent: 180 70% 40%;
+  --accent-foreground: 0 0% 95%;
+  --destructive: 0 65% 55%;
+  --destructive-foreground: 0 0% 95%;
+  --ring: 180 85% 45%;
+  --radius: 0.5rem;
+
+  /* Harmonious card color variants */
+  --card-blue: 200 12% 14%;
+  --card-purple: 260 12% 14%;
+  --card-green: 140 12% 14%;
+  --card-orange: 25 12% 14%;
+  --card-rose: 340 12% 14%;
+  --card-slate: 210 10% 14%;
+  --card-emerald: 155 12% 14%;
+  --card-indigo: 240 12% 14%;
+
+  /* Harmonized semantic colors */
+  --success: 140 65% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 35 75% 50%;
+  --warning-foreground: 0 0% 100%;
+  --info: 200 75% 55%;
+  --info-foreground: 0 0% 100%;
+
+  /* Enhanced button hover states */
+  --success-hover: 140 70% 40%;
+  --warning-hover: 35 80% 45%;
+  --info-hover: 200 80% 50%;
+  --destructive-hover: 0 70% 50%;
+  --blind-level-highlight: 210 10% 20%;
+  --button-hover: 180 100% 55%;
+  --card-elevated: 210 12% 16%;
+  --section-spacing: 1.25rem;
+  --border-subtle: 210 8% 25%;
+  --data-positive: 140 70% 50%;
+  --data-negative: 0 75% 60%;
+  --grid-header: 210 15% 18%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Poker Table Felt Textures */
+.felt-green {
+  background: radial-gradient(ellipse at center, #22c55e 0%, #16a34a 50%, #15803d 100%);
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px),
+    repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+.felt-blue {
+  background: radial-gradient(ellipse at center, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px),
+    repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+.felt-red {
+  background: radial-gradient(ellipse at center, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px),
+    repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+.felt-purple {
+  background: radial-gradient(ellipse at center, #a855f7 0%, #9333ea 50%, #7c3aed 100%);
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px),
+    repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+.felt-black {
+  background: radial-gradient(ellipse at center, #374151 0%, #1f2937 50%, #111827 100%);
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px),
+    repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+.felt-burgundy {
+  background: radial-gradient(ellipse at center, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px),
+    repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+}
+
+@layer components {
+  /* GTO Wizard inspired card styles with gradient */
+  .tournament-card {
+    @apply border border-border rounded-lg p-4 shadow-sm;
+    background:
+      radial-gradient(circle at 30% 20%, hsl(var(--primary) / 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 70% 80%, hsl(var(--accent) / 0.05) 0%, transparent 50%),
+      linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.3) 100%);
+    border: 1px solid hsl(var(--border));
+  }
+
+  /* Harmonious card variants */
+  .card-blue {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(200 40% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(220 30% 40% / 0.06) 0%, transparent 50%),
+      hsl(var(--card-blue));
+    border: 1px solid hsl(200 15% 25%);
+  }
+
+  .card-purple {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(260 40% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(280 30% 40% / 0.06) 0%, transparent 50%),
+      hsl(var(--card-purple));
+    border: 1px solid hsl(260 15% 25%);
+  }
+
+  .card-green {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(140 40% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(160 30% 40% / 0.06) 0%, transparent 50%),
+      hsl(var(--card-green));
+    border: 1px solid hsl(140 15% 25%);
+  }
+
+  .card-orange {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(25 40% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(35 30% 40% / 0.06) 0%, transparent 50%),
+      hsl(var(--card-orange));
+    border: 1px solid hsl(25 15% 25%);
+  }
+
+  .card-rose {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(340 40% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(320 30% 40% / 0.06) 0%, transparent 50%),
+      hsl(var(--card-rose));
+    border: 1px solid hsl(340 15% 25%);
+  }
+
+  .card-emerald {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(155 40% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(165 30% 40% / 0.06) 0%, transparent 50%),
+      hsl(var(--card-emerald));
+    border: 1px solid hsl(155 15% 25%);
+  }
+
+  .card-indigo {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(240 40% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(250 30% 40% / 0.06) 0%, transparent 50%),
+      hsl(var(--card-indigo));
+    border: 1px solid hsl(240 15% 25%);
+  }
+
+  .card-slate {
+    background:
+      radial-gradient(circle at 30% 30%, hsl(210 30% 45% / 0.06) 0%, transparent 50%),
+      radial-gradient(circle at 70% 70%, hsl(215 25% 40% / 0.05) 0%, transparent 50%),
+      hsl(var(--card-slate));
+    border: 1px solid hsl(210 12% 25%);
+  }
+
+  /* Glassmorphism card variants */
+  .card-glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .card-glass-blue {
+    background: rgba(59, 130, 246, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    box-shadow:
+      0 8px 32px rgba(59, 130, 246, 0.15),
+      inset 0 1px 0 rgba(147, 197, 253, 0.1);
+  }
+
+  .card-glass-purple {
+    background: rgba(139, 92, 246, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    box-shadow:
+      0 8px 32px rgba(139, 92, 246, 0.15),
+      inset 0 1px 0 rgba(196, 181, 253, 0.1);
+  }
+
+  .card-glass-green {
+    background: rgba(34, 197, 94, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    box-shadow:
+      0 8px 32px rgba(34, 197, 94, 0.15),
+      inset 0 1px 0 rgba(134, 239, 172, 0.1);
+  }
+
+  .card-glass-orange {
+    background: rgba(249, 115, 22, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(249, 115, 22, 0.2);
+    box-shadow:
+      0 8px 32px rgba(249, 115, 22, 0.15),
+      inset 0 1px 0 rgba(254, 215, 170, 0.1);
+  }
+
+  .card-glass-rose {
+    background: rgba(244, 63, 94, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(244, 63, 94, 0.2);
+    box-shadow:
+      0 8px 32px rgba(244, 63, 94, 0.15),
+      inset 0 1px 0 rgba(253, 164, 175, 0.1);
+  }
+
+  .card-glass-emerald {
+    background: rgba(16, 185, 129, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    box-shadow:
+      0 8px 32px rgba(16, 185, 129, 0.15),
+      inset 0 1px 0 rgba(110, 231, 183, 0.1);
+  }
+
+  .card-glass-indigo {
+    background: rgba(99, 102, 241, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    box-shadow:
+      0 8px 32px rgba(99, 102, 241, 0.15),
+      inset 0 1px 0 rgba(165, 180, 252, 0.1);
+  }
+
+  .card-glass-slate {
+    background: rgba(100, 116, 139, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(100, 116, 139, 0.2);
+    box-shadow:
+      0 8px 32px rgba(100, 116, 139, 0.15),
+      inset 0 1px 0 rgba(203, 213, 225, 0.1);
+  }
+
+  .tournament-card-header {
+    @apply border-b border-border/40 pb-3 mb-4;
+  }
+
+  .tournament-section {
+    @apply space-y-4;
+  }
+
+  /* Clean timer styling with gradient */
+  .timer-display {
+    @apply border border-border rounded-lg p-4;
+    background:
+      radial-gradient(circle at 25% 25%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 75% 75%, hsl(var(--accent) / 0.08) 0%, transparent 50%),
+      linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card-elevated)) 100%);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Grid-based button layout */
+  .button-group {
+    @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2;
+  }
+
+  /* Clean section headers */
+  .section-header {
+    @apply text-base font-semibold text-foreground mb-3 pb-2;
+    border-bottom: 1px solid hsl(var(--border));
+    letter-spacing: -0.01em;
+  }
+
+  /* Premium heading styles */
+  .heading-premium {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--muted-foreground)) 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Subheading style */
+  .subheading-premium {
+    @apply text-sm text-muted-foreground;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* Data grid styling with gradient */
+  .data-grid {
+    @apply border border-border rounded-lg overflow-hidden;
+    background:
+      radial-gradient(circle at 20% 20%, hsl(var(--primary) / 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, hsl(var(--accent) / 0.03) 0%, transparent 50%),
+      linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.2) 100%);
+  }
+
+  .data-grid-header {
+    @apply bg-grid-header px-3 py-2 text-sm font-medium text-muted-foreground border-b border-border;
+  }
+
+  .data-grid-row {
+    @apply px-3 py-2 border-b border-border/50 hover:bg-muted/30 transition-colors;
+  }
+
+  .data-positive {
+    @apply text-green-400 bg-green-500/10;
+  }
+
+  .data-negative {
+    @apply text-red-400 bg-red-500/10;
+  }
+
+  /* Table felt styling matching main tabs */
+  .table-felt-base {
+    @apply border border-border rounded-lg p-3 transition-all duration-200 cursor-pointer;
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.3) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  .table-felt-green {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.08) 100%) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-blue {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-red {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-purple {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.15) 0%, rgba(147, 51, 234, 0.08) 100%) !important;
+    border-color: rgba(147, 51, 234, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(147, 51, 234, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-orange {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-pink {
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(236, 72, 153, 0.08) 100%) !important;
+    border-color: rgba(236, 72, 153, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-teal {
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.15) 0%, rgba(20, 184, 166, 0.08) 100%) !important;
+    border-color: rgba(20, 184, 166, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(20, 184, 166, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-yellow {
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.08) 100%) !important;
+    border-color: rgba(234, 179, 8, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(234, 179, 8, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-black {
+    background: linear-gradient(135deg, rgba(55, 65, 81, 0.15) 0%, rgba(55, 65, 81, 0.08) 100%) !important;
+    border-color: rgba(55, 65, 81, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(55, 65, 81, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+
+  .table-felt-burgundy {
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(220, 38, 38, 0.08) 100%) !important;
+    border-color: rgba(220, 38, 38, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+}
+
+/* Animation for level change */
+@keyframes flash {
+  0%, 100% { background-color: hsl(var(--card)); }
+  50% { background-color: hsl(var(--primary)); }
+}
+.level-change {
+  animation: flash 1s ease-in-out;
+}
+
+/* Replit-inspired gradient backgrounds */
+.gradient-bg-primary {
+  background:
+    radial-gradient(circle at 20% 20%, hsl(var(--primary)) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, hsl(var(--accent)) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+  position: relative;
+}
+
+.gradient-bg-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,255,255,0.01) 20px, rgba(255,255,255,0.01) 40px),
+    repeating-linear-gradient(-45deg, transparent, transparent 20px, rgba(0,0,0,0.02) 20px, rgba(0,0,0,0.02) 40px);
+  pointer-events: none;
+}
+
+.gradient-bg-card {
+  background:
+    radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 70% 70%, hsl(var(--accent) / 0.1) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted)) 100%);
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.gradient-bg-secondary {
+  background:
+    radial-gradient(circle at 40% 20%, hsl(var(--secondary)) 0%, transparent 50%),
+    radial-gradient(circle at 60% 80%, hsl(var(--muted)) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%);
+}
+
+.gradient-bg-success {
+  background:
+    radial-gradient(circle at 25% 25%, hsl(var(--success) / 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted)) 100%);
+}
+
+.gradient-bg-warning {
+  background:
+    radial-gradient(circle at 25% 25%, hsl(var(--warning) / 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted)) 100%);
+}
+
+.gradient-bg-destructive {
+  background:
+    radial-gradient(circle at 25% 25%, hsl(var(--destructive) / 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--muted)) 100%);
+}
+
+/* Subtle grid pattern overlay - inherits card variant colors */
+.grid-pattern {
+  position: relative;
+}
+
+.grid-pattern::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Grid pattern variants for different card colors */
+.grid-pattern.card-blue::before { opacity: 0.6; }
+.grid-pattern.card-purple::before { opacity: 0.6; }
+.grid-pattern.card-green::before { opacity: 0.6; }
+.grid-pattern.card-orange::before { opacity: 0.6; }
+.grid-pattern.card-rose::before { opacity: 0.6; }
+.grid-pattern.card-emerald::before { opacity: 0.6; }
+.grid-pattern.card-indigo::before { opacity: 0.6; }
+.grid-pattern.card-slate::before { opacity: 0.7; }
+
+/* Hero section gradient */
+.hero-gradient {
+  background:
+    radial-gradient(circle at 30% 20%, hsl(var(--primary) / 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, hsl(var(--accent) / 0.2) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 50%, hsl(var(--muted)) 100%);
+  min-height: 100vh;
+  position: relative;
+}
+
+.hero-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(45deg, transparent, transparent 25px, rgba(255,255,255,0.01) 25px, rgba(255,255,255,0.01) 50px),
+    repeating-linear-gradient(-45deg, transparent, transparent 25px, rgba(0,0,0,0.015) 25px, rgba(0,0,0,0.015) 50px);
+  pointer-events: none;
+}
+
+/* Responsive timer sizing */
+@media (orientation: landscape) {
+  .timer-responsive {
+    font-size: min(15vw, 12rem) !important;
+    line-height: 0.85 !important;
+    letter-spacing: -0.02em !important;
+  }
+}
+
+@media (orientation: portrait) {
+  .timer-responsive {
+    font-size: min(25vw, 20rem) !important;
+    line-height: 0.85 !important;
+  }
+}
+
+/* Specific iPad landscape optimization */
+@media (orientation: landscape) and (min-width: 768px) and (max-width: 1024px) {
+  .timer-responsive {
+    font-size: min(13vw, 10rem) !important;
+    letter-spacing: -0.02em !important;
+  }
+}
+
+/* Mobile-specific optimizations for better touch interaction */
+@media (max-width: 640px) {
+  /* Prevent zoom on iOS form inputs */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Larger touch targets for mobile */
+  button,
+  .btn,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    touch-action: manipulation;
+  }
+
+  /* Better spacing for mobile */
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Improved modal/dialog sizing */
+  .modal,
+  .dialog {
+    margin: 16px;
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Better table rendering on small screens */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Improved card spacing on mobile */
+  .card {
+    margin-bottom: 16px;
+  }
+
+  /* Better grid layouts on mobile */
+  .grid {
+    gap: 16px;
+  }
+}
+
+/* Enhanced poker table felt colors with realistic gradients and texture */
+.felt-green {
+  background:
+    radial-gradient(circle at 30% 20%, hsl(140 45% 28%) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, hsl(140 35% 24%) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(140 42% 25%) 0%, hsl(140 38% 20%) 50%, hsl(140 35% 18%) 100%);
+  border: 1px solid hsl(140 30% 15%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -2px 4px rgba(255,255,255,0.05);
+}
+
+.felt-blue {
+  background:
+    radial-gradient(circle at 30% 20%, hsl(200 50% 28%) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, hsl(200 40% 24%) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(200 47% 25%) 0%, hsl(200 43% 20%) 50%, hsl(200 40% 18%) 100%);
+  border: 1px solid hsl(200 35% 15%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -2px 4px rgba(255,255,255,0.05);
+}
+
+.felt-red {
+  background:
+    radial-gradient(circle at 30% 20%, hsl(0 45% 28%) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, hsl(0 35% 24%) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(0 42% 25%) 0%, hsl(0 38% 20%) 50%, hsl(0 35% 18%) 100%);
+  border: 1px solid hsl(0 30% 15%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -2px 4px rgba(255,255,255,0.05);
+}
+
+.felt-purple {
+  background:
+    radial-gradient(circle at 30% 20%, hsl(280 45% 28%) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, hsl(280 35% 24%) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(280 42% 25%) 0%, hsl(280 38% 20%) 50%, hsl(280 35% 18%) 100%);
+  border: 1px solid hsl(280 30% 15%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -2px 4px rgba(255,255,255,0.05);
+}
+
+.felt-black {
+  background:
+    radial-gradient(circle at 30% 20%, hsl(210 25% 20%) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, hsl(210 20% 16%) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(210 22% 18%) 0%, hsl(210 18% 14%) 50%, hsl(210 15% 12%) 100%);
+  border: 1px solid hsl(210 15% 8%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4), inset 0 -2px 4px rgba(255,255,255,0.03);
+}
+
+.felt-burgundy {
+  background:
+    radial-gradient(circle at 30% 20%, hsl(15 45% 28%) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, hsl(15 35% 24%) 0%, transparent 50%),
+    linear-gradient(135deg, hsl(15 42% 25%) 0%, hsl(15 38% 20%) 50%, hsl(15 35% 18%) 100%);
+  border: 1px solid hsl(15 30% 15%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -2px 4px rgba(255,255,255,0.05);
+}
+
+/* Hide scrollbar for horizontal tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
+}
+
+/* Enhanced tab styling with better color transitions */
+@layer components {
+  .tabs-list {
+    background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--muted) / 0.8) 100%);
+    border: 1px solid hsl(var(--border));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  /* Subtle individual tab color variations when active */
+  .tabs-trigger-timer[data-state="active"] {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(6, 182, 212, 0.06) 100%) !important;
+    color: rgb(34, 211, 238) !important;
+    border-color: rgba(6, 182, 212, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.15) !important;
+  }
+
+  .tabs-trigger-players[data-state="active"] {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15) !important;
+  }
+
+  .tabs-trigger-tables[data-state="active"] {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.06) 100%) !important;
+    color: rgb(251, 191, 36) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15) !important;
+  }
+
+  .tabs-trigger-settings[data-state="active"] {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%) !important;
+    color: rgb(96, 165, 250) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .tabs-trigger-buy-ins[data-state="active"] {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.12) 0%, rgba(147, 51, 234, 0.06) 100%) !important;
+    color: rgb(196, 181, 253) !important;
+    border-color: rgba(147, 51, 234, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(147, 51, 234, 0.15) !important;
+  }
+
+  .tabs-trigger-league[data-state="active"] {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(249, 115, 22, 0.06) 100%) !important;
+    color: rgb(251, 146, 60) !important;
+    border-color: rgba(249, 115, 22, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.15) !important;
+  }
+
+  /* Hover states */
+  .tabs-trigger-timer:hover:not([data-state="active"]) {
+    background: rgba(6, 182, 212, 0.05) !important;
+  }
+
+  .tabs-trigger-players:hover:not([data-state="active"]) {
+    background: rgba(16, 185, 129, 0.05) !important;
+  }
+
+  .tabs-trigger-tables:hover:not([data-state="active"]) {
+    background: rgba(245, 158, 11, 0.05) !important;
+  }
+
+  .tabs-trigger-settings:hover:not([data-state="active"]) {
+    background: rgba(59, 130, 246, 0.05) !important;
+  }
+
+  .tabs-trigger-buy-ins:hover:not([data-state="active"]) {
+    background: rgba(147, 51, 234, 0.05) !important;
+  }
+
+  .tabs-trigger-league:hover:not([data-state="active"]) {
+    background: rgba(249, 115, 22, 0.05) !important;
+  }
+
+  /* Blind levels button styling */
+  .btn-add-level {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .btn-add-level:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  .btn-add-break {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.06) 100%) !important;
+    color: rgb(251, 191, 36) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15) !important;
+  }
+
+  .btn-add-break:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2) !important;
+  }
+
+  .btn-add-antes {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.12) 0%, rgba(147, 51, 234, 0.06) 100%) !important;
+    color: rgb(196, 181, 253) !important;
+    border-color: rgba(147, 51, 234, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(147, 51, 234, 0.15) !important;
+  }
+
+  .btn-add-antes:hover {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.18) 0%, rgba(147, 51, 234, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(147, 51, 234, 0.2) !important;
+  }
+
+  /* Player add button styling to match main navigation tabs */
+  .btn-add-player {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15) !important;
+  }
+
+  .btn-add-player:hover {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
+  }
+
+  /* Seat Players button styling to match main navigation tabs */
+  .btn-seat-players {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(6, 182, 212, 0.06) 100%) !important;
+    color: rgb(34, 211, 238) !important;
+    border-color: rgba(6, 182, 212, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.15) !important;
+  }
+
+  .btn-seat-players:hover {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.18) 0%, rgba(6, 182, 212, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2) !important;
+  }
+
+  /* Undo Bust Out button styling to match main navigation tabs */
+  .btn-undo-bust-out {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(139, 92, 246, 0.06) 100%) !important;
+    color: rgb(167, 139, 250) !important;
+    border-color: rgba(139, 92, 246, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.15) !important;
+  }
+
+  .btn-undo-bust-out:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.18) 0%, rgba(139, 92, 246, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2) !important;
+  }
+
+  /* Buy-in section button styling to match main navigation tabs */
+  .btn-add-position {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(244, 63, 94, 0.06) 100%) !important;
+    color: rgb(251, 113, 133) !important;
+    border-color: rgba(244, 63, 94, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(244, 63, 94, 0.15) !important;
+  }
+
+  .btn-add-position:hover {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.18) 0%, rgba(244, 63, 94, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2) !important;
+  }
+
+  .btn-apply-changes {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .btn-apply-changes:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  /* Create viewer access button styling to match main navigation tabs */
+  .btn-create-viewer {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(147, 51, 234, 0.06) 100%) !important;
+    color: rgb(96, 165, 250) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .btn-create-viewer:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(147, 51, 234, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+  }
+
+  /* Green slim create viewer access button styling */
+  .btn-create-viewer-green {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border: 2px solid rgba(34, 197, 94, 0.5) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .btn-create-viewer-green:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    border: 2px solid rgba(34, 197, 94, 0.7) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  /* League Settings Dialog button styling to match main navigation tabs */
+  .btn-add-position {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .btn-add-position:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  .btn-remove-position {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%) !important;
+    color: rgb(248, 113, 113) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15) !important;
+  }
+
+  .btn-remove-position:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
+  }
+
+  .btn-reset-positions {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.06) 100%) !important;
+    color: rgb(251, 191, 36) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15) !important;
+  }
+
+  .btn-reset-positions:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2) !important;
+  }
+
+  .btn-save-template {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%) !important;
+    color: rgb(96, 165, 250) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .btn-save-template:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(59, 130, 246, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+  }
+
+  .btn-load-template {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15) !important;
+  }
+
+  .btn-load-template:hover {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
+  }
+
+  .btn-delete-template {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%) !important;
+    color: rgb(248, 113, 113) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15) !important;
+  }
+
+  .btn-delete-template:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
+  }
+
+  .btn-reset-defaults {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.06) 100%) !important;
+    color: rgb(251, 191, 36) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15) !important;
+  }
+
+  .btn-reset-defaults:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2) !important;
+  }
+
+  .btn-save-close {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .btn-save-close:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  /* Branding section button styling to match main navigation tabs */
+  .btn-apply-branding {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border: 2px solid rgba(34, 197, 94, 0.5) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .btn-apply-branding:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    border: 2px solid rgba(34, 197, 94, 0.7) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  .btn-remove-branding {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%) !important;
+    color: rgb(248, 113, 113) !important;
+    border: 2px solid rgba(239, 68, 68, 0.5) !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15) !important;
+  }
+
+  .btn-remove-branding:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.10) 100%) !important;
+    border: 2px solid rgba(239, 68, 68, 0.7) !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
+  }
+
+  /* Timer card toggle button styling to match main navigation tabs */
+  .btn-timer-toggle-active {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(249, 115, 22, 0.06) 100%) !important;
+    color: rgb(251, 146, 60) !important;
+    border-color: rgba(249, 115, 22, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.15) !important;
+  }
+
+  .btn-timer-toggle-active:hover {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.18) 0%, rgba(249, 115, 22, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2) !important;
+  }
+
+  .btn-timer-toggle-inactive {
+    background: transparent !important;
+    color: rgb(107, 114, 128) !important;
+    border-color: rgba(107, 114, 128, 0.2) !important;
+  }
+
+  .btn-timer-toggle-inactive:hover {
+    background: rgba(107, 114, 128, 0.05) !important;
+    color: rgb(156, 163, 175) !important;
+  }
+
+  /* Timer start/pause button styling to match main navigation tabs */
+  .btn-timer-start {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
+    color: rgb(52, 211, 153) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .btn-timer-start:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  .btn-timer-pause {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.06) 100%) !important;
+    color: rgb(251, 191, 36) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15) !important;
+  }
+
+  .btn-timer-pause:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2) !important;
+  }
+
+  /* General settings button styling to match main navigation tabs */
+  .btn-test-voice {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(139, 92, 246, 0.06) 100%) !important;
+    color: rgb(167, 139, 250) !important;
+    border-color: rgba(139, 92, 246, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.15) !important;
+  }
+
+  .btn-test-voice:hover {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.18) 0%, rgba(139, 92, 246, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2) !important;
+  }
+
+  .btn-open-league-settings {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%) !important;
+    color: rgb(96, 165, 250) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .btn-open-league-settings:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(59, 130, 246, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+  }
+
+  /* Checkbox styling to match main navigation tabs */
+  .checkbox-nav-style {
+    border: 2px solid rgba(107, 114, 128, 0.3) !important;
+    background: linear-gradient(135deg, rgba(107, 114, 128, 0.08) 0%, rgba(107, 114, 128, 0.04) 100%) !important;
+    border-radius: 6px !important;
+    width: 20px !important;
+    height: 20px !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .checkbox-nav-style:hover {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .checkbox-nav-style[data-state="checked"] {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.08) 100%) !important;
+    border-color: rgba(34, 197, 94, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+  }
+
+  .checkbox-nav-style[data-state="checked"]:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  }
+
+  /* Make the checkbox tick more visible */
+  .checkbox-nav-style[data-state="checked"] .lucide-check {
+    color: rgb(34, 197, 94) !important;
+    stroke-width: 3 !important;
+    width: 16px !important;
+    height: 16px !important;
+    filter: drop-shadow(0 0 2px rgba(34, 197, 94, 0.8)) !important;
+  }
+
+  .checkbox-nav-style .lucide-check {
+    width: 14px !important;
+    height: 14px !important;
+    stroke-width: 2.5 !important;
+    transition: all 0.2s ease !important;
+  }
+}
+
+/* ==============================
+   MOBILE & TABLET COMPATIBILITY
+   ============================== */
+
+/* Touch-friendly tap targets (minimum 44px for iOS accessibility) */
+@media (pointer: coarse) {
+  button, 
+  [role="button"],
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Larger touch targets for important actions */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  textarea,
+  select {
+    min-height: 44px;
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+}
+
+/* Prevent text selection on touch drag */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* iOS Safari safe area handling */
+@supports (padding: max(0px)) {
+  .safe-area-padding {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Responsive timer text using clamp for smooth scaling */
+.timer-responsive {
+  font-size: clamp(4rem, 15vw, 20rem) !important;
+}
+
+/* Mobile-first dialog/modal fixes */
+@media (max-width: 640px) {
+  [role="dialog"] > div {
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem); /* Dynamic viewport height for mobile browsers */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure modals don't overflow on small screens */
+  .dialog-content-mobile {
+    max-height: 85vh;
+    max-height: 85dvh;
+    overflow-y: auto;
+  }
+}
+
+/* Tablet breakpoint adjustments */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .tablet-stack {
+    flex-direction: column !important;
+  }
+
+  .tablet-full-width {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Prevent horizontal scroll on small screens */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Smooth scrolling for iOS */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+}
+
+/* Fix for iOS rubber-band scrolling in modals */
+.modal-scroll-fix {
+  overscroll-behavior: contain;
+}
+
+/* ==============================
+   VISUAL POLISH ENHANCEMENTS
+   ============================== */
+
+/* Hero Timer Glow Effect */
+.timer-glow {
+  text-shadow: 
+    0 0 20px rgba(20, 184, 166, 0.4),
+    0 0 40px rgba(20, 184, 166, 0.2),
+    0 0 60px rgba(20, 184, 166, 0.1);
+  transition: text-shadow 0.3s ease;
+}
+
+.timer-glow-running {
+  text-shadow: 
+    0 0 30px rgba(34, 197, 94, 0.5),
+    0 0 60px rgba(34, 197, 94, 0.3),
+    0 0 90px rgba(34, 197, 94, 0.15);
+  animation: timer-pulse 2s ease-in-out infinite;
+}
+
+.timer-glow-paused {
+  text-shadow: 
+    0 0 20px rgba(251, 191, 36, 0.4),
+    0 0 40px rgba(251, 191, 36, 0.2);
+}
+
+.timer-glow-break {
+  text-shadow: 
+    0 0 25px rgba(168, 85, 247, 0.5),
+    0 0 50px rgba(168, 85, 247, 0.3);
+}
+
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.92; }
+}
+
+/* Timer Card Hero Styling */
+.timer-card-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.timer-card-hero::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(135deg, 
+    rgba(20, 184, 166, 0.15) 0%, 
+    rgba(6, 182, 212, 0.08) 50%,
+    rgba(59, 130, 246, 0.15) 100%
+  );
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.timer-card-hero:hover::before {
+  opacity: 0.8;
+}
+
+/* Card Hover Lift Effect */
+.card-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 25px -5px rgba(0, 0, 0, 0.3),
+    0 4px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+/* Button Glow Effects */
+.btn-glow-primary {
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.btn-glow-primary:hover {
+  box-shadow: 0 0 20px rgba(20, 184, 166, 0.4);
+}
+
+.btn-glow-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-glow-success {
+  transition: all 0.2s ease;
+}
+
+.btn-glow-success:hover {
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+}
+
+.btn-glow-warning {
+  transition: all 0.2s ease;
+}
+
+.btn-glow-warning:hover {
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+}
+
+.btn-glow-danger {
+  transition: all 0.2s ease;
+}
+
+.btn-glow-danger:hover {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+}
+
+/* Smooth Micro-interactions for all buttons */
+button, [role="button"] {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+button:active:not(:disabled), [role="button"]:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Card section standardized spacing */
+.section-card {
+  @apply rounded-xl border border-border/50 p-4 sm:p-6;
+  background: linear-gradient(135deg, 
+    hsl(var(--card)) 0%, 
+    hsl(var(--muted) / 0.2) 100%
+  );
+}
+
+/* Empty State Styling */
+.empty-state {
+  @apply flex flex-col items-center justify-center py-12 px-6 text-center;
+}
+
+.empty-state-icon {
+  @apply w-16 h-16 mb-4 text-muted-foreground/50;
+}
+
+.empty-state-title {
+  @apply text-lg font-medium text-muted-foreground mb-2;
+}
+
+.empty-state-description {
+  @apply text-sm text-muted-foreground/70 max-w-xs;
+}
+
+/* Standardized Section Gaps */
+.section-stack {
+  @apply space-y-4 sm:space-y-6;
+}
+
+.section-stack-lg {
+  @apply space-y-6 sm:space-y-8;
+}
+
+/* Smooth fade-in animation for content */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Subtle scale on hover for interactive cards */
+.interactive-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.interactive-card:hover {
+  transform: translateY(-1px);
+  border-color: hsl(var(--primary) / 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}

@@ -1,0 +1,233 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: playerNames
+    // Fields:
+    //   - name: string
+    //   - createdAt: timestamp
+    //
+    // Collection: leagues
+    // Fields:
+    //   - name: string
+    //   - description: string
+    //   - ownerId: string
+    //
+    // Collection: leagueMembers
+    // Fields:
+    //   - leagueId: string
+    //   - userId: string
+    //   - role: string
+    //
+    // Collection: seasons
+    // Fields:
+    //   - leagueId: string
+    //   - name: string
+    //   - startDate: timestamp
+    //   - endDate: timestamp
+    //
+    // Collection: leaguePlayers
+    // Fields:
+    //   - leagueId: string
+    //   - seasonId: string
+    //   - name: string
+    //   - totalPoints: number
+    //   - gamesPlayed: number
+    //   - knockouts: number
+    //   - firstPlaces: number
+    //   - secondPlaces: number
+    //   - thirdPlaces: number
+    //   - finalTableAppearances: number
+    //   - totalWinnings: number
+    //   - totalBuyIns: number
+    //
+    // Collection: tournamentResults
+    // Fields:
+    //   - leagueId: string
+    //   - seasonId: string
+    //   - leaguePlayerId: string
+    //   - tournamentDate: timestamp
+    //   - tournamentName: string
+    //   - position: number
+    //   - totalPlayers: number
+    //   - points: number
+    //   - knockouts: number
+    //   - prizeMoney: number
+    //   - buyIn: number
+    //
+    // Collection: activeTournaments
+    // Fields:
+    //   - name: string
+    //   - ownerId: string
+    //   - transferCode: string
+    //   - transferCodeExpiresAt: number
+    //   - transferCodeGeneratedBy: string
+    //   - status: string
+    //   - currentLevel: number
+    //   - secondsLeft: number
+    //   - isRunning: boolean
+    //   - players: list
+    //   - blindLevels: list
+    //   - settings: map
+    //   - prizeStructure: map
+    //
+    // Collection: tournamentSnapshots
+    // Fields:
+    //   - tournamentId: string
+    //   - snapshotData: map
+    //   - snapshotType: string
+    //
+    // Collection: leagueSettings
+    // Fields:
+    //   - leagueId: string
+    //   - userId: string
+    //   - settings: map
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    function isExistingDocOwner() {
+      return isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+
+    function isDocUser() {
+      return isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    function isExistingDocUser() {
+      return isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+    }
+
+    // Player Names (Global cache)
+    match /playerNames/{nameId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100;
+      allow update: if false; // Player names are immutable
+      allow delete: if isAuthenticated();
+    }
+
+    // User Settings
+    match /userSettings/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Leagues
+    match /leagues/{leagueId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isDocOwner() && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100;
+      allow update: if isAuthenticated() && isExistingDocOwner() && request.resource.data.ownerId == resource.data.ownerId && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100;
+      allow delete: if isAuthenticated() && isExistingDocOwner();
+    }
+
+    // League Members
+    match /leagueMembers/{memberId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Seasons
+    match /seasons/{seasonId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // League Players
+    match /leaguePlayers/{playerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Tournament Results
+    match /tournamentResults/{resultId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Active Tournaments
+    match /activeTournaments/{tournamentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isDocOwner();
+      allow update: if isAuthenticated() && (
+        isExistingDocOwner() || 
+        request.resource.data.transferCode != null || 
+        request.resource.data.ownerId == request.auth.uid ||
+        // Allow participants to join by adding themselves to the players array
+        // They can only modify the players array and nothing else
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players']))
+      );
+      allow delete: if isAuthenticated() && isExistingDocOwner();
+    }
+
+    // Tournament Snapshots
+    match /tournamentSnapshots/{snapshotId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+
+    // League Settings
+    match /leagueSettings/{settingId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isDocUser();
+      allow update: if isAuthenticated() && isExistingDocUser() && request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated() && isExistingDocUser();
+    }
+
+    // Tournaments (Legacy)
+    match /tournaments/{tournamentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Tournament Participants
+    match /tournamentParticipants/{participantId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+    // Tournament Templates
+    match /tournamentTemplates/{templateId} {
+      allow read: if isAuthenticated() && isDocOwner();
+      allow create: if isAuthenticated() && isDocOwner();
+      allow update: if isAuthenticated() && isExistingDocOwner() && isDocOwner();
+      allow delete: if isAuthenticated() && isExistingDocOwner();
+    }
+  }
+}
