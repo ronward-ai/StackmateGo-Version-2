@@ -20,10 +20,11 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
   const { 
     state, 
     updateSettings,
-    updateTournamentDetails
+    updateTournamentDetails,
+    updateNotes
   } = tournament;
 
-  const [notes, setNotes] = useState(localStorage.getItem('tournamentNotes') || '');
+  const [notes, setNotes] = useState(state?.notes || '');
   const [leagueName, setLeagueName] = useState(state?.settings?.branding?.leagueName || '');
   const [logoUrl, setLogoUrl] = useState(state?.settings?.branding?.logoUrl || '');
   const [isApplying, setIsApplying] = useState(false);
@@ -34,11 +35,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
 
   const saveNotes = (newNotes: string) => {
     setNotes(newNotes);
-    try {
-      localStorage.setItem('tournamentNotes', newNotes);
-    } catch (error) {
-      console.log('Failed to save notes to local storage');
-    }
+    updateNotes(newNotes);
   };
 
   const removeLogo = () => {

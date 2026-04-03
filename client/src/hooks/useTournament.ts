@@ -755,7 +755,7 @@ export function useTournament(tournamentId?: string) {
       blindLevels: newState.levels,
       settings: newState.settings,
       prizeStructure: newState.prizeStructure,
-      notes: localStorage.getItem('tournamentNotes') || ''
+      notes: newState.notes || ''
     };
 
     // Broadcast to database tournaments via HTTP
@@ -1416,6 +1416,21 @@ export function useTournament(tournamentId?: string) {
     });
   }, [broadcastTournamentAction]);
 
+  const updateNotes = useCallback((notes: string) => {
+    setState(prev => {
+      const newState = { ...prev, notes };
+      
+      setTimeout(() => {
+        broadcastTournamentAction('notes_updated', newState);
+        if (newState.details?.type === 'database' && newState.details?.id) {
+          broadcastTournamentState(newState.details.id, newState, newState.details.ownerId, user?.id);
+        }
+      }, 100);
+      
+      return newState;
+    });
+  }, [broadcastTournamentAction, user?.id]);
+
   // Enhanced prize structure management with validation
   const updatePrizeStructure = useCallback((prizeStructure: Partial<PrizeStructure>) => {
     setState(prev => {
@@ -1501,27 +1516,37 @@ export function useTournament(tournamentId?: string) {
   // Enhanced prize pool calculation with comprehensive analytics
   const calculatePrizePool = useCallback(() => {
     const totalPlayers = state.players.length;
-    if (totalPlayers === 0) return 0;
+    if (totalPlayers === 0) return { totalPlayers: 0, totalPool: 0, grossPrizePool: 0, rakeAmount: 0, payouts: [], payoutStructure: "none" };
 
     const buyIn = state.prizeStructure?.buyIn || 10;
-    let totalPool = totalPlayers * buyIn;
+    let grossPrizePool = totalPlayers * buyIn;
 
     // Calculate rebuys and addons with validation
     if (state.prizeStructure?.allowRebuys) {
       const actualRebuys = state.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
-      totalPool += actualRebuys * (state.prizeStructure?.rebuyAmount || buyIn);
+      grossPrizePool += actualRebuys * (state.prizeStructure?.rebuyAmount || buyIn);
     }
 
     if (state.prizeStructure?.allowAddons) {
       const actualAddons = state.players.reduce((sum, player) => sum + (player.addons || 0), 0);
-      totalPool += actualAddons * (state.prizeStructure?.addonAmount || buyIn);
+      grossPrizePool += actualAddons * (state.prizeStructure?.addonAmount || buyIn);
     }
+
+    // Calculate rake
+    const rakePercentage = state.prizeStructure?.rakePercentage || 0;
+    const rakeAmount = rakePercentage > 0 
+      ? Math.floor(grossPrizePool * (rakePercentage / 100))
+      : (state.prizeStructure?.rakeAmount || 0);
+      
+    const totalPool = Math.max(0, grossPrizePool - rakeAmount);
 
     // Use manual payouts if configured
     if (state.prizeStructure?.manualPayouts && state.prizeStructure.manualPayouts.length > 0) {
       return {
         totalPlayers,
         totalPool,
+        grossPrizePool,
+        rakeAmount,
         payouts: state.prizeStructure.manualPayouts,
         payoutStructure: "manual"
       };
@@ -1533,6 +1558,8 @@ export function useTournament(tournamentId?: string) {
       return {
         totalPlayers,
         totalPool,
+        grossPrizePool,
+        rakeAmount,
         firstPlace: Math.floor(totalPool * 0.6),
         secondPlace: Math.floor(totalPool * 0.4),
         thirdPlace: 0,
@@ -1547,6 +1574,8 @@ export function useTournament(tournamentId?: string) {
       return {
         totalPlayers,
         totalPool,
+        grossPrizePool,
+        rakeAmount,
         firstPlace: Math.floor(totalPool * 0.5),
         secondPlace: Math.floor(totalPool * 0.3),
         thirdPlace: Math.floor(totalPool * 0.2),
@@ -1558,7 +1587,7 @@ export function useTournament(tournamentId?: string) {
         payoutStructure: "3-places" // Track which structure we're using
       };
     }
-  }, [state.players.length, state.prizeStructure]);
+  }, [state.players, state.prizeStructure]);
 
   // Format time
   const formatTime = useCallback(() => {
@@ -2043,6 +2072,7 @@ export function useTournament(tournamentId?: string) {
     setBlindLevels,
     updateSettings,
     updateTournamentDetails,
+    updateNotes,
     updatePrizeStructure,
     removeLevel,
     updateBestLosingHand,

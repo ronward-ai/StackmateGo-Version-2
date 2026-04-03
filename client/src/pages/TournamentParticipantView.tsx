@@ -7,8 +7,8 @@ import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Button } from '@/components/ui/button'; // Assuming Button component is available
-import { Navigation } from '@/components/Navigation';
 import { useAuth } from '@/hooks/useAuth';
+import TournamentOverBanner from '@/components/TournamentOverBanner';
 
 interface TournamentData {
   id: string;
@@ -204,8 +204,6 @@ function TournamentParticipantView() {
       console.log('Participant view timer starting');
       interval = setInterval(() => {
         setTimeLeft(prev => {
-          if (prev <= 0) return 0;
-          
           if (tournament.targetEndTime) {
             const newTime = Math.max(0, Math.ceil((tournament.targetEndTime - Date.now()) / 1000));
             if (newTime <= 0) {
@@ -214,12 +212,7 @@ function TournamentParticipantView() {
             }
             return newTime;
           }
-          
-          if (prev <= 1) {
-            console.log('Participant view timer reached zero');
-            return 0;
-          }
-          return prev - 1;
+          return prev;
         });
       }, 1000);
     } else {
@@ -361,9 +354,51 @@ function TournamentParticipantView() {
     }
   };
 
+  // Add calculatePrizePool utility function
+  const calculatePrizePool = (tournamentData: any) => {
+    const totalPlayers = tournamentData.players?.length || 0;
+    if (totalPlayers === 0) return { totalPlayers: 0, totalPool: 0, grossPrizePool: 0, rakeAmount: 0, payouts: [], payoutStructure: "none" };
+
+    const buyIn = tournamentData.prizeStructure?.buyIn || tournamentData.buyIn || 10;
+    let grossPrizePool = totalPlayers * buyIn;
+
+    // Calculate rebuys and addons with validation
+    if (tournamentData.prizeStructure?.allowRebuys) {
+      const actualRebuys = tournamentData.players?.reduce((sum: number, player: any) => sum + (player.rebuys || 0), 0) || 0;
+      grossPrizePool += actualRebuys * (tournamentData.prizeStructure?.rebuyAmount || buyIn);
+    }
+
+    if (tournamentData.prizeStructure?.allowAddons) {
+      const actualAddons = tournamentData.players?.reduce((sum: number, player: any) => sum + (player.addons || 0), 0) || 0;
+      grossPrizePool += actualAddons * (tournamentData.prizeStructure?.addonAmount || buyIn);
+    }
+
+    // Calculate rake
+    const rakePercentage = tournamentData.prizeStructure?.rakePercentage || 0;
+    const rakeType = tournamentData.prizeStructure?.rakeType || 'percentage';
+    const rakeAmountFixed = tournamentData.prizeStructure?.rakeAmount || 0;
+    
+    const rakeAmount = rakeType === 'percentage' 
+      ? Math.floor(grossPrizePool * (rakePercentage / 100))
+      : rakeAmountFixed;
+      
+    const totalPool = Math.max(0, grossPrizePool - rakeAmount);
+
+    return {
+      totalPlayers,
+      totalPool,
+      grossPrizePool,
+      rakeAmount,
+      rakeType,
+      rakePercentage,
+      payouts: tournamentData.prizeStructure?.manualPayouts || []
+    };
+  };
+
+  const prizePoolData = calculatePrizePool(tournament);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white overflow-auto">
-      <Navigation />
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Header Section */}
         <div className="flex items-center justify-between mb-8">
@@ -376,6 +411,17 @@ function TournamentParticipantView() {
             {/* Director access button removed as it's no longer password-based */}
           </div>
         </div>
+
+        {/* Tournament Over Banner */}
+        {(() => {
+          const activePlayers = tournament?.players?.filter(p => p.isActive === true) || [];
+          const eliminatedPlayers = tournament?.players?.filter(p => p.isActive === false) || [];
+
+          if (activePlayers.length === 1 && (tournament?.players?.length || 0) > 1 && eliminatedPlayers.length > 0) {
+            return <TournamentOverBanner winnerName={activePlayers[0]?.name || 'Unknown'} />;
+          }
+          return null;
+        })()}
 
         {/* Main Timer Card */}
         <div className="mb-6">
@@ -460,7 +506,7 @@ function TournamentParticipantView() {
                    (tournament.currentLevel || 0) + 1}`}
               </div>
 
-              {/* Next Break Info and QR Code - Moved to center */}
+              {/* Next Break Info - Moved to center */}
               <div className="flex flex-col items-center justify-center flex-1">
                 {(() => {
                   const nextBreakInfo = getNextBreakInfo();
@@ -473,22 +519,6 @@ function TournamentParticipantView() {
                   }
                   return null;
                 })()}
-                
-                {tournament?.id && (
-                  <div className="flex flex-col items-center opacity-70 hover:opacity-100 transition-opacity">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`${window.location.protocol}//${window.location.host}/tournament/${tournament.id}`)}`}
-                      alt="Viewer QR Code"
-                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-md bg-white p-1"
-                      crossOrigin="anonymous"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                    <span className="text-[10px] mt-1">Scan to View</span>
-                  </div>
-                )}
               </div>
 
               <div className="flex-1 text-right font-medium">
@@ -511,25 +541,10 @@ function TournamentParticipantView() {
             </div>
             <div className="p-4 pt-0 border-t border-[#2a2a2a]">
               <div>
-                <div></div>
               {/* Prize Pool Info */}
               <div className="bg-background bg-opacity-40 rounded-lg p-4 mt-4">
                 <h3 className="text-xl font-medium mb-3">
-                  Total Players: {tournament.players?.length || 0} | Prize Pool: {currencySymbol}{(() => {
-                    const buyInAmount = tournament.prizeStructure?.buyIn || tournament.buyIn || 0;
-                    const rebuyAmount = tournament.prizeStructure?.rebuyAmount || 0;
-                    const addonAmount = tournament.prizeStructure?.addonAmount || 0;
-                    const rakePercentage = tournament.prizeStructure?.rakePercentage || 0;
-                    const rakeAmountFixed = tournament.prizeStructure?.rakeAmount || 0;
-                    const rakeType = tournament.prizeStructure?.rakeType || 'percentage';
-                    const totalRebuys = tournament.players?.reduce((sum, player) => sum + (player.rebuys || 0), 0) || 0;
-                    const totalAddons = tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0;
-                    const grossPrizePool = (buyInAmount * (tournament.players?.length || 0)) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
-                    const rakeAmount = rakeType === 'percentage' 
-                      ? Math.floor(grossPrizePool * (rakePercentage / 100))
-                      : rakeAmountFixed;
-                    return Math.max(0, grossPrizePool - rakeAmount);
-                  })()}
+                  Total Players: {tournament.players?.length || 0} | Prize Pool: {currencySymbol}{prizePoolData.totalPool}
                 </h3>
 
                 {/* Prize Pool Breakdown */}
@@ -584,39 +599,23 @@ function TournamentParticipantView() {
                   })()}
                   <div className="border-t border-muted pt-2 mt-2">
                     {(() => {
-                      const buyInAmount = tournament.prizeStructure?.buyIn || tournament.buyIn || 0;
-                      const rebuyAmount = tournament.prizeStructure?.rebuyAmount || 0;
-                      const addonAmount = tournament.prizeStructure?.addonAmount || 0;
-                      const rakePercentage = tournament.prizeStructure?.rakePercentage || 0;
-                      const rakeAmountFixed = tournament.prizeStructure?.rakeAmount || 0;
-                      const rakeType = tournament.prizeStructure?.rakeType || 'percentage';
-                      const totalRebuys = tournament.players?.reduce((sum, player) => sum + (player.rebuys || 0), 0) || 0;
-                      const totalAddons = tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0;
-                      const grossPrizePool = (buyInAmount * (tournament.players?.length || 0)) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
-                      
-                      const rakeAmount = rakeType === 'percentage' 
-                        ? Math.floor(grossPrizePool * (rakePercentage / 100))
-                        : rakeAmountFixed;
-                        
-                      const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
-
                       return (
                         <>
-                          {rakeAmount > 0 && (
+                          {prizePoolData.rakeAmount > 0 && (
                             <>
                               <div className="flex justify-between text-muted-foreground">
                                 <span>Total Collected:</span>
-                                <span>{currencySymbol}{grossPrizePool}</span>
+                                <span>{currencySymbol}{prizePoolData.grossPrizePool}</span>
                               </div>
                               <div className="flex justify-between text-muted-foreground">
-                                <span>Tournament Fee / Rake {rakeType === 'percentage' ? `(${rakePercentage}%)` : ''}:</span>
-                                <span>-{currencySymbol}{rakeAmount}</span>
+                                <span>Tournament Fee / Rake {prizePoolData.rakeType === 'percentage' ? `(${prizePoolData.rakePercentage}%)` : ''}:</span>
+                                <span>-{currencySymbol}{prizePoolData.rakeAmount}</span>
                               </div>
                             </>
                           )}
                           <div className="flex justify-between font-medium mt-1">
                             <span>Net Prize Pool:</span>
-                            <span>{currencySymbol}{totalPrizePool}</span>
+                            <span>{currencySymbol}{prizePoolData.totalPool}</span>
                           </div>
                         </>
                       );
@@ -630,27 +629,12 @@ function TournamentParticipantView() {
                       </div>
                       <div className="space-y-1">
                         {tournament.prizeStructure.manualPayouts.map((payout, index) => {
-                          const buyInAmount = tournament.prizeStructure?.buyIn || tournament.buyIn || 0;
-                          const rebuyAmount = tournament.prizeStructure?.rebuyAmount || 0;
-                          const addonAmount = tournament.prizeStructure?.addonAmount || 0;
-                          const rakePercentage = tournament.prizeStructure?.rakePercentage || 0;
-                          const rakeAmountFixed = tournament.prizeStructure?.rakeAmount || 0;
-                          const rakeType = tournament.prizeStructure?.rakeType || 'percentage';
-                          const totalRebuys = tournament.players?.reduce((sum, player) => sum + (player.rebuys || 0), 0) || 0;
-                          const totalAddons = tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0;
-                          const grossPrizePool = (buyInAmount * (tournament.players?.length || 0)) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
-                          
-                          const rakeAmount = rakeType === 'percentage' 
-                            ? Math.floor(grossPrizePool * (rakePercentage / 100))
-                            : rakeAmountFixed;
-                            
-                          const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
                           return (
                             <div key={index} className="flex justify-between">
                               <span>
                                 {index === 0 ? "1st" : index === 1 ? "2nd" : index === 2 ? "3rd" : `${index + 1}th`} Place ({payout.percentage}%):
                               </span>
-                              <span>{currencySymbol}{Math.floor((totalPrizePool * payout.percentage) / 100)}</span>
+                              <span>{currencySymbol}{Math.floor((prizePoolData.totalPool * payout.percentage) / 100)}</span>
                             </div>
                           );
                         })}
@@ -804,10 +788,10 @@ function TournamentParticipantView() {
         <div className="mb-6">
           <RealTimeLeagueTable tournament={{
             ...tournament,
-            isSeasonTournament: tournament?.settings?.isSeasonTournament || false,
+            isSeasonTournament: tournament?.isSeasonTournament || tournament?.settings?.isSeasonTournament || false,
             settings: {
               ...tournament?.settings,
-              isSeasonTournament: tournament?.settings?.isSeasonTournament || false
+              isSeasonTournament: tournament?.isSeasonTournament || tournament?.settings?.isSeasonTournament || false
             }
           }} isParticipantView={true} />
         </div>
@@ -817,18 +801,7 @@ function TournamentParticipantView() {
           // Check multiple possible locations for notes
           const notes = tournament?.notes ||
                        tournament?.settings?.notes ||
-                       tournament?.state?.notes ||
-                       localStorage.getItem('tournamentNotes') ||
-                       localStorage.getItem(`tournament-notes-${id}`) ||
                        '';
-
-          console.log('🔍 Checking notes in participant view:', {
-            tournamentNotes: tournament?.notes,
-            settingsNotes: tournament?.settings?.notes,
-            stateNotes: tournament?.state?.notes,
-            localStorageNotes: localStorage.getItem('tournamentNotes'),
-            finalNotes: notes
-          });
 
           if (notes && notes.trim()) {
             return (

@@ -139,4 +139,5 @@ export interface TournamentState {
   prizeStructure?: PrizeStructure;
   isFinalTable?: boolean;
   details?: TournamentDetails;
+  notes?: string;
 }
