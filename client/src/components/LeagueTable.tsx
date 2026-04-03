@@ -68,11 +68,11 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
       const cashWinnings = player.tournamentResults?.reduce((sum, result) => sum + ((result as any).prizeMoney || 0), 0) || 0;
 
       // Calculate hits (players busted)
-      const hits = player.tournamentResults?.reduce((sum, result) => sum + ((result as any).knockouts || 0), 0) || 0;
+      const hits = player.tournamentResults?.reduce((sum, result) => sum + ((result as any).knockouts || (result as any).playersEliminatedCount || 0), 0) || 0;
 
       // Calculate total investment (buy-ins + rebuys + add-ons)
       const totalInvestment = player.tournamentResults?.reduce((sum, result) => {
-        const buyIn = result.buyIn || (result as any).buyInAmount || 8; // £5 + £3 bounty = £8 total
+        const buyIn = result.buyIn || (result as any).buyInAmount || 10; // Use recorded buy-in, fallback to 10
 
         // Add rebuys and add-ons if available
         const rebuys = ((result as any).rebuys || 0) * ((result as any).rebuyAmount || buyIn);
@@ -87,6 +87,19 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
       // Calculate ROI (return on investment as percentage)
       const roi = totalInvestment > 0 ? Math.round((profit / totalInvestment) * 100 * 10) / 10 : 0;
 
+      // Recent form
+      const recentGames = player.tournamentResults?.slice(-5) || [];
+      const recentAvg = recentGames.length > 0 
+        ? recentGames.reduce((sum: number, r: any) => sum + r.points, 0) / recentGames.length
+        : 0;
+      const formScore = Math.min(10, Math.max(0, Math.round(recentAvg / 10)));
+
+      // Best finish
+      const bestFinish = Math.min(...(player.tournamentResults?.map((r: any) => r.position) || [999]));
+      
+      // Win rate
+      const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+
       return {
         ...player,
         totalGames,
@@ -100,7 +113,10 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
         cashWinnings,
         hits,
         profit,
-        roi
+        roi,
+        formScore,
+        bestFinish,
+        winRate
       };
     });
   }, [leaguePlayers]);
@@ -173,43 +189,27 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
       case 'points':
         return player.totalPoints?.toString() || '0';
       case 'games':
-        return player.tournamentResults?.length?.toString() || '0';
+        return player.totalGames?.toString() || '0';
       case 'averagePoints':
-        const avgPts = player.tournamentResults?.length > 0 
-          ? Math.round(player.totalPoints / player.tournamentResults.length) 
-          : 0;
-        return avgPts.toString();
+        return player.averagePoints?.toString() || '0';
       case 'firstPlaceFinishes':
-        return player.tournamentResults?.filter((r: any) => r.position === 1)?.length?.toString() || '0';
+        return player.firstPlaces?.toString() || '0';
       case 'secondPlaceFinishes':
-        return player.tournamentResults?.filter((r: any) => r.position === 2)?.length?.toString() || '0';
+        return player.secondPlaces?.toString() || '0';
       case 'thirdPlaceFinishes':
-        return player.tournamentResults?.filter((r: any) => r.position === 3)?.length?.toString() || '0';
+        return player.thirdPlaces?.toString() || '0';
       case 'hits':
-        return player.tournamentResults?.reduce((sum: number, r: any) => sum + (r.playersEliminatedCount || 0), 0)?.toString() || '0';
+        return player.hits?.toString() || '0';
       case 'cashWinnings':
-        return `£${player.tournamentResults?.reduce((sum: number, r: any) => sum + (r.prizeMoney || 0), 0)?.toFixed(0) || '0'}`;
+        return `£${player.cashWinnings?.toFixed(0) || '0'}`;
       case 'recentForm':
-        const recentGames = player.tournamentResults?.slice(-5) || [];
-        const recentAvg = recentGames.length > 0 
-          ? recentGames.reduce((sum: number, r: any) => sum + r.points, 0) / recentGames.length
-          : 0;
-        const formScore = Math.min(10, Math.max(0, Math.round(recentAvg / 10)));
-        return `${formScore}/10`;
+        return `${player.formScore || 0}/10`;
       case 'bestFinish':
-        const bestPos = Math.min(...(player.tournamentResults?.map((r: any) => r.position) || [999]));
-        return bestPos === 999 ? 'N/A' : bestPos.toString();
+        return player.bestFinish === 999 ? 'N/A' : player.bestFinish?.toString() || 'N/A';
       case 'winRate':
-        const wins = player.tournamentResults?.filter((r: any) => r.position === 1)?.length || 0;
-        const totalGames = player.tournamentResults?.length || 0;
-        const winPct = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
-        return `${winPct}%`;
+        return `${player.winRate || 0}%`;
       case 'averagePosition':
-        const positions = player.tournamentResults?.map((r: any) => r.position) || [];
-        const avgPos = positions.length > 0 
-          ? Math.round(positions.reduce((sum: number, pos: number) => sum + pos, 0) / positions.length)
-          : 0;
-        return avgPos.toString();
+        return player.averagePosition?.toString() || '0';
       case 'finalTableAppearances':
         return player.finalTableAppearances?.toString() || '0';
       case 'profit':

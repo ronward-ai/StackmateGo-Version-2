@@ -267,7 +267,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     setIsExporting(true);
     try {
       const canvas = await html2canvas(exportRef.current, {
-        background: '#1e1e1e',
+        backgroundColor: '#1e1e1e',
         scale: 2,
         useCORS: true,
         allowTaint: false

@@ -134,126 +134,130 @@ function RealTimeLeagueTable({
     return enabledFromSettings;
   }, [leagueSettings?.statsToDisplay]);
 
+  // Calculate stats for each player
+  const playersWithStats = useMemo(() => {
+    return leaguePlayers.map(player => {
+      const results = player.tournamentResults || [];
+
+      // Basic stats
+      const games = results.length;
+      const totalPoints = results.reduce((sum, result) => sum + (result.points || 0), 0);
+      const averagePoints = games > 0 ? Math.round((totalPoints / games) * 10) / 10 : 0;
+
+      // Position-based stats
+      const firstPlaces = results.filter(r => r.position === 1).length;
+      const secondPlaces = results.filter(r => r.position === 2).length;
+      const thirdPlaces = results.filter(r => r.position === 3).length;
+
+      // Hits calculation (players eliminated by this player)
+      const hits = results.reduce((total, result) => {
+        const playersEliminated = result.knockouts || result.playersEliminatedCount || 0;
+        return total + playersEliminated;
+      }, 0);
+
+      // Cash winnings from actual tournament history - only use recorded prize money
+      const cashWinnings = results.reduce((sum, result) => {
+        const prizeMoney = result.prizeMoney || result.cashWon || result.winnings || result.prizeAmount || result.totalWinnings;
+        return sum + (prizeMoney || 0);
+      }, 0);
+
+      // Calculate total investment from tournament history
+      const totalInvestment = results.reduce((sum, result) => {
+        // Use recorded buy-in, fallback to 10 if missing to avoid changing historical data
+        const buyIn = result.buyIn || result.buyInAmount || 10;
+
+        // Add rebuys and add-ons if available
+        const rebuys = (result.rebuys || 0) * (result.rebuyAmount || buyIn);
+        const addons = (result.addons || 0) * (result.addonAmount || buyIn);
+
+        return sum + buyIn + rebuys + addons;
+      }, 0);
+
+      const buyInsSpent = totalInvestment;
+
+      // Profit calculation (earnings minus buy-ins)
+      const profit = cashWinnings - buyInsSpent;
+
+      // Financial stats calculated for ${player.name}
+
+      // ROI calculation (profit / total buy-ins * 100)
+      const roi = buyInsSpent > 0 ? Math.round((profit / buyInsSpent) * 100 * 10) / 10 : 0;
+
+      // Average position
+      const averagePosition = games > 0
+        ? Math.round((results.reduce((sum, result) => sum + (result.position || 0), 0) / games) * 10) / 10
+        : 0;
+
+      // Final table appearances (top 50% of field)
+      const finalTableAppearances = results.filter(result => {
+        const finalTableSize = Math.ceil((result.totalPlayers || 0) / 2);
+        return (result.position || 0) <= finalTableSize;
+      }).length;
+
+      // Additional stats
+      const bestFinish = games > 0 ? Math.min(...results.map(r => r.position || 999)) : 999;
+      const winRate = games > 0 ? Math.round((firstPlaces / games) * 100) : 0;
+      const earlyExits = results.filter(r => (r.position || 0) > ((r.totalPlayers || 0) * 0.8)).length;
+
+      return {
+        ...player,
+        games,
+        averagePoints,
+        firstPlaces,
+        secondPlaces,
+        thirdPlaces,
+        hits,
+        cashWinnings,
+        averagePosition,
+        finalTableAppearances,
+        profit,
+        roi,
+        bestFinish,
+        winRate,
+        earlyExits,
+        // Keep original totalPoints for display
+        displayPoints: player.totalPoints || totalPoints
+      };
+    });
+  }, [leaguePlayers]);
+
   // Calculate stats for a player
   const getPlayerStat = (player: any, stat: string) => {
     switch(stat) {
       case 'points':
-        return player.totalPoints?.toString() || '0';
+        return player.displayPoints?.toString() || '0';
       case 'games':
-        return player.tournamentResults?.length?.toString() || '0';
+        return player.games?.toString() || '0';
       case 'averagePoints':
-        const avgPts = player.tournamentResults?.length > 0
-          ? Math.round(player.totalPoints / player.tournamentResults.length)
-          : 0;
-        return avgPts.toString();
+        return player.averagePoints?.toString() || '0';
       case 'firstPlaceFinishes':
-        return player.tournamentResults?.filter((r: any) => r.position === 1)?.length?.toString() || '0';
+        return player.firstPlaces?.toString() || '0';
       case 'secondPlaceFinishes':
-        return player.tournamentResults?.filter((r: any) => r.position === 2)?.length?.toString() || '0';
+        return player.secondPlaces?.toString() || '0';
       case 'thirdPlaceFinishes':
-        return player.tournamentResults?.filter((r: any) => r.position === 3)?.length?.toString() || '0';
+        return player.thirdPlaces?.toString() || '0';
       case 'hits':
-        if (!player.tournamentResults || !Array.isArray(player.tournamentResults)) {
-          return '0';
-        }
-        const totalHits = player.tournamentResults.reduce((sum: number, result: any) => {
-          const eliminations = result.playersEliminatedCount || 0;
-          return sum + eliminations;
-        }, 0);
-        return totalHits.toString();
+        return player.hits?.toString() || '0';
       case 'cashWinnings':
-        if (!player.tournamentResults || !Array.isArray(player.tournamentResults)) {
-          return '£0';
-        }
-
-        // Only calculate winnings from actual recorded prize money
-        const cashWinnings = player.tournamentResults.reduce((sum: number, result: any) => {
-          // Only count if actual prize money was recorded (not theoretical)
-          const prizeMoney = result.prizeMoney || result.cashWon || result.winnings || result.prizeAmount || result.totalWinnings;
-          return sum + (prizeMoney || 0);
-        }, 0);
-
-        return `£${cashWinnings.toLocaleString()}`;
+        return `£${(player.cashWinnings || 0).toLocaleString()}`;
       case 'bestFinish':
-        const bestPos = Math.min(...(player.tournamentResults?.map((r: any) => r.position) || [999]));
-        return bestPos === 999 ? 'N/A' : bestPos.toString();
+        return player.bestFinish === 999 ? 'N/A' : player.bestFinish?.toString() || 'N/A';
       case 'winRate':
-        const wins = player.tournamentResults?.filter((r: any) => r.position === 1)?.length || 0;
-        const totalGames = player.tournamentResults?.length || 0;
-        const winPct = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
-        return `${winPct}%`;
+        return `${player.winRate || 0}%`;
       case 'averagePosition':
-        const positions = player.tournamentResults?.map((r: any) => r.position) || [];
-        const avgPos = positions.length > 0
-          ? Math.round(positions.reduce((sum: number, pos: number) => sum + pos, 0) / positions.length)
-          : 0;
-        return avgPos.toString();
+        return player.averagePosition?.toString() || '0';
       case 'finalTableAppearances':
-        // Assuming final table is top 9 positions
-        return player.tournamentResults?.filter((r: any) => r.position <= 9)?.length?.toString() || '0';
+        return player.finalTableAppearances?.toString() || '0';
       case 'headsUpRecord':
-        const headsUpWins = player.tournamentResults?.filter((r: any) => r.position === 1)?.length || 0;
-        const headsUpLosses = player.tournamentResults?.filter((r: any) => r.position === 2)?.length || 0;
+        const headsUpWins = player.firstPlaces || 0;
+        const headsUpLosses = player.secondPlaces || 0;
         return headsUpWins + headsUpLosses > 0 ? `${headsUpWins}-${headsUpLosses}` : '0-0';
       case 'earlyExits':
-        // Assuming early exit is finishing in bottom 20% of field
-        const earlyExits = player.tournamentResults?.filter((r: any) => {
-          // This is a rough approximation - would need actual field size data
-          return r.position > (r.totalPlayers * 0.8);
-        })?.length || 0;
-        return earlyExits.toString();
-        case 'profit':
-            if (!player.tournamentResults || !Array.isArray(player.tournamentResults)) {
-              return '£0';
-            }
-
-            // Get actual buy-in from tournament settings
-            const actualBuyIn = tournament?.state?.prizeStructure?.buyIn || tournament?.prizeStructure?.buyIn || 10;
-
-            // Calculate total investment (buy-ins + rebuys + add-ons) using actual tournament settings
-            const totalInvestment = player.tournamentResults.reduce((sum: number, result: any) => {
-              const buyIn = result.buyIn || result.buyInAmount || actualBuyIn;
-              const rebuys = (result.rebuys || 0) * (result.rebuyAmount || buyIn);
-              const addons = (result.addons || 0) * (result.addonAmount || buyIn);
-              return sum + buyIn + rebuys + addons;
-            }, 0);
-
-            // Only use actual recorded prize money (not theoretical)
-            const profitWinnings = player.tournamentResults.reduce((sum: number, result: any) => {
-              const prizeMoney = result.prizeMoney || result.cashWon || result.winnings || result.prizeAmount || result.totalWinnings;
-              return sum + (prizeMoney || 0);
-            }, 0);
-
-            const profit = profitWinnings - totalInvestment;
-            return `£${profit >= 0 ? '+' : ''}${profit.toLocaleString()}`;
-        case 'roi':
-            if (!player.tournamentResults || !Array.isArray(player.tournamentResults)) {
-              return '0%';
-            }
-
-            // Get actual buy-in from tournament settings
-            const actualBuyInForROI = tournament?.state?.prizeStructure?.buyIn || tournament?.prizeStructure?.buyIn || 10;
-
-            // Calculate total investment using actual tournament settings
-            const investment = player.tournamentResults.reduce((sum: number, result: any) => {
-              const buyIn = result.buyIn || result.buyInAmount || actualBuyInForROI;
-              const rebuys = (result.rebuys || 0) * (result.rebuyAmount || buyIn);
-              const addons = (result.addons || 0) * (result.addonAmount || buyIn);
-              return sum + buyIn + rebuys + addons;
-            }, 0);
-
-            if (investment === 0) return '0%';
-
-            // Only use actual recorded prize money (not theoretical)
-            const roiWinnings = player.tournamentResults.reduce((sum: number, result: any) => {
-              const prizeMoney = result.prizeMoney || result.cashWon || result.winnings || result.prizeAmount || result.totalWinnings;
-              return sum + (prizeMoney || 0);
-            }, 0);
-
-            const profitAmount = roiWinnings - investment;
-            const roiPercentage = (profitAmount / investment) * 100;
-
-            return `${roiPercentage >= 0 ? '+' : ''}${Math.round(roiPercentage * 10) / 10}%`;
+        return player.earlyExits?.toString() || '0';
+      case 'profit':
+        return `£${(player.profit || 0) >= 0 ? '+' : ''}${(player.profit || 0).toLocaleString()}`;
+      case 'roi':
+        return `${(player.roi || 0) >= 0 ? '+' : ''}${player.roi || 0}%`;
       default:
         return 'N/A';
     }
@@ -288,91 +292,9 @@ function RealTimeLeagueTable({
     }
   };
 
-  // Calculate stats for each player
-  const playersWithStats = useMemo(() => {
-    return leaguePlayers.map(player => {
-      const results = player.tournamentResults || [];
-
-      // Basic stats
-      const games = results.length;
-      const totalPoints = results.reduce((sum, result) => sum + (result.points || 0), 0);
-      const averagePoints = games > 0 ? Math.round((totalPoints / games) * 10) / 10 : 0;
-
-      // Position-based stats
-      const firstPlaces = results.filter(r => r.position === 1).length;
-      const secondPlaces = results.filter(r => r.position === 2).length;
-      const thirdPlaces = results.filter(r => r.position === 3).length;
-
-      // Hits calculation (players eliminated by this player)
-      const hits = results.reduce((total, result) => {
-        const playersEliminated = Math.max(0, (result.totalPlayers || 0) - (result.position || 0));
-        return total + playersEliminated;
-      }, 0);
-
-      // Cash winnings from actual tournament history - only use recorded prize money
-      const cashWinnings = results.reduce((sum, result) => {
-        const prizeMoney = result.prizeMoney || result.cashWon || result.winnings || result.prizeAmount || result.totalWinnings;
-        return sum + (prizeMoney || 0);
-      }, 0);
-
-      // Get actual buy-in from current tournament settings
-      const currentTournamentBuyIn = tournament?.state?.prizeStructure?.buyIn || tournament?.prizeStructure?.buyIn || 10;
-
-      // Calculate total investment from tournament history using actual buy-in
-      const totalInvestment = results.reduce((sum, result) => {
-        // Use actual tournament buy-in instead of hardcoded value
-        const buyIn = result.buyIn || result.buyInAmount || currentTournamentBuyIn;
-
-        // Add rebuys and add-ons if available
-        const rebuys = (result.rebuys || 0) * (result.rebuyAmount || buyIn);
-        const addons = (result.addons || 0) * (result.addonAmount || buyIn);
-
-        return sum + buyIn + rebuys + addons;
-      }, 0);
-
-      const buyInsSpent = totalInvestment;
-
-      // Profit calculation (earnings minus buy-ins)
-      const profit = cashWinnings - buyInsSpent;
-
-      // Financial stats calculated for ${player.name}
-
-      // ROI calculation (profit / total buy-ins * 100)
-      const roi = buyInsSpent > 0 ? Math.round((profit / buyInsSpent) * 100 * 10) / 10 : 0;
-
-      // Average position
-      const averagePosition = games > 0
-        ? Math.round((results.reduce((sum, result) => sum + (result.position || 0), 0) / games) * 10) / 10
-        : 0;
-
-      // Final table appearances (top 50% of field)
-      const finalTableAppearances = results.filter(result => {
-        const finalTableSize = Math.ceil((result.totalPlayers || 0) / 2);
-        return (result.position || 0) <= finalTableSize;
-      }).length;
-
-      return {
-        ...player,
-        games,
-        averagePoints,
-        firstPlaces,
-        secondPlaces,
-        thirdPlaces,
-        hits,
-        cashWinnings,
-        averagePosition,
-        finalTableAppearances,
-        profit,
-        roi,
-        // Keep original totalPoints for display
-        displayPoints: player.totalPoints || totalPoints
-      };
-    });
-  }, [leaguePlayers, tournament?.state?.prizeStructure?.buyIn, tournament?.prizeStructure?.buyIn]); // Added tournament buy-in to dependency array
-
   // Use the calculated stats instead of raw standings
-  const displayPlayers = playersWithStats
-    .sort((a, b) => {
+  const displayPlayers = useMemo(() => {
+    return [...playersWithStats].sort((a, b) => {
       // Primary sort: total points (descending)
       if (b.displayPoints !== a.displayPoints) {
         return b.displayPoints - a.displayPoints;
@@ -390,6 +312,7 @@ function RealTimeLeagueTable({
       const bBest = Math.min(...b.tournamentResults.map(r => r.position), 999);
       return aBest - bBest;
     });
+  }, [playersWithStats]);
 
   // Update previous rankings when display order changes
   useEffect(() => {
@@ -422,7 +345,7 @@ function RealTimeLeagueTable({
         }
       }
     }
-  }, [displayPlayers.length, displayPlayers.map(p => `${p.id}-${p.displayPoints}`).join(','), leagueSettings?.displaySettings?.showMovementArrows]);
+  }, [displayPlayers, leagueSettings?.displaySettings?.showMovementArrows]);
 
   // Clear movement arrows when the toggle is disabled
   useEffect(() => {
@@ -435,18 +358,6 @@ function RealTimeLeagueTable({
       console.log('🎯 Movement arrows disabled - clearing arrow indicators');
     }
   }, [leagueSettings?.displaySettings?.showMovementArrows]);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      // Add any refresh logic here if needed
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error) {
-      console.error('Error refreshing league data:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   const handleExportImage = async () => {
     if (!exportRef.current) return;
@@ -487,7 +398,7 @@ function RealTimeLeagueTable({
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const canvas = await html2canvas(exportRef.current, {
-        background: '#1e1e1e',
+        backgroundColor: '#1e1e1e',
         scale: 2,
         useCORS: true,
         allowTaint: false,
@@ -510,7 +421,8 @@ function RealTimeLeagueTable({
       }
 
       const link = document.createElement('a');
-      link.download = `league-standings-${new Date().toISOString().split('T')[0]}.png`;
+      const date = new Date().toISOString().split('T')[0];
+      link.download = `league-standings-${currentSeasonName.replace(/\s+/g, '-')}-${date}.png`;
       link.href = canvas.toDataURL();
       link.click();
     } catch (error) {
@@ -588,15 +500,6 @@ function RealTimeLeagueTable({
                 className="h-8 px-2"
               >
                 <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="h-8 px-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <div className="text-sm text-muted-foreground">
                 {displayPlayers.length} player(s)
