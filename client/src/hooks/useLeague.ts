@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { db, collections } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot, writeBatch } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 
 // Legacy interface for backwards compatibility
@@ -26,6 +26,7 @@ export interface TournamentResult {
   addons?: number;
   addonAmount?: number;
   tournamentId?: string | number;
+  seasonId?: string | null; // ← added
 }
 
 // Legacy interface for backwards compatibility  
@@ -45,6 +46,9 @@ export function useLeague(overrideOwnerId?: string) {
   const { calculatePoints: calculatePointsFromSettings } = useLeagueSettings(overrideOwnerId);
   const queryClient = useQueryClient();
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
+
+  // Active season ID - set externally via setActiveSeasonId
+  const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
 
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
 
@@ -162,6 +166,7 @@ export function useLeague(overrideOwnerId?: string) {
       tournamentResults: playerResults.map((result: any) => ({
         id: result.id.toString(),
         tournamentId: result.tournamentId,
+        seasonId: result.seasonId || null, // ← include seasonId
         position: result.position,
         totalPlayers: result.totalPlayers,
         points: result.points,
@@ -210,21 +215,26 @@ export function useLeague(overrideOwnerId?: string) {
       tournamentDate: Date;
       tournamentName?: string;
       tournamentId?: string;
+      seasonId?: string | null; // ← added
     }) => {
       if (!currentLeagueId) throw new Error('No active league');
       const newResult = sanitizeForFirestore({
         ...resultData,
         leagueId: String(currentLeagueId),
         leaguePlayerId: String(resultData.leaguePlayerId),
+        seasonId: resultData.seasonId || null, // ← persisted to Firestore
         createdAt: serverTimestamp()
       });
       const docRef = await addDoc(collections.tournamentResults, newResult);
       
-      // Update player's total points
+      // Update player's total points using a Firestore transaction-safe approach:
+      // Recalculate from all results for this player
+      const allPlayerResults = cloudResults.filter(
+        r => r.leaguePlayerId === String(resultData.leaguePlayerId)
+      );
+      const newTotal = allPlayerResults.reduce((sum, r) => sum + (r.points || 0), 0) + resultData.points;
       const playerRef = doc(db, 'leaguePlayers', String(resultData.leaguePlayerId));
-      // We should ideally use a transaction here, but for simplicity we'll just fetch and update
-      // The proper way is to use Firestore transactions or let the client calculate totalPoints
-      // from results. Since the client calculates it anyway, we can just update it here as a cache.
+      await updateDoc(playerRef, { totalPoints: newTotal, updatedAt: serverTimestamp() });
       
       return { id: docRef.id, ...newResult };
     },
@@ -236,82 +246,71 @@ export function useLeague(overrideOwnerId?: string) {
     }
   });
 
+  // Wait for league to be ready - uses React Query state, not busy-wait
+  const waitForLeague = useCallback(async (): Promise<string | null> => {
+    // If league already exists, return immediately
+    if (currentLeagueId) return String(currentLeagueId);
+
+    // If creation is pending, wait for it to resolve via query cache
+    if (createLeagueMutation.isPending) {
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          const leagues = queryClient.getQueryData<any[]>(['leagues', user?.id]);
+          if (leagues && leagues.length > 0) {
+            clearInterval(checkInterval);
+            resolve(String(leagues[0].id));
+          }
+        }, 200);
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve(null);
+        }, 10000);
+      });
+    }
+
+    return null;
+  }, [currentLeagueId, createLeagueMutation.isPending, queryClient, user?.id]);
+
   const addLeaguePlayer = useCallback(async (name: string) => {
     try {
-      // Wait for league creation to complete
-      if (createLeagueMutation.isPending || !currentLeagueId) {
-        console.warn('⚠️ Waiting for league creation to complete...');
-        // Wait up to 5 seconds for league creation
-        for (let i = 0; i < 50; i++) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          // Re-fetch the current state
-          const currentLeagues = queryClient.getQueryData<any[]>(['leagues', user?.id]);
-          if (currentLeagues && currentLeagues.length > 0) {
-            console.log('✅ League created, proceeding with player addition');
-            break;
-          }
-        }
-      }
-
-      // Re-check after wait
-      const currentLeagues = queryClient.getQueryData<any[]>(['leagues', user?.id]);
-      const activeLeagueId = currentLeagues?.[0]?.id;
-      
-      if (!activeLeagueId) {
-        console.error('❌ No active league available - league creation may have failed');
+      const leagueId = await waitForLeague();
+      if (!leagueId) {
+        console.error('❌ No active league available');
         return;
       }
 
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
-        console.warn('⚠️ Invalid player name provided to addLeaguePlayer:', name);
+        console.warn('⚠️ Invalid player name:', name);
         return;
       }
 
-      // Check if player already exists
-      const existingPlayer = leaguePlayers.find((p: any) => 
+      const existingPlayer = leaguePlayers.find((p: any) =>
         p.name.toLowerCase() === name.toLowerCase()
       );
+      if (existingPlayer) return;
 
-      if (existingPlayer) {
-        console.log(`Player ${name} already exists in league`);
-        return;
-      }
-
-      await createPlayerMutation.mutateAsync({
-        name: name.trim()
-      });
+      await createPlayerMutation.mutateAsync({ name: name.trim() });
     } catch (error) {
       console.error('❌ Error in addLeaguePlayer:', error);
     }
-  }, [currentLeagueId, leaguePlayers, createPlayerMutation, isLoading]);
+  }, [currentLeagueId, leaguePlayers, createPlayerMutation, waitForLeague]);
 
   const recordResult = useCallback(async (playerId: string, position: number, totalPlayers: number) => {
     try {
       if (!currentLeagueId) {
-        console.warn('⚠️ No active league - cannot record result');
+        console.warn('⚠️ No active league');
         return;
       }
+      if (!playerId || typeof position !== 'number' || typeof totalPlayers !== 'number') return;
+      if (position < 1 || totalPlayers < 1 || position > totalPlayers) return;
 
-      if (!playerId || typeof position !== 'number' || typeof totalPlayers !== 'number') {
-        console.warn('⚠️ Invalid parameters for recordResult:', { playerId, position, totalPlayers });
-        return;
-      }
-
-      if (position < 1 || totalPlayers < 1 || position > totalPlayers) {
-        console.warn('⚠️ Invalid position or totalPlayers values:', { position, totalPlayers });
-        return;
-      }
-
-      const points = calculatePointsFromSettings(position, totalPlayers, 0); // Default 0 knockouts for basic recordResult
+      const points = calculatePointsFromSettings(position, totalPlayers, 0);
       const playerFound = leaguePlayers.find(p => p.id === playerId);
-
-      if (!playerFound) {
-        console.warn('⚠️ Player not found when recording result:', playerId);
-        return;
-      }
+      if (!playerFound) return;
 
       await addResultMutation.mutateAsync({
-        leaguePlayerId: typeof playerId === 'string' ? playerId : String(playerId),
+        leaguePlayerId: playerId,
         position,
         totalPlayers,
         points,
@@ -319,45 +318,45 @@ export function useLeague(overrideOwnerId?: string) {
         prizeMoney: 0,
         buyIn: 10,
         tournamentDate: new Date(),
-        tournamentName: 'Tournament Result'
+        tournamentName: 'Tournament Result',
+        seasonId: activeSeasonId
       });
     } catch (error) {
       console.error('❌ Error in recordResult:', error);
-      throw error; // Re-throw to be handled by caller
+      throw error;
     }
-  }, [currentLeagueId, calculatePointsFromSettings, leaguePlayers, addResultMutation]);
+  }, [currentLeagueId, calculatePointsFromSettings, leaguePlayers, addResultMutation, activeSeasonId]);
 
   const getLeagueStandings = useCallback(() => {
-    return [...leaguePlayers]
-      .sort((a, b) => {
-        // Primary sort: total points (descending)
-        if (b.totalPoints !== a.totalPoints) {
-          return b.totalPoints - a.totalPoints;
-        }
-
-        // Secondary sort: number of games (ascending - fewer games played ranks higher)
-        const aGames = a.tournamentResults.length;
-        const bGames = b.tournamentResults.length;
-        if (aGames !== bGames) {
-          return aGames - bGames;
-        }
-
-        // Tertiary sort: best finish (ascending - better finish ranks higher)
-        const aBest = Math.min(...a.tournamentResults.map(r => r.position), 999);
-        const bBest = Math.min(...b.tournamentResults.map(r => r.position), 999);
-        return aBest - bBest;
-      });
+    return [...leaguePlayers].sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      const aGames = a.tournamentResults.length;
+      const bGames = b.tournamentResults.length;
+      if (aGames !== bGames) return aGames - bGames;
+      const aBest = Math.min(...a.tournamentResults.map(r => r.position), 999);
+      const bBest = Math.min(...b.tournamentResults.map(r => r.position), 999);
+      return aBest - bBest;
+    });
   }, [leaguePlayers]);
 
   const removeResult = useCallback(async (playerId: string, resultId: string) => {
+    if (!currentLeagueId) return;
     try {
-      // For now, removing results is not implemented in the API
-      // This would require a DELETE endpoint for tournament results
+      await deleteDoc(doc(db, 'tournamentResults', resultId));
+      // Recalculate total points for player
+      const remainingResults = cloudResults.filter(
+        r => r.leaguePlayerId === playerId && r.id !== resultId
+      );
+      const newTotal = remainingResults.reduce((sum, r) => sum + (r.points || 0), 0);
+      const playerRef = doc(db, 'leaguePlayers', playerId);
+      await updateDoc(playerRef, { totalPoints: newTotal, updatedAt: serverTimestamp() });
+      queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
+      queryClient.invalidateQueries({ queryKey: ['leagueResults', currentLeagueId] });
     } catch (error) {
       console.error('❌ Error in removeResult:', error);
-      throw error; // Re-throw to be handled by caller
+      throw error;
     }
-  }, []);
+  }, [currentLeagueId, cloudResults, queryClient]);
 
   const recordResultByName = useCallback(async (
     playerName: string,
@@ -369,27 +368,9 @@ export function useLeague(overrideOwnerId?: string) {
     tournamentId?: string
   ) => {
     try {
-      // Wait for league creation to complete
-      if (createLeagueMutation.isPending || !currentLeagueId) {
-        console.warn('⚠️ Waiting for league creation to complete...');
-        // Wait up to 5 seconds for league creation
-        for (let i = 0; i < 50; i++) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          // Re-fetch the current state
-          const currentLeagues = queryClient.getQueryData<any[]>(['leagues', user?.id]);
-          if (currentLeagues && currentLeagues.length > 0) {
-            console.log('✅ League created, proceeding with result recording');
-            break;
-          }
-        }
-      }
-
-      // Re-check after wait
-      const currentLeagues = queryClient.getQueryData<any[]>(['leagues', user?.id]);
-      const activeLeagueId = currentLeagues?.[0]?.id;
-      
-      if (!activeLeagueId) {
-        console.error('❌ No active league available - league creation may have failed');
+      const leagueId = await waitForLeague();
+      if (!leagueId) {
+        console.error('❌ No active league available');
         return;
       }
 
@@ -411,9 +392,6 @@ export function useLeague(overrideOwnerId?: string) {
       // Calculate points
       const points = calculatePointsFromSettings(position, totalPlayers);
 
-      // Note: Season handling is done separately via useSeasons hook
-      // Results are recorded to the league, seasons are managed independently
-
       // Add the tournament result
       await addResultMutation.mutateAsync({
         leaguePlayerId: typeof targetPlayer.id === 'string' ? targetPlayer.id : String(targetPlayer.id),
@@ -425,13 +403,14 @@ export function useLeague(overrideOwnerId?: string) {
         buyIn: buyInAmount || 10,
         tournamentDate: new Date(),
         tournamentName: 'Tournament Result',
-        tournamentId
+        tournamentId,
+        seasonId: activeSeasonId
       });
     } catch (error) {
       console.error('❌ Error in recordResultByName:', error);
-      throw error; // Re-throw to be handled by caller
+      throw error;
     }
-  }, [currentLeagueId, calculatePointsFromSettings, leaguePlayers, createPlayerMutation, addResultMutation, isLoading]);
+  }, [currentLeagueId, calculatePointsFromSettings, leaguePlayers, createPlayerMutation, addResultMutation, waitForLeague, activeSeasonId]);
 
   const removeTournamentResultForPlayer = useCallback(async (playerName: string, tournamentId: string) => {
     if (!currentLeagueId) return;
@@ -499,6 +478,8 @@ export function useLeague(overrideOwnerId?: string) {
     calculatePoints: calculatePointsFromSettings,
     isLoading,
     error,
+    activeSeasonId,
+    setActiveSeasonId,
     // Legacy compatibility
     players: leaguePlayers,
     processElimination: (playerName: string, position: number, totalPlayers: number, playersEliminatedCount: number = 0, prizeMoney: number = 0) => 

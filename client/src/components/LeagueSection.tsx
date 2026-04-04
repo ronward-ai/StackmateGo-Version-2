@@ -8,7 +8,7 @@ import LeagueTournaments from '@/components/LeagueTournaments';
 import { LeagueSettingsContent } from '@/components/LeagueSettingsContent';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface LeagueSectionProps {
   tournament?: any;
@@ -19,8 +19,15 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const { league } = useLeague();
+  const { league, setActiveSeasonId } = useLeague();
   const { seasons, currentSeason, updateSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
+
+  // Update useLeague's active season when it changes
+  useEffect(() => {
+    if (currentSeason?.id) {
+      setActiveSeasonId(String(currentSeason.id));
+    }
+  }, [currentSeason?.id, setActiveSeasonId]);
 
   const isSeasonTournament = 
     tournament?.isSeasonTournament === true || 
