@@ -170,7 +170,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                     <th className="px-1 py-2 rounded-tl-lg text-xs">L</th>
                     <th className="px-1 py-2 text-xs">SB</th>
                     <th className="px-1 py-2 text-xs">BB</th>
-                    <th className="px-1 py-2 text-xs">Ante</th>
+                    <th className="px-1 py-2 text-xs">{state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}</th>
                     <th className="px-1 py-2 text-xs">Mins</th>
                     <th className="-ml-2 pr-1 py-2 rounded-tr-lg text-xs">X</th>
                   </tr>

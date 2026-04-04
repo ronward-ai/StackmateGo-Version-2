@@ -186,6 +186,18 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                   Enable recent players (autocomplete & quick add buttons)
                 </Label>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="bigBlindAnte"
+                  checked={state.settings.bigBlindAnte || false}
+                  onCheckedChange={(checked) => updateSettings({ bigBlindAnte: !!checked })}
+                  className="checkbox-nav-style"
+                />
+                <Label htmlFor="bigBlindAnte" className="text-sm">
+                  Big Blind Ante (BB posts ante for the table)
+                </Label>
+              </div>
             </div>
           </div>
         </TabsContent>

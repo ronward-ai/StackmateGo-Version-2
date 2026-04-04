@@ -13,10 +13,24 @@ console.error = (...args) => {
 };
 
 window.addEventListener('error', (e) => {
-  if (e.message === 'ResizeObserver loop limit exceeded' || e.message === 'ResizeObserver loop completed with undelivered notifications.') {
+  if (e.message && typeof e.message === 'string' && e.message.includes('ResizeObserver')) {
     e.stopImmediatePropagation();
     e.preventDefault();
   }
 });
+
+// Patch ResizeObserver to prevent "ResizeObserver loop limit exceeded" and "ResizeObserver loop completed with undelivered notifications."
+if (typeof window !== 'undefined' && window.ResizeObserver) {
+  const OriginalResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class ResizeObserver extends OriginalResizeObserver {
+    constructor(callback: ResizeObserverCallback) {
+      super((entries, observer) => {
+        window.requestAnimationFrame(() => {
+          callback(entries, observer);
+        });
+      });
+    }
+  };
+}
 
 createRoot(document.getElementById("root")!).render(<App />);

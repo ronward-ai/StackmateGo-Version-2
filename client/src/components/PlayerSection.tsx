@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { X, Zap, Download } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { Player } from '@/types';
+import DealCalculatorDialog from './DealCalculatorDialog';
 
 interface RecentPlayer {
   name: string;
@@ -18,7 +19,7 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy } = tournament;
+  const { state, addKnockout, addPlayer, removePlayer, processRebuy, calculatePrizePool } = tournament;
   const [playerName, setPlayerName] = useState('');
   
   const [recentPlayers, setRecentPlayers] = useState<RecentPlayer[]>([]);
@@ -304,6 +305,15 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           Players & Rankings ({activePlayers.length})
         </h2>
         <div className="flex items-center gap-2">
+          {/* Deal Calculator */}
+          {activePlayers.length > 1 && state.prizeStructure?.manualPayouts && state.prizeStructure.manualPayouts.length > 0 && (
+            <DealCalculatorDialog 
+              players={state.players} 
+              prizePool={calculatePrizePool().netPrizePool}
+              payouts={state.prizeStructure.manualPayouts.map(p => p.percentage / 100 * calculatePrizePool().netPrizePool)}
+              currencySymbol={state.settings.currency || '$'}
+            />
+          )}
           {/* Export button - only show when tournament is finished */}
           {tournamentFinished && (
             <Button
@@ -611,9 +621,26 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                               processRebuy(player.id);
                             }}
                             disabled={!state.prizeStructure?.allowRebuys || (player.rebuys || 0) >= (state.prizeStructure?.maxRebuys || 3)}
-                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium"
+                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium mr-2"
                           >
                             Re-buy
+                          </Button>
+                        )}
+
+                        {/* Re-entry button for eliminated players (when re-entries are enabled) */}
+                        {!player.isActive && state.prizeStructure?.allowReEntry && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log('🔄 Re-entry button clicked for:', player.name);
+                              tournament.processReEntry(player.id);
+                            }}
+                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium"
+                          >
+                            Re-enter
                           </Button>
                         )}
 

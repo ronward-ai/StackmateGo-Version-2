@@ -17,7 +17,9 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [buyInAmount, setBuyInAmount] = useState(10);
   const [bountyAmount, setBountyAmount] = useState(0);
   const [enableBounties, setEnableBounties] = useState(false);
+  const [bountyType, setBountyType] = useState<'standard' | 'progressive'>('standard');
   const [allowRebuys, setAllowRebuys] = useState(false);
+  const [allowReEntry, setAllowReEntry] = useState(false);
   const [allowAddons, setAllowAddons] = useState(false);
   const [rebuyAmount, setRebuyAmount] = useState(10);
   const [addonAmount, setAddonAmount] = useState(10);
@@ -51,7 +53,9 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
       setBuyInAmount(state.prizeStructure.buyIn);
       setBountyAmount(state.prizeStructure.bountyAmount || 0);
       setEnableBounties(state.prizeStructure.enableBounties || false);
+      setBountyType(state.prizeStructure.bountyType || 'standard');
       setAllowRebuys(state.prizeStructure.allowRebuys || false);
+      setAllowReEntry(state.prizeStructure.allowReEntry || false);
       setAllowAddons(state.prizeStructure.allowAddons || false);
       setRebuyAmount(state.prizeStructure.rebuyAmount || 10);
       setAddonAmount(state.prizeStructure.addonAmount || 10);
@@ -278,31 +282,48 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               </div>
 
               {enableBounties && (
-                <div className="ml-6 space-y-2">
-                  <Label htmlFor="bountyAmount" className="text-sm font-medium text-muted-foreground">
-                    Bounty per Knockout
-                  </Label>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
-                    <Input
-                      id="bountyAmount"
-                      type="number"
-                      min={0}
-                      value={bountyAmount === 0 ? '' : bountyAmount}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === '') {
-                          setBountyAmount(0);
-                        } else {
-                          setBountyAmount(parseInt(value) || 0);
-                        }
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      className="w-24 h-10"
-                      placeholder="0"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                    />
+                <div className="ml-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bountyAmount" className="text-sm font-medium text-muted-foreground">
+                      Bounty per Knockout
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
+                      <Input
+                        id="bountyAmount"
+                        type="number"
+                        min={0}
+                        value={bountyAmount === 0 ? '' : bountyAmount}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            setBountyAmount(0);
+                          } else {
+                            setBountyAmount(parseInt(value) || 0);
+                          }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-24 h-10"
+                        placeholder="0"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Bounty Type
+                    </Label>
+                    <Select value={bountyType} onValueChange={(v: 'standard' | 'progressive') => setBountyType(v)}>
+                      <SelectTrigger className="w-full sm:w-[280px]">
+                        <SelectValue placeholder="Select bounty type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="standard">Standard (Fixed amount)</SelectItem>
+                        <SelectItem value="progressive">Progressive (PKO)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}
@@ -322,125 +343,126 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               </div>
 
               {allowRebuys && (
-                <div className="ml-6 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="rebuyAmount" className="text-sm font-medium text-muted-foreground">
-                        Rebuy Amount
-                      </Label>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
-                        <Input
-                          id="rebuyAmount"
-                          type="number"
-                          min={0}
-                          value={rebuyAmount === 0 ? '' : rebuyAmount}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              setRebuyAmount(0);
-                            } else {
-                              setRebuyAmount(parseInt(value) || 0);
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-24 h-10"
-                          placeholder="10"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rebuyChips" className="text-sm font-medium text-muted-foreground">
-                        Rebuy Chips
-                      </Label>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          id="rebuyChips"
-                          type="number"
-                          min={1000}
-                          step={1000}
-                          value={rebuyChips === 0 ? '' : rebuyChips}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              setRebuyChips(0);
-                            } else {
-                              setRebuyChips(parseInt(value) || 0);
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-24 h-10"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                        />
-                        <span className="text-sm text-muted-foreground w-12">chips</span>
-                      </div>
+                <div className="ml-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="rebuyAmount" className="text-sm font-medium text-muted-foreground">
+                      Rebuy Amount
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
+                      <Input
+                        id="rebuyAmount"
+                        type="number"
+                        min={0}
+                        value={rebuyAmount === 0 ? '' : rebuyAmount}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            setRebuyAmount(0);
+                          } else {
+                            setRebuyAmount(parseInt(value) || 0);
+                          }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-24 h-10"
+                        placeholder="0"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                      />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="rebuyPeriod" className="text-sm font-medium text-muted-foreground">
-                        Rebuy Period
-                      </Label>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          id="rebuyPeriod"
-                          type="number"
-                          min={1}
-                          value={rebuyPeriodLevels === 1 ? '' : rebuyPeriodLevels}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              setRebuyPeriodLevels(1);
-                            } else {
-                              setRebuyPeriodLevels(parseInt(value) || 1);
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-24 h-10"
-                          placeholder="3"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                        />
-                        <span className="text-sm text-muted-foreground w-12">levels</span>
-                      </div>
-                    </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="rebuyChips" className="text-sm font-medium text-muted-foreground">
+                      Chips per Rebuy
+                    </Label>
+                    <Input
+                      id="rebuyChips"
+                      type="number"
+                      min={0}
+                      value={rebuyChips === 0 ? '' : rebuyChips}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '') {
+                          setRebuyChips(0);
+                        } else {
+                          setRebuyChips(parseInt(value) || 0);
+                        }
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      className="w-32 h-10"
+                      placeholder="0"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="maxRebuys" className="text-sm font-medium text-muted-foreground">
-                        Max Rebuys
+                        Max Rebuys (0 = unlimited)
                       </Label>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          id="maxRebuys"
-                          type="number"
-                          min={0}
-                          value={maxRebuys === 0 ? '' : maxRebuys}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              setMaxRebuys(0);
-                            } else {
-                              setMaxRebuys(parseInt(value) || 0);
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-24 h-10"
-                          placeholder="0"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                        />
-                        <span className="text-sm text-muted-foreground w-12">max</span>
-                      </div>
+                      <Input
+                        id="maxRebuys"
+                        type="number"
+                        min={0}
+                        value={maxRebuys === 0 ? '' : maxRebuys}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            setMaxRebuys(0);
+                          } else {
+                            setMaxRebuys(parseInt(value) || 0);
+                          }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-full h-10"
+                        placeholder="0"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rebuyPeriodLevels" className="text-sm font-medium text-muted-foreground">
+                        Rebuy Period (Levels)
+                      </Label>
+                      <Input
+                        id="rebuyPeriodLevels"
+                        type="number"
+                        min={1}
+                        value={rebuyPeriodLevels === 0 ? '' : rebuyPeriodLevels}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === '') {
+                            setRebuyPeriodLevels(0);
+                          } else {
+                            setRebuyPeriodLevels(parseInt(value) || 0);
+                          }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-full h-10"
+                        placeholder="3"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                      />
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Players can rebuy during first {rebuyPeriodLevels} levels. Max: {maxRebuys || 'unlimited'}
-                  </p>
                 </div>
               )}
+            </div>
+
+            {/* Re-entry Section */}
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="allowReEntry"
+                  checked={allowReEntry}
+                  onCheckedChange={(checked) => setAllowReEntry(!!checked)}
+                />
+                <Label htmlFor="allowReEntry" className="text-sm font-medium">
+                  Allow Re-entry (Full buy-in & new stack)
+                </Label>
+              </div>
             </div>
 
             {/* Addons Section */}
@@ -730,7 +752,9 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
                   buyIn: buyInAmount,
                   bountyAmount: enableBounties ? bountyAmount : 0,
                   enableBounties,
+                  bountyType,
                   allowRebuys,
+                  allowReEntry,
                   allowAddons,
                   rebuyAmount,
                   addonAmount,

@@ -362,10 +362,15 @@ function TournamentParticipantView() {
     const buyIn = tournamentData.prizeStructure?.buyIn || tournamentData.buyIn || 10;
     let grossPrizePool = totalPlayers * buyIn;
 
-    // Calculate rebuys and addons with validation
+    // Calculate rebuys, addons, and re-entries with validation
     if (tournamentData.prizeStructure?.allowRebuys) {
       const actualRebuys = tournamentData.players?.reduce((sum: number, player: any) => sum + (player.rebuys || 0), 0) || 0;
       grossPrizePool += actualRebuys * (tournamentData.prizeStructure?.rebuyAmount || buyIn);
+    }
+
+    if (tournamentData.prizeStructure?.allowReEntry) {
+      const actualReEntries = tournamentData.players?.reduce((sum: number, player: any) => sum + (player.reEntries || 0), 0) || 0;
+      grossPrizePool += actualReEntries * buyIn;
     }
 
     if (tournamentData.prizeStructure?.allowAddons) {

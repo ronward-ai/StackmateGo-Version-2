@@ -20,6 +20,9 @@ export interface Player {
   tableAssignment?: { tableIndex: number; seatIndex: number };
   rebuys?: number;
   addons?: number;
+  reEntries?: number;
+  currentBounty?: number;
+  bountyWinnings?: number;
   totalInvestment?: number;
   canRebuy?: boolean;
   eliminationLevel?: number; // Level at which player was eliminated
@@ -44,6 +47,7 @@ export interface Settings {
   enableVoice?: boolean;
   showSeconds: boolean;
   showNextLevel: boolean;
+  bigBlindAnte?: boolean;
   applyDurationToAll?: boolean;
   enableRecentPlayers?: boolean;
   tables?: {
@@ -89,6 +93,8 @@ export interface PrizeStructure {
   }>;
   bountyAmount?: number;
   enableBounties?: boolean;
+  bountyType?: 'standard' | 'progressive';
+  allowReEntry?: boolean;
   startingChips?: number;
   rebuyChips?: number;
   addonChips?: number;

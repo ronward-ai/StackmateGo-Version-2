@@ -287,7 +287,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
       {/* Show ante if present and not on break */}
       {!currentBreak && currentLevelAnte > 0 && (
         <div className="text-sm sm:text-md font-medium mb-3 sm:mb-7 text-amber-500">
-          Ante: {currentLevelAnte}
+          {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}: {currentLevelAnte}
         </div>
       )}
 

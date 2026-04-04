@@ -886,7 +886,9 @@ export function useTournament(tournamentId?: string) {
         prizeMoney: 0,
         rebuys: 0,
         addons: 0,
-        totalInvestment: prev.prizeStructure?.buyIn || 0
+        totalInvestment: prev.prizeStructure?.buyIn || 0,
+        currentBounty: (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive') ? (prev.prizeStructure?.bountyAmount || 0) : undefined,
+        bountyWinnings: 0
       };
 
       const newState = {
@@ -1014,7 +1016,7 @@ export function useTournament(tournamentId?: string) {
       }
 
       // Update the eliminated player's data with comprehensive analytics
-      const updatedPlayers = prev.players.map(player =>
+      let updatedPlayers = prev.players.map(player =>
         player.id === playerId
           ? {
               ...player,
@@ -1032,6 +1034,23 @@ export function useTournament(tournamentId?: string) {
             }
           : player
       );
+
+      // Handle PKO logic if enabled
+      if (eliminatedById && prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive') {
+        const eliminatedBounty = playerToEliminate.currentBounty || prev.prizeStructure.bountyAmount || 0;
+        const wonAmount = eliminatedBounty / 2;
+        
+        updatedPlayers = updatedPlayers.map(player => {
+          if (player.id === eliminatedById) {
+            return {
+              ...player,
+              bountyWinnings: (player.bountyWinnings || 0) + wonAmount,
+              currentBounty: (player.currentBounty || prev.prizeStructure!.bountyAmount || 0) + wonAmount
+            };
+          }
+          return player;
+        });
+      }
 
       // Check if only one player remains active and award them 1st place
       const remainingActivePlayers = updatedPlayers.filter(p => p.isActive === true);
@@ -1066,9 +1085,16 @@ export function useTournament(tournamentId?: string) {
 
         // Add bounty winnings if enabled
         if (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyAmount) {
-          const knockouts = winner.knockouts || 0;
-          // Winner gets their own bounty back plus all their knockout bounties
-          firstPlacePrize += (knockouts + 1) * prev.prizeStructure.bountyAmount;
+          if (prev.prizeStructure?.bountyType === 'progressive') {
+            // Winner gets their own current bounty back
+            const ownBounty = winner.currentBounty || prev.prizeStructure.bountyAmount || 0;
+            // The bountyWinnings already includes the won portions of other players' bounties
+            firstPlacePrize += ownBounty;
+          } else {
+            const knockouts = winner.knockouts || 0;
+            // Winner gets their own bounty back plus all their knockout bounties
+            firstPlacePrize += (knockouts + 1) * prev.prizeStructure.bountyAmount;
+          }
         }
 
         const finalState = {
@@ -1116,6 +1142,47 @@ export function useTournament(tournamentId?: string) {
           } 
         }));
       }, 25);
+
+      return newState;
+    });
+  }, [broadcastTournamentAction]);
+
+  // Process a re-entry for an eliminated player
+  const processReEntry = useCallback((playerId: string) => {
+    setState(prev => {
+      const player = prev.players.find(p => p.id === playerId);
+      if (!player || player.isActive !== false) {
+        return prev;
+      }
+
+      if (!prev.prizeStructure?.allowReEntry) {
+        return prev;
+      }
+
+      // Update player to active status and increment re-entry count
+      const updatedPlayers = prev.players.map(p =>
+        p.id === playerId
+          ? {
+              ...p,
+              isActive: true, // Reactivate the player
+              position: undefined, // Clear elimination position
+              eliminatedBy: undefined, // Clear elimination data
+              prizeMoney: 0, // Reset prize money
+              reEntries: (p.reEntries || 0) + 1, // Increment re-entry count
+              seated: false, // They need to be reseated
+              tableAssignment: undefined, // Clear table assignment
+              currentBounty: (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive') ? (prev.prizeStructure?.bountyAmount || 0) : undefined // Reset bounty for PKO
+            }
+          : p
+      );
+
+      const newState = {
+        ...prev,
+        players: updatedPlayers
+      };
+
+      // Broadcast re-entry
+      broadcastTournamentAction('player_reentry', newState);
 
       return newState;
     });
@@ -1521,10 +1588,15 @@ export function useTournament(tournamentId?: string) {
     const buyIn = state.prizeStructure?.buyIn || 10;
     let grossPrizePool = totalPlayers * buyIn;
 
-    // Calculate rebuys and addons with validation
+    // Calculate rebuys, addons, and re-entries with validation
     if (state.prizeStructure?.allowRebuys) {
       const actualRebuys = state.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
       grossPrizePool += actualRebuys * (state.prizeStructure?.rebuyAmount || buyIn);
+    }
+
+    if (state.prizeStructure?.allowReEntry) {
+      const actualReEntries = state.players.reduce((sum, player) => sum + (player.reEntries || 0), 0);
+      grossPrizePool += actualReEntries * buyIn;
     }
 
     if (state.prizeStructure?.allowAddons) {
@@ -2093,6 +2165,7 @@ export function useTournament(tournamentId?: string) {
     undoBustOut,
     resetAllPlayersToActive,
     processRebuy,
+    processReEntry,
     processAddon,
     resetTournament,
     shouldPromptForFinalTable,
