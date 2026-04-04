@@ -1,847 +1,535 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign } from "lucide-react";
+import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDollarSign } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface BuyInSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
 }
 
+// Reusable field row for consistent label + input layout
+function FieldRow({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 min-w-0">
+        <Label className="text-sm font-medium text-foreground">{label}</Label>
+        {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  );
+}
+
+// Styled sub-section that reveals when a toggle is enabled
+function SubSection({ children, color = 'purple' }: { children: React.ReactNode; color?: string }) {
+  const colorMap: Record<string, string> = {
+    purple: 'card-glass-purple',
+    green: 'card-glass-green',
+    blue: 'card-glass-blue',
+    orange: 'card-glass-orange',
+  };
+  return (
+    <div className={cn('rounded-lg p-4 mt-3 space-y-4 fade-in', colorMap[color] || colorMap.purple)}>
+      {children}
+    </div>
+  );
+}
+
+// Section header within the form
+function SectionHeader({ icon: Icon, title, color }: { icon: any; title: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon className={cn('h-4 w-4', color)} />
+      <span className="text-sm font-semibold text-foreground uppercase tracking-wide">{title}</span>
+    </div>
+  );
+}
+
+// Inline number input with optional prefix/suffix
+function NumberInput({
+  id, value, onChange, min = 0, max, step = 1, placeholder = '0', prefix, suffix, className
+}: {
+  id?: string; value: number; onChange: (v: number) => void;
+  min?: number; max?: number; step?: number;
+  placeholder?: string; prefix?: string; suffix?: string; className?: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {prefix && <span className="text-sm font-medium text-muted-foreground w-6 text-right">{prefix}</span>}
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value === 0 ? '' : value}
+        onChange={(e) => onChange(e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
+        onFocus={(e) => e.target.select()}
+        placeholder={placeholder}
+        inputMode="numeric"
+        pattern="[0-9]*"
+        className={cn('h-9 w-24 text-right', className)}
+      />
+      {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
+    </div>
+  );
+}
+
 export default function BuyInSection({ tournament }: BuyInSectionProps) {
+  const { state, updateSettings, updatePrizeStructure } = tournament;
 
   const [buyInAmount, setBuyInAmount] = useState(10);
-  const [bountyAmount, setBountyAmount] = useState(0);
-  const [enableBounties, setEnableBounties] = useState(false);
-  const [bountyType, setBountyType] = useState<'standard' | 'progressive'>('standard');
-  const [allowRebuys, setAllowRebuys] = useState(false);
-  const [allowReEntry, setAllowReEntry] = useState(false);
-  const [allowAddons, setAllowAddons] = useState(false);
-  const [rebuyAmount, setRebuyAmount] = useState(10);
-  const [addonAmount, setAddonAmount] = useState(10);
-  const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(3);
-  const [maxRebuys, setMaxRebuys] = useState(0);
+  const [startingChips, setStartingChips] = useState(10000);
+  const [rakeType, setRakeType] = useState<'percentage' | 'fixed'>('percentage');
   const [rakePercentage, setRakePercentage] = useState(0);
   const [rakeAmount, setRakeAmount] = useState(0);
-  const [rakeType, setRakeType] = useState<'percentage' | 'fixed'>('percentage');
   const [currencySymbol, setCurrencySymbol] = useState('£');
-  const [isApplying, setIsApplying] = useState(false);
-  const [justApplied, setJustApplied] = useState(false);
-  const [manualPayouts, setManualPayouts] = useState<{position: number; percentage: number}[]>([
-    {position: 1, percentage: 50},
-    {position: 2, percentage: 30},
-    {position: 3, percentage: 20}
-  ]);
-  const [startingChips, setStartingChips] = useState(10000);
+
+  const [enableBounties, setEnableBounties] = useState(false);
+  const [bountyAmount, setBountyAmount] = useState(0);
+  const [bountyType, setBountyType] = useState<'standard' | 'progressive'>('standard');
+
+  const [allowRebuys, setAllowRebuys] = useState(false);
+  const [rebuyAmount, setRebuyAmount] = useState(10);
   const [rebuyChips, setRebuyChips] = useState(10000);
+  const [maxRebuys, setMaxRebuys] = useState(0);
+  const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(3);
+
+  const [allowReEntry, setAllowReEntry] = useState(false);
+
+  const [allowAddons, setAllowAddons] = useState(false);
+  const [addonAmount, setAddonAmount] = useState(10);
   const [addonChips, setAddonChips] = useState(10000);
   const [addonAvailableLevel, setAddonAvailableLevel] = useState(6);
 
-  const { 
-    state, 
-    updateSettings, 
-    updatePrizeStructure
-  } = tournament;
+  const [manualPayouts, setManualPayouts] = useState<{ position: number; percentage: number }[]>([
+    { position: 1, percentage: 50 },
+    { position: 2, percentage: 30 },
+    { position: 3, percentage: 20 }
+  ]);
 
-  // Initialize prize structure values
+  const [isApplying, setIsApplying] = useState(false);
+  const [justApplied, setJustApplied] = useState(false);
+
+  // Sync from tournament state
   useEffect(() => {
-    if (state.prizeStructure) {
-      setBuyInAmount(state.prizeStructure.buyIn);
-      setBountyAmount(state.prizeStructure.bountyAmount || 0);
-      setEnableBounties(state.prizeStructure.enableBounties || false);
-      setBountyType(state.prizeStructure.bountyType || 'standard');
-      setAllowRebuys(state.prizeStructure.allowRebuys || false);
-      setAllowReEntry(state.prizeStructure.allowReEntry || false);
-      setAllowAddons(state.prizeStructure.allowAddons || false);
-      setRebuyAmount(state.prizeStructure.rebuyAmount || 10);
-      setAddonAmount(state.prizeStructure.addonAmount || 10);
-      setRebuyPeriodLevels(state.prizeStructure.rebuyPeriodLevels || 3);
-      setMaxRebuys(state.prizeStructure.maxRebuys || 0);
-      setRakePercentage(state.prizeStructure.rakePercentage || 0);
-      setRakeAmount(state.prizeStructure.rakeAmount || 0);
-      setRakeType(state.prizeStructure.rakeType || 'percentage');
-      setStartingChips(state.prizeStructure.startingChips || 10000);
-      setRebuyChips(state.prizeStructure.rebuyChips || 10000);
-      setAddonChips(state.prizeStructure.addonChips || 10000);
-      setAddonAvailableLevel(state.prizeStructure.addonAvailableLevel || 6);
-      if (state.prizeStructure.manualPayouts) {
-        setManualPayouts(state.prizeStructure.manualPayouts);
-      }
-    }
+    const p = state.prizeStructure;
+    if (!p) return;
+    setBuyInAmount(p.buyIn || 10);
+    setStartingChips(p.startingChips || 10000);
+    setRakeType(p.rakeType || 'percentage');
+    setRakePercentage(p.rakePercentage || 0);
+    setRakeAmount(p.rakeAmount || 0);
+    setEnableBounties(p.enableBounties || false);
+    setBountyAmount(p.bountyAmount || 0);
+    setBountyType(p.bountyType || 'standard');
+    setAllowRebuys(p.allowRebuys || false);
+    setRebuyAmount(p.rebuyAmount || 10);
+    setRebuyChips(p.rebuyChips || 10000);
+    setMaxRebuys(p.maxRebuys || 0);
+    setRebuyPeriodLevels(p.rebuyPeriodLevels || 3);
+    setAllowReEntry(p.allowReEntry || false);
+    setAllowAddons(p.allowAddons || false);
+    setAddonAmount(p.addonAmount || 10);
+    setAddonChips(p.addonChips || 10000);
+    setAddonAvailableLevel(p.addonAvailableLevel || 6);
+    if (p.manualPayouts?.length) setManualPayouts(p.manualPayouts);
   }, [state.prizeStructure]);
 
-  // Initialize currency from settings
   useEffect(() => {
-    if (state.settings.currency) {
-      setCurrencySymbol(state.settings.currency);
-    }
+    if (state.settings.currency) setCurrencySymbol(state.settings.currency);
   }, [state.settings.currency]);
 
-  return (
-    <Card className="bg-gradient-to-r from-slate-800/50 to-slate-700/50 border border-slate-600/30 backdrop-blur-sm">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold flex items-center">
-            <DollarSign className="mr-2 h-5 w-5 text-orange-500" />
-            Buy-in & Prizes
-          </h2>
-        </div>
+  const totalPercentage = manualPayouts.reduce((s, p) => s + p.percentage, 0);
 
-        <div className="space-y-6">
-          {/* Currency Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="currency" className="text-sm font-medium">
-              Currency
-            </Label>
+  // Live prize pool preview
+  const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
+  const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
+  const gross = (buyInAmount * state.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
+  const rake = rakeType === 'percentage' ? Math.floor(gross * rakePercentage / 100) : rakeAmount;
+  const netPool = Math.max(0, gross - rake);
+
+  const applyChanges = async () => {
+    setIsApplying(true);
+    try {
+      updatePrizeStructure({
+        buyIn: buyInAmount, startingChips,
+        rakeType, rakePercentage, rakeAmount,
+        enableBounties, bountyAmount, bountyType,
+        allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+        allowReEntry,
+        allowAddons, addonAmount, addonChips, addonAvailableLevel,
+        manualPayouts
+      });
+      updateSettings({ currency: currencySymbol });
+
+      if (state.details?.type === 'database' && state.details?.id) {
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const { sanitizeForFirestore } = await import('@/lib/utils');
+        await updateDoc(doc(db, 'activeTournaments', state.details.id.toString()), sanitizeForFirestore({
+          settings: { ...state.settings, currency: currencySymbol },
+          prizeStructure: {
+            buyIn: buyInAmount, startingChips,
+            rakeType, rakePercentage, rakeAmount,
+            enableBounties, bountyAmount, bountyType,
+            allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+            allowReEntry,
+            allowAddons, addonAmount, addonChips, addonAvailableLevel,
+            manualPayouts
+          }
+        }));
+      }
+
+      setJustApplied(true);
+      setTimeout(() => setJustApplied(false), 2000);
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── SECTION 1: Basics ─────────────────────────────── */}
+      <Card className="card-glass-indigo rounded-xl">
+        <CardContent className="p-5 space-y-4">
+          <SectionHeader icon={CircleDollarSign} title="Buy-in & Chips" color="text-indigo-400" />
+
+          <FieldRow label="Currency">
             <Select value={currencySymbol} onValueChange={setCurrencySymbol}>
-              <SelectTrigger className="h-10 w-full sm:w-[280px]">
-                <SelectValue placeholder="Select currency" />
+              <SelectTrigger className="h-9 w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {[
+                  ['$','USD'],['€','EUR'],['£','GBP'],['¥','JPY'],
+                  ['C$','CAD'],['A$','AUD'],['₹','INR'],['R$','BRL'],
+                  ['₽','RUB'],['₺','TRY'],['R','ZAR'],['CHF','CHF'],
+                  ['kr','SEK'],['zł','PLN'],['₴','UAH'],['₪','ILS'],
+                ].map(([sym, code]) => (
+                  <SelectItem key={`${sym}-${code}`} value={sym}>{sym} {code}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldRow>
+
+          <FieldRow label="Buy-in Amount">
+            <NumberInput value={buyInAmount} onChange={setBuyInAmount} prefix={currencySymbol} min={0} />
+          </FieldRow>
+
+          <FieldRow label="Starting Stack">
+            <NumberInput value={startingChips} onChange={setStartingChips} suffix="chips" min={1000} step={1000} />
+          </FieldRow>
+
+          <FieldRow
+            label="Tournament Fee / Rake"
+            hint={rakeType === 'percentage' ? 'Deducted from prize pool' : 'Fixed amount deducted'}
+          >
+            <div className="flex items-center gap-2">
+              <Select value={rakeType} onValueChange={(v: 'percentage' | 'fixed') => setRakeType(v)}>
+                <SelectTrigger className="h-9 w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">%</SelectItem>
+                  <SelectItem value="fixed">Fixed</SelectItem>
+                </SelectContent>
+              </Select>
+              <NumberInput
+                value={rakeType === 'percentage' ? rakePercentage : rakeAmount}
+                onChange={rakeType === 'percentage' ? setRakePercentage : setRakeAmount}
+                prefix={rakeType === 'percentage' ? '%' : currencySymbol}
+                max={rakeType === 'percentage' ? 100 : undefined}
+              />
+            </div>
+          </FieldRow>
+
+          {/* Live prize pool preview */}
+          {state.players.length > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t border-border/30">
+              <span className="text-sm text-muted-foreground">Estimated Prize Pool</span>
+              <span className="font-mono font-bold text-lg text-primary">
+                {currencySymbol}{netPool.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 2: Bounties ───────────────────────────── */}
+      <Card className={cn('rounded-xl transition-all', enableBounties ? 'card-glass-orange' : 'card-glass')}>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Zap className={cn('h-4 w-4', enableBounties ? 'text-orange-400' : 'text-muted-foreground')} />
+              <div>
+                <Label htmlFor="enableBounties" className="text-sm font-semibold cursor-pointer">Bounties</Label>
+                <p className="text-xs text-muted-foreground">Cash prizes for knockouts</p>
+              </div>
+            </div>
+            <Checkbox
+              id="enableBounties"
+              checked={enableBounties}
+              onCheckedChange={(c) => setEnableBounties(!!c)}
+              className="h-5 w-5"
+            />
+          </div>
+
+          {enableBounties && (
+            <SubSection color="orange">
+              <FieldRow label="Bounty per Knockout">
+                <NumberInput value={bountyAmount} onChange={setBountyAmount} prefix={currencySymbol} />
+              </FieldRow>
+              <FieldRow label="Bounty Type">
+                <Select value={bountyType} onValueChange={(v: 'standard' | 'progressive') => setBountyType(v)}>
+                  <SelectTrigger className="h-9 w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard (Fixed)</SelectItem>
+                    <SelectItem value="progressive">Progressive (PKO)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FieldRow>
+              {bountyType === 'progressive' && (
+                <div className="text-xs text-orange-300/80 bg-orange-500/10 rounded p-2 border border-orange-500/20">
+                  PKO: Half the bounty is paid immediately on knockout, half is added to your own bounty.
+                </div>
+              )}
+            </SubSection>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 3: Rebuys ────────────────────────────── */}
+      <Card className={cn('rounded-xl transition-all', allowRebuys ? 'card-glass-purple' : 'card-glass')}>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <RefreshCw className={cn('h-4 w-4', allowRebuys ? 'text-purple-400' : 'text-muted-foreground')} />
+              <div>
+                <Label htmlFor="allowRebuys" className="text-sm font-semibold cursor-pointer">Rebuys</Label>
+                <p className="text-xs text-muted-foreground">Top up chips after busting</p>
+              </div>
+            </div>
+            <Checkbox
+              id="allowRebuys"
+              checked={allowRebuys}
+              onCheckedChange={(c) => setAllowRebuys(!!c)}
+              className="h-5 w-5"
+            />
+          </div>
+
+          {allowRebuys && (
+            <SubSection color="purple">
+              <FieldRow label="Rebuy Cost">
+                <NumberInput value={rebuyAmount} onChange={setRebuyAmount} prefix={currencySymbol} />
+              </FieldRow>
+              <FieldRow label="Rebuy Chips">
+                <NumberInput value={rebuyChips} onChange={setRebuyChips} suffix="chips" step={1000} />
+              </FieldRow>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Rebuy Period</Label>
+                  <NumberInput value={rebuyPeriodLevels} onChange={setRebuyPeriodLevels} suffix="lvls" min={1} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Max Rebuys</Label>
+                  <NumberInput value={maxRebuys} onChange={setMaxRebuys} placeholder="∞" />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Available during first {rebuyPeriodLevels} levels · Max: {maxRebuys || 'unlimited'}
+              </p>
+            </SubSection>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 4: Re-entry ──────────────────────────── */}
+      <Card className={cn('rounded-xl transition-all', allowReEntry ? 'card-glass-blue' : 'card-glass')}>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Plus className={cn('h-4 w-4', allowReEntry ? 'text-blue-400' : 'text-muted-foreground')} />
+              <div>
+                <Label htmlFor="allowReEntry" className="text-sm font-semibold cursor-pointer">Re-entry</Label>
+                <p className="text-xs text-muted-foreground">Full buy-in, fresh starting stack</p>
+              </div>
+            </div>
+            <Checkbox
+              id="allowReEntry"
+              checked={allowReEntry}
+              onCheckedChange={(c) => setAllowReEntry(!!c)}
+              className="h-5 w-5"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 5: Add-ons ───────────────────────────── */}
+      <Card className={cn('rounded-xl transition-all', allowAddons ? 'card-glass-green' : 'card-glass')}>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Coins className={cn('h-4 w-4', allowAddons ? 'text-green-400' : 'text-muted-foreground')} />
+              <div>
+                <Label htmlFor="allowAddons" className="text-sm font-semibold cursor-pointer">Add-ons</Label>
+                <p className="text-xs text-muted-foreground">Optional chip purchase at set level</p>
+              </div>
+            </div>
+            <Checkbox
+              id="allowAddons"
+              checked={allowAddons}
+              onCheckedChange={(c) => setAllowAddons(!!c)}
+              className="h-5 w-5"
+            />
+          </div>
+
+          {allowAddons && (
+            <SubSection color="green">
+              <FieldRow label="Add-on Cost">
+                <NumberInput value={addonAmount} onChange={setAddonAmount} prefix={currencySymbol} />
+              </FieldRow>
+              <FieldRow label="Add-on Chips">
+                <NumberInput value={addonChips} onChange={setAddonChips} suffix="chips" step={1000} />
+              </FieldRow>
+              <FieldRow label="Available from Level" hint="Typically after rebuy period ends">
+                <NumberInput value={addonAvailableLevel} onChange={setAddonAvailableLevel} suffix="+" min={1} />
+              </FieldRow>
+            </SubSection>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 6: Prize Distribution ───────────────── */}
+      <Card className="card-glass-rose rounded-xl">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <SectionHeader icon={Trophy} title="Prize Distribution" color="text-rose-400" />
+            <Select onValueChange={(v) => {
+              const templates: Record<string, { position: number; percentage: number }[]> = {
+                'wta': [{ position: 1, percentage: 100 }],
+                'top-2': [{ position: 1, percentage: 65 }, { position: 2, percentage: 35 }],
+                'top-3': [{ position: 1, percentage: 50 }, { position: 2, percentage: 30 }, { position: 3, percentage: 20 }],
+                'top-4': [{ position: 1, percentage: 40 }, { position: 2, percentage: 30 }, { position: 3, percentage: 20 }, { position: 4, percentage: 10 }],
+              };
+              if (templates[v]) setManualPayouts(templates[v]);
+              else if (v === 'top-10pct') {
+                const n = Math.max(1, Math.ceil((state.players.length || 10) * 0.1));
+                const pts = [40, 25, 15, 10, 6, 4];
+                const payouts = Array.from({ length: n }, (_, i) => ({
+                  position: i + 1,
+                  percentage: i < pts.length - 1 ? pts[i] : Math.max(1, Math.floor(100 / n))
+                }));
+                // normalise to 100
+                const sum = payouts.reduce((s, p) => s + p.percentage, 0);
+                payouts[payouts.length - 1].percentage += 100 - sum;
+                setManualPayouts(payouts);
+              }
+            }}>
+              <SelectTrigger className="h-8 w-40 text-xs">
+                <SelectValue placeholder="Templates" />
               </SelectTrigger>
               <SelectContent>
-                  <SelectItem value="$">$ (USD - US Dollar)</SelectItem>
-                  <SelectItem value="€">€ (EUR - Euro)</SelectItem>
-                  <SelectItem value="£">£ (GBP - British Pound)</SelectItem>
-                  <SelectItem value="¥">¥ (JPY - Japanese Yen)</SelectItem>
-                  <SelectItem value="C$">C$ (CAD - Canadian Dollar)</SelectItem>
-                  <SelectItem value="A$">A$ (AUD - Australian Dollar)</SelectItem>
-                  <SelectItem value="₹">₹ (INR - Indian Rupee)</SelectItem>
-                  <SelectItem value="₩">₩ (KRW - South Korean Won)</SelectItem>
-                  <SelectItem value="¥">¥ (CNY - Chinese Yuan)</SelectItem>
-                  <SelectItem value="R$">R$ (BRL - Brazilian Real)</SelectItem>
-                  <SelectItem value="₽">₽ (RUB - Russian Ruble)</SelectItem>
-                  <SelectItem value="₺">₺ (TRY - Turkish Lira)</SelectItem>
-                  <SelectItem value="₱">₱ (PHP - Philippine Peso)</SelectItem>
-                  <SelectItem value="₡">₡ (CRC - Costa Rican Colón)</SelectItem>
-                  <SelectItem value="₨">₨ (PKR - Pakistani Rupee)</SelectItem>
-                  <SelectItem value="₦">₦ (NGN - Nigerian Naira)</SelectItem>
-                  <SelectItem value="₴">₴ (UAH - Ukrainian Hryvnia)</SelectItem>
-                  <SelectItem value="₪">₪ (ILS - Israeli Shekel)</SelectItem>
-                  <SelectItem value="₫">₫ (VND - Vietnamese Dong)</SelectItem>
-                  <SelectItem value="₨">₨ (LKR - Sri Lankan Rupee)</SelectItem>
-                  <SelectItem value="₹">₹ (BTN - Bhutanese Ngultrum)</SelectItem>
-                  <SelectItem value="₨">₨ (NPR - Nepalese Rupee)</SelectItem>
-                  <SelectItem value="₨">₨ (MVR - Maldivian Rufiyaa)</SelectItem>
-                  <SelectItem value="₨">₨ (MUR - Mauritian Rupee)</SelectItem>
-                  <SelectItem value="₨">₨ (SCR - Seychellois Rupee)</SelectItem>
-                  <SelectItem value="R">R (ZAR - South African Rand)</SelectItem>
-                  <SelectItem value="CHF">CHF (Swiss Franc)</SelectItem>
-                  <SelectItem value="kr">kr (SEK - Swedish Krona)</SelectItem>
-                  <SelectItem value="kr">kr (NOK - Norwegian Krone)</SelectItem>
-                  <SelectItem value="kr">kr (DKK - Danish Krone)</SelectItem>
-                  <SelectItem value="zł">zł (PLN - Polish Złoty)</SelectItem>
-                  <SelectItem value="Kč">Kč (CZK - Czech Koruna)</SelectItem>
-                  <SelectItem value="Ft">Ft (HUF - Hungarian Forint)</SelectItem>
-                  <SelectItem value="lei">lei (RON - Romanian Leu)</SelectItem>
-                  <SelectItem value="лв">лв (BGN - Bulgarian Lev)</SelectItem>
-                  <SelectItem value="kn">kn (HRK - Croatian Kuna)</SelectItem>
-                  <SelectItem value="din">din (RSD - Serbian Dinar)</SelectItem>
-                  <SelectItem value="₼">₼ (AZN - Azerbaijani Manat)</SelectItem>
-                  <SelectItem value="₸">₸ (KZT - Kazakhstani Tenge)</SelectItem>
-                  <SelectItem value="сом">сом (KGS - Kyrgyzstani Som)</SelectItem>
-                  <SelectItem value="сом">сом (UZS - Uzbekistani Som)</SelectItem>
-                  <SelectItem value="₾">₾ (GEL - Georgian Lari)</SelectItem>
-                  <SelectItem value="֏">֏ (AMD - Armenian Dram)</SelectItem>
-                  <SelectItem value="ман">ман (TMT - Turkmenistani Manat)</SelectItem>
-                  <SelectItem value="₼">₼ (BYN - Belarusian Ruble)</SelectItem>
-                  <SelectItem value="lek">lek (ALL - Albanian Lek)</SelectItem>
-                  <SelectItem value="КМ">КМ (BAM - Bosnia-Herzegovina Convertible Mark)</SelectItem>
-                  <SelectItem value="ден">ден (MKD - Macedonian Denar)</SelectItem>
-                  <SelectItem value="MT">MT (MZN - Mozambican Metical)</SelectItem>
+                <SelectItem value="wta">Winner Takes All</SelectItem>
+                <SelectItem value="top-2">Top 2 (65/35)</SelectItem>
+                <SelectItem value="top-3">Top 3 (50/30/20)</SelectItem>
+                <SelectItem value="top-4">Top 4 (40/30/20/10)</SelectItem>
+                <SelectItem value="top-10pct">Top 10% of Field</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-            {/* Buy-in Amount */}
-            <div className="space-y-2">
-              <Label htmlFor="buyIn" className="text-sm font-medium">
-                Buy-in Amount
-              </Label>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
-                <Input
-                  id="buyIn"
-                  type="number"
-                  min={0}
-                  value={buyInAmount === 0 ? '' : buyInAmount}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '') {
-                      setBuyInAmount(0);
-                    } else {
-                      setBuyInAmount(parseInt(value) || 0);
-                    }
-                  }}
-                  onFocus={(e) => e.target.select()}
-                  className="w-32 h-10"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="0"
-                />
-              </div>
+          {totalPercentage !== 100 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+              <span>⚠️</span>
+              <span>Total: {totalPercentage}% — must equal 100%</span>
             </div>
+          )}
 
-            {/* Tournament Fee / Rake */}
-            <div className="space-y-2">
-              <Label htmlFor="rakeInput" className="text-sm font-medium">
-                Tournament Fee / Rake
-              </Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={rakeType} onValueChange={(value: 'percentage' | 'fixed') => setRakeType(value)}>
-                  <SelectTrigger className="w-[140px] h-10">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="fixed">Fixed Amount</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium w-8 text-center">
-                    {rakeType === 'percentage' ? '%' : currencySymbol}
-                  </span>
-                  <Input
-                    id="rakeInput"
-                    type="number"
-                    min={0}
-                    max={rakeType === 'percentage' ? 100 : undefined}
-                    value={rakeType === 'percentage' ? (rakePercentage === 0 ? '' : rakePercentage) : (rakeAmount === 0 ? '' : rakeAmount)}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '') {
-                        if (rakeType === 'percentage') setRakePercentage(0);
-                        else setRakeAmount(0);
-                      } else {
-                        const parsed = parseInt(value) || 0;
-                        if (rakeType === 'percentage') {
-                          setRakePercentage(Math.min(100, Math.max(0, parsed)));
-                        } else {
-                          setRakeAmount(Math.max(0, parsed));
-                        }
-                      }
-                    }}
-                    onFocus={(e) => e.target.select()}
-                    className="w-32 h-10"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {rakeType === 'percentage' 
-                  ? 'Percentage deducted from the total prize pool.' 
-                  : 'Fixed amount deducted from the total prize pool.'}
-              </p>
-            </div>
-
-            {/* Starting Stack */}
-            <div className="space-y-2">
-              <Label htmlFor="startingChips" className="text-sm font-medium">
-                Starting Stack
-              </Label>
-              <div className="flex items-center space-x-2">
-                <Input
-                  id="startingChips"
-                  type="number"
-                  min={1000}
-                  step={1000}
-                  value={startingChips === 0 ? '' : startingChips}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '') {
-                      setStartingChips(1000);
-                    } else {
-                      setStartingChips(parseInt(value) || 1000);
-                    }
-                  }}
-                  onFocus={(e) => e.target.select()}
-                  className="w-32 h-10"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                />
-                <span className="text-sm text-muted-foreground w-12">chips</span>
-              </div>
-            </div>
-
-            {/* Bounties Section */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="enableBounties"
-                  checked={enableBounties}
-                  onCheckedChange={(checked) => setEnableBounties(!!checked)}
-                />
-                <Label htmlFor="enableBounties" className="text-sm font-medium">
-                  Add Bounties
-                </Label>
-              </div>
-
-              {enableBounties && (
-                <div className="ml-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bountyAmount" className="text-sm font-medium text-muted-foreground">
-                      Bounty per Knockout
-                    </Label>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
-                      <Input
-                        id="bountyAmount"
-                        type="number"
-                        min={0}
-                        value={bountyAmount === 0 ? '' : bountyAmount}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === '') {
-                            setBountyAmount(0);
-                          } else {
-                            setBountyAmount(parseInt(value) || 0);
-                          }
-                        }}
-                        onFocus={(e) => e.target.select()}
-                        className="w-24 h-10"
-                        placeholder="0"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">
-                      Bounty Type
-                    </Label>
-                    <Select value={bountyType} onValueChange={(v: 'standard' | 'progressive') => setBountyType(v)}>
-                      <SelectTrigger className="w-full sm:w-[280px]">
-                        <SelectValue placeholder="Select bounty type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard">Standard (Fixed amount)</SelectItem>
-                        <SelectItem value="progressive">Progressive (PKO)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Rebuys Section */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="allowRebuys"
-                  checked={allowRebuys}
-                  onCheckedChange={(checked) => setAllowRebuys(!!checked)}
-                />
-                <Label htmlFor="allowRebuys" className="text-sm font-medium">
-                  Allow Rebuys
-                </Label>
-              </div>
-
-              {allowRebuys && (
-                <div className="ml-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="rebuyAmount" className="text-sm font-medium text-muted-foreground">
-                      Rebuy Amount
-                    </Label>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
-                      <Input
-                        id="rebuyAmount"
-                        type="number"
-                        min={0}
-                        value={rebuyAmount === 0 ? '' : rebuyAmount}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === '') {
-                            setRebuyAmount(0);
-                          } else {
-                            setRebuyAmount(parseInt(value) || 0);
-                          }
-                        }}
-                        onFocus={(e) => e.target.select()}
-                        className="w-24 h-10"
-                        placeholder="0"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="rebuyChips" className="text-sm font-medium text-muted-foreground">
-                      Chips per Rebuy
-                    </Label>
-                    <Input
-                      id="rebuyChips"
-                      type="number"
-                      min={0}
-                      value={rebuyChips === 0 ? '' : rebuyChips}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (value === '') {
-                          setRebuyChips(0);
-                        } else {
-                          setRebuyChips(parseInt(value) || 0);
-                        }
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      className="w-32 h-10"
-                      placeholder="0"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="maxRebuys" className="text-sm font-medium text-muted-foreground">
-                        Max Rebuys (0 = unlimited)
-                      </Label>
-                      <Input
-                        id="maxRebuys"
-                        type="number"
-                        min={0}
-                        value={maxRebuys === 0 ? '' : maxRebuys}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === '') {
-                            setMaxRebuys(0);
-                          } else {
-                            setMaxRebuys(parseInt(value) || 0);
-                          }
-                        }}
-                        onFocus={(e) => e.target.select()}
-                        className="w-full h-10"
-                        placeholder="0"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rebuyPeriodLevels" className="text-sm font-medium text-muted-foreground">
-                        Rebuy Period (Levels)
-                      </Label>
-                      <Input
-                        id="rebuyPeriodLevels"
-                        type="number"
-                        min={1}
-                        value={rebuyPeriodLevels === 0 ? '' : rebuyPeriodLevels}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === '') {
-                            setRebuyPeriodLevels(0);
-                          } else {
-                            setRebuyPeriodLevels(parseInt(value) || 0);
-                          }
-                        }}
-                        onFocus={(e) => e.target.select()}
-                        className="w-full h-10"
-                        placeholder="3"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Re-entry Section */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="allowReEntry"
-                  checked={allowReEntry}
-                  onCheckedChange={(checked) => setAllowReEntry(!!checked)}
-                />
-                <Label htmlFor="allowReEntry" className="text-sm font-medium">
-                  Allow Re-entry (Full buy-in & new stack)
-                </Label>
-              </div>
-            </div>
-
-            {/* Addons Section */}
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="allowAddons"
-                  checked={allowAddons}
-                  onCheckedChange={(checked) => setAllowAddons(!!checked)}
-                />
-                <Label htmlFor="allowAddons" className="text-sm font-medium">
-                  Allow Add-ons
-                </Label>
-              </div>
-
-              {allowAddons && (
-                <div className="ml-6 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="addonAmount" className="text-sm font-medium text-muted-foreground">
-                        Add-on Amount
-                      </Label>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium w-8 text-center">{currencySymbol}</span>
-                        <Input
-                          id="addonAmount"
-                          type="number"
-                          min={0}
-                          value={addonAmount === 0 ? '' : addonAmount}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              setAddonAmount(0);
-                            } else {
-                              setAddonAmount(parseInt(value) || 0);
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-24 h-10"
-                          placeholder="10"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="addonChips" className="text-sm font-medium text-muted-foreground">
-                        Add-on Chips
-                      </Label>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          id="addonChips"
-                          type="number"
-                          min={1000}
-                          step={1000}
-                          value={addonChips === 0 ? '' : addonChips}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              setAddonChips(0);
-                            } else {
-                              setAddonChips(parseInt(value) || 0);
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                          className="w-24 h-10"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                        />
-                        <span className="text-sm text-muted-foreground w-12">chips</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="addonAvailableLevel" className="text-sm font-medium text-muted-foreground">
-                      Available from Level
-                    </Label>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        id="addonAvailableLevel"
-                        type="number"
-                        min={1}
-                        value={addonAvailableLevel === 0 ? '' : addonAvailableLevel}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === '') {
-                            setAddonAvailableLevel(1);
-                          } else {
-                            setAddonAvailableLevel(parseInt(value) || 1);
-                          }
-                        }}
-                        onFocus={(e) => e.target.select()}
-                        className="w-24 h-10"
-                        placeholder="6"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                      />
-                      <span className="text-sm text-muted-foreground w-16">and higher</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Add-ons become available from level {addonAvailableLevel} onwards (typically after rebuy period)
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <Separator className="my-6" />
-
-          {/* Prize Money Distribution */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-medium mb-1">Prize Money Distribution</h3>
-                <p className="text-sm text-muted-foreground">
-                  Set payout percentages for each position. Total should add up to 100%.
-                </p>
-              </div>
-              <Select onValueChange={(value) => {
-                if (value === 'winner-takes-all') {
-                  setManualPayouts([{ position: 1, percentage: 100 }]);
-                } else if (value === 'top-2') {
-                  setManualPayouts([
-                    { position: 1, percentage: 65 },
-                    { position: 2, percentage: 35 }
-                  ]);
-                } else if (value === 'top-3') {
-                  setManualPayouts([
-                    { position: 1, percentage: 50 },
-                    { position: 2, percentage: 30 },
-                    { position: 3, percentage: 20 }
-                  ]);
-                } else if (value === 'top-4') {
-                  setManualPayouts([
-                    { position: 1, percentage: 40 },
-                    { position: 2, percentage: 30 },
-                    { position: 3, percentage: 20 },
-                    { position: 4, percentage: 10 }
-                  ]);
-                } else if (value === 'top-10-percent') {
-                  const numPlayers = state.players.length || 10; // Default to 10 if no players
-                  const numPaid = Math.max(1, Math.ceil(numPlayers * 0.1));
-                  
-                  if (numPaid === 1) {
-                    setManualPayouts([{ position: 1, percentage: 100 }]);
-                  } else if (numPaid === 2) {
-                    setManualPayouts([
-                      { position: 1, percentage: 65 },
-                      { position: 2, percentage: 35 }
-                    ]);
-                  } else if (numPaid === 3) {
-                    setManualPayouts([
-                      { position: 1, percentage: 50 },
-                      { position: 2, percentage: 30 },
-                      { position: 3, percentage: 20 }
-                    ]);
-                  } else {
-                    // Simple distribution for 4+ players
-                    const payouts = [];
-                    let remaining = 100;
-                    let currentPercentage = 40; // Start with 40% for 1st
-                    
-                    for (let i = 0; i < numPaid; i++) {
-                      if (i === numPaid - 1) {
-                        payouts.push({ position: i + 1, percentage: remaining });
-                      } else {
-                        payouts.push({ position: i + 1, percentage: currentPercentage });
-                        remaining -= currentPercentage;
-                        currentPercentage = Math.floor(currentPercentage * 0.6); // Decrease by 40% each step
-                      }
-                    }
-                    setManualPayouts(payouts);
-                  }
-                }
-              }}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <SelectValue placeholder="Templates" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="winner-takes-all">Winner Takes All (100%)</SelectItem>
-                  <SelectItem value="top-2">Top 2 (65/35)</SelectItem>
-                  <SelectItem value="top-3">Top 3 (50/30/20)</SelectItem>
-                  <SelectItem value="top-4">Top 4 (40/30/20/10)</SelectItem>
-                  <SelectItem value="top-10-percent">Top 10% of Field</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(() => {
-              // Calculate total percentage
-              const totalPercentage = manualPayouts.reduce((sum, payout) => sum + payout.percentage, 0);
-
-              // Show warning if not 100%
-              if (totalPercentage !== 100) {
-                return (
-                  <div className="bg-amber-500 bg-opacity-10 rounded-lg p-3 border border-amber-500">
-                    <div className="flex items-center text-amber-500">
-                      <span className="material-icons text-sm mr-2">warning</span>
-                      <span className="text-sm font-medium">
-                        Total: {totalPercentage}% (should be 100%)
-                      </span>
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
-
-            <div className="space-y-2">
-              {manualPayouts.map((payout, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <div className="w-12 text-sm font-medium">
-                    {index === 0 ? "1st:" : 
-                     index === 1 ? "2nd:" : 
-                     index === 2 ? "3rd:" : 
-                     `${index + 1}th:`}
-                  </div>
-                  <div className="flex items-center space-x-2">
+          <div className="space-y-2">
+            {manualPayouts.map((payout, i) => {
+              const ordinals = ['1st', '2nd', '3rd'];
+              const label = ordinals[i] || `${i + 1}th`;
+              const amount = netPool > 0 ? Math.floor(netPool * payout.percentage / 100) : null;
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-sm font-medium w-10 text-muted-foreground">{label}</span>
+                  <div className="flex items-center gap-1.5 flex-1">
                     <Input
                       type="number"
                       min={0}
                       max={100}
                       value={payout.percentage === 0 ? '' : payout.percentage}
                       onChange={(e) => {
-                        const value = e.target.value;
                         const newPayouts = [...manualPayouts];
-                        if (value === '') {
-                          newPayouts[index].percentage = 0;
-                        } else {
-                          newPayouts[index].percentage = parseInt(value) || 0;
-                        }
+                        newPayouts[i].percentage = parseInt(e.target.value) || 0;
                         setManualPayouts(newPayouts);
                       }}
                       onFocus={(e) => e.target.select()}
-                      className="w-16 h-10 !bg-black border-gray-600 text-white"
+                      className="h-9 w-20 text-right"
                       inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="0"
                     />
-                    <span className="text-sm">%</span>
+                    <span className="text-sm text-muted-foreground">%</span>
+                    {amount !== null && amount > 0 && (
+                      <span className="text-sm font-mono text-primary ml-2">
+                        {currencySymbol}{amount.toLocaleString()}
+                      </span>
+                    )}
                   </div>
                   {manualPayouts.length > 1 && (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        const newPayouts = manualPayouts.filter((_, i) => i !== index);
-                        // Adjust position numbers
-                        newPayouts.forEach((p, i) => {
-                          p.position = i + 1;
-                        });
-                        setManualPayouts(newPayouts);
-                      }}
-                      className="h-10 px-3 text-xs text-red-500 hover:text-red-700"
+                      onClick={() => setManualPayouts(manualPayouts.filter((_, j) => j !== i).map((p, j) => ({ ...p, position: j + 1 })))}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                     >
-                      Remove
+                      ×
                     </Button>
                   )}
                 </div>
-              ))}
-
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const newPosition = manualPayouts.length + 1;
-                  setManualPayouts([...manualPayouts, { position: newPosition, percentage: 0 }]);
-                }}
-                className="btn-add-position h-10 text-sm transition-all duration-200"
-              >
-                <span className="material-icons text-sm mr-1">add</span>
-                Add Position
-              </Button>
-            </div>
+              );
+            })}
           </div>
 
-          <Button 
-            className="btn-apply-changes h-10 w-full mt-6 transition-all duration-200" 
+          <Button
             variant="outline"
-            disabled={isApplying}
-            onClick={async () => {
-              setIsApplying(true);
-
-              try {
-                // Update prize structure with new buy-in amount, bounty settings, rebuy/addon settings and manual payouts
-                updatePrizeStructure({ 
-                  buyIn: buyInAmount,
-                  bountyAmount: enableBounties ? bountyAmount : 0,
-                  enableBounties,
-                  bountyType,
-                  allowRebuys,
-                  allowReEntry,
-                  allowAddons,
-                  rebuyAmount,
-                  addonAmount,
-                  rebuyPeriodLevels,
-                  maxRebuys,
-                  rakePercentage,
-                  rakeAmount,
-                  rakeType,
-                  manualPayouts,
-                  startingChips,
-                  rebuyChips,
-                  addonChips,
-                  addonAvailableLevel
-                });
-
-                // Update currency in settings
-                updateSettings({ currency: currencySymbol });
-
-                // Broadcast buy-in/prize changes to participant view for database tournaments
-                if (state.details?.type === 'database' && state.details?.id) {
-                  setTimeout(async () => {
-                    try {
-                      const { doc, updateDoc } = await import('firebase/firestore');
-                      const { db } = await import('@/lib/firebase');
-                      const { sanitizeForFirestore } = await import('@/lib/utils');
-                      const docRef = doc(db, 'activeTournaments', state.details!.id.toString());
-                      
-                      await updateDoc(docRef, sanitizeForFirestore({
-                        currentLevel: state.currentLevel,
-                        secondsLeft: state.secondsLeft,
-                        isRunning: state.isRunning,
-                        smallBlind: state.levels[state.currentLevel]?.small || 0,
-                        bigBlind: state.levels[state.currentLevel]?.big || 0,
-                        ante: state.levels[state.currentLevel]?.ante || 0,
-                        players: state.players || [],
-                        blindLevels: state.levels || [],
-                        settings: { ...state.settings, currency: currencySymbol },
-                        prizeStructure: {
-                          buyIn: buyInAmount,
-                          bountyAmount: enableBounties ? bountyAmount : 0,
-                          enableBounties,
-                          allowRebuys,
-                          allowAddons,
-                          rebuyAmount,
-                          addonAmount,
-                          rebuyPeriodLevels,
-                          maxRebuys,
-                          manualPayouts,
-                          startingChips,
-                          rebuyChips,
-                          addonChips,
-                          addonAvailableLevel
-                        }
-                      }));
-                    } catch (error) {
-                      console.error('Failed to broadcast buy-in/prize changes:', error);
-                    }
-                  }, 100);
-                }
-
-                // Show success state
-                setJustApplied(true);
-                setTimeout(() => setJustApplied(false), 2000);
-
-              } finally {
-                setIsApplying(false);
-              }
-            }}
+            size="sm"
+            onClick={() => setManualPayouts([...manualPayouts, { position: manualPayouts.length + 1, percentage: 0 }])}
+            className="btn-add-position h-9 text-sm w-full"
           >
-            {isApplying ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                <span>Applying...</span>
-              </>
-            ) : justApplied ? (
-              <>
-                <span className="material-icons text-sm mr-1">check</span>
-                <span>Applied!</span>
-              </>
-            ) : (
-              <>
-                <span className="material-icons text-sm mr-1">save</span>
-                <span>Apply Changes</span>
-              </>
-            )}
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Add Position
           </Button>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* ── Apply Button ─────────────────────────────────── */}
+      <Button
+        className="btn-apply-changes h-11 w-full text-sm font-semibold transition-all duration-200"
+        variant="outline"
+        disabled={isApplying || totalPercentage !== 100}
+        onClick={applyChanges}
+      >
+        {isApplying ? (
+          <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Applying...</>
+        ) : justApplied ? (
+          <><span className="mr-2">✓</span>Applied!</>
+        ) : (
+          'Apply Changes'
+        )}
+      </Button>
+
+      {totalPercentage !== 100 && (
+        <p className="text-xs text-center text-amber-400">Fix prize distribution before applying</p>
+      )}
+    </div>
   );
 }
