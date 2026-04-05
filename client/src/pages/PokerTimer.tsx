@@ -122,6 +122,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user || isAnonymous || dbTournamentId || isCreatingTournament.current) return;
+
     const createDatabaseTournament = async () => {
       isCreatingTournament.current = true;
       try {
@@ -129,11 +130,11 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         const tournamentName = t.state.details?.type === 'season'
           ? `League Game - ${new Date().toLocaleDateString()}`
           : t.state.details?.name || `Tournament - ${new Date().toLocaleDateString()}`;
-        
+
         const { collection, addDoc } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');
         const { sanitizeForFirestore } = await import('@/lib/utils');
-        
+
         const participantCode = Math.random().toString(36).substr(2, 6).toUpperCase();
         const directorCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
@@ -156,8 +157,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         }));
 
         setDbTournamentId(docRef.id);
-        
-        // Update tournament details to use database mode
         t.updateTournamentDetails({
           type: 'database',
           id: docRef.id,
