@@ -1,354 +1,300 @@
 import { useState, useRef } from 'react';
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Image, X } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import EventBrandingSection from "@/components/EventBrandingSection";
-import { Switch } from "@/components/ui/switch";
+import { Image, X, Volume2, Mic, Eye, Layers, Users, RefreshCw, Settings2, Palette, FileText } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SettingsSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
 }
 
-export default function SettingsSection({ tournament }: SettingsSectionProps) {
-  const { 
-    state, 
-    updateSettings,
-    updateTournamentDetails,
-    updateNotes
-  } = tournament;
+// Consistent toggle row — label on left, control on right
+function SettingRow({
+  id, label, hint, checked, onCheckedChange, children
+}: {
+  id: string; label: string; hint?: string;
+  checked?: boolean; onCheckedChange?: (v: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-border/20 last:border-0">
+      <div className="flex-1 min-w-0">
+        <Label htmlFor={id} className="text-sm font-medium cursor-pointer">{label}</Label>
+        {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
+      </div>
+      <div className="flex-shrink-0 flex items-center gap-2">
+        {children}
+        {onCheckedChange !== undefined && (
+          <Checkbox
+            id={id}
+            checked={checked}
+            onCheckedChange={(c) => onCheckedChange(!!c)}
+            className="checkbox-nav-style h-5 w-5"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
+// Grouped settings card
+function SettingsGroup({ icon: Icon, title, color, children }: {
+  icon: any; title: string; color: string; children: React.ReactNode;
+}) {
+  return (
+    <Card className="card-glass rounded-xl">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Icon className={cn("h-4 w-4", color)} />
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
+        </div>
+        <div className="divide-y divide-border/20">
+          {children}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SettingsSection({ tournament }: SettingsSectionProps) {
+  const { state, updateSettings, updateNotes } = tournament;
   const [notes, setNotes] = useState(state?.notes || '');
   const [leagueName, setLeagueName] = useState(state?.settings?.branding?.leagueName || '');
   const [logoUrl, setLogoUrl] = useState(state?.settings?.branding?.logoUrl || '');
   const [isApplying, setIsApplying] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
-  const [activeTab, setActiveTab] = useState('general');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-
-  const saveNotes = (newNotes: string) => {
-    setNotes(newNotes);
-    updateNotes(newNotes);
+  const saveNotes = (v: string) => {
+    setNotes(v);
+    updateNotes(v);
   };
 
-  const removeLogo = () => {
-    setLogoUrl('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const testVoice = (msg = 'This is a test voice announcement') => {
+    if (speechSynthesis.speaking) speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(msg);
+    u.rate = 0.8;
+    u.volume = 1.0;
+    speechSynthesis.speak(u);
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setLogoUrl(result);
-      };
-      reader.readAsDataURL(file);
+  const applyBranding = async () => {
+    setIsApplying(true);
+    try {
+      updateSettings({
+        branding: { leagueName: leagueName.trim(), logoUrl: logoUrl || undefined, isVisible: true }
+      });
+      setJustApplied(true);
+      setTimeout(() => setJustApplied(false), 2000);
+    } finally {
+      setIsApplying(false);
     }
   };
 
   return (
-    <Card className="mt-6 bg-card rounded-xl shadow-lg overflow-hidden bg-gradient-to-r from-violet-600/10 to-indigo-600/10 border border-violet-500/20">
-      <div className="w-full p-6 sm:p-5 text-left text-xl font-semibold flex items-center justify-between min-h-[4rem] sm:min-h-auto">
-        <div className="flex items-center">
-          <span className="material-icons mr-2 text-orange-500">settings</span>
-          <span>Settings</span>
-        </div>
-      </div>
-      <div className="p-5 pt-0 border-t border-[#2a2a2a]">
+    <div className="space-y-4">
+      <Card className="card-glass-indigo rounded-xl">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-2 mb-5">
+            <Settings2 className="h-4 w-4 text-indigo-400" />
+            <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Settings</span>
+          </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-12">
-            <TabsTrigger value="general" variant="settings" className="flex items-center justify-center gap-2 h-full text-sm font-medium">General</TabsTrigger>
-            <TabsTrigger value="branding" variant="tables" className="flex items-center justify-center gap-2 h-full text-sm font-medium">Branding</TabsTrigger>
-            <TabsTrigger value="notes" variant="players" className="flex items-center justify-center gap-2 h-full text-sm font-medium">Notes</TabsTrigger>
-          </TabsList>
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 h-10 mb-5">
+              <TabsTrigger value="general" variant="settings" className="text-xs gap-1.5">
+                <Settings2 className="h-3.5 w-3.5" />General
+              </TabsTrigger>
+              <TabsTrigger value="branding" variant="tables" className="text-xs gap-1.5">
+                <Palette className="h-3.5 w-3.5" />Branding
+              </TabsTrigger>
+              <TabsTrigger value="notes" variant="players" className="text-xs gap-1.5">
+                <FileText className="h-3.5 w-3.5" />Notes
+              </TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="general">
-          <div className="space-y-4 max-w-md mx-auto">
-            <h3 className="text-lg font-medium mb-2">General Settings</h3>
-
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
+            {/* ── General Tab ─────────────────────────────── */}
+            <TabsContent value="general" className="space-y-4 mt-0">
+              <SettingsGroup icon={Volume2} title="Audio" color="text-cyan-400">
+                <SettingRow
                   id="enableSounds"
+                  label="Sound Alerts"
+                  hint="30-second warning & level complete sounds"
                   checked={state.settings.enableSounds}
-                  onCheckedChange={(checked) => updateSettings({ enableSounds: !!checked })}
-                  className="checkbox-nav-style"
+                  onCheckedChange={(v) => updateSettings({ enableSounds: v })}
                 />
-                <Label htmlFor="enableSounds" className="text-sm">
-                  Enable sound alerts (30-second warning & level complete)
-                </Label>
-              </div>
+                <SettingRow
+                  id="enableVoice"
+                  label="Voice Announcements"
+                  hint="Blind level changes & countdown warnings"
+                  checked={state.settings.enableVoice}
+                  onCheckedChange={(v) => {
+                    updateSettings({ enableVoice: v });
+                    if (v) setTimeout(() => testVoice('Voice announcements enabled'), 100);
+                  }}
+                >
+                  {state.settings.enableVoice && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="btn-test-voice h-7 text-xs px-2"
+                      onClick={() => testVoice()}
+                    >
+                      <Mic className="h-3 w-3 mr-1" />
+                      Test
+                    </Button>
+                  )}
+                </SettingRow>
+              </SettingsGroup>
 
-              <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="enableVoice"
-                        checked={state.settings.enableVoice}
-                        onCheckedChange={(checked) => {
-                          updateSettings({ enableVoice: !!checked });
+              <SettingsGroup icon={Eye} title="Display" color="text-blue-400">
+                <SettingRow
+                  id="showNextLevel"
+                  label="Next Level Preview"
+                  hint="Show upcoming blinds in the timer"
+                  checked={state.settings.showNextLevel}
+                  onCheckedChange={(v) => updateSettings({ showNextLevel: v })}
+                />
+              </SettingsGroup>
 
-                          // Test voice when enabled
-                          if (checked) {
-                            setTimeout(() => {
-                              if (speechSynthesis.speaking) {
-                                speechSynthesis.cancel();
-                              }
+              <SettingsGroup icon={Layers} title="Blind Levels" color="text-purple-400">
+                <SettingRow
+                  id="applyDurationToAll"
+                  label="Sync Level Durations"
+                  hint="Editing one level duration updates all levels"
+                  checked={state.settings.applyDurationToAll || false}
+                  onCheckedChange={(v) => updateSettings({ applyDurationToAll: v })}
+                />
+                <SettingRow
+                  id="bigBlindAnte"
+                  label="Big Blind Ante"
+                  hint="BB posts the ante on behalf of the whole table"
+                  checked={state.settings.bigBlindAnte || false}
+                  onCheckedChange={(v) => updateSettings({ bigBlindAnte: v })}
+                />
+              </SettingsGroup>
 
-                              const testUtterance = new SpeechSynthesisUtterance('Voice announcements enabled');
-                              testUtterance.rate = 0.8;
-                              testUtterance.volume = 1.0;
-                              testUtterance.onstart = () => console.log("🎤 Test voice started");
-                              testUtterance.onend = () => console.log("✅ Test voice completed");
-                              testUtterance.onerror = (e) => console.error("❌ Test voice error:", e);
+              <SettingsGroup icon={Users} title="Players" color="text-green-400">
+                <SettingRow
+                  id="enableRecentPlayers"
+                  label="Recent Players"
+                  hint="Autocomplete & quick-add from past tournaments"
+                  checked={state.settings.enableRecentPlayers || false}
+                  onCheckedChange={(v) => updateSettings({ enableRecentPlayers: v })}
+                />
+              </SettingsGroup>
+            </TabsContent>
 
-                              speechSynthesis.speak(testUtterance);
-                            }, 100);
-                          }
-                        }}
-                        className="checkbox-nav-style"
-                      />
-                      <Label htmlFor="enableVoice" className="text-sm">
-                        Enable voice announcements (new blind levels & warnings)
-                      </Label>
-                    </div>
+            {/* ── Branding Tab ─────────────────────────────── */}
+            <TabsContent value="branding" className="space-y-4 mt-0">
+              <Card className="card-glass rounded-xl">
+                <CardContent className="p-4 space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leagueName" className="text-sm font-medium">Event Name</Label>
+                    <Input
+                      id="leagueName"
+                      value={leagueName}
+                      onChange={(e) => setLeagueName(e.target.value)}
+                      placeholder="e.g. Wednesday Night Poker"
+                      className="h-10"
+                    />
+                  </div>
 
-                    {state.settings.enableVoice && (
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Event Logo</Label>
+                    {logoUrl ? (
+                      <div className="space-y-2">
+                        <div className="relative w-full h-32 rounded-lg border border-border/30 overflow-hidden flex items-center justify-center bg-muted/20 p-3">
+                          <img src={logoUrl} alt="Event logo" className="max-h-full max-w-full object-contain" />
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2 h-6 w-6"
+                            onClick={() => setLogoUrl('')}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="w-full">
+                          <Image className="h-3.5 w-3.5 mr-1.5" />Change Logo
+                        </Button>
+                      </div>
+                    ) : (
                       <Button
-                        variant="ghost"
-                        className="btn-test-voice py-3 px-4 sm:py-2 sm:px-3 text-base sm:text-sm min-h-[3rem] sm:min-h-auto touch-manipulation border rounded-md transition-all"
-                        onClick={() => {
-                          if (speechSynthesis.speaking) {
-                            speechSynthesis.cancel();
-                          }
-
-                          const testMessage = "This is a test voice announcement";
-                          console.log("🧪 Testing voice:", testMessage);
-
-                          const utterance = new SpeechSynthesisUtterance(testMessage);
-                          utterance.rate = 0.8;
-                          utterance.volume = 1.0;
-                          utterance.onstart = () => console.log("🎤 Manual test voice started");
-                          utterance.onend = () => console.log("✅ Manual test voice completed");
-                          utterance.onerror = (e) => console.error("❌ Manual test voice error:", e);
-
-                          speechSynthesis.speak(utterance);
-                        }}
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full h-24 flex flex-col gap-2 border-dashed border-border/50 hover:border-primary/50"
                       >
-                        Test Voice
+                        <Image className="h-6 w-6 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Upload Event Logo</span>
                       </Button>
                     )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setLogoUrl(ev.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
                   </div>
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="showNextLevel"
-                  checked={state.settings.showNextLevel}
-                  onCheckedChange={(checked) => updateSettings({ showNextLevel: !!checked })}
-                  className="checkbox-nav-style"
-                />
-                <Label htmlFor="showNextLevel" className="text-sm">
-                  Show next level preview
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="applyDurationToAll"
-                  checked={state.settings.applyDurationToAll || false}
-                  onCheckedChange={(checked) => updateSettings({ applyDurationToAll: !!checked })}
-                  className="checkbox-nav-style"
-                />
-                <Label htmlFor="applyDurationToAll" className="text-sm">
-                  Apply duration changes to all blind levels
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="enableRecentPlayers"
-                  checked={state.settings.enableRecentPlayers || false}
-                  onCheckedChange={(checked) => updateSettings({ enableRecentPlayers: !!checked })}
-                  className="checkbox-nav-style"
-                />
-                <Label htmlFor="enableRecentPlayers" className="text-sm">
-                  Enable recent players (autocomplete & quick add buttons)
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="bigBlindAnte"
-                  checked={state.settings.bigBlindAnte || false}
-                  onCheckedChange={(checked) => updateSettings({ bigBlindAnte: !!checked })}
-                  className="checkbox-nav-style"
-                />
-                <Label htmlFor="bigBlindAnte" className="text-sm">
-                  Big Blind Ante (BB posts ante for the table)
-                </Label>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="branding">
-          <div className="space-y-4 max-w-md mx-auto">
-            <h3 className="text-lg font-medium flex items-center mb-2">
-              <Image className="mr-2 h-5 w-5 text-secondary" />
-              Event Branding
-            </h3>
-
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="leagueName" className="text-sm font-medium mb-2 block">
-                  Event Name
-                </Label>
-                <Input
-                  id="leagueName"
-                  type="text"
-                  value={leagueName}
-                  onChange={(e) => setLeagueName(e.target.value)}
-                  placeholder="Enter event name"
-                  className="px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm"
-                />
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium mb-2 block">
-                  Event Logo
-                </Label>
-
-                {logoUrl ? (
-                  <div className="space-y-2">
-                    <div className="relative w-full max-w-[280px] h-[140px] border-2 border-secondary/30 rounded-md overflow-hidden flex items-center justify-center p-2 bg-muted/30">
-                      <img 
-                        src={logoUrl} 
-                        alt="Event logo" 
-                        className="max-h-full max-w-full object-contain"
-                      />
-                      <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className="absolute top-1 right-1 h-6 w-6"
-                        onClick={removeLogo}
-                        aria-label="Remove logo"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                      <Image className="mr-2 h-4 w-4" /> Change Logo
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      className="btn-apply-branding flex-1 h-10"
+                      disabled={isApplying}
+                      onClick={applyBranding}
+                    >
+                      {isApplying ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />Applying...</>
+                       : justApplied ? <>✓ Applied!</>
+                       : 'Apply Branding'}
+                    </Button>
+                    <Button
+                      className="btn-remove-branding h-10 px-3"
+                      onClick={() => {
+                        updateSettings({ branding: { leagueName: '', logoUrl: undefined, isVisible: false } });
+                        setLeagueName('');
+                        setLogoUrl('');
+                      }}
+                    >
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
-                ) : (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => fileInputRef.current?.click()} 
-                    className="w-full h-24 flex flex-col gap-2"
-                  >
-                    <Image className="h-6 w-6" />
-                    <span>Upload Event Logo</span>
-                  </Button>
-                )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </div>
-
-              <Button 
-                onClick={async () => {
-                  setIsApplying(true);
-
-                  try {
-                    updateSettings({
-                      branding: {
-                        leagueName: leagueName.trim(),
-                        logoUrl: logoUrl || undefined,
-                        isVisible: true
-                      }
-                    });
-
-                    // Show success state
-                    setJustApplied(true);
-                    setTimeout(() => setJustApplied(false), 2000);
-
-                  } finally {
-                    setIsApplying(false);
-                  }
-                }}
-                className="btn-apply-branding w-full py-3 px-6 sm:py-2 sm:px-4 text-lg sm:text-base min-h-[3rem] sm:min-h-auto touch-manipulation"
-                disabled={isApplying}
-              >
-                {isApplying ? (
-                  <>
-                    <span className="animate-spin mr-2">⟳</span>
-                    Applying...
-                  </>
-                ) : justApplied ? (
-                  <>
-                    <span className="mr-2">✓</span>
-                    Applied!
-                  </>
-                ) : (
-                  'Apply Branding'
-                )}
-              </Button>
-
-              <Button 
-                onClick={() => {
-                  updateSettings({
-                    branding: {
-                      leagueName: '',
-                      logoUrl: undefined,
-                      isVisible: false
-                    }
-                  });
-                  setLeagueName('');
-                  setLogoUrl('');
-                }}
-                className="btn-remove-branding w-full"
-              >
-                Remove Branding
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="notes">
-          <div className="space-y-4 max-w-md mx-auto">
-            <div className="space-y-2">
-              <Textarea
-                id="tournament-notes"
-                placeholder="Add tournament notes..."
-                value={notes}
-                onChange={(e) => saveNotes(e.target.value)}
-                className="min-h-[120px] text-sm"
-                rows={6}
-              />
-              <p className="text-xs text-muted-foreground">
-                Notes are automatically saved as you type and persist between sessions.
-              </p>
-            </div>
-          </div>
-        </TabsContent>
-        </Tabs>
-      </div>
-    </Card>
+            {/* ── Notes Tab ─────────────────────────────── */}
+            <TabsContent value="notes" className="mt-0">
+              <Card className="card-glass rounded-xl">
+                <CardContent className="p-4 space-y-2">
+                  <Textarea
+                    placeholder="Add tournament notes, house rules, or announcements..."
+                    value={notes}
+                    onChange={(e) => saveNotes(e.target.value)}
+                    className="min-h-[140px] text-sm resize-none border-border/30"
+                    rows={6}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Notes auto-save as you type and are shown to players in the participant view.
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

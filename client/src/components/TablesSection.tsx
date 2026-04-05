@@ -1,1127 +1,455 @@
 import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle,
-  DialogTrigger
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogDescription,
+  DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
-import { Pencil, X, ArrowUpDown } from "lucide-react";
+import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw } from "lucide-react";
 import { TableConfig, Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import FinalTableDialog from "./FinalTableDialog";
 import { cn } from "@/lib/utils";
 
-
 interface TablesSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
 }
 
+// Felt color config — single source of truth
+const FELT_COLORS = [
+  { key: 'felt-green',   label: 'Green',    hex: '#22c55e', tableClass: 'table-felt-green' },
+  { key: 'felt-blue',    label: 'Blue',     hex: '#3b82f6', tableClass: 'table-felt-blue' },
+  { key: 'felt-red',     label: 'Red',      hex: '#ef4444', tableClass: 'table-felt-red' },
+  { key: 'felt-purple',  label: 'Purple',   hex: '#a855f7', tableClass: 'table-felt-purple' },
+  { key: 'felt-orange',  label: 'Orange',   hex: '#f59e0b', tableClass: 'table-felt-orange' },
+  { key: 'felt-teal',    label: 'Teal',     hex: '#14b8a6', tableClass: 'table-felt-teal' },
+  { key: 'felt-pink',    label: 'Pink',     hex: '#ec4899', tableClass: 'table-felt-pink' },
+  { key: 'felt-yellow',  label: 'Yellow',   hex: '#eab308', tableClass: 'table-felt-yellow' },
+  { key: 'felt-black',   label: 'Black',    hex: '#374151', tableClass: 'table-felt-black' },
+  { key: 'felt-burgundy',label: 'Burgundy', hex: '#dc2626', tableClass: 'table-felt-burgundy' },
+];
+
+const feltHex = (key: string) => FELT_COLORS.find(f => f.key === key)?.hex || '#22c55e';
+const feltClass = (key: string) => `table-felt-base ${FELT_COLORS.find(f => f.key === key)?.tableClass || 'table-felt-green'}`;
+
 export default function TablesSection({ tournament }: TablesSectionProps) {
-  const { state, updateSettings, updatePlayers, addKnockout, eliminatePlayer, undoBustOut, shouldPromptForFinalTable, goToFinalTable } = tournament;
+  const {
+    state, updateSettings, updatePlayers,
+    addKnockout, eliminatePlayer, undoBustOut,
+    shouldPromptForFinalTable, goToFinalTable
+  } = tournament;
 
-  // State for the bust out dialog
-  const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
-  const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
-  const [hitmanId, setHitmanId] = useState<string | null>(null);
-
-  // State for the undo bust out dialog
-  const [undoBustOutDialogOpen, setUndoBustOutDialogOpen] = useState(false);
-
-  // State for player movement (mobile-friendly)
-  const [selectedPlayerToMove, setSelectedPlayerToMove] = useState<Player | null>(null);
-  const [moveMode, setMoveMode] = useState(false);
-
-  // Set default table values in case it doesn't exist yet
-  const tables = state.settings.tables || { 
-    numberOfTables: 3, 
-    seatsPerTable: 6,
-    tableNames: ["Table 1", "Table 2", "Table 3"]
-  };
-
-
+  const tables = state.settings.tables || { numberOfTables: 3, seatsPerTable: 6, tableNames: ['Table 1','Table 2','Table 3'] };
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
-  const [seatsPerTable, setSeatsPerTable] = useState(tables.seatsPerTable);
-
-  // State for table names
-  const [tableNames, setTableNames] = useState<string[]>(tables.tableNames || 
-    Array.from({ length: tables.numberOfTables }).map((_, i) => `Table ${i + 1}`));
-
-  // State for editing table names
-  const [editingTableIndex, setEditingTableIndex] = useState<number | null>(null);
-  const [editTableName, setEditTableName] = useState("");
-
-  // State for the seating dialog
-  const [seatDialogOpen, setSeatDialogOpen] = useState(false);
-    // State for final table dialog
-  const [isFinalTableDialogOpen, setIsFinalTableDialogOpen] = useState(false);
-
-  // State for table balancing
-  const [tableBalanceDialogOpen, setTableBalanceDialogOpen] = useState(false);
-  const [balanceOptions, setBalanceOptions] = useState<{
-    overloadedTable: number;
-    underloadedTable: number;
-    playersToMove: Player[];
-  } | null>(null);
-
-  // State for table background colors/felt textures - use existing backgrounds from state
+  const [seatsPerTable, setSeatsPerTable]   = useState(tables.seatsPerTable);
+  const [tableNames, setTableNames]         = useState<string[]>(tables.tableNames || Array.from({ length: tables.numberOfTables }, (_, i) => `Table ${i + 1}`));
   const [tableBackgrounds, setTableBackgrounds] = useState<string[]>(
-    state.settings?.tableBackgrounds?.length === tables.numberOfTables 
-      ? state.settings.tableBackgrounds 
+    state.settings?.tableBackgrounds?.length === tables.numberOfTables
+      ? state.settings.tableBackgrounds
       : Array(tables.numberOfTables).fill('felt-green')
   );
 
-  // Removed balance tables mode and drag/drop functionality
+  const [editingTableIndex, setEditingTableIndex] = useState<number | null>(null);
+  const [editTableName, setEditTableName]         = useState('');
+  const [seatDialogOpen, setSeatDialogOpen]       = useState(false);
+  const [isFinalTableDialogOpen, setIsFinalTableDialogOpen] = useState(false);
 
-  // Initialize from settings once when component mounts
+  const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
+  const [playerToBustOut, setPlayerToBustOut]     = useState<Player | null>(null);
+  const [hitmanId, setHitmanId]                   = useState<string | null>(null);
+
+  const [undoBustOutDialogOpen, setUndoBustOutDialogOpen] = useState(false);
+
+  const [moveMode, setMoveMode]                         = useState(false);
+  const [selectedPlayerToMove, setSelectedPlayerToMove] = useState<Player | null>(null);
+
+  const [tableBalanceDialogOpen, setTableBalanceDialogOpen] = useState(false);
+  const [balanceOptions, setBalanceOptions] = useState<{
+    overloadedTable: number; underloadedTable: number; playersToMove: Player[];
+  } | null>(null);
+
+  // Sync from state
   useEffect(() => {
     if (state.settings.tables) {
-      const config = state.settings.tables;
-      setNumberOfTables(config.numberOfTables);
-      setSeatsPerTable(config.seatsPerTable);
-
-      if (config.tableNames && config.tableNames.length === config.numberOfTables) {
-        setTableNames(config.tableNames);
-      } else {
-        setTableNames(Array.from({ length: config.numberOfTables }, (_, i) => `Table ${i + 1}`));
-      }
-
-      // Use existing table backgrounds from settings if available
-      if (state.settings.tableBackgrounds && state.settings.tableBackgrounds.length === config.numberOfTables) {
-        setTableBackgrounds(state.settings.tableBackgrounds);
-      } else {
-        setTableBackgrounds(Array(config.numberOfTables).fill('felt-green'));
-      }
+      const c = state.settings.tables;
+      setNumberOfTables(c.numberOfTables);
+      setSeatsPerTable(c.seatsPerTable);
+      setTableNames(c.tableNames?.length === c.numberOfTables
+        ? c.tableNames
+        : Array.from({ length: c.numberOfTables }, (_, i) => `Table ${i + 1}`)
+      );
+      setTableBackgrounds(
+        state.settings.tableBackgrounds?.length === c.numberOfTables
+          ? state.settings.tableBackgrounds
+          : Array(c.numberOfTables).fill('felt-green')
+      );
     }
-  }, [state.settings.tables, state.settings.tableBackgrounds]); // Watch both tables and tableBackgrounds
+  }, [state.settings.tables, state.settings.tableBackgrounds]);
 
-  // Update table names when numberOfTables changes (user interaction only)
-  const updateTableNamesForCount = (newCount: number) => {
-    if (newCount > tableNames.length) {
-      const newNames = [...tableNames];
-      for (let i = tableNames.length; i < newCount; i++) {
-        newNames.push(`Table ${i + 1}`);
+  // Final table prompt
+  useEffect(() => {
+    if (shouldPromptForFinalTable()) setIsFinalTableDialogOpen(true);
+  }, [shouldPromptForFinalTable]);
+
+  // Table balance check
+  useEffect(() => {
+    if (isFinalTableDialogOpen || shouldPromptForFinalTable()) return;
+    const seated = state.players.filter(p => p.seated && p.isActive !== false);
+    if (seated.length < 2) return;
+    const byTable: Record<number, Player[]> = {};
+    seated.forEach(pl => {
+      if (pl.tableAssignment) {
+        const t = pl.tableAssignment.tableIndex;
+        byTable[t] = [...(byTable[t] || []), pl];
       }
-      setTableNames(newNames);
-    } else {
-      setTableNames(tableNames.slice(0, newCount));
-    }
-  };
-
-  // Update table backgrounds when numberOfTables changes (user interaction only)
-  const updateTableBackgroundsForCount = (newCount: number) => {
-    if (newCount > tableBackgrounds.length) {
-      const newBackgrounds = [...tableBackgrounds];
-      for (let i = tableBackgrounds.length; i < newCount; i++) {
-        newBackgrounds.push('felt-green');
-      }
-      setTableBackgrounds(newBackgrounds);
-    } else {
-      setTableBackgrounds(tableBackgrounds.slice(0, newCount));
-    }
-  };
-
-  // Change table background color
-  const changeTableBackground = (tableIndex: number, backgroundClass: string) => {
-    const newBackgrounds = [...tableBackgrounds];
-    newBackgrounds[tableIndex] = backgroundClass;
-    setTableBackgrounds(newBackgrounds);
-
-    // Update tournament settings with table backgrounds
-    const updatedTableSettings = {
-      ...state.settings.tables,
-      tableBackgrounds: newBackgrounds
-    };
-
-    updateSettings({ 
-      tables: updatedTableSettings,
-      tableBackgrounds: newBackgrounds 
     });
+    const tabs = Object.entries(byTable).map(([k, v]) => ({ idx: parseInt(k), players: v }));
+    if (tabs.length < 2) return;
+    const max = tabs.reduce((a, b) => b.players.length > a.players.length ? b : a);
+    const min = tabs.reduce((a, b) => b.players.length < a.players.length ? b : a);
+    if (max.players.length - min.players.length >= 2) {
+      setBalanceOptions({ overloadedTable: max.idx, underloadedTable: min.idx, playersToMove: max.players });
+      setTableBalanceDialogOpen(true);
+    }
+  }, [state.players, isFinalTableDialogOpen]);
 
-    // Broadcast table background changes to participant view for database tournaments
+  const expandTableNames = (n: number) => {
+    setTableNames(prev => n > prev.length
+      ? [...prev, ...Array.from({ length: n - prev.length }, (_, i) => `Table ${prev.length + i + 1}`)]
+      : prev.slice(0, n)
+    );
+    setTableBackgrounds(prev => n > prev.length
+      ? [...prev, ...Array(n - prev.length).fill('felt-green')]
+      : prev.slice(0, n)
+    );
+  };
+
+  const saveTableConfig = (nt = numberOfTables, spt = seatsPerTable, tn = tableNames) => {
+    updateSettings({ tables: { numberOfTables: nt, seatsPerTable: spt, tableNames: tn } });
+  };
+
+  const changeTableBackground = (idx: number, bg: string) => {
+    const updated = tableBackgrounds.map((b, i) => i === idx ? bg : b);
+    setTableBackgrounds(updated);
+    updateSettings({ tables: { ...tables, tableNames }, tableBackgrounds: updated });
     if (state.details?.type === 'database' && state.details?.id) {
       setTimeout(async () => {
         try {
           const { doc, updateDoc } = await import('firebase/firestore');
           const { db } = await import('@/lib/firebase');
           const { sanitizeForFirestore } = await import('@/lib/utils');
-          const docRef = doc(db, 'activeTournaments', state.details!.id.toString());
-          
-          await updateDoc(docRef, sanitizeForFirestore({
-            currentLevel: state.currentLevel,
-            secondsLeft: state.secondsLeft,
-            isRunning: state.isRunning,
-            smallBlind: state.levels[state.currentLevel]?.small || 0,
-            bigBlind: state.levels[state.currentLevel]?.big || 0,
-            ante: state.levels[state.currentLevel]?.ante || 0,
-            players: state.players || [],
-            blindLevels: state.levels || [],
-            settings: {
-              ...state.settings,
-              tables: updatedTableSettings,
-              tableBackgrounds: newBackgrounds
-            }
+          await updateDoc(doc(db, 'activeTournaments', state.details!.id.toString()), sanitizeForFirestore({
+            settings: { ...state.settings, tableBackgrounds: updated }
           }));
-        } catch (error) {
-          console.error('Failed to broadcast table background changes:', error);
-        }
+        } catch (e) { console.error(e); }
       }, 100);
     }
   };
 
-  // Check for final table condition
-  useEffect(() => {
-    if (shouldPromptForFinalTable()) {
-      setIsFinalTableDialogOpen(true);
-    }
-  }, [shouldPromptForFinalTable]);
-
-  // Check for table imbalance after each elimination
-  useEffect(() => {
-    // Don't show table balance dialog if final table dialog is already open
-    if (isFinalTableDialogOpen) return;
-
-    const seatedPlayers = state.players.filter(p => p.seated && p.isActive !== false);
-    if (seatedPlayers.length < 2) return; // Need at least 2 players to balance
-
-    // Don't show balance dialog if we're at final table player count
-    if (shouldPromptForFinalTable()) return;
-
-    // Group players by table
-    const playersByTable: { [key: number]: Player[] } = {};
-    seatedPlayers.forEach(player => {
-      if (player.tableAssignment) {
-        const tableIndex = player.tableAssignment.tableIndex;
-        if (!playersByTable[tableIndex]) {
-          playersByTable[tableIndex] = [];
-        }
-        playersByTable[tableIndex].push(player);
-      }
-    });
-
-    // Find tables with players
-    const activeTables = Object.keys(playersByTable).map(k => parseInt(k));
-    if (activeTables.length < 2) return; // Need at least 2 active tables
-
-    // Check for imbalance (difference of 2 or more players between tables)
-    const tableCounts = activeTables.map(tableIndex => ({
-      tableIndex,
-      count: playersByTable[tableIndex].length,
-      players: playersByTable[tableIndex]
-    }));
-
-    const maxTable = tableCounts.reduce((max, table) => table.count > max.count ? table : max);
-    const minTable = tableCounts.reduce((min, table) => table.count < min.count ? table : min);
-
-    if (maxTable.count - minTable.count >= 2) {
-      // Table imbalance detected
-      setBalanceOptions({
-        overloadedTable: maxTable.tableIndex,
-        underloadedTable: minTable.tableIndex,
-        playersToMove: maxTable.players
-      });
-      setTableBalanceDialogOpen(true);
-    }
-  }, [state.players, isFinalTableDialogOpen]);
-
-  // NO AUTOMATIC TABLE BALANCING OR PLAYER SWAPPING - MANUAL SEATING ONLY
-
-  // Calculate maximum capacity
-  const maxCapacity = numberOfTables * seatsPerTable;
-
-  // Start editing a table name
-  const startEditingTableName = (index: number) => {
-    setEditingTableIndex(index);
-    setEditTableName(tableNames[index] || `Table ${index + 1}`);
+  const saveTableName = () => {
+    if (editingTableIndex === null) return;
+    const updated = tableNames.map((n, i) => i === editingTableIndex ? (editTableName || `Table ${editingTableIndex + 1}`) : n);
+    setTableNames(updated);
+    setEditingTableIndex(null);
+    saveTableConfig(numberOfTables, seatsPerTable, updated);
   };
 
-  // Save the edited table name
-  const saveEditedTableName = () => {
-    if (editingTableIndex !== null) {
-      const newTableNames = [...tableNames];
-      newTableNames[editingTableIndex] = editTableName || `Table ${editingTableIndex + 1}`;
-      setTableNames(newTableNames);
-      setEditingTableIndex(null);
-
-      // Manually save the updated table names
-      const newConfig: TableConfig = {
-        numberOfTables,
-        seatsPerTable,
-        tableNames: newTableNames
-      };
-      updateSettings({ tables: newConfig });
-    }
-  };
-
-  // Manually seat selected players at tables - MANUAL ONLY, NO AUTOMATIC DISTRIBUTION
   const seatPlayersManually = (selectedPlayers: Player[]) => {
-    const { updatePlayers } = tournament;
-    const currentPlayers = [...state.players];
-
-    // Create a set of IDs of players to seat
-    const playersToSeatIds = new Set(selectedPlayers.map(p => p.id));
-
-    // Get currently occupied seats to avoid conflicts
-    const occupiedSeats = new Set();
-    currentPlayers.forEach(player => {
-      if (player.seated && player.tableAssignment && !playersToSeatIds.has(player.id)) {
-        occupiedSeats.add(`${player.tableAssignment.tableIndex}-${player.tableAssignment.seatIndex}`);
+    const current = [...state.players];
+    const ids = new Set(selectedPlayers.map(p => p.id));
+    const occupied = new Set<string>();
+    current.forEach(p => {
+      if (p.seated && p.tableAssignment && !ids.has(p.id)) {
+        occupied.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
       }
     });
 
-    // Smart seating algorithm based on player count and table capacity
-    const shuffledPlayers = [...selectedPlayers].sort(() => Math.random() - 0.5);
-    const playerCount = shuffledPlayers.length;
+    const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
+    const seats: { tableIndex: number; seatIndex: number }[] = [];
 
-    let assignedSeats: { tableIndex: number; seatIndex: number }[] = [];
-
-    if (playerCount <= seatsPerTable) {
-      // If players fit at one table, seat them all at Table 1 (index 0)
-
-      // Get available seats at Table 1 first
-      const table1Seats: { tableIndex: number; seatIndex: number }[] = [];
-      for (let seatIndex = 0; seatIndex < seatsPerTable; seatIndex++) {
-        const seatKey = `0-${seatIndex}`;
-        if (!occupiedSeats.has(seatKey)) {
-          table1Seats.push({ tableIndex: 0, seatIndex });
-        }
+    if (shuffled.length <= seatsPerTable) {
+      for (let s = 0; s < seatsPerTable && seats.length < shuffled.length; s++) {
+        if (!occupied.has(`0-${s}`)) seats.push({ tableIndex: 0, seatIndex: s });
       }
-
-      // If Table 1 doesn't have enough space, use other tables
-      if (table1Seats.length < playerCount) {
-        for (let tableIndex = 0; tableIndex < numberOfTables; tableIndex++) {
-          for (let seatIndex = 0; seatIndex < seatsPerTable; seatIndex++) {
-            const seatKey = `${tableIndex}-${seatIndex}`;
-            if (!occupiedSeats.has(seatKey) && assignedSeats.length < playerCount) {
-              assignedSeats.push({ tableIndex, seatIndex });
-            }
+      if (seats.length < shuffled.length) {
+        for (let t = 0; t < numberOfTables && seats.length < shuffled.length; t++) {
+          for (let s = 0; s < seatsPerTable && seats.length < shuffled.length; s++) {
+            if (!occupied.has(`${t}-${s}`)) seats.push({ tableIndex: t, seatIndex: s });
           }
         }
-      } else {
-        assignedSeats = table1Seats.slice(0, playerCount);
       }
     } else {
-      // Distribute players evenly across all tables
-
-      // Calculate players per table
-      const basePlayersPerTable = Math.floor(playerCount / numberOfTables);
-      const extraPlayers = playerCount % numberOfTables;
-
-      let playerIndex = 0;
-
-      for (let tableIndex = 0; tableIndex < numberOfTables && playerIndex < playerCount; tableIndex++) {
-        // Calculate how many players this table should get
-        const playersForThisTable = basePlayersPerTable + (tableIndex < extraPlayers ? 1 : 0);
-
-        // Get available seats for this table
-        const tableSeatCount = Math.min(playersForThisTable, seatsPerTable);
-        let seatedAtThisTable = 0;
-
-        for (let seatIndex = 0; seatIndex < seatsPerTable && seatedAtThisTable < tableSeatCount && playerIndex < playerCount; seatIndex++) {
-          const seatKey = `${tableIndex}-${seatIndex}`;
-          if (!occupiedSeats.has(seatKey)) {
-            assignedSeats.push({ tableIndex, seatIndex });
-            seatedAtThisTable++;
-            playerIndex++;
-          }
+      const base = Math.floor(shuffled.length / numberOfTables);
+      const extra = shuffled.length % numberOfTables;
+      let pi = 0;
+      for (let t = 0; t < numberOfTables && pi < shuffled.length; t++) {
+        const need = base + (t < extra ? 1 : 0);
+        let got = 0;
+        for (let s = 0; s < seatsPerTable && got < need && pi < shuffled.length; s++) {
+          if (!occupied.has(`${t}-${s}`)) { seats.push({ tableIndex: t, seatIndex: s }); got++; pi++; }
         }
       }
     }
 
-    // Shuffle the assigned seats for randomness within the distribution
-    const shuffledAssignedSeats = assignedSeats.sort(() => Math.random() - 0.5);
-
-    // Assign seats to players
-    const newlySeatedPlayers = shuffledPlayers.map((player, index) => ({
-      ...player,
-      seated: true,
-      tableAssignment: shuffledAssignedSeats[index] || { tableIndex: 0, seatIndex: index }
-    }));
-
-    // Update all players: preserve existing seating, update selected players
-    const updatedPlayers = currentPlayers.map(player => {
-      if (playersToSeatIds.has(player.id)) {
-        // Find the newly seated version of this player
-        return newlySeatedPlayers.find(newPlayer => newPlayer.id === player.id) || player;
-      }
-      // Keep existing players as they are (preserve their seating)
-      return player;
-    });
-
-    // Update the players with the new arrangement
-    updatePlayers(updatedPlayers);
-    
-    // Force a UI refresh after seating
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('seatingComplete', { 
-        detail: { seatedPlayers: updatedPlayers.filter(p => p.seated) }
-      }));
-    }, 200);
+    const shuffledSeats = seats.sort(() => Math.random() - 0.5);
+    const nowSeated = shuffled.map((p, i) => ({ ...p, seated: true, tableAssignment: shuffledSeats[i] || { tableIndex: 0, seatIndex: i } }));
+    updatePlayers(current.map(p => ids.has(p.id) ? (nowSeated.find(s => s.id === p.id) || p) : p));
   };
 
-  // Save table configuration
-  const saveTableConfig = () => {
-    const newConfig: TableConfig = {
-      numberOfTables,
-      seatsPerTable,
-      tableNames
-    };
-    updateSettings({ tables: newConfig });
-  };
-
-  // Manual save function for table configuration
-  const saveTableConfiguration = () => {
-    const newConfig: TableConfig = {
-      numberOfTables,
-      seatsPerTable,
-      tableNames
-    };
-    updateSettings({ tables: newConfig });
-  };
-
-  // Open the bust out dialog for a player
-  const openBustOutDialog = (player: Player) => {
-    setPlayerToBustOut(player);
-    setHitmanId(null);
-    setBustOutDialogOpen(true);
-  };
-
-  // Handle the bust out process
   const handleBustOut = () => {
     if (!playerToBustOut || !hitmanId) return;
-
-    // Find the hitman player
-    const hitman = state.players.find(p => p.id === hitmanId);
-    if (!hitman) return;
-
-    // Get seat information from manual table assignment
     const seatInfo = playerToBustOut.tableAssignment ? {
       tableIndex: playerToBustOut.tableAssignment.tableIndex,
       seatIndex: playerToBustOut.tableAssignment.seatIndex,
       totalSeatedPlayers: state.players.filter(p => p.seated).length
     } : undefined;
-
-    // First eliminate the player (this will also handle the position assignment)
     eliminatePlayer(playerToBustOut.id, hitmanId, seatInfo);
-    
-    // Then immediately add the knockout to the hitman
-    setTimeout(() => {
-      addKnockout(hitmanId);
-    }, 100); // Small delay to ensure elimination is processed first
-
-    // Close the dialog
+    setTimeout(() => addKnockout(hitmanId), 100);
     setBustOutDialogOpen(false);
     setPlayerToBustOut(null);
     setHitmanId(null);
   };
 
-  // Handle undo bust out for a specific player
-  const handleUndoBustOut = (playerId: string) => {
-    undoBustOut(playerId);
-    setUndoBustOutDialogOpen(false);
-  };
-
-  // Table balancing functions
-  const balanceTablesRandomly = () => {
+  const balanceRandomly = () => {
     if (!balanceOptions) return;
-
-    // Randomly select a player from the overloaded table
-    const randomIndex = Math.floor(Math.random() * balanceOptions.playersToMove.length);
-    const playerToMove = balanceOptions.playersToMove[randomIndex];
-
-    // Find first available seat in the underloaded table
-    const underloadedTablePlayers = state.players.filter(p => 
-      p.seated && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable
-    );
-
-    let targetSeat = null;
-    for (let seatIndex = 0; seatIndex < seatsPerTable; seatIndex++) {
-      const seatTaken = underloadedTablePlayers.some(p => p.tableAssignment?.seatIndex === seatIndex);
-      if (!seatTaken) {
-        targetSeat = { tableIndex: balanceOptions.underloadedTable, seatIndex };
+    const player = balanceOptions.playersToMove[Math.floor(Math.random() * balanceOptions.playersToMove.length)];
+    const underPlayers = state.players.filter(p => p.seated && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable);
+    for (let s = 0; s < seatsPerTable; s++) {
+      if (!underPlayers.some(p => p.tableAssignment?.seatIndex === s)) {
+        updatePlayers(state.players.map(p => p.id === player.id
+          ? { ...p, tableAssignment: { tableIndex: balanceOptions.underloadedTable, seatIndex: s } }
+          : p
+        ));
         break;
       }
     }
-
-    if (targetSeat) {
-      // Move the player
-      const updatedPlayers = state.players.map(player =>
-        player.id === playerToMove.id
-          ? { ...player, tableAssignment: targetSeat }
-          : player
-      );
-
-      updatePlayers(updatedPlayers);
-    }
-
     setTableBalanceDialogOpen(false);
     setBalanceOptions(null);
   };
 
-  const balanceTablesManually = () => {
-    if (!balanceOptions) return;
-
-    // Enter move mode and pre-select the overloaded table for manual selection
-    setMoveMode(true);
-    setSelectedPlayerToMove(null);
-    setTableBalanceDialogOpen(false);
-    setBalanceOptions(null);
-  };
-
-  // Mobile-friendly player movement functions
-  const startMoveMode = () => {
-    setMoveMode(true);
-    setSelectedPlayerToMove(null);
-  };
-
-  const cancelMoveMode = () => {
+  const movePlayerToSeat = (ti: number, si: number) => {
+    if (!selectedPlayerToMove) return;
+    const taken = state.players.find(p => p.seated && p.tableAssignment?.tableIndex === ti && p.tableAssignment?.seatIndex === si);
+    if (taken) return;
+    updatePlayers(state.players.map(p => p.id === selectedPlayerToMove.id
+      ? { ...p, tableAssignment: { tableIndex: ti, seatIndex: si } }
+      : p
+    ));
     setMoveMode(false);
     setSelectedPlayerToMove(null);
-  };
-
-  const selectPlayerToMove = (player: Player) => {
-    if (!moveMode) return;
-    setSelectedPlayerToMove(player);
-  };
-
-  const movePlayerToSeat = (targetTableIndex: number, targetSeatIndex: number) => {
-    if (!moveMode || !selectedPlayerToMove || !selectedPlayerToMove.tableAssignment) return;
-
-    // Check if the target seat is occupied
-    const targetSeatOccupied = state.players.find(p => 
-      p.seated && 
-      p.tableAssignment?.tableIndex === targetTableIndex && 
-      p.tableAssignment?.seatIndex === targetSeatIndex
-    );
-
-    if (targetSeatOccupied) {
-      return;
-    }
-
-    // Update the player's table assignment
-    const updatedPlayers = state.players.map(player =>
-      player.id === selectedPlayerToMove.id
-        ? {
-            ...player,
-            tableAssignment: { tableIndex: targetTableIndex, seatIndex: targetSeatIndex }
-          }
-        : player
-    );
-
-    updatePlayers(updatedPlayers);
-
-    // Exit move mode
-    setMoveMode(false);
-    setSelectedPlayerToMove(null);
-  };
-
-  // Removed all drag and drop functionality
-
-  // Helper function for table felt classes
-  const feltBackgroundClass = (background: string) => {
-    const backgrounds: Record<string, string> = {
-      'felt-green': 'table-felt-base table-felt-green',
-      'felt-blue': 'table-felt-base table-felt-blue',
-      'felt-red': 'table-felt-base table-felt-red',
-      'felt-purple': 'table-felt-base table-felt-purple',
-      'felt-orange': 'table-felt-base table-felt-orange',
-      'felt-pink': 'table-felt-base table-felt-pink',
-      'felt-teal': 'table-felt-base table-felt-teal',
-      'felt-yellow': 'table-felt-base table-felt-yellow',
-      'felt-black': 'table-felt-base table-felt-black',
-      'felt-burgundy': 'table-felt-base table-felt-burgundy',
-    };
-    return backgrounds[background] || backgrounds['felt-green'];
   };
 
   return (
-    <Card className="p-4 bg-gradient-to-r from-slate-800/50 to-slate-700/50 border border-slate-600/30 backdrop-blur-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold flex items-center">
-          <span className="material-icons mr-2 text-orange-500">table_chart</span>
-          Seating & Tables
-        </h2>
-      </div>
+    <div className="space-y-4">
+      <Card className="card-glass-orange rounded-xl">
+        <CardContent className="p-5">
 
-      <div className="p-5 pt-0 border-t border-[#2a2a2a]">
-          <div className="flex flex-wrap justify-center gap-6 mb-4 max-w-lg mx-auto">
-            <div className="w-36">
-              <Label htmlFor="numberOfTables" className="block mb-2">Number of Tables</Label>
+          {/* Header */}
+          <div className="flex items-center gap-2 mb-5">
+            <LayoutGrid className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Seating & Tables</span>
+          </div>
+
+          {/* Config row */}
+          <div className="flex flex-wrap gap-6 mb-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="numberOfTables" className="text-xs text-muted-foreground">Tables</Label>
               <Input
                 id="numberOfTables"
                 type="text"
-                value={numberOfTables.toString()}
+                value={numberOfTables}
                 onChange={(e) => {
-                        const value = e.target.value;
-                        // Allow complete deletion and typing
-                        if (value === '' || /^\d+$/.test(value)) {
-                          const numValue = value === '' ? 0 : parseInt(value, 10);
-                          if (numValue >= 0 && numValue <= 20) {
-                            setNumberOfTables(numValue);
-                          }
-                        }
-                      }}
-                onBlur={(e) => {
-                  // Ensure valid value on blur
-                  const value = parseInt(e.target.value, 10);
-                  let finalValue = numberOfTables;
-                  if (isNaN(value) || value < 1) {
-                    finalValue = 1;
-                    setNumberOfTables(1);
-                  } else if (value > 20) {
-                    finalValue = 20;
-                    setNumberOfTables(20);
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v) && v >= 1 && v <= 20) {
+                    setNumberOfTables(v);
+                    expandTableNames(v);
                   }
-                  updateTableNamesForCount(finalValue);
-                  updateTableBackgroundsForCount(finalValue);
-
-                  // Save configuration after user interaction
-                  const newConfig = {
-                    numberOfTables: finalValue,
-                    seatsPerTable,
-                    tableNames: tableNames.slice(0, finalValue)
-                  };
-                  updateSettings({ tables: newConfig });
                 }}
-                className="w-full text-center"
+                onBlur={() => saveTableConfig()}
+                className="w-20 h-9 text-center"
                 inputMode="numeric"
-                pattern="[0-9]*"
               />
             </div>
-
-            <div className="w-36">
-              <Label htmlFor="seatsPerTable" className="block mb-2">Seats Per Table</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="seatsPerTable" className="text-xs text-muted-foreground">Seats / Table</Label>
               <Input
                 id="seatsPerTable"
                 type="text"
-                value={seatsPerTable.toString()}
+                value={seatsPerTable}
                 onChange={(e) => {
-                        const value = e.target.value;
-                        // Allow complete deletion and typing
-                        if (value === '' || /^\d+$/.test(value)) {
-                          const numValue = value === '' ? 0 : parseInt(value, 10);
-                          if (numValue >= 0 && numValue <= 12) {
-                            setSeatsPerTable(numValue);
-                          }
-                        }
-                      }}
-                onBlur={(e) => {
-                  // Ensure valid value on blur
-                  const value = parseInt(e.target.value, 10);
-                  let finalValue = seatsPerTable;
-                  if (isNaN(value) || value < 2) {
-                    finalValue = 2;
-                    setSeatsPerTable(2);
-                  } else if (value > 12) {
-                    finalValue = 12;
-                    setSeatsPerTable(12);
-                  }
-
-                  // Save configuration after user interaction
-                  const newConfig = {
-                    numberOfTables,
-                    seatsPerTable: finalValue,
-                    tableNames
-                  };
-                  updateSettings({ tables: newConfig });
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v) && v >= 2 && v <= 12) setSeatsPerTable(v);
                 }}
-                className="w-full text-center"
+                onBlur={() => saveTableConfig()}
+                className="w-20 h-9 text-center"
                 inputMode="numeric"
-                pattern="[0-9]*"
               />
             </div>
+            <div className="flex items-end">
+              <Badge variant="outline" className="h-9 px-3 border-amber-500/30 text-amber-300 font-mono">
+                Max {numberOfTables * seatsPerTable} players
+              </Badge>
+            </div>
           </div>
 
-          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-4">
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2 mb-5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="btn-seat-players gap-1.5 h-9 text-xs"
+              disabled={state.players.length === 0}
+              onClick={() => setSeatDialogOpen(true)}
+            >
+              <Shuffle className="h-3.5 w-3.5" />
+              Seat / Randomize
+            </Button>
 
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
-              <Button 
-                onClick={() => setSeatDialogOpen(true)}
-                disabled={state.players.length === 0}
+            {state.players.some(p => p.seated) && (
+              <Button
                 variant="outline"
-                className="btn-seat-players flex items-center justify-center gap-1 font-medium text-sm w-full sm:w-auto py-3 sm:py-2 min-h-[3rem] sm:min-h-auto touch-manipulation transition-all duration-200"
-                title={state.players.filter(p => p.seated).length > 0 ? "Re-seat all players (complete reset)" : "Seat players at tables"}
+                size="sm"
+                onClick={() => { setMoveMode(!moveMode); setSelectedPlayerToMove(null); }}
+                className={cn(
+                  "gap-1.5 h-9 text-xs",
+                  moveMode
+                    ? "border-destructive/50 text-destructive hover:bg-destructive/10"
+                    : "border-primary/30 text-primary"
+                )}
               >
-                <span className="material-icons text-sm">event_seat</span>
-                <span>Seat Players/Randomize</span>
+                {moveMode ? <><X className="h-3.5 w-3.5" />Cancel Move</> : <><ArrowUpDown className="h-3.5 w-3.5" />Move Players</>}
               </Button>
-
-              {state.players.filter(p => p.seated).length > 0 && (
-                <Button 
-                  variant="outline"
-                  onClick={moveMode ? cancelMoveMode : startMoveMode}
-                  className={`flex items-center justify-center gap-1 font-medium text-sm w-full sm:w-auto py-3 sm:py-2 min-h-[3rem] sm:min-h-auto touch-manipulation transition-all duration-200 ${
-                    moveMode 
-                      ? 'bg-card border border-red-500 text-red-500 hover:bg-red-500 hover:bg-opacity-10' 
-                      : 'bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10'
-                  }`}
-                >
-                  {moveMode ? (
-                    <>
-                      <X className="w-4 h-4" />
-                      <span>Cancel Move Mode</span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowUpDown className="w-4 h-4" />
-                      <span>Move Players</span>
-                    </>
-                  )}
-                </Button>
-              )}
-
-              <Button 
-                variant="outline"
-                onClick={() => setUndoBustOutDialogOpen(true)}
-                disabled={state.players.filter(p => p.isActive === false && p.position).length === 0}
-                className="btn-undo-bust-out flex items-center justify-center gap-1 font-medium text-sm w-full sm:w-auto py-3 sm:py-2 min-h-[3rem] sm:min-h-auto touch-manipulation transition-all duration-200"
-              >
-                <span className="material-icons text-sm">undo</span>
-                <span>Undo Bust Out</span>
-              </Button>
-            </div>
-
-            {/* Move Mode Instructions - Enhanced Visual Feedback */}
-            {moveMode && (
-              <div className="mt-4 p-4 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-2 border-blue-400/60 rounded-lg shadow-lg animate-pulse">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
-                  <div className="text-lg font-bold text-blue-300">🔄 MOVE MODE ACTIVE</div>
-                  <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
-                </div>
-                <div className="text-sm text-blue-200 font-medium">
-                  {selectedPlayerToMove 
-                    ? `✅ ${selectedPlayerToMove.name} selected - Click an empty seat to move them` 
-                    : '👆 Click a player to select them for moving'
-                  }
-                </div>
-              </div>
             )}
 
-            {/* Player Seating Dialog */}
-            <SeatPlayersDialog
-              isOpen={seatDialogOpen}
-              onClose={() => setSeatDialogOpen(false)}
-              players={state.players}
-              onSeatPlayers={(selectedPlayers) => {
-                seatPlayersManually(selectedPlayers);
-              }}
-            />
-
-            {/* Bust Out Dialog */}
-            <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Bust Out Player</DialogTitle>
-                  <DialogDescription>
-                    Select the player who knocked out {playerToBustOut?.name}
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="py-4">
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {state.players
-                      .filter(p => {
-                        if (!p.seated || p.isActive === false || !playerToBustOut || p.id === playerToBustOut.id) return false;
-
-                        // Check if both players have table assignments
-                        if (!p.tableAssignment || !playerToBustOut.tableAssignment) return false;
-
-                        // Only allow players from the same table (manual seating)
-                        return p.tableAssignment.tableIndex === playerToBustOut.tableAssignment.tableIndex;
-                      })
-                      .map(player => (
-                        <div 
-                          key={player.id}
-                          className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                            hitmanId === player.id 
-                              ? 'bg-secondary/20 border-secondary' 
-                              : 'border-border hover:bg-muted'
-                          }`}
-                          onClick={() => setHitmanId(player.id)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{player.name}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {typeof player.knockouts === 'number' ? player.knockouts : 0} eliminations
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-
-                    {state.players
-                      .filter(p => {
-                        if (!p.seated || p.isActive === false || !playerToBustOut || p.id === playerToBustOut.id) return false;
-                        if (!p.tableAssignment || !playerToBustOut.tableAssignment) return false;
-                        return p.tableAssignment.tableIndex === playerToBustOut.tableAssignment.tableIndex;
-                      }).length === 0 && (
-                      <div className="p-4 text-center text-muted-foreground">
-                        No other players at the same table
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-6 flex flex-col sm:flex-row justify-between gap-3">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setBustOutDialogOpen(false)}
-                      className="py-3 px-6 text-lg sm:text-base min-h-[3rem] sm:min-h-auto"
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleBustOut}
-                      disabled={!hitmanId}
-                      className="py-3 px-6 text-lg sm:text-base min-h-[3rem] sm:min-h-auto"
-                    >
-                      Confirm Bust Out
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Undo Bust Out Dialog */}
-            <Dialog open={undoBustOutDialogOpen} onOpenChange={setUndoBustOutDialogOpen}>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Undo Bust Out</DialogTitle>
-                  <DialogDescription>
-                    Select a player to restore back into the tournament
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="py-4">
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {state.players
-                      .filter(p => p.isActive === false && p.position)
-                      .sort((a, b) => (b.position || 0) - (a.position || 0)) // Sort by position, most recent first
-                      .map(player => (
-                        <div 
-                          key={player.id}
-                          className="p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-colors"
-                          onClick={() => handleUndoBustOut(player.id)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="font-medium">{player.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                Eliminated in {player.position}
-                                {player.position === 1 ? 'st' : 
-                                 player.position === 2 ? 'nd' : 
-                                 player.position === 3 ? 'rd' : 'th'} place
-                                {player.eliminatedBy && (
-                                  <>
-                                    {' '}by {state.players.find(p => p.id === player.eliminatedBy)?.name || 'Unknown'}
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-medium">
-                                {player.knockouts || 0} KOs
-                              </div>
-                              {player.prizeMoney && player.prizeMoney > 0 && (
-                                <div className="text-xs text-green-400">
-                                  £{player.prizeMoney}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                    {state.players.filter(p => p.isActive === false && p.position).length === 0 && (
-                      <div className="p-4 text-center text-muted-foreground">
-                        No players have been eliminated yet
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-6 flex justify-end">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setUndoBustOutDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Table Balance Dialog */}
-            <Dialog open={tableBalanceDialogOpen} onOpenChange={setTableBalanceDialogOpen}>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <span className="material-icons text-yellow-500">warning</span>
-                    Table Imbalance Detected
-                  </DialogTitle>
-                  <DialogDescription>
-                    Tables are unbalanced. Would you like to move a player to balance them?
-                  </DialogDescription>
-                </DialogHeader>
-
-                {balanceOptions && (
-                  <div className="py-4">
-                    <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                      <div className="text-sm">
-                        <div className="font-medium mb-2">Current Imbalance:</div>
-                        <div className="space-y-1">
-                          <div>
-                            <span className="font-medium">
-                              {tableNames[balanceOptions.overloadedTable] || `Table ${balanceOptions.overloadedTable + 1}`}:
-                            </span>
-                            <span className="ml-2">{balanceOptions.playersToMove.length} players</span>
-                          </div>
-                          <div>
-                            <span className="font-medium">
-                              {tableNames[balanceOptions.underloadedTable] || `Table ${balanceOptions.underloadedTable + 1}`}:
-                            </span>
-                            <span className="ml-2">
-                              {state.players.filter(p => 
-                                p.seated && p.isActive !== false && 
-                                p.tableAssignment?.tableIndex === balanceOptions.underloadedTable
-                              ).length} players
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="text-sm font-medium">Choose how to balance:</div>
-
-                      <Button 
-                        onClick={balanceTablesRandomly}
-                        className="w-full justify-start h-auto p-4"
-                        variant="outline"
-                      >
-                        <div className="text-left">
-                          <div className="font-medium">🎲 Random Selection</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Automatically move a random player from the overloaded table
-                          </div>
-                        </div>
-                      </Button>
-
-                      <Button 
-                        onClick={balanceTablesManually}
-                        className="w-full justify-start h-auto p-4"
-                        variant="outline"
-                      >
-                        <div className="text-left">
-                          <div className="font-medium">👆 Manual Selection</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Choose which player to move using the Move Players tool
-                          </div>
-                        </div>
-                      </Button>
-                    </div>
-
-                    <div className="mt-6 flex justify-between">
-                      <Button 
-                        variant="ghost" 
-                        onClick={() => {
-                          setTableBalanceDialogOpen(false);
-                          setBalanceOptions(null);
-                        }}
-                      >
-                        Ignore for now
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
+            <Button
+              variant="outline"
+              size="sm"
+              className="btn-undo-bust-out gap-1.5 h-9 text-xs"
+              disabled={!state.players.some(p => p.isActive === false && p.position)}
+              onClick={() => setUndoBustOutDialogOpen(true)}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Undo Bust Out
+            </Button>
           </div>
 
-          {/* Visual representation of tables - List Format */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {/* Move mode banner */}
+          {moveMode && (
+            <div className="mb-4 px-4 py-3 rounded-lg border border-primary/40 bg-primary/5 text-sm text-primary fade-in">
+              {selectedPlayerToMove
+                ? `✅ ${selectedPlayerToMove.name} selected — tap an empty seat to move them`
+                : '👆 Tap a player to select them for moving'}
+            </div>
+          )}
+
+          {/* Tables grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {Array.from({ length: Math.min(6, numberOfTables) }).map((_, tableIndex) => {
-              const seatedPlayers = state.players.filter(p => p.seated);
-              const tablePlayers = seatedPlayers.filter(p => 
-                p.tableAssignment?.tableIndex === tableIndex
-              ).sort((a, b) => (a.tableAssignment?.seatIndex || 0) - (b.tableAssignment?.seatIndex || 0));
+              const tablePlayers = state.players
+                .filter(p => p.seated && p.tableAssignment?.tableIndex === tableIndex)
+                .sort((a, b) => (a.tableAssignment?.seatIndex || 0) - (b.tableAssignment?.seatIndex || 0));
 
               return (
-                <div 
-                  key={tableIndex} 
-                  className={`relative ${feltBackgroundClass(tableBackgrounds[tableIndex])} rounded-2xl p-5 border shadow-xl transition-all duration-300 ${
-                    moveMode 
-                      ? 'border-blue-400/60 shadow-blue-500/20 shadow-2xl' 
-                      : 'border-slate-600/40'
-                  }`}
+                <div
+                  key={tableIndex}
+                  className={cn(
+                    feltClass(tableBackgrounds[tableIndex] || 'felt-green'),
+                    "rounded-2xl p-4 border shadow-xl transition-all duration-300",
+                    moveMode ? "border-primary/50 shadow-primary/10 shadow-lg" : ""
+                  )}
                 >
-                  {/* Table Header */}
-                  <div className="flex items-center justify-between mb-4">
+                  {/* Table header */}
+                  <div className="flex items-center justify-between mb-3">
                     {editingTableIndex === tableIndex ? (
-                      <div className="flex items-center space-x-2">
-                        <Input 
+                      <div className="flex items-center gap-2 flex-1">
+                        <Input
                           value={editTableName}
                           onChange={(e) => setEditTableName(e.target.value)}
-                          className="h-8 text-sm bg-slate-700/50 border-slate-500"
+                          className="h-7 text-sm flex-1"
                           autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveEditedTableName();
-                            if (e.key === 'Escape') setEditingTableIndex(null);
-                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveTableName(); if (e.key === 'Escape') setEditingTableIndex(null); }}
                         />
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={saveEditedTableName}
-                          className="h-8 px-3 bg-slate-700 border-slate-500 hover:bg-slate-600"
-                        >
-                          Save
-                        </Button>
+                        <Button size="sm" variant="outline" onClick={saveTableName} className="h-7 px-2 text-xs">Save</Button>
                       </div>
                     ) : (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-bold text-orange-400 tracking-wide">
-                            {tableNames[tableIndex] || `Table ${tableIndex + 1}`}
-                          </h3>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => startEditingTableName(tableIndex)}
-                            className="h-8 px-2 text-orange-300 hover:text-orange-200 hover:bg-orange-500/10"
-                            title="Edit table name"
-                          >
-                            <Pencil size={14} />
-                          </Button>
-                        </div>
-
-                        {/* Felt Color Selector */}
-                        <div className="relative">
-                          <Select
-                            value={tableBackgrounds[tableIndex] || 'felt-green'}
-                            onValueChange={(value) => changeTableBackground(tableIndex, value)}
-                          >
-                            <SelectTrigger className="h-8 w-auto min-w-[100px] bg-slate-700/50 border-slate-500 hover:bg-slate-600 text-slate-200">
-                              <div className="flex items-center gap-2">
-                                <div 
-                                  className="w-4 h-4 rounded-full border-2 border-white/70 shadow-sm flex-shrink-0" 
-                                  style={{ 
-                                    backgroundColor: {
-                                      'felt-green': '#22c55e',
-                                      'felt-blue': '#3b82f6',
-                                      'felt-red': '#ef4444',
-                                      'felt-purple': '#a855f7',
-                                      'felt-black': '#374151',
-                                      'felt-burgundy': '#dc2626'
-                                    }[tableBackgrounds[tableIndex]] || '#22c55e'
-                                  }}
-                                />
-                                <span className="text-xs hidden sm:inline">Felt</span>
-                              </div>
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-800 border-slate-600 min-w-[160px]">
-                              {[
-                                { name: 'Green', class: 'felt-green', color: '#22c55e', preview: '#2a3d2e' },
-                                { name: 'Blue', class: 'felt-blue', color: '#3b82f6', preview: '#253038' },
-                                { name: 'Red', class: 'felt-red', color: '#ef4444', preview: '#3d2a2a' },
-                                { name: 'Purple', class: 'felt-purple', color: '#a855f7', preview: '#352a3d' },
-                                { name: 'Black', class: 'felt-black', color: '#374151', preview: '#1f2022' },
-                                { name: 'Burgundy', class: 'felt-burgundy', color: '#dc2626', preview: '#3d2a25' }
-                              ].map((felt) => (
-                                <SelectItem 
-                                  key={felt.class} 
-                                  value={felt.class}
-                                  className="cursor-pointer hover:bg-slate-700 focus:bg-slate-700 py-3 sm:py-2"
-                                >
-                                  <div className="flex items-center gap-3 w-full">
-                                    <div className="flex items-center gap-2">
-                                      <div 
-                                        className="w-5 h-5 rounded-full border-2 border-white/50 shadow-lg flex-shrink-0" 
-                                        style={{ backgroundColor: felt.color }}
-                                      />
-                                      <div 
-                                        className="w-8 h-5 rounded border border-white/30 shadow-sm flex-shrink-0" 
-                                        style={{ backgroundColor: felt.preview }}
-                                      />
-                                    </div>
-                                    <span className="text-sm font-medium text-slate-200">
-                                      {felt.name}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-orange-300 truncate">
+                          {tableNames[tableIndex] || `Table ${tableIndex + 1}`}
+                        </h3>
+                        <Button
+                          size="sm" variant="ghost"
+                          onClick={() => { setEditingTableIndex(tableIndex); setEditTableName(tableNames[tableIndex]); }}
+                          className="h-6 w-6 p-0 text-orange-300/50 hover:text-orange-300 flex-shrink-0"
+                        >
+                          <Pencil size={11} />
+                        </Button>
+                      </div>
                     )}
+
+                    {/* Felt colour picker */}
+                    <Select
+                      value={tableBackgrounds[tableIndex] || 'felt-green'}
+                      onValueChange={(v) => changeTableBackground(tableIndex, v)}
+                    >
+                      <SelectTrigger className="h-7 w-auto px-2 bg-black/30 border-white/20 text-white/70 hover:bg-black/40 flex-shrink-0">
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="w-3 h-3 rounded-full border border-white/50"
+                            style={{ backgroundColor: feltHex(tableBackgrounds[tableIndex] || 'felt-green') }}
+                          />
+                          <span className="text-[10px] hidden sm:block">Felt</span>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="min-w-[150px]">
+                        {FELT_COLORS.map(f => (
+                          <SelectItem key={f.key} value={f.key} className="py-2.5 sm:py-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 rounded-full border border-white/30" style={{ backgroundColor: f.hex }} />
+                              <span className="text-sm">{f.label}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* Table Info Bar */}
-                  <div className="flex items-center justify-between mb-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full border border-white/50" 
-                        style={{ 
-                          backgroundColor: {
-                            'felt-green': '#22c55e',
-                            'felt-blue': '#3b82f6', 
-                            'felt-red': '#ef4444',
-                            'felt-purple': '#a855f7',
-                            'felt-black': '#374151',
-                            'felt-burgundy': '#dc2626'
-                          }[tableBackgrounds[tableIndex]] || '#22c55e'
-                        }}
-                      ></div>
-                      <span className="text-slate-300">
-                        {tablePlayers.length}/{seatsPerTable} seated
-                      </span>
-                    </div>
-                    <span className="text-slate-400 text-xs">
-                      {seatsPerTable - tablePlayers.length} empty seats
-                    </span>
+                  {/* Occupancy bar */}
+                  <div className="flex items-center justify-between text-xs mb-3 text-white/60">
+                    <span>{tablePlayers.length}/{seatsPerTable} seated</span>
+                    <span>{seatsPerTable - tablePlayers.length} empty</span>
                   </div>
 
-                  {/* Players and Empty Seats List */}
-                  <div className="space-y-2 min-h-[200px]">
+                  {/* Seats */}
+                  <div className="space-y-1.5 min-h-[160px]">
                     {Array.from({ length: seatsPerTable }).map((_, seatIndex) => {
                       const player = tablePlayers.find(p => p.tableAssignment?.seatIndex === seatIndex);
-                      const isSelectedForMove = selectedPlayerToMove?.id === player?.id;
-                      const isClickable = moveMode && player && player.isActive !== false;
-                      const isEmptySeat = !player;
-                      const canMoveToSeat = moveMode && selectedPlayerToMove && isEmptySeat;
+                      const isSelected = selectedPlayerToMove?.id === player?.id;
+                      const canMoveHere = moveMode && selectedPlayerToMove && !player;
+                      const canSelectPlayer = moveMode && player && player.isActive !== false;
 
-                      if (isEmptySeat) {
+                      if (!player) {
                         return (
                           <div
                             key={`empty-${seatIndex}`}
-                            className={`relative flex items-center justify-between p-3 rounded-lg border border-dashed transition-all duration-200 ${
-                              canMoveToSeat 
-                                ? 'border-green-400/60 bg-green-500/10 hover:bg-green-500/20 cursor-pointer' 
-                                : 'border-slate-600/30 bg-slate-800/20'
-                            }`}
-                            onClick={() => {
-                              if (canMoveToSeat) movePlayerToSeat(tableIndex, seatIndex);
-                            }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-slate-300 text-xs font-bold">
-                                {seatIndex + 1}
-                              </div>
-                              <div className="text-slate-400 text-sm">
-                                {canMoveToSeat ? `Move ${selectedPlayerToMove.name} here` : 'Empty seat'}
-                              </div>
-                            </div>
-                            {canMoveToSeat && (
-                              <div className="text-green-400 text-xs">Click to move</div>
+                            onClick={() => { if (canMoveHere) movePlayerToSeat(tableIndex, seatIndex); }}
+                            className={cn(
+                              "flex items-center gap-2.5 p-2.5 rounded-lg border border-dashed transition-all",
+                              canMoveHere
+                                ? "border-green-400/70 bg-green-500/15 cursor-pointer hover:bg-green-500/25"
+                                : "border-white/15 bg-black/15"
                             )}
+                          >
+                            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/40 text-[10px] font-bold flex-shrink-0">
+                              {seatIndex + 1}
+                            </div>
+                            <span className="text-xs text-white/40">
+                              {canMoveHere ? `Move ${selectedPlayerToMove.name} here` : 'Empty'}
+                            </span>
                           </div>
                         );
                       }
@@ -1129,73 +457,192 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                       return (
                         <div
                           key={player.id}
-                          className={`relative group flex items-center justify-between p-3 rounded-lg border transition-all duration-200 ${
-                            isSelectedForMove 
-                              ? 'border-blue-400 bg-blue-500/20 text-blue-100' 
-                              : moveMode && isClickable
-                                ? 'border-dashed border-blue-400/60 bg-blue-500/10 hover:bg-blue-500/20 hover:border-blue-400'
-                                : 'border-slate-600/50 bg-slate-700/30 hover:bg-slate-600/30 hover:border-slate-500'
-                          } ${isClickable ? 'cursor-pointer' : ''}`}
-                          onClick={() => {
-                            if (isClickable) selectPlayerToMove(player);
-                          }}
+                          onClick={() => { if (canSelectPlayer) setSelectedPlayerToMove(isSelected ? null : player); }}
+                          className={cn(
+                            "flex items-center justify-between p-2.5 rounded-lg border transition-all",
+                            isSelected ? "border-primary bg-primary/20" :
+                            canSelectPlayer ? "border-dashed border-primary/50 bg-black/20 hover:bg-primary/10 cursor-pointer" :
+                            "border-white/20 bg-black/25 hover:bg-black/35"
+                          )}
                         >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                                {seatIndex + 1}
-                              </div>
-                              <div>
-                                <div className="font-medium text-white text-base">
-                                  {player.name}
-                                </div>
-                              </div>
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                              {seatIndex + 1}
                             </div>
-                            {isSelectedForMove && (
-                              <div className="ml-auto">
-                                <div className="w-6 h-6 bg-blue-400 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                                  ✓
-                                </div>
-                              </div>
-                            )}
+                            <span className="font-medium text-white text-sm truncate">{player.name}</span>
+                            {isSelected && <span className="text-primary text-xs ml-auto">✓</span>}
                           </div>
 
-                          {/* Bust Out Button - Always Visible */}
                           {!moveMode && (
                             <button
-                              className="w-12 h-8 bg-red-500 hover:bg-red-600 text-white rounded font-bold text-xs flex items-center justify-center shadow-lg transition-colors duration-200 flex-shrink-0"
-                              title={`Bust out ${player.name}`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openBustOutDialog(player);
+                                setPlayerToBustOut(player);
+                                setHitmanId(null);
+                                setBustOutDialogOpen(true);
                               }}
+                              className="ml-2 h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold flex-shrink-0 transition-colors"
                             >
-                              K.O.
+                              KO
                             </button>
                           )}
                         </div>
                       );
                     })}
-
-
                   </div>
                 </div>
               );
             })}
 
             {numberOfTables > 6 && (
-              <div className="border border-[#3a3a3a] rounded-lg p-3 bg-card flex items-center justify-center text-muted-foreground">
+              <div className="card-glass rounded-2xl p-4 flex items-center justify-center text-muted-foreground text-sm">
                 +{numberOfTables - 6} more tables
               </div>
             )}
           </div>
-<FinalTableDialog
+
+        </CardContent>
+      </Card>
+
+      {/* Seat Players Dialog */}
+      <SeatPlayersDialog
+        isOpen={seatDialogOpen}
+        onClose={() => setSeatDialogOpen(false)}
+        players={state.players}
+        onSeatPlayers={seatPlayersManually}
+      />
+
+      {/* Bust Out Dialog */}
+      <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Bust Out — {playerToBustOut?.name}</DialogTitle>
+            <DialogDescription>Who knocked them out?</DialogDescription>
+          </DialogHeader>
+          <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
+            {state.players
+              .filter(p =>
+                p.seated && p.isActive !== false &&
+                p.id !== playerToBustOut?.id &&
+                p.tableAssignment?.tableIndex === playerToBustOut?.tableAssignment?.tableIndex
+              )
+              .map(player => (
+                <div
+                  key={player.id}
+                  onClick={() => setHitmanId(player.id)}
+                  className={cn(
+                    "p-3 rounded-lg border cursor-pointer transition-colors flex items-center justify-between",
+                    hitmanId === player.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:bg-muted/30"
+                  )}
+                >
+                  <span className="font-medium">{player.name}</span>
+                  <span className="text-xs text-muted-foreground">{player.knockouts || 0} KOs</span>
+                </div>
+              ))}
+            {state.players.filter(p =>
+              p.seated && p.isActive !== false &&
+              p.id !== playerToBustOut?.id &&
+              p.tableAssignment?.tableIndex === playerToBustOut?.tableAssignment?.tableIndex
+            ).length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">No other players at this table</p>
+            )}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setBustOutDialogOpen(false)}>Cancel</Button>
+            <Button className="flex-1" disabled={!hitmanId} onClick={handleBustOut}>Confirm KO</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Undo Bust Out Dialog */}
+      <Dialog open={undoBustOutDialogOpen} onOpenChange={setUndoBustOutDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Undo Bust Out</DialogTitle>
+            <DialogDescription>Restore a player to the tournament</DialogDescription>
+          </DialogHeader>
+          <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
+            {state.players
+              .filter(p => p.isActive === false && p.position)
+              .sort((a, b) => (b.position || 0) - (a.position || 0))
+              .map(player => (
+                <div
+                  key={player.id}
+                  onClick={() => { undoBustOut(player.id); setUndoBustOutDialogOpen(false); }}
+                  className="p-3 rounded-lg border border-border hover:bg-muted/30 cursor-pointer transition-colors flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-medium">{player.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {player.position}th place
+                      {player.eliminatedBy && ` · KO'd by ${state.players.find(p => p.id === player.eliminatedBy)?.name}`}
+                    </div>
+                  </div>
+                  {player.prizeMoney ? (
+                    <span className="text-xs text-green-400 font-mono">£{player.prizeMoney}</span>
+                  ) : null}
+                </div>
+              ))}
+            {!state.players.some(p => p.isActive === false && p.position) && (
+              <p className="text-center text-sm text-muted-foreground py-4">No eliminations to undo</p>
+            )}
+          </div>
+          <Button variant="outline" className="w-full" onClick={() => setUndoBustOutDialogOpen(false)}>Close</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Table Balance Dialog */}
+      <Dialog open={tableBalanceDialogOpen} onOpenChange={setTableBalanceDialogOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>⚖️ Table Imbalance</DialogTitle>
+            <DialogDescription>
+              {balanceOptions && `${tableNames[balanceOptions.overloadedTable] || `Table ${balanceOptions.overloadedTable + 1}`} has ${balanceOptions.playersToMove.length} players vs ${
+                state.players.filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable).length
+              } at ${tableNames[balanceOptions.underloadedTable] || `Table ${balanceOptions.underloadedTable + 1}`}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Button variant="outline" className="w-full justify-start h-auto p-4" onClick={balanceRandomly}>
+              <div className="text-left">
+                <div className="font-medium">🎲 Random — move a random player</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Let the app pick who moves</div>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto p-4"
+              onClick={() => {
+                setMoveMode(true);
+                setSelectedPlayerToMove(null);
+                setTableBalanceDialogOpen(false);
+                setBalanceOptions(null);
+              }}
+            >
+              <div className="text-left">
+                <div className="font-medium">👆 Manual — choose who moves</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Use Move Players mode to pick</div>
+              </div>
+            </Button>
+          </div>
+          <Button
+            variant="ghost"
+            className="w-full text-muted-foreground"
+            onClick={() => { setTableBalanceDialogOpen(false); setBalanceOptions(null); }}
+          >
+            Ignore for now
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <FinalTableDialog
         isOpen={isFinalTableDialogOpen}
         onClose={() => setIsFinalTableDialogOpen(false)}
         playerCount={state.players.filter(p => p.isActive !== false).length}
         onConfirm={goToFinalTable}
       />
-        </div>
-    </Card>
+    </div>
   );
 }
