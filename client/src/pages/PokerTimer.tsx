@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useAuth } from '@/hooks/useAuth';
@@ -100,6 +100,9 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
   const [activeTab, setActiveTab] = useState('players'); // State to manage active tab
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
+  const isCreatingTournament = useRef(false);
+  const tournamentRef = useRef(tournament);
+  tournamentRef.current = tournament;
 
   // Add safety check for tournament hook
   if (!tournament) {
@@ -112,59 +115,64 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     );
   }
 
-  // Create database tournament when logged in (for director handoff feature)
+  // Create database tournament when logged in (for director handoff feature).
+  // Deps intentionally exclude tournament.state — we only want this to run on
+  // login/logout, not on every timer tick. tournamentRef gives us current values
+  // without adding state to the dependency array.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (!user || isAnonymous || dbTournamentId || isCreatingTournament.current) return;
     const createDatabaseTournament = async () => {
-      // Auto-create database tournament when user is logged in and no DB ID exists yet
-      if (user && !isAnonymous && !dbTournamentId) {
-        try {
-          const tournamentName = tournament.state.details?.type === 'season' 
-            ? `League Game - ${new Date().toLocaleDateString()}`
-            : tournament.state.details?.name || `Tournament - ${new Date().toLocaleDateString()}`;
-          
-          const { collection, addDoc } = await import('firebase/firestore');
-          const { db } = await import('@/lib/firebase');
-          const { sanitizeForFirestore } = await import('@/lib/utils');
-          
-          const participantCode = Math.random().toString(36).substr(2, 6).toUpperCase();
-          const directorCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+      isCreatingTournament.current = true;
+      try {
+        const t = tournamentRef.current;
+        const tournamentName = t.state.details?.type === 'season'
+          ? `League Game - ${new Date().toLocaleDateString()}`
+          : t.state.details?.name || `Tournament - ${new Date().toLocaleDateString()}`;
+        
+        const { collection, addDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const { sanitizeForFirestore } = await import('@/lib/utils');
+        
+        const participantCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+        const directorCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
-          const docRef = await addDoc(collection(db, 'activeTournaments'), sanitizeForFirestore({
-            name: tournamentName,
-            currentLevel: tournament.state.currentLevel,
-            secondsLeft: tournament.state.secondsLeft,
-            isRunning: tournament.state.isRunning,
-            buyIn: tournament.state.prizeStructure?.buyIn || 10,
-            blindLevels: tournament.state.levels,
-            settings: tournament.state.settings,
-            prizeStructure: tournament.state.prizeStructure,
-            players: tournament.state.players,
-            participantCode,
-            directorCode,
-            createdAt: new Date().toISOString(),
-            createdBy: user.id,
-            ownerId: user.id,
-            status: 'active'
-          }));
+        const docRef = await addDoc(collection(db, 'activeTournaments'), sanitizeForFirestore({
+          name: tournamentName,
+          currentLevel: t.state.currentLevel,
+          secondsLeft: t.state.secondsLeft,
+          isRunning: t.state.isRunning,
+          buyIn: t.state.prizeStructure?.buyIn || 10,
+          blindLevels: t.state.levels,
+          settings: t.state.settings,
+          prizeStructure: t.state.prizeStructure,
+          players: t.state.players,
+          participantCode,
+          directorCode,
+          createdAt: new Date().toISOString(),
+          createdBy: user.id,
+          ownerId: user.id,
+          status: 'active'
+        }));
 
-          setDbTournamentId(docRef.id);
-          
-          // Update tournament details to use database mode
-          tournament.updateTournamentDetails({
-            type: 'database',
-            id: docRef.id,
-            name: tournamentName,
-            participantCode,
-            directorCode
-          });
-        } catch (error) {
-          console.error('Failed to create database tournament:', error);
-        }
+        setDbTournamentId(docRef.id);
+        
+        // Update tournament details to use database mode
+        t.updateTournamentDetails({
+          type: 'database',
+          id: docRef.id,
+          name: tournamentName,
+          participantCode,
+          directorCode
+        });
+      } catch (error) {
+        console.error('Failed to create database tournament:', error);
+        isCreatingTournament.current = false;
       }
     };
 
     createDatabaseTournament();
-  }, [user, dbTournamentId, tournament.state]);
+  }, [user, isAnonymous, dbTournamentId]);
 
   // Setup Socket.IO connection for real-time updates removed
 

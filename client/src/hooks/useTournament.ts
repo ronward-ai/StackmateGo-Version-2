@@ -472,36 +472,6 @@ export function useTournament(tournamentId?: string) {
     };
   }, [state.details?.id, state.details?.type]); // Add type to dependency to prevent unnecessary re-runs
 
-  // Auto-save tournament state to database every 5 seconds when in database mode
-  useEffect(() => {
-    // Only auto-save if the user is the owner
-    if (state.details?.type === 'database' && state.details?.id && state.details?.ownerId === user?.id) {
-      const saveInterval = setInterval(async () => {
-        try {
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const { db } = await import('@/lib/firebase');
-          const { sanitizeForFirestore } = await import('@/lib/utils');
-          
-          const docRef = doc(db, 'activeTournaments', state.details.id.toString());
-          await updateDoc(docRef, sanitizeForFirestore({
-            currentLevel: state.currentLevel,
-            secondsLeft: state.secondsLeft,
-            targetEndTime: state.targetEndTime || null,
-            isRunning: state.isRunning,
-            players: state.players,
-            blindLevels: state.levels,
-            settings: state.settings,
-            prizeStructure: state.prizeStructure
-          }));
-        } catch (error) {
-          console.error('Failed to auto-save tournament state:', error);
-        }
-      }, 5000); // Save every 5 seconds
-
-      return () => clearInterval(saveInterval);
-    }
-  }, [state, state.details?.type, state.details?.id, state.details?.ownerId, user?.id]);
-
   // Handle timer interval - single comprehensive timer effect
   useEffect(() => {
     // Clean up any existing interval
@@ -585,14 +555,6 @@ export function useTournament(tournamentId?: string) {
               ...prevState,
               secondsLeft: validSecondsLeft
             };
-
-            // Broadcast state every 1 second for database tournaments for real-time updates
-            // Only sync during active play (when timer is running)
-            if (prevState.details?.type === 'database' && prevState.details?.id && prevState.isRunning) {
-              broadcastTournamentState(prevState.details.id, newState, prevState.details.ownerId, user?.id).catch(error => {
-                console.error('Failed to broadcast tournament state:', error);
-              });
-            }
 
             return newState;
           }
