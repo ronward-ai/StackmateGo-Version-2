@@ -5,22 +5,11 @@ service cloud.firestore {
     // Assumed Data Model
     // ===============================================================
     //
-    // Collection: playerNames
-    // Fields:
-    //   - name: string
-    //   - createdAt: timestamp
-    //
     // Collection: leagues
     // Fields:
     //   - name: string
     //   - description: string
     //   - ownerId: string
-    //
-    // Collection: leagueMembers
-    // Fields:
-    //   - leagueId: string
-    //   - userId: string
-    //   - role: string
     //
     // Collection: seasons
     // Fields:
@@ -74,12 +63,6 @@ service cloud.firestore {
     //   - settings: map
     //   - prizeStructure: map
     //
-    // Collection: tournamentSnapshots
-    // Fields:
-    //   - tournamentId: string
-    //   - snapshotData: map
-    //   - snapshotType: string
-    //
     // Collection: leagueSettings
     // Fields:
     //   - leagueId: string
@@ -123,14 +106,6 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
-    }
-
-    // Player Names (Global cache)
-    match /playerNames/{nameId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100;
-      allow update: if false; // Player names are immutable
-      allow delete: if isAuthenticated();
     }
 
     // User Settings
@@ -193,13 +168,6 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isExistingDocOwner();
     }
 
-    // Tournament Snapshots
-    match /tournamentSnapshots/{snapshotId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-    }
-
     // League Settings
     match /leagueSettings/{settingId} {
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
@@ -208,20 +176,6 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isExistingDocUser();
     }
 
-    // Tournaments (Legacy)
-    match /tournaments/{tournamentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
-    }
-
-    // Tournament Participants
-    match /tournamentParticipants/{participantId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-    }
     // Tournament Templates
     match /tournamentTemplates/{templateId} {
       allow read: if isAuthenticated() && isDocOwner();
