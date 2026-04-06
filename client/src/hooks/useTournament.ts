@@ -145,7 +145,8 @@ const broadcastTournamentState = async (tournamentId: number | string, state: an
       ante: state.levels[state.currentLevel]?.ante || 0,
       players: state.players || [],
       blindLevels: state.levels || [],
-      settings: state.settings || {}
+      settings: state.settings || {},
+      notes: state.notes || ''
     }));
   } catch (error) {
     console.error('Failed to broadcast tournament state:', error);
