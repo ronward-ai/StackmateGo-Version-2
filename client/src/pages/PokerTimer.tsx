@@ -361,7 +361,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                   />
                 )}
                 {tournament.state.settings.branding?.leagueName && (
-                  <h2 className="text-4xl md:text-5xl font-bold text-foreground tracking-wide">
+                  <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold text-foreground tracking-wide truncate max-w-[60vw]">
                     {tournament.state.settings.branding.leagueName}
                   </h2>
                 )}
@@ -416,7 +416,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             />
           </div>
           <Tabs defaultValue="players" className="w-full">
-            <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center">
+            <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide justify-start sm:justify-center">
               <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
               <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Tables</TabsTrigger>
               <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>

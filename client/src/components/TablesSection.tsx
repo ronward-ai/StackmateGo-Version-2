@@ -514,7 +514,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
       {/* Bust Out Dialog */}
       <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle>Bust Out — {playerToBustOut?.name}</DialogTitle>
             <DialogDescription>Who knocked them out?</DialogDescription>
@@ -558,7 +558,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
       {/* Undo Bust Out Dialog */}
       <Dialog open={undoBustOutDialogOpen} onOpenChange={setUndoBustOutDialogOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle>Undo Bust Out</DialogTitle>
             <DialogDescription>Restore a player to the tournament</DialogDescription>
@@ -595,7 +595,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
       {/* Table Balance Dialog */}
       <Dialog open={tableBalanceDialogOpen} onOpenChange={setTableBalanceDialogOpen}>
-        <DialogContent className="sm:max-w-[440px]">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[440px]">
           <DialogHeader>
             <DialogTitle>⚖️ Table Imbalance</DialogTitle>
             <DialogDescription>

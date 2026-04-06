@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'wouter';
+import { useParams, useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X } from 'lucide-react';
@@ -67,6 +67,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 function TournamentParticipantView() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
+  const [, navigate] = useLocation();
   const id = params.tournamentId || params.id;
   const [tournament, setTournament] = useState<TournamentData | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
@@ -277,7 +278,7 @@ function TournamentParticipantView() {
       <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 rounded-xl shadow-lg mb-4">
-            <h1 className="text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
           </div>
           {error ? (
             <div className="space-y-2">
@@ -291,7 +292,7 @@ function TournamentParticipantView() {
                   Try Again
                 </button>
                 <button
-                  onClick={() => window.location.href = '/'}
+                  onClick={() => navigate('/')}
                   className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
                 >
                   Go Home
@@ -397,7 +398,7 @@ function TournamentParticipantView() {
         {/* Header Section */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white">{tournament?.name || 'Tournament'}</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-white truncate max-w-[90vw]">{tournament?.name || 'Tournament'}</h1>
             <p className="text-gray-300">Live Tournament View</p>
           </div>
 

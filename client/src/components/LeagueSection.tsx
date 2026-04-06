@@ -64,7 +64,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                     onValueChange={handleSeasonChange}
                     data-testid="select-season"
                   >
-                    <SelectTrigger className="w-[280px]">
+                    <SelectTrigger className="w-full sm:w-[280px]">
                       <SelectValue placeholder="Select a season" />
                     </SelectTrigger>
                     <SelectContent>
