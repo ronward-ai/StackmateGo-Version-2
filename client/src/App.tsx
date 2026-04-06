@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Switch, useLocation } from 'wouter';
+import { Route, Switch } from 'wouter';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { Toaster } from '@/components/ui/toaster';
@@ -11,14 +11,13 @@ import TournamentParticipantView from './pages/TournamentParticipantView';
 import TournamentDirector from './pages/TournamentDirector';
 
 function NotFoundPage() {
-  const [, navigate] = useLocation();
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background">
       <div className="text-center">
         <h1 className="text-2xl font-bold text-foreground mb-4">Page Not Found</h1>
         <p className="text-muted-foreground mb-4">The page you're looking for doesn't exist.</p>
         <button
-          onClick={() => navigate('/')}
+          onClick={() => window.location.href = '/'}
           className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
         >
           Go Home

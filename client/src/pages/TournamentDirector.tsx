@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { useParams, useLocation } from 'wouter';
+import { useParams } from 'wouter';
 import PokerTimer from './PokerTimer';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 function TournamentDirector() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
   const id = params.tournamentId || params.id;
-  const [, navigate] = useLocation();
   const { user, isLoading, isAnonymous } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +26,7 @@ function TournamentDirector() {
         if (!user || isAnonymous) {
           setError('Please login to access director controls');
           setTimeout(() => {
-            navigate(`/tournament/${id}`);
+            window.location.href = `/tournament/${id}`;
           }, 3000);
           return;
         }
@@ -47,7 +46,7 @@ function TournamentDirector() {
               if (tournamentData.ownerId !== user.id) {
                 setError('You do not have permission to access this tournament as a director.');
                 setTimeout(() => {
-                  navigate(`/tournament/${id}`);
+                  window.location.href = `/tournament/${id}`;
                 }, 3000);
                 return;
               }
@@ -72,7 +71,7 @@ function TournamentDirector() {
         
         // Redirect back to participant view after 3 seconds
         setTimeout(() => {
-          navigate(`/tournament/${id}`);
+          window.location.href = `/tournament/${id}`;
         }, 3000);
       }
     };
