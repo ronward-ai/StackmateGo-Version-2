@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { calculatePrizePool } from "@/lib/prizePool";
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -39,18 +40,19 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
   const rebuyAmount = p?.rebuyAmount || 0;
   const addonAmount = p?.addonAmount || 0;
   const rakePercentage = p?.rakePercentage || 0;
-  const rakeAmountFixed = p?.rakeAmount || 0;
   const rakeType = p?.rakeType || 'percentage';
 
   const totalRebuys = state.players.reduce((sum, pl) => sum + (pl.rebuys || 0), 0);
   const totalAddons = state.players.reduce((sum, pl) => sum + (pl.addons || 0), 0);
-  const grossPrizePool = (buyInAmount * state.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
 
-  const rakeAmount = rakeType === 'percentage'
-    ? Math.floor(grossPrizePool * (rakePercentage / 100))
-    : rakeAmountFixed;
-
-  const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
+  const { gross: grossPrizePool, rake: rakeAmount, net: totalPrizePool } = calculatePrizePool({
+    buyIn: buyInAmount,
+    playerCount: state.players.length,
+    totalRebuys, rebuyAmount,
+    totalAddons, addonAmount,
+    rakeType, rakePercentage,
+    rakeAmount: p?.rakeAmount || 0,
+  });
 
   // Chip stats
   const startingChips = p?.startingChips || 10000;

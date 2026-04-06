@@ -37,8 +37,8 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const handleSeasonChange = async (seasonId: string) => {
     const numericId = parseInt(seasonId);
     if (!isNaN(numericId)) {
+      setActiveSeasonId(seasonId);
       await updateSeason(numericId, { status: 'active' });
-      
       for (const season of seasons) {
         if (typeof season.id === 'number' && season.id !== numericId) {
           await updateSeason(season.id, { status: 'draft' });

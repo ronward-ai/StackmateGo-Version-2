@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { calculatePrizePool } from "@/lib/prizePool";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -150,9 +151,13 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   // Live prize pool preview
   const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
   const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
-  const gross = (buyInAmount * state.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
-  const rake = rakeType === 'percentage' ? Math.floor(gross * rakePercentage / 100) : rakeAmount;
-  const netPool = Math.max(0, gross - rake);
+  const { gross, rake, net: netPool } = calculatePrizePool({
+    buyIn: buyInAmount,
+    playerCount: state.players.length,
+    totalRebuys, rebuyAmount,
+    totalAddons, addonAmount,
+    rakeType, rakePercentage, rakeAmount,
+  });
 
   const applyChanges = async () => {
     setIsApplying(true);

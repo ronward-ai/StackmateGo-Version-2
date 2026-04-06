@@ -1,13 +1,12 @@
 
 import { useState, useEffect } from 'react';
-import { useParams, useSearch, useLocation } from 'wouter';
+import { useParams, useLocation } from 'wouter';
 import PokerTimer from './PokerTimer';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function TournamentDirector() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
-  const search = useSearch();
   const id = params.tournamentId || params.id;
   const [, navigate] = useLocation();
   const { user, isLoading, isAnonymous } = useAuth();

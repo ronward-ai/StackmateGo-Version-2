@@ -781,14 +781,7 @@ function TournamentParticipantView() {
 
         {/* Real-Time League Table */}
         <div className="mb-6">
-          <RealTimeLeagueTable tournament={{
-            ...tournament,
-            isSeasonTournament: tournament?.isSeasonTournament || tournament?.settings?.isSeasonTournament || false,
-            settings: {
-              ...tournament?.settings,
-              isSeasonTournament: tournament?.isSeasonTournament || tournament?.settings?.isSeasonTournament || false
-            }
-          }} isParticipantView={true} />
+          <RealTimeLeagueTable tournament={tournament} isParticipantView={true} />
         </div>
 
         {/* Tournament Notes Section */}
