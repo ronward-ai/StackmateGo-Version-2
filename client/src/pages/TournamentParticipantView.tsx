@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,8 @@ function TournamentParticipantView() {
   const [tournament, setTournament] = useState<TournamentData | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  // Ref so the interval always reads the latest targetEndTime without restarting
+  const targetEndTimeRef = useRef<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated, isLoading, signInAnonymously } = useAuth();
 
@@ -107,10 +109,9 @@ function TournamentParticipantView() {
             }
             
             setTournament(data as any);
-            if (data.targetEndTime && data.isRunning) {
-              const newTime = Math.max(0, Math.ceil((data.targetEndTime - Date.now()) / 1000));
-              setTimeLeft(newTime);
-            } else {
+            targetEndTimeRef.current = data.targetEndTime;
+            // Only set timeLeft directly when paused — the interval owns it when running
+            if (!data.isRunning) {
               setTimeLeft(data.secondsLeft || 0);
             }
             setError(null);
@@ -175,11 +176,12 @@ function TournamentParticipantView() {
           };
         });
 
-        // Update timer if present
-        if (syncedTournament.targetEndTime && syncedTournament.isRunning) {
-          const newTime = Math.max(0, Math.ceil((syncedTournament.targetEndTime - Date.now()) / 1000));
-          setTimeLeft(newTime);
-        } else if (syncedTournament.secondsLeft !== undefined) {
+        // Update the ref so the interval picks up the new targetEndTime immediately
+        if (syncedTournament.targetEndTime !== undefined) {
+          targetEndTimeRef.current = syncedTournament.targetEndTime;
+        }
+        // Only set timeLeft directly when paused — the interval owns it when running
+        if (!syncedTournament.isRunning && syncedTournament.secondsLeft !== undefined) {
           setTimeLeft(syncedTournament.secondsLeft);
         }
       }
@@ -195,36 +197,23 @@ function TournamentParticipantView() {
     };
   }, [id]);
 
-  // Timer countdown effect - only runs when tournament is running AND synced
+  // Timer countdown — single source of truth for timeLeft when running.
+  // Uses targetEndTimeRef so it never has a stale closure and doesn't need
+  // to restart on every Firestore snapshot.
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    if (!tournament?.isRunning || !tournament?.targetEndTime) return;
 
-    // Only run timer if tournament is explicitly running
-    if (tournament?.isRunning) {
-      console.log('Participant view timer starting');
-      interval = setInterval(() => {
-        setTimeLeft(prev => {
-          if (tournament.targetEndTime) {
-            const newTime = Math.max(0, Math.ceil((tournament.targetEndTime - Date.now()) / 1000));
-            if (newTime <= 0) {
-              console.log('Participant view timer reached zero');
-              return 0;
-            }
-            return newTime;
-          }
-          return prev;
-        });
-      }, 1000);
-    } else {
-      console.log('Participant view timer stopped - isRunning:', tournament?.isRunning);
-    }
+    // Snap to correct value immediately when starting/resuming
+    setTimeLeft(Math.max(0, Math.ceil((tournament.targetEndTime - Date.now()) / 1000)));
 
-    return () => {
-      if (interval) {
-        console.log('Clearing participant view timer interval');
-        clearInterval(interval);
+    const interval = setInterval(() => {
+      const endTime = targetEndTimeRef.current;
+      if (endTime) {
+        setTimeLeft(Math.max(0, Math.ceil((endTime - Date.now()) / 1000)));
       }
-    };
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, [tournament?.isRunning, tournament?.targetEndTime]);
 
   const formatTime = (seconds: number) => {
