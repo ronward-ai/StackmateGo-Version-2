@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useLocation } from 'wouter';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X } from 'lucide-react';
@@ -67,13 +67,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 function TournamentParticipantView() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
-  const [, navigate] = useLocation();
   const id = params.tournamentId || params.id;
   const [tournament, setTournament] = useState<TournamentData | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
-  // Ref so the interval always reads the latest targetEndTime without restarting
-  const targetEndTimeRef = useRef<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated, isLoading, signInAnonymously } = useAuth();
 
@@ -110,9 +107,10 @@ function TournamentParticipantView() {
             }
             
             setTournament(data as any);
-            targetEndTimeRef.current = data.targetEndTime;
-            // Only set timeLeft directly when paused — the interval owns it when running
-            if (!data.isRunning) {
+            if (data.targetEndTime && data.isRunning) {
+              const newTime = Math.max(0, Math.ceil((data.targetEndTime - Date.now()) / 1000));
+              setTimeLeft(newTime);
+            } else {
               setTimeLeft(data.secondsLeft || 0);
             }
             setError(null);
@@ -177,12 +175,11 @@ function TournamentParticipantView() {
           };
         });
 
-        // Update the ref so the interval picks up the new targetEndTime immediately
-        if (syncedTournament.targetEndTime !== undefined) {
-          targetEndTimeRef.current = syncedTournament.targetEndTime;
-        }
-        // Only set timeLeft directly when paused — the interval owns it when running
-        if (!syncedTournament.isRunning && syncedTournament.secondsLeft !== undefined) {
+        // Update timer if present
+        if (syncedTournament.targetEndTime && syncedTournament.isRunning) {
+          const newTime = Math.max(0, Math.ceil((syncedTournament.targetEndTime - Date.now()) / 1000));
+          setTimeLeft(newTime);
+        } else if (syncedTournament.secondsLeft !== undefined) {
           setTimeLeft(syncedTournament.secondsLeft);
         }
       }
@@ -198,23 +195,36 @@ function TournamentParticipantView() {
     };
   }, [id]);
 
-  // Timer countdown — single source of truth for timeLeft when running.
-  // Uses targetEndTimeRef so it never has a stale closure and doesn't need
-  // to restart on every Firestore snapshot.
+  // Timer countdown effect - only runs when tournament is running AND synced
   useEffect(() => {
-    if (!tournament?.isRunning || !tournament?.targetEndTime) return;
+    let interval: NodeJS.Timeout | null = null;
 
-    // Snap to correct value immediately when starting/resuming
-    setTimeLeft(Math.max(0, Math.ceil((tournament.targetEndTime - Date.now()) / 1000)));
+    // Only run timer if tournament is explicitly running
+    if (tournament?.isRunning) {
+      console.log('Participant view timer starting');
+      interval = setInterval(() => {
+        setTimeLeft(prev => {
+          if (tournament.targetEndTime) {
+            const newTime = Math.max(0, Math.ceil((tournament.targetEndTime - Date.now()) / 1000));
+            if (newTime <= 0) {
+              console.log('Participant view timer reached zero');
+              return 0;
+            }
+            return newTime;
+          }
+          return prev;
+        });
+      }, 1000);
+    } else {
+      console.log('Participant view timer stopped - isRunning:', tournament?.isRunning);
+    }
 
-    const interval = setInterval(() => {
-      const endTime = targetEndTimeRef.current;
-      if (endTime) {
-        setTimeLeft(Math.max(0, Math.ceil((endTime - Date.now()) / 1000)));
+    return () => {
+      if (interval) {
+        console.log('Clearing participant view timer interval');
+        clearInterval(interval);
       }
-    }, 1000);
-
-    return () => clearInterval(interval);
+    };
   }, [tournament?.isRunning, tournament?.targetEndTime]);
 
   const formatTime = (seconds: number) => {
@@ -278,7 +288,7 @@ function TournamentParticipantView() {
       <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 rounded-xl shadow-lg mb-4">
-            <h1 className="text-xl sm:text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
           </div>
           {error ? (
             <div className="space-y-2">
@@ -292,7 +302,7 @@ function TournamentParticipantView() {
                   Try Again
                 </button>
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => window.location.href = '/'}
                   className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
                 >
                   Go Home
@@ -398,7 +408,7 @@ function TournamentParticipantView() {
         {/* Header Section */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-xl sm:text-3xl font-bold text-white truncate max-w-[90vw]">{tournament?.name || 'Tournament'}</h1>
+            <h1 className="text-3xl font-bold text-white">{tournament?.name || 'Tournament'}</h1>
             <p className="text-gray-300">Live Tournament View</p>
           </div>
 
