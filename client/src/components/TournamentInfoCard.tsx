@@ -27,6 +27,7 @@ const ordinal = (n: number) => n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3r
 
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state } = tournament;
+  const [isExpanded, setIsExpanded] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [showChipChop, setShowChipChop] = useState(false);
   const currencySymbol = state.settings.currency || '£';
@@ -93,11 +94,13 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                 <span className="hidden sm:inline">Chop</span>
               </button>
             )}
-            <button onClick={() => setShowDetails(!showDetails)}>
-              {showDetails ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            <button onClick={() => setIsExpanded(!isExpanded)}>
+              {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </button>
           </div>
         </div>
+
+        {isExpanded && (<>
 
         {/* Winner banner */}
         {winner && (
@@ -240,6 +243,8 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             </>}
           </div>
         )}
+
+        </>)}
       </CardContent>
 
       <ChipChopCalculator
