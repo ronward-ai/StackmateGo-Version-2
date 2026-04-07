@@ -93,6 +93,9 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                 <span className="hidden sm:inline">Chop</span>
               </button>
             )}
+            <button onClick={() => setShowDetails(!showDetails)}>
+              {showDetails ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
           </div>
         </div>
 
@@ -174,16 +177,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         )}
 
-        {/* Details accordion — rebuy/addon/chip minutiae */}
-        {(hasRebuys || hasAddons || state.players.length > 0) && (
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors pt-2 border-t border-border/20"
-          >
-            <span>{showDetails ? 'Hide details' : 'Show details'}</span>
-            {showDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
-        )}
+        {/* Details accordion — toggled by header chevron */}
 
         {showDetails && (
           <div className="mt-3 space-y-0.5 text-sm fade-in">
