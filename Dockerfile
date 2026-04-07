@@ -1,26 +1,16 @@
-# ---- Build stage ----
-FROM node:20-slim AS builder
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci
-
-COPY . .
-RUN npm run build
-
-# ---- Runtime stage ----
-FROM node:20-slim AS runner
+FROM node:20-slim
 WORKDIR /app
 
 ENV NODE_ENV=production
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-# Copy built artefacts
-COPY --from=builder /app/dist ./dist
+COPY . .
 
-# Cloud Run injects PORT; server/index.ts reads it
+# Build client assets only — server runs from source via tsx
+RUN npx vite build
+
 EXPOSE 8080
 
-CMD ["node", "dist/index.js"]
+CMD ["npx", "tsx", "server/index.ts"]
