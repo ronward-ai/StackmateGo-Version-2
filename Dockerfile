@@ -14,9 +14,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy only what the server needs at runtime
+# Keep all deps — server/vite.ts has a static top-level import of 'vite'
+# which Node resolves at load time even though vite is never used in production
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Copy built artefacts
 COPY --from=builder /app/dist ./dist
