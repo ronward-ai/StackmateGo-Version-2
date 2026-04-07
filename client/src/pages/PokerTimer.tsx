@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
+import { useSeasons } from '@/hooks/useSeasons';
 import { useAuth } from '@/hooks/useAuth';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
@@ -89,6 +90,17 @@ function UserMenu() {
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
+  );
+}
+
+function LeagueGameBadge({ isLeague, players }: { isLeague: boolean; players: any[] }) {
+  const { currentSeason } = useSeasons();
+  if (!isLeague || !currentSeason) return null;
+  const totalGames = players[0]?.results?.length || 0;
+  return (
+    <p className="text-center text-xs sm:text-sm text-orange-400 mt-1">
+      Game {totalGames + 1} of {currentSeason.numberOfGames || 12} — {currentSeason.name}
+    </p>
   );
 }
 
@@ -329,51 +341,79 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Header Section */}
-        <header className="text-center">
-          {/* Main StackMate Go Logo + User Menu */}
-          <div className="mb-8 relative">
+      <div className="container mx-auto px-4 py-3 sm:py-6 max-w-4xl">
+        {/* Header — single compact row: logo | mode toggle | user menu */}
+        <header className="mb-3 sm:mb-5">
+          <div className="flex items-center justify-between gap-2">
+
+            {/* Logo */}
             <img
               src="/stackmatelogo.svg"
               alt="StackMate Go"
-              className="h-16 md:h-19 w-auto object-contain mx-auto"
+              className="h-8 sm:h-11 w-auto object-contain flex-shrink-0"
               style={{ filter: 'brightness(1.1)' }}
               onError={(e) => {
-                console.error('Failed to load logo:', e);
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
               }}
             />
-            <div className="absolute top-0 right-0">
-              <UserMenu />
+
+            {/* Standalone / League pill toggle */}
+            <div className="flex items-center bg-muted/40 border border-border/40 rounded-full p-0.5 gap-0.5 flex-shrink-0">
+              <button
+                className={`px-2.5 sm:px-3 py-0.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                  tournament.state.details?.type !== 'season'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => tournament.updateTournamentDetails({ ...tournament.state.details, type: 'standalone' })}
+              >
+                Standalone
+              </button>
+              <button
+                className={`px-2.5 sm:px-3 py-0.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                  tournament.state.details?.type === 'season'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => tournament.updateTournamentDetails({ ...tournament.state.details, type: 'season' })}
+              >
+                League
+              </button>
             </div>
+
+            {/* User menu */}
+            <UserMenu />
           </div>
 
-          {/* Event Branding - Clean Minimal Style */}
+          {/* League game count — only in league mode */}
+          <LeagueGameBadge
+            isLeague={tournament.state.details?.type === 'season'}
+            players={tournament.state.players}
+          />
+
+          {/* Event Branding */}
           {tournament.state.settings.branding?.isVisible && (tournament.state.settings.branding?.leagueName || tournament.state.settings.branding?.logoUrl) && (
-            <div className="mb-6">
-              <div className="flex items-center justify-center gap-6">
-                {tournament.state.settings.branding?.logoUrl && (
-                  <img
-                    src={tournament.state.settings.branding.logoUrl}
-                    alt={tournament.state.settings.branding?.leagueName || 'League Logo'}
-                    className="h-16 md:h-20 w-auto object-contain"
-                  />
-                )}
-                {tournament.state.settings.branding?.leagueName && (
-                  <h2 className="text-4xl md:text-5xl font-bold text-foreground tracking-wide">
-                    {tournament.state.settings.branding.leagueName}
-                  </h2>
-                )}
-                {tournament.state.settings.branding?.logoUrl && (
-                  <img
-                    src={tournament.state.settings.branding.logoUrl}
-                    alt={tournament.state.settings.branding?.leagueName || 'League Logo'}
-                    className="h-16 md:h-20 w-auto object-contain"
-                  />
-                )}
-              </div>
+            <div className="mt-2 sm:mt-4 flex items-center justify-center gap-4">
+              {tournament.state.settings.branding?.logoUrl && (
+                <img
+                  src={tournament.state.settings.branding.logoUrl}
+                  alt={tournament.state.settings.branding?.leagueName || 'League Logo'}
+                  className="h-10 sm:h-14 w-auto object-contain"
+                />
+              )}
+              {tournament.state.settings.branding?.leagueName && (
+                <h2 className="text-xl sm:text-3xl font-bold text-foreground tracking-wide truncate max-w-[60vw]">
+                  {tournament.state.settings.branding.leagueName}
+                </h2>
+              )}
+              {tournament.state.settings.branding?.logoUrl && (
+                <img
+                  src={tournament.state.settings.branding.logoUrl}
+                  alt={tournament.state.settings.branding?.leagueName || 'League Logo'}
+                  className="h-10 sm:h-14 w-auto object-contain"
+                />
+              )}
             </div>
           )}
         </header>
