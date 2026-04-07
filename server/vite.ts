@@ -1,11 +1,7 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
-
-const viteLogger = createLogger();
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -19,9 +15,12 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
-  console.log("viteConfig type:", typeof viteConfig);
+  // Dynamic imports so vite is never loaded in production
+  const { createServer: createViteServer, createLogger } = await import("vite");
+  const { default: viteConfig } = await import("../vite.config.js");
+
+  const viteLogger = createLogger();
   const resolvedConfig = typeof viteConfig === 'function' ? await viteConfig({ mode: 'development', command: 'serve' }) : viteConfig;
-  console.log("resolvedConfig root:", (resolvedConfig as any).root);
   const vite = await createViteServer({
     ...resolvedConfig,
     configFile: false,
