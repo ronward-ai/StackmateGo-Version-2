@@ -342,26 +342,28 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       <div className="container mx-auto px-4 py-3 sm:py-6 max-w-4xl">
-        {/* Header — single compact row: logo | mode toggle | user menu */}
+        {/* Header — row 1: logo + user menu | row 2: mode toggle */}
         <header className="mb-3 sm:mb-5">
-          <div className="flex items-center justify-between gap-2">
-
-            {/* Logo */}
+          {/* Row 1: logo left, user menu right */}
+          <div className="flex items-center justify-between mb-2">
             <img
               src="/stackmatelogo.svg"
               alt="StackMate Go"
-              className="h-8 sm:h-11 w-auto object-contain flex-shrink-0"
+              className="h-8 sm:h-11 w-auto object-contain"
               style={{ filter: 'brightness(1.1)' }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
               }}
             />
+            <UserMenu />
+          </div>
 
-            {/* Standalone / League pill toggle */}
-            <div className="flex items-center bg-muted/40 border border-border/40 rounded-full p-0.5 gap-0.5 flex-shrink-0">
+          {/* Row 2: mode toggle centred */}
+          <div className="flex justify-center">
+            <div className="flex items-center bg-muted/40 border border-border/40 rounded-full p-0.5 gap-0.5">
               <button
-                className={`px-2.5 sm:px-3 py-0.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                className={`px-4 py-1 rounded-full text-xs font-medium transition-all ${
                   tournament.state.details?.type !== 'season'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -371,7 +373,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                 Standalone
               </button>
               <button
-                className={`px-2.5 sm:px-3 py-0.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                className={`px-4 py-1 rounded-full text-xs font-medium transition-all ${
                   tournament.state.details?.type === 'season'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -381,9 +383,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                 League
               </button>
             </div>
-
-            {/* User menu */}
-            <UserMenu />
           </div>
 
           {/* League game count — only in league mode */}
