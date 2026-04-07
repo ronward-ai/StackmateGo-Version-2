@@ -28,6 +28,7 @@ export interface Player {
   eliminationLevel?: number; // Level at which player was eliminated
   playTime?: number; // Total play time in seconds
   chipCount?: number; // Current chip count (for active players)
+  claimedBy?: string; // Firebase anonymous UID of player who claimed this seat
 }
 
 export interface TableConfig {

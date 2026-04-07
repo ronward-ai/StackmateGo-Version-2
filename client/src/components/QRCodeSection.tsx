@@ -222,14 +222,14 @@ export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSect
               <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
                 <div className="flex-1">
                   <p className="text-sm text-muted-foreground">
-                    Players can scan this QR code to view live tournament updates, timer, and blind levels (read-only)
+                    Players scan to check in and see their seat. Spectators get a live read-only view.
                   </p>
                 </div>
                 <div className="flex flex-col items-center flex-shrink-0">
                   <div className="w-28 h-28 border-2 border-dashed border-muted-foreground/50 rounded-lg flex items-center justify-center bg-white">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.protocol}//${window.location.host}/tournament/${tournamentId}`)}`}
-                      alt="Tournament Viewer QR Code"
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.protocol}//${window.location.host}/tournament/${tournamentId}/join`)}`}
+                      alt="Player Check-in QR Code"
                       className="w-24 h-24"
                       crossOrigin="anonymous"
                       onError={(e) => {
@@ -238,7 +238,7 @@ export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSect
                       }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Scan for read-only view</p>
+                  <p className="text-xs text-muted-foreground mt-2">Scan to check in</p>
                 </div>
               </div>
             </div>

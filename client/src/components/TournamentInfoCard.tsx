@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { calculatePrizePool } from "@/lib/prizePool";
+import ChipChopCalculator from './ChipChopCalculator';
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -32,6 +33,7 @@ function SectionDivider({ icon: Icon, title, color }: { icon: any; title: string
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state } = tournament;
   const [isExpanded, setIsExpanded] = useState(true);
+  const [showChipChop, setShowChipChop] = useState(false);
   const currencySymbol = state.settings.currency || '£';
   const p = state.prizeStructure;
 
@@ -73,11 +75,11 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
     <Card className="card-glass-purple rounded-xl">
       <CardContent className="p-5">
         {/* Header — tappable to expand/collapse */}
-        <button
-          className="w-full flex items-center justify-between mb-0"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between mb-0">
+          <button
+            className="flex-1 flex items-center gap-2 text-left"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
             <Trophy className="h-4 w-4 text-purple-400" />
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
               Tournament Info
@@ -87,12 +89,26 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                 · {activePlayers.length} active · {currencySymbol}{totalPrizePool.toLocaleString()} pool
               </span>
             )}
+          </button>
+          <div className="flex items-center gap-2">
+            {activePlayers.length >= 2 && totalPrizePool > 0 && (
+              <button
+                onClick={() => setShowChipChop(true)}
+                className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 transition-colors px-2 py-1 rounded-md hover:bg-orange-500/10"
+                title="Chip Chop Calculator"
+              >
+                <Calculator className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Chop</span>
+              </button>
+            )}
+            <button onClick={() => setIsExpanded(!isExpanded)}>
+              {isExpanded
+                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              }
+            </button>
           </div>
-          {isExpanded
-            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            : <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          }
-        </button>
+        </div>
 
         {isExpanded && (
           <div className="mt-4 space-y-1 fade-in">
@@ -198,6 +214,14 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         )}
       </CardContent>
+
+      <ChipChopCalculator
+        open={showChipChop}
+        onClose={() => setShowChipChop(false)}
+        players={activePlayers}
+        payouts={p?.manualPayouts?.map((po: any) => po.amount || po) || []}
+        prizePool={totalPrizePool}
+      />
     </Card>
   );
 }
