@@ -131,7 +131,6 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                 color="text-orange-400"
               />
             )}
-          </div>
         </div>
 
         {/* Payouts — shown directly, always visible */}
