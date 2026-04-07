@@ -18,26 +18,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Play, Pause, RotateCcw, SkipForward, SkipBack, Volume2, VolumeX, Settings } from 'lucide-react';
 import { Slider } from './ui/slider';
-import { useSeasons } from '@/hooks/useSeasons';
-
-// Component to show current game count with real-time updates
-const GameCountBadge = ({ leagueData }: { leagueData: any }) => {
-  const { currentSeason } = useSeasons();
-
-  if (!leagueData?.length || !currentSeason) return null;
-
-  // Calculate game count from league data
-  const samplePlayer = leagueData[0];
-  const totalGames = samplePlayer?.results?.length || 0;
-  const newGameCount = totalGames + 1;
-
-  return (
-    <span className="text-xs font-medium text-orange-400 ml-2">
-      Game {newGameCount} of {currentSeason.numberOfGames || 12} - {currentSeason.name}
-    </span>
-  );
-};
-
 
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -227,49 +207,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   };
 
   return (
-    <Card className="bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20 rounded-xl shadow-lg p-4 sm:p-8 flex flex-col items-center relative">
-      {/* Tournament Mode Toggle Buttons */}
-      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex items-center gap-1">
-        <Button
-          variant="ghost"
-          className={`h-6 sm:h-8 px-2 sm:px-3 py-0 text-xs sm:text-sm font-medium min-h-[24px] sm:min-h-[32px] border rounded-md transition-all ${
-            state.details?.type !== 'season'
-              ? "btn-timer-toggle-active"
-              : "btn-timer-toggle-inactive"
-          }`}
-          onClick={() => {
-            // Toggle to standalone mode
-            tournament.updateTournamentDetails({
-              ...state.details,
-              type: 'standalone'
-            });
-          }}
-        >
-          standalone
-        </Button>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            className={`h-6 sm:h-8 px-2 sm:px-3 py-0 text-xs sm:text-sm font-medium min-h-[24px] sm:min-h-[32px] border rounded-md transition-all ${
-              state.details?.type === 'season'
-                ? "btn-timer-toggle-active"
-                : "btn-timer-toggle-inactive"
-            }`}
-            onClick={() => {
-              // Toggle to league mode - ensure we set the correct type for broadcasting
-              tournament.updateTournamentDetails({
-                ...state.details,
-                type: 'season'
-              });
-            }}
-          >
-            league game
-          </Button>
-          {state.details?.type === 'season' && (
-            <GameCountBadge leagueData={state.players} />
-          )}
-        </div>
-      </div>
+    <Card className="bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20 rounded-xl shadow-lg p-4 sm:p-8 flex flex-col items-center">
 
       <div className="font-mono text-8xl sm:text-[10rem] md:text-[16rem] lg:text-[20rem] font-bold tracking-tight my-4 sm:my-8 flex-shrink-0 timer-responsive" style={{ lineHeight: '0.85' }}>
         {formatTime()}
