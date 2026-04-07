@@ -28,7 +28,6 @@ const ordinal = (n: number) => n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3r
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state } = tournament;
   const [isExpanded, setIsExpanded] = useState(true);
-  const [showDetails, setShowDetails] = useState(false);
   const [showChipChop, setShowChipChop] = useState(false);
   const currencySymbol = state.settings.currency || '£';
   const p = state.prizeStructure;
@@ -110,9 +109,8 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         )}
 
-        {/* Stat tiles — the at-a-glance row */}
-        {state.players.length > 0 && (
-          <div className="flex gap-2 mb-4">
+        {/* Stat tiles — always shown */}
+        <div className="flex gap-2 mb-4">
             <StatTile
               label="Active"
               value={activePlayers.length}
@@ -134,7 +132,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               />
             )}
           </div>
-        )}
+        </div>
 
         {/* Payouts — shown directly, always visible */}
         {hasPayouts && (
@@ -180,10 +178,8 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         )}
 
-        {/* Details accordion — toggled by header chevron */}
-
-        {showDetails && (
-          <div className="mt-3 space-y-0.5 text-sm fade-in">
+        {/* Details */}
+        <div className="mt-3 space-y-0.5 text-sm">
 
             {/* Players */}
             <div className="flex items-center gap-2 py-1.5 border-b border-border/20 mb-1">
@@ -241,8 +237,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               <DetailRow label="Chips" value={(p?.addonChips || 10000).toLocaleString()} />
               <DetailRow label="Used" value={totalAddons} />
             </>}
-          </div>
-        )}
+        </div>
 
         </>)}
       </CardContent>
