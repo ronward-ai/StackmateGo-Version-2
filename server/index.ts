@@ -120,10 +120,8 @@ app.use((req, res, next) => {
     });
 
 
-    // ALWAYS serve the app on port 3000
-    // this serves both the API and the client.
-    // It is the only port that is not firewalled.
-    const port = 3000;
+    // Cloud Run sets PORT env var; fall back to 3000 for local dev
+    const port = parseInt(process.env.PORT || '3000', 10);
     server.listen(port, "0.0.0.0", () => {
       log(`Server running at http://0.0.0.0:${port}`);
       log(`App accessible via webview`);
