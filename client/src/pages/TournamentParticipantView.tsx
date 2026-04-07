@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'wouter';
+import { useParams, useLocation } from 'wouter';
+import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X } from 'lucide-react';
@@ -72,7 +73,7 @@ function TournamentParticipantView() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isAuthenticated, isLoading, signInAnonymously } = useAuth();
+  const { user, isAuthenticated, isLoading, signInAnonymously } = useAuth();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -426,6 +427,51 @@ function TournamentParticipantView() {
             return <TournamentOverBanner winnerName={activePlayers[0]?.name || 'Unknown'} />;
           }
           return null;
+        })()}
+
+        {/* Personalised player card */}
+        {(() => {
+          const uid = (user as any)?.uid;
+          const claimedId = id ? localStorage.getItem(`claimedPlayer_${id}`) : null;
+          const me = claimedId
+            ? tournament?.players?.find((p: any) => p.id === claimedId)
+            : uid
+            ? tournament?.players?.find((p: any) => p.claimedBy === uid)
+            : null;
+          if (!me) return null;
+          const seat = me.tableAssignment || me.seatInfo;
+          return (
+            <div className="mb-4">
+              <Card className="bg-gradient-to-r from-orange-600/15 to-amber-600/10 border border-orange-500/30 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                      <UserCheck className="h-5 w-5 text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-white">{me.name}</p>
+                      <p className="text-xs text-orange-300">
+                        {me.isActive === false
+                          ? `Eliminated ${me.position ? `in position ${me.position}` : ''}`
+                          : seat
+                          ? `Table ${(seat.tableIndex ?? 0) + 1} · Seat ${(seat.seatIndex ?? 0) + 1}`
+                          : 'Active'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-gray-300 space-y-0.5">
+                    {me.chipCount != null && (
+                      <p className="font-mono font-bold text-white">{me.chipCount.toLocaleString()} chips</p>
+                    )}
+                    {(me.rebuys ?? 0) > 0 && <p>{me.rebuys} rebuy{me.rebuys !== 1 ? 's' : ''}</p>}
+                    {me.prizeMoney != null && me.prizeMoney > 0 && (
+                      <p className="text-green-400 font-bold">Prize: ${me.prizeMoney}</p>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          );
         })()}
 
         {/* Main Timer Card */}

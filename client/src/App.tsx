@@ -9,6 +9,7 @@ import PokerTimer from './pages/PokerTimer';
 import TournamentParticipant from './pages/TournamentParticipant';
 import TournamentParticipantView from './pages/TournamentParticipantView';
 import TournamentDirector from './pages/TournamentDirector';
+import PlayerClaimView from './pages/PlayerClaimView';
 
 function NotFoundPage() {
   return (
@@ -35,6 +36,7 @@ function App() {
           <Route path="/" component={PokerTimer} />
           <Route path="/tournament" component={PokerTimer} />
           <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
+          <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
           <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
           <Route path="/tournament/:tournamentId/participant" component={TournamentParticipant} />
           <Route path="/tournament/:tournamentId/participant-view" component={TournamentParticipantView} />
