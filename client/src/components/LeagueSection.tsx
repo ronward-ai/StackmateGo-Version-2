@@ -1,7 +1,9 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, LayoutDashboard, Target, Calendar, Settings2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, LayoutDashboard, Target, Settings2, Calendar, Plus, Trophy } from 'lucide-react';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import SeasonDashboard from '@/components/SeasonDashboard';
 import LeagueTournaments from '@/components/LeagueTournaments';
@@ -22,15 +24,14 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const { league, setActiveSeasonId } = useLeague();
   const { seasons, currentSeason, updateSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
 
-  // Update useLeague's active season when it changes
   useEffect(() => {
     if (currentSeason?.id) {
       setActiveSeasonId(String(currentSeason.id));
     }
   }, [currentSeason?.id, setActiveSeasonId]);
 
-  const isSeasonTournament = 
-    tournament?.isSeasonTournament === true || 
+  const isSeasonTournament =
+    tournament?.isSeasonTournament === true ||
     tournament?.settings?.isSeasonTournament === true ||
     tournament?.state?.details?.type === 'season';
 
@@ -47,137 +48,187 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
     }
   };
 
+  const handleSwitchToLeague = () => {
+    tournament?.updateTournamentDetails?.({
+      ...tournament?.state?.details,
+      type: 'season',
+    });
+  };
+
+  const gamesPlayed = currentSeason
+    ? (tournament?.state?.players?.[0]?.results?.length ?? 0)
+    : 0;
+  const totalGames = currentSeason?.numberOfGames || 12;
+
+  const statusColor: Record<string, string> = {
+    active: 'bg-green-500/20 text-green-400 border-green-500/30',
+    draft:  'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    completed: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    archived: 'bg-red-500/20 text-red-400 border-red-500/30',
+  };
+
   return (
-    <div className="space-y-6" data-testid="league-section">
+    <div className="space-y-4" data-testid="league-section">
+
+      {/* Not in league mode — prominent CTA */}
+      {!isSeasonTournament && (
+        <Card className="bg-gradient-to-r from-orange-600/10 to-amber-600/10 border border-orange-500/30 rounded-xl">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Trophy className="h-4 w-4 text-orange-400" />
+                  <span className="font-semibold text-foreground">League Mode is off</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Switch on to track standings, points, and season history.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleSwitchToLeague}
+                className="bg-orange-600 hover:bg-orange-700 text-white flex-shrink-0"
+              >
+                Enable
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {isSeasonTournament && (
         <>
-          {seasons.length > 1 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-base">Season</CardTitle>
-                  </div>
-                  <Select 
-                    value={currentSeason?.id?.toString()} 
-                    onValueChange={handleSeasonChange}
-                    data-testid="select-season"
-                  >
-                    <SelectTrigger className="w-[280px]">
-                      <SelectValue placeholder="Select a season" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {seasons.map((season) => (
-                        <SelectItem 
-                          key={season.id} 
-                          value={season.id.toString()}
-                          data-testid={`option-season-${season.id}`}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-medium">{season.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatSeasonDateRange(season)}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          {/* Season header — always visible */}
+          <Card className="rounded-xl border border-border/40">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Calendar className="h-4 w-4 text-primary flex-shrink-0" />
+                  {seasons.length > 1 ? (
+                    <Select
+                      value={currentSeason?.id?.toString()}
+                      onValueChange={handleSeasonChange}
+                    >
+                      <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
+                        <SelectValue placeholder="Select season" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {seasons.map(season => (
+                          <SelectItem key={season.id} value={season.id.toString()}>
+                            <div className="flex items-center gap-2">
+                              <span>{season.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatSeasonDateRange(season)}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="font-semibold text-foreground truncate">
+                      {currentSeason?.name || 'Season 1'}
+                    </span>
+                  )}
+                  {currentSeason?.status && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${statusColor[currentSeason.status] || statusColor.draft}`}>
+                      {currentSeason.status.charAt(0).toUpperCase() + currentSeason.status.slice(1)}
+                    </span>
+                  )}
                 </div>
-              </CardHeader>
-            </Card>
-          )}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {currentSeason && (
+                    <span className="text-xs text-muted-foreground hidden sm:block">
+                      {gamesPlayed}/{totalGames} games
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setShowSettings(true)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    New Season
+                  </Button>
+                </div>
+              </div>
+              {currentSeason && (
+                <p className="text-xs text-muted-foreground mt-2 ml-7">
+                  {formatSeasonDateRange(currentSeason)}
+                  {gamesPlayed > 0 && (
+                    <span className="ml-2 text-orange-400">· {gamesPlayed} of {totalGames} games played</span>
+                  )}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
+          {/* Live standings */}
           <RealTimeLeagueTable tournament={tournament} />
 
+          {/* Analytics */}
           <Collapsible open={showAnalytics} onOpenChange={setShowAnalytics}>
-            <Card>
+            <Card className="rounded-xl">
               <CollapsibleTrigger className="w-full" data-testid="button-toggle-analytics">
-                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <LayoutDashboard className="h-5 w-5 text-blue-500" />
-                      <CardTitle>Season Analytics</CardTitle>
-                    </div>
-                    <ChevronDown className={`h-5 w-5 transition-transform ${showAnalytics ? 'rotate-180' : ''}`} />
+                <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <LayoutDashboard className="h-4 w-4 text-blue-400" />
+                    <span className="text-sm font-semibold">Season Analytics</span>
                   </div>
-                  <CardDescription className="text-left">
-                    View comprehensive season statistics and performance metrics
-                  </CardDescription>
-                </CardHeader>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showAnalytics ? 'rotate-180' : ''}`} />
+                </div>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <CardContent className="pt-0">
+                <div className="px-4 pb-4">
                   <SeasonDashboard />
-                </CardContent>
+                </div>
               </CollapsibleContent>
             </Card>
           </Collapsible>
 
+          {/* Tournament history */}
           <Collapsible open={showHistory} onOpenChange={setShowHistory}>
-            <Card>
+            <Card className="rounded-xl">
               <CollapsibleTrigger className="w-full" data-testid="button-toggle-history">
-                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Target className="h-5 w-5 text-purple-500" />
-                      <CardTitle>Tournament History</CardTitle>
-                    </div>
-                    <ChevronDown className={`h-5 w-5 transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+                <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-purple-400" />
+                    <span className="text-sm font-semibold">Tournament History</span>
                   </div>
-                  <CardDescription className="text-left">
-                    Browse past tournament results and player performance
-                  </CardDescription>
-                </CardHeader>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+                </div>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <CardContent className="pt-0">
+                <div className="px-4 pb-4">
                   <LeagueTournaments />
-                </CardContent>
+                </div>
               </CollapsibleContent>
             </Card>
           </Collapsible>
         </>
       )}
 
-      {!isSeasonTournament && (
-        <Card className="bg-card rounded-xl shadow-lg overflow-hidden bg-gradient-to-r from-orange-600/10 to-amber-600/10 border border-orange-500/20">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-orange-500" />
-              <CardTitle>League Mode</CardTitle>
-            </div>
-            <CardDescription>
-              This tournament is not part of a league season. Configure your league settings below, then enable season mode to start tracking standings, analytics, and tournament history.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
+      {/* League settings — always available */}
       <Collapsible open={showSettings} onOpenChange={setShowSettings}>
-        <Card>
+        <Card className="rounded-xl">
           <CollapsibleTrigger className="w-full" data-testid="button-toggle-league-settings">
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Settings2 className="h-5 w-5 text-orange-500" />
-                  <CardTitle>League Settings</CardTitle>
-                </div>
-                <ChevronDown className={`h-5 w-5 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
+            <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-orange-400" />
+                <span className="text-sm font-semibold">League Settings</span>
               </div>
-              <CardDescription className="text-left">
-                Configure points system, stats display, and season settings
-              </CardDescription>
-            </CardHeader>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showSettings ? 'rotate-180' : ''}`} />
+            </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent className="pt-0">
+            <div className="px-4 pb-4">
               <LeagueSettingsContent />
-            </CardContent>
+            </div>
           </CollapsibleContent>
         </Card>
       </Collapsible>
+
     </div>
   );
 }
