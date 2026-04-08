@@ -97,59 +97,73 @@ export function LeagueSettingsContent() {
     loadSavedFormulas();
   }, [loadSavedFormulas]);
 
-  const previewPointsCalculation = useCallback(() => {
-    const position = typeof previewPoints.position === 'number' ? previewPoints.position : 1;
-    const totalPlayers = typeof previewPoints.totalPlayers === 'number' ? previewPoints.totalPlayers : 10;
-    
-    if (!localSettings?.pointsSystem?.formula) return 0;
-    const { formula } = localSettings.pointsSystem;
-
+  // Shared points calculator — used by both the preview callback and the table
+  const calcPoints = useCallback((formula: typeof localSettings.pointsSystem.formula, position: number, totalPlayers: number): number => {
+    const participation = formula.participationPoints ?? 0;
     try {
+      let base = 0;
       switch (formula.type) {
         case 'logarithmic': {
-          const baseMultiplier = formula.baseMultiplier || 10;
-          const winnerMultiplier = formula.winnerMultiplier || 1.5;
-          const points = baseMultiplier * Math.log(totalPlayers - position + 2);
-          return position === 1 ? Math.floor(points * winnerMultiplier) : Math.floor(points);
+          const bm = formula.baseMultiplier || 10;
+          const wm = formula.winnerMultiplier || 1.5;
+          const p = bm * Math.log(totalPlayers - position + 2);
+          base = position === 1 ? Math.floor(p * wm) : Math.floor(p);
+          break;
         }
         case 'squareRoot': {
-          const baseMultiplier = formula.baseMultiplier || 10;
-          const winnerMultiplier = formula.winnerMultiplier || 1.2;
-          const points = baseMultiplier * Math.sqrt(totalPlayers - position + 1);
-          return position === 1 ? Math.floor(points * winnerMultiplier) : Math.floor(points);
+          const bm = formula.baseMultiplier || 10;
+          const wm = formula.winnerMultiplier || 1.2;
+          const p = bm * Math.sqrt(totalPlayers - position + 1);
+          base = position === 1 ? Math.floor(p * wm) : Math.floor(p);
+          break;
         }
         case 'linear': {
-          const baseMultiplier = formula.baseMultiplier || 10;
-          const winnerMultiplier = formula.winnerMultiplier || 1.0;
-          const points = baseMultiplier * (totalPlayers - position + 1);
-          return position === 1 ? Math.floor(points * winnerMultiplier) : Math.floor(points);
+          const bm = formula.baseMultiplier || 10;
+          const wm = formula.winnerMultiplier || 1.0;
+          const p = bm * (totalPlayers - position + 1);
+          base = position === 1 ? Math.floor(p * wm) : Math.floor(p);
+          break;
         }
         case 'fixed': {
-          return formula.fixedPoints || 10;
+          const arr = formula.positionPoints || [];
+          base = arr[position - 1] ?? 0;
+          break;
         }
         case 'custom': {
-          if (!formula.customFormula?.trim()) return 0;
-          const safeEval = new Function(
+          const expr = formula.customFormula?.trim();
+          if (!expr) break;
+          // Array shorthand: [25,18,13,...] — look up by finish position
+          if (/^\[[\d,\s]+\]$/.test(expr)) {
+            const arr = JSON.parse(expr) as number[];
+            base = arr[position - 1] ?? 0;
+            break;
+          }
+          const fn = new Function(
             'f', 'p', 'k', 'b', 'c', 'z',
             'position', 'totalPlayers', 'knockouts', 'buyIn', 'totalCost', 'prizepool',
-            'Math', 
-            `"use strict"; return (${formula.customFormula})`
+            'Math',
+            `"use strict"; return (${expr})`
           );
-          const result = safeEval(
+          base = Math.max(0, Math.floor(Number(fn(
             position, totalPlayers, 0, 0, 0, 0,
             position, totalPlayers, 0, 0, 0, 0,
             Math
-          );
-          const finalResult = Math.floor(Number(result)) || 0;
-          return Math.max(0, finalResult);
+          )) || 0));
+          break;
         }
-        default:
-          return 0;
       }
-    } catch (e) {
-      return 0;
+      return base + participation;
+    } catch {
+      return formula.participationPoints ?? 0;
     }
-  }, [localSettings, previewPoints]);
+  }, [localSettings]);
+
+  const previewPointsCalculation = useCallback(() => {
+    const position = typeof previewPoints.position === 'number' ? previewPoints.position : 1;
+    const totalPlayers = typeof previewPoints.totalPlayers === 'number' ? previewPoints.totalPlayers : 10;
+    if (!localSettings?.pointsSystem?.formula) return 0;
+    return calcPoints(localSettings.pointsSystem.formula, position, totalPlayers);
+  }, [localSettings, previewPoints, calcPoints]);
 
   const handleSaveTemplate = useCallback(async (name: string, formula: string) => {
     setError(null);
@@ -440,12 +454,12 @@ export function LeagueSettingsContent() {
                   type="text"
                   value={localSettings.pointsSystem.formula.customFormula || ''}
                   onChange={(e) => updateFormulaParameter('customFormula', e.target.value)}
-                  placeholder="e.g., 10 * (p - f + 1)"
+                  placeholder="e.g., 10 * (p - f + 1)  or  [25,18,13,9,6,4,3,2,1]"
                   className="font-mono"
                 />
 
                 <div className="p-3 bg-muted/50 border rounded-md">
-                  <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Variables</p>
+                  <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Variables &amp; shortcuts</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                     {[
                       ['f', 'Finish position'],
@@ -460,6 +474,10 @@ export function LeagueSettingsContent() {
                         <span className="text-xs text-muted-foreground">{desc}</span>
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-2 pt-2 border-t flex items-start gap-2">
+                    <code className="bg-background px-1.5 py-0.5 rounded border text-xs whitespace-nowrap">[25,18,13,...]</code>
+                    <span className="text-xs text-muted-foreground">Array shorthand — looks up points by finish position</span>
                   </div>
                 </div>
 
@@ -573,49 +591,7 @@ export function LeagueSettingsContent() {
                   <tbody>
                     {Array.from({ length: previewPoints.totalPlayers }, (_, i) => {
                       const pos = i + 1;
-                      const pts = (() => {
-                        const { formula } = localSettings.pointsSystem;
-                        const participation = formula.participationPoints ?? 0;
-                        try {
-                          let base = 0;
-                          switch (formula.type) {
-                            case 'logarithmic': {
-                              const bm = formula.baseMultiplier || 10;
-                              const wm = formula.winnerMultiplier || 1.5;
-                              const p = bm * Math.log(previewPoints.totalPlayers - pos + 2);
-                              base = pos === 1 ? Math.floor(p * wm) : Math.floor(p);
-                              break;
-                            }
-                            case 'squareRoot': {
-                              const bm = formula.baseMultiplier || 10;
-                              const wm = formula.winnerMultiplier || 1.2;
-                              const p = bm * Math.sqrt(previewPoints.totalPlayers - pos + 1);
-                              base = pos === 1 ? Math.floor(p * wm) : Math.floor(p);
-                              break;
-                            }
-                            case 'linear': {
-                              const bm = formula.baseMultiplier || 10;
-                              const wm = formula.winnerMultiplier || 1.0;
-                              const p = bm * (previewPoints.totalPlayers - pos + 1);
-                              base = pos === 1 ? Math.floor(p * wm) : Math.floor(p);
-                              break;
-                            }
-                            case 'fixed': {
-                              const arr = formula.positionPoints || [];
-                              base = arr[pos - 1] ?? 0;
-                              break;
-                            }
-                            case 'custom': {
-                              if (!formula.customFormula?.trim()) { base = 0; break; }
-                              const fn = new Function('f','p','k','b','c','z','position','totalPlayers','knockouts','buyIn','totalCost','prizepool','Math',
-                                `"use strict"; return (${formula.customFormula})`);
-                              base = Math.max(0, Math.floor(Number(fn(pos,previewPoints.totalPlayers,0,0,0,0,pos,previewPoints.totalPlayers,0,0,0,0,Math)) || 0));
-                              break;
-                            }
-                          }
-                          return base + participation;
-                        } catch { return participation; }
-                      })();
+                      const pts = calcPoints(localSettings.pointsSystem.formula, pos, previewPoints.totalPlayers);
                       return (
                         <tr key={pos} className={`border-b last:border-0 ${pos <= 3 ? 'bg-orange-500/5' : ''}`}>
                           <td className="px-3 py-1.5 text-muted-foreground">
