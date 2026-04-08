@@ -9,21 +9,24 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import { CalendarIcon, ChevronDownIcon, PlusIcon, Edit2Icon, Trash2Icon, CheckIcon } from "lucide-react";
 import { cn } from '@/lib/utils';
 
 export default function SeasonSection() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
-  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000));
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000),
+  });
+  const [rangeOpen, setRangeOpen] = useState(false);
   const [numberOfGames, setNumberOfGames] = useState(12);
   const [isCreatingNewSeason, setIsCreatingNewSeason] = useState(false);
   const [editingSeasonId, setEditingSeasonId] = useState<number | null>(null);
   const [editSeasonName, setEditSeasonName] = useState('');
-  const [editStartDate, setEditStartDate] = useState<Date | undefined>(undefined);
-  const [editEndDate, setEditEndDate] = useState<Date | undefined>(undefined);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [editDateRange, setEditDateRange] = useState<DateRange | undefined>(undefined);
+  const [editRangeOpen, setEditRangeOpen] = useState(false);
 
   const { league } = useLeague();
   const { 
@@ -42,29 +45,31 @@ export default function SeasonSection() {
   const toggleNewSeasonForm = () => {
     setIsCreatingNewSeason(!isCreatingNewSeason);
     if (!isCreatingNewSeason) {
-      // Reset form when opening
       setNewSeasonName('');
-      setStartDate(new Date());
-      setEndDate(new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000));
+      setDateRange({
+        from: new Date(),
+        to: new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000),
+      });
       setNumberOfGames(12);
     }
   };
 
   // Create a new season
   const handleCreateSeason = async () => {
-    if (newSeasonName.trim() === '' || !startDate || !endDate) return;
-    
+    if (newSeasonName.trim() === '' || !dateRange?.from || !dateRange?.to) return;
+
     await addSeason({
       name: newSeasonName,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      numberOfGames: numberOfGames
+      startDate: dateRange.from.toISOString(),
+      endDate: dateRange.to.toISOString(),
+      numberOfGames: numberOfGames,
     });
-    
-    // Reset form and close it
+
     setNewSeasonName('');
-    setStartDate(new Date());
-    setEndDate(new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000));
+    setDateRange({
+      from: new Date(),
+      to: new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000),
+    });
     setNumberOfGames(12);
     setIsCreatingNewSeason(false);
   };
@@ -80,18 +85,20 @@ export default function SeasonSection() {
     if (season) {
       setEditingSeasonId(typeof id === 'string' ? parseInt(id) : id);
       setEditSeasonName(season.name);
-      setEditStartDate(new Date(season.startDate));
-      setEditEndDate(new Date(season.endDate));
+      setEditDateRange({
+        from: new Date(season.startDate),
+        to: new Date(season.endDate),
+      });
     }
   };
 
   // Save season edits
   const handleSaveEdit = async () => {
-    if (editingSeasonId && editSeasonName.trim() !== '' && editStartDate && editEndDate) {
+    if (editingSeasonId && editSeasonName.trim() !== '' && editDateRange?.from && editDateRange?.to) {
       await updateSeason(editingSeasonId, {
         name: editSeasonName,
-        startDate: editStartDate.toISOString(),
-        endDate: editEndDate.toISOString()
+        startDate: editDateRange.from.toISOString(),
+        endDate: editDateRange.to.toISOString(),
       });
       
       // Reset form
@@ -206,36 +213,45 @@ export default function SeasonSection() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="startDate">Start Date</Label>
-                  <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <Label>Date Range</Label>
+                  <Popover open={rangeOpen} onOpenChange={setRangeOpen}>
                     <PopoverTrigger asChild>
                       <Button
-                        id="startDate"
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal mt-1",
-                          !startDate && "text-muted-foreground"
+                          !dateRange?.from && "text-muted-foreground"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
+                        {dateRange?.from ? (
+                          dateRange.to ? (
+                            <>
+                              {format(dateRange.from, "d MMM yyyy")}
+                              {" → "}
+                              {format(dateRange.to, "d MMM yyyy")}
+                            </>
+                          ) : (
+                            format(dateRange.from, "d MMM yyyy")
+                          )
+                        ) : (
+                          <span>Pick start → end</span>
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
-                        mode="single"
-                        selected={startDate}
-                        onSelect={(date) => {
-                          setStartDate(date);
-                          setCalendarOpen(false);
+                        mode="range"
+                        selected={dateRange}
+                        onSelect={(range) => {
+                          setDateRange(range);
+                          if (range?.from && range?.to) setRangeOpen(false);
                         }}
+                        numberOfMonths={2}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
-                  <p className="text-muted-foreground text-xs mt-1">
-                    Season will last for 3 months from this date
-                  </p>
                 </div>
                 
                 <div className="flex space-x-2 justify-end pt-2">
@@ -249,7 +265,7 @@ export default function SeasonSection() {
                   <Button
                     size="sm"
                     onClick={handleCreateSeason}
-                    disabled={!newSeasonName.trim() || !startDate}
+                    disabled={!newSeasonName.trim() || !dateRange?.from || !dateRange?.to}
                   >
                     Create Season
                   </Button>
@@ -370,54 +386,45 @@ export default function SeasonSection() {
                           />
                         </div>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <div>
-                            <Label htmlFor={`edit-start-${season.id}`} className="sr-only">Start Date</Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  id={`edit-start-${season.id}`}
-                                  variant="outline"
-                                  className="w-full justify-start text-left font-normal"
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {editStartDate ? format(editStartDate, "PPP") : <span>Start Date</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={editStartDate}
-                                  onSelect={setEditStartDate}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`edit-end-${season.id}`} className="sr-only">End Date</Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  id={`edit-end-${season.id}`}
-                                  variant="outline"
-                                  className="w-full justify-start text-left font-normal"
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {editEndDate ? format(editEndDate, "PPP") : <span>End Date</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={editEndDate}
-                                  onSelect={setEditEndDate}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
+                        <div>
+                          <Popover open={editRangeOpen} onOpenChange={setEditRangeOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !editDateRange?.from && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {editDateRange?.from ? (
+                                  editDateRange.to ? (
+                                    <>
+                                      {format(editDateRange.from, "d MMM yyyy")}
+                                      {" → "}
+                                      {format(editDateRange.to, "d MMM yyyy")}
+                                    </>
+                                  ) : (
+                                    format(editDateRange.from, "d MMM yyyy")
+                                  )
+                                ) : (
+                                  <span>Pick date range</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="range"
+                                selected={editDateRange}
+                                onSelect={(range) => {
+                                  setEditDateRange(range);
+                                  if (range?.from && range?.to) setEditRangeOpen(false);
+                                }}
+                                numberOfMonths={2}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
                         </div>
                         
                         <div className="flex justify-end space-x-2 pt-2">
@@ -431,7 +438,7 @@ export default function SeasonSection() {
                           <Button
                             size="sm"
                             onClick={handleSaveEdit}
-                            disabled={!editSeasonName.trim() || !editStartDate || !editEndDate}
+                            disabled={!editSeasonName.trim() || !editDateRange?.from || !editDateRange?.to}
                           >
                             Save Changes
                           </Button>
