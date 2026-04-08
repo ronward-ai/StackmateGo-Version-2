@@ -273,218 +273,360 @@ export function LeagueSettingsContent() {
         </TabsList>
 
         {/* Points System Tab */}
-        <TabsContent value="points" className="space-y-6">
+        <TabsContent value="points" className="space-y-4">
+
+          {/* Scoring type selector */}
           <Card>
-            <CardHeader>
-              <CardTitle>Points System Configuration</CardTitle>
-              <CardDescription>
-                Choose how points are calculated for tournament finishes
-              </CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Scoring Method</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Points System Type</Label>
-                <Select
-                  value={localSettings.pointsSystem.formula.type}
-                  onValueChange={(value) => setPointsSystemType(value as keyof typeof POINTS_SYSTEMS)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(availablePointsSystems).map(([key, system]) => (
-                      <SelectItem key={key} value={key}>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{system.name}</span>
-                          <span className="text-xs text-muted-foreground">{system.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 gap-2">
+                {Object.entries(availablePointsSystems).map(([key, system]) => {
+                  const active = localSettings.pointsSystem.formula.type === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setPointsSystemType(key as keyof typeof POINTS_SYSTEMS)}
+                      className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
+                        active
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border/50 bg-muted/20 hover:bg-muted/40 text-muted-foreground'
+                      }`}
+                    >
+                      <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex-shrink-0 ${active ? 'border-primary bg-primary' : 'border-muted-foreground'}`} />
+                      <div>
+                        <div className={`text-sm font-semibold ${active ? 'text-foreground' : ''}`}>{system.name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{system.description}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Formula Parameters */}
-              {(localSettings.pointsSystem.formula.type === 'logarithmic' ||
-                localSettings.pointsSystem.formula.type === 'squareRoot' ||
-                localSettings.pointsSystem.formula.type === 'linear') && (
-                <div className="grid grid-cols-2 gap-4 p-4 border rounded">
+          {/* Formula Parameters */}
+          {(localSettings.pointsSystem.formula.type === 'logarithmic' ||
+            localSettings.pointsSystem.formula.type === 'squareRoot' ||
+            localSettings.pointsSystem.formula.type === 'linear') && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Formula Parameters</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Base Multiplier</Label>
                     <Input
                       type="number"
                       value={localSettings.pointsSystem.formula.baseMultiplier || 10}
                       onChange={(e) => updateFormulaParameter('baseMultiplier', parseInt(e.target.value) || 10)}
-                      min={1}
-                      max={100}
+                      min={1} max={1000}
                     />
+                    <p className="text-xs text-muted-foreground">Scale factor for all positions</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Winner Multiplier</Label>
+                    <Label>Winner Bonus</Label>
                     <Input
                       type="number"
                       step="0.1"
                       value={localSettings.pointsSystem.formula.winnerMultiplier || 1.0}
                       onChange={(e) => updateFormulaParameter('winnerMultiplier', parseFloat(e.target.value) || 1.0)}
-                      min={1.0}
-                      max={3.0}
+                      min={1.0} max={5.0}
                     />
+                    <p className="text-xs text-muted-foreground">1st place multiplier (e.g. 1.5 = 50% bonus)</p>
                   </div>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          )}
 
-              {/* Fixed Points */}
-              {localSettings.pointsSystem.formula.type === 'fixed' && (
-                <div className="p-4 border rounded space-y-4">
-                  <div className="space-y-2">
-                    <Label>Position-Based Points</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(localSettings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1]).map((points, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <Label className="text-xs w-8">{index + 1}:</Label>
-                          <Input
-                            type="number"
-                            value={points}
-                            onChange={(e) => {
-                              const newPoints = [...(localSettings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1])];
-                              newPoints[index] = parseInt(e.target.value) || 0;
-                              updateFormulaParameter('positionPoints', newPoints);
-                            }}
-                            min={0}
-                            max={100}
-                            className="text-xs h-8"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Custom Formula */}
-              {localSettings.pointsSystem.formula.type === 'custom' && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Custom Formula</Label>
-                    <Input
-                      type="text"
-                      value={localSettings.pointsSystem.formula.customFormula || ''}
-                      onChange={(e) => updateFormulaParameter('customFormula', e.target.value)}
-                      placeholder="e.g., 10 * (p - f + 1)"
-                      className="font-mono"
-                    />
-                    
-                    {/* Improved Formula Variables Explanation */}
-                    <div className="p-4 bg-muted/50 border rounded-md space-y-2">
-                      <p className="text-sm font-semibold">Available Variables</p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                        <div className="flex items-center gap-2"><code className="bg-background px-1.5 py-0.5 rounded border">p</code> <span className="text-muted-foreground">Total players</span></div>
-                        <div className="flex items-center gap-2"><code className="bg-background px-1.5 py-0.5 rounded border">f</code> <span className="text-muted-foreground">Finish position</span></div>
-                        <div className="flex items-center gap-2"><code className="bg-background px-1.5 py-0.5 rounded border">k</code> <span className="text-muted-foreground">Knockouts</span></div>
-                        <div className="flex items-center gap-2"><code className="bg-background px-1.5 py-0.5 rounded border">b</code> <span className="text-muted-foreground">Buy-in amount</span></div>
-                        <div className="flex items-center gap-2"><code className="bg-background px-1.5 py-0.5 rounded border">c</code> <span className="text-muted-foreground">Total cost</span></div>
-                        <div className="flex items-center gap-2"><code className="bg-background px-1.5 py-0.5 rounded border">z</code> <span className="text-muted-foreground">Prizepool</span></div>
-                      </div>
-                    </div>
-
-                    {savedFormulas.length > 0 && (
-                      <div className="space-y-2 mt-4">
-                        <Label className="text-sm font-medium">Saved Formulas</Label>
-                        <div className="space-y-1">
-                          {savedFormulas.map((formula) => (
-                            <div key={formula.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded text-sm">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium truncate">{formula.name.replace('Custom Formula: ', '')}</div>
-                                <div className="text-xs text-muted-foreground font-mono truncate">
-                                  {formula.settings.pointsSystem.formula.customFormula}
-                                </div>
-                              </div>
-                              <div className="flex gap-1 shrink-0">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => updateFormulaParameter('customFormula', formula.settings.pointsSystem.formula.customFormula || '')}
-                                  className="btn-load-template h-7 px-3 text-xs font-semibold"
-                                >
-                                  Load
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDeleteTemplate(formula.id)}
-                                  className="btn-delete-template h-7 w-7 p-0 text-base font-bold"
-                                >
-                                  ×
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 mt-4">
-                      <Input
-                        type="text"
-                        value={templateName}
-                        onChange={(e) => setTemplateName(e.target.value)}
-                        placeholder="Template name..."
-                        className="flex-1"
-                      />
+          {/* Fixed Points */}
+          {localSettings.pointsSystem.formula.type === 'fixed' && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Position Points</CardTitle>
+                <CardDescription>Players finishing outside the list score 0 points</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Preset templates */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Quick presets</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { name: 'F1-style', pts: [25,18,15,12,10,8,6,4,2,1] },
+                      { name: 'Standard', pts: [10,7,5,3,2,1] },
+                      { name: 'Extended', pts: [20,15,12,10,8,6,5,4,3,2,1] },
+                      { name: 'Top Heavy', pts: [50,30,20,10,5,3,2,1] },
+                      { name: 'Flat', pts: [10,9,8,7,6,5,4,3,2,1] },
+                    ].map(preset => (
                       <Button
+                        key={preset.name}
                         type="button"
                         size="sm"
-                        onClick={async () => {
-                          if (templateName.trim() && localSettings.pointsSystem.formula.customFormula?.trim()) {
-                            await handleSaveTemplate(templateName.trim(), localSettings.pointsSystem.formula.customFormula);
-                            setTemplateName('');
-                          }
-                        }}
-                        disabled={!templateName.trim() || !localSettings.pointsSystem.formula.customFormula?.trim()}
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => updateFormulaParameter('positionPoints', preset.pts)}
                       >
-                        Save Template
+                        {preset.name}
                       </Button>
-                    </div>
+                    ))}
                   </div>
                 </div>
-              )}
+
+                {/* Position inputs */}
+                <div className="space-y-1">
+                  {(localSettings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1]).map((points, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-6 text-right">{index + 1}</span>
+                      <div className="flex-1 flex items-center gap-1">
+                        <Input
+                          type="number"
+                          value={points}
+                          onChange={(e) => {
+                            const newPoints = [...(localSettings.pointsSystem.formula.positionPoints || [])];
+                            newPoints[index] = parseInt(e.target.value) || 0;
+                            updateFormulaParameter('positionPoints', newPoints);
+                          }}
+                          min={0}
+                          className="h-8 text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground">pts</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-red-500 flex-shrink-0"
+                        onClick={() => {
+                          const newPoints = [...(localSettings.pointsSystem.formula.positionPoints || [])];
+                          newPoints.splice(index, 1);
+                          updateFormulaParameter('positionPoints', newPoints);
+                        }}
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    const cur = localSettings.pointsSystem.formula.positionPoints || [];
+                    const last = cur[cur.length - 1] ?? 1;
+                    updateFormulaParameter('positionPoints', [...cur, Math.max(0, last - 1)]);
+                  }}
+                >
+                  + Add Position
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Custom Formula */}
+          {localSettings.pointsSystem.formula.type === 'custom' && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Custom Formula</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  type="text"
+                  value={localSettings.pointsSystem.formula.customFormula || ''}
+                  onChange={(e) => updateFormulaParameter('customFormula', e.target.value)}
+                  placeholder="e.g., 10 * (p - f + 1)"
+                  className="font-mono"
+                />
+
+                <div className="p-3 bg-muted/50 border rounded-md">
+                  <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Variables</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                    {[
+                      ['f', 'Finish position'],
+                      ['p', 'Total players'],
+                      ['k', 'Knockouts'],
+                      ['b', 'Buy-in'],
+                      ['c', 'Total cost'],
+                      ['z', 'Prize pool'],
+                    ].map(([v, desc]) => (
+                      <div key={v} className="flex items-center gap-2">
+                        <code className="bg-background px-1.5 py-0.5 rounded border text-xs">{v}</code>
+                        <span className="text-xs text-muted-foreground">{desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {savedFormulas.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Saved formulas</Label>
+                    {savedFormulas.map((formula) => (
+                      <div key={formula.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded text-sm">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate text-xs">{formula.name.replace('Custom Formula: ', '')}</div>
+                          <div className="text-xs text-muted-foreground font-mono truncate">
+                            {formula.settings.pointsSystem.formula.customFormula}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button type="button" size="sm" variant="outline"
+                            onClick={() => updateFormulaParameter('customFormula', formula.settings.pointsSystem.formula.customFormula || '')}
+                            className="h-7 px-2 text-xs">Load</Button>
+                          <Button type="button" size="sm" variant="outline"
+                            onClick={() => handleDeleteTemplate(formula.id)}
+                            className="h-7 w-7 p-0">×</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="Template name..."
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={async () => {
+                      if (templateName.trim() && localSettings.pointsSystem.formula.customFormula?.trim()) {
+                        await handleSaveTemplate(templateName.trim(), localSettings.pointsSystem.formula.customFormula);
+                        setTemplateName('');
+                      }
+                    }}
+                    disabled={!templateName.trim() || !localSettings.pointsSystem.formula.customFormula?.trim()}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Bonus points — apply to all formula types */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Bonus Points</CardTitle>
+              <CardDescription>Added on top of position points for every game</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Participation</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={localSettings.pointsSystem.formula.participationPoints ?? 0}
+                    onChange={(e) => updateFormulaParameter('participationPoints', parseInt(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-muted-foreground">Points for just showing up</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Per Knockout</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={localSettings.pointsSystem.formula.knockoutPoints ?? 0}
+                    onChange={(e) => updateFormulaParameter('knockoutPoints', parseInt(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-muted-foreground">Points per player eliminated</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Points Preview - Pulled out of the nested card */}
+          {/* Full position table preview */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Points Preview</CardTitle>
-              <CardDescription>Test your current formula</CardDescription>
+              <CardTitle className="text-base">Points Preview</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Position</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={previewPoints.position}
-                    onChange={(e) => setPreviewPoints(prev => ({ ...prev, position: parseInt(e.target.value) || 1 }))}
-                  />
-                </div>
-                <div>
-                  <Label>Total Players</Label>
-                  <Input
-                    type="number"
-                    min={2}
-                    value={previewPoints.totalPlayers}
-                    onChange={(e) => setPreviewPoints(prev => ({ ...prev, totalPlayers: parseInt(e.target.value) || 10 }))}
-                  />
-                </div>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Label className="text-sm whitespace-nowrap">Players in game</Label>
+                <Input
+                  type="number"
+                  min={2}
+                  max={50}
+                  value={previewPoints.totalPlayers}
+                  onChange={(e) => setPreviewPoints(prev => ({ ...prev, totalPlayers: parseInt(e.target.value) || 10 }))}
+                  className="w-20"
+                />
               </div>
-              <div className="text-center p-4 bg-background rounded-md border shadow-sm">
-                <div className="text-3xl font-bold text-primary">{previewPointsCalculation()} <span className="text-lg font-normal text-muted-foreground">pts</span></div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Position {previewPoints.position} of {previewPoints.totalPlayers}
-                </div>
+              <div className="rounded-md border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Pos</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Points</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: previewPoints.totalPlayers }, (_, i) => {
+                      const pos = i + 1;
+                      const pts = (() => {
+                        const { formula } = localSettings.pointsSystem;
+                        const participation = formula.participationPoints ?? 0;
+                        try {
+                          let base = 0;
+                          switch (formula.type) {
+                            case 'logarithmic': {
+                              const bm = formula.baseMultiplier || 10;
+                              const wm = formula.winnerMultiplier || 1.5;
+                              const p = bm * Math.log(previewPoints.totalPlayers - pos + 2);
+                              base = pos === 1 ? Math.floor(p * wm) : Math.floor(p);
+                              break;
+                            }
+                            case 'squareRoot': {
+                              const bm = formula.baseMultiplier || 10;
+                              const wm = formula.winnerMultiplier || 1.2;
+                              const p = bm * Math.sqrt(previewPoints.totalPlayers - pos + 1);
+                              base = pos === 1 ? Math.floor(p * wm) : Math.floor(p);
+                              break;
+                            }
+                            case 'linear': {
+                              const bm = formula.baseMultiplier || 10;
+                              const wm = formula.winnerMultiplier || 1.0;
+                              const p = bm * (previewPoints.totalPlayers - pos + 1);
+                              base = pos === 1 ? Math.floor(p * wm) : Math.floor(p);
+                              break;
+                            }
+                            case 'fixed': {
+                              const arr = formula.positionPoints || [];
+                              base = arr[pos - 1] ?? 0;
+                              break;
+                            }
+                            case 'custom': {
+                              if (!formula.customFormula?.trim()) { base = 0; break; }
+                              const fn = new Function('f','p','k','b','c','z','position','totalPlayers','knockouts','buyIn','totalCost','prizepool','Math',
+                                `"use strict"; return (${formula.customFormula})`);
+                              base = Math.max(0, Math.floor(Number(fn(pos,previewPoints.totalPlayers,0,0,0,0,pos,previewPoints.totalPlayers,0,0,0,0,Math)) || 0));
+                              break;
+                            }
+                          }
+                          return base + participation;
+                        } catch { return participation; }
+                      })();
+                      return (
+                        <tr key={pos} className={`border-b last:border-0 ${pos <= 3 ? 'bg-orange-500/5' : ''}`}>
+                          <td className="px-3 py-1.5 text-muted-foreground">
+                            {pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos}
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-medium tabular-nums">{pts}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
