@@ -72,10 +72,20 @@ service cloud.firestore {
     // ===============================================================
 
     // Helper Functions
+    // Note: anonymous Firebase auth users count as authenticated (request.auth != null)
+    // This is intentional — players scan QR codes and get anonymous auth to view/interact
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
+    function isAnonymous() {
+      return isAuthenticated() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    function isRegistered() {
+      return isAuthenticated() && !isAnonymous();
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -113,75 +123,88 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Leagues
+    // Leagues — registered users only (not anonymous)
     match /leagues/{leagueId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isDocOwner() && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100;
-      allow update: if isAuthenticated() && isExistingDocOwner() && request.resource.data.ownerId == resource.data.ownerId && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100;
-      allow delete: if isAuthenticated() && isExistingDocOwner();
+      allow read: if isRegistered();
+      allow create: if isRegistered() && isDocOwner()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 100;
+      allow update: if isRegistered() && isExistingDocOwner()
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 100;
+      allow delete: if isRegistered() && isExistingDocOwner();
     }
 
     // League Members
     match /leagueMembers/{memberId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow read: if isRegistered();
+      allow create: if isRegistered();
+      allow update: if isRegistered();
+      allow delete: if isRegistered();
     }
 
-    // Seasons
+    // Seasons — registered users only
     match /seasons/{seasonId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow read: if isRegistered();
+      allow create: if isRegistered();
+      allow update: if isRegistered();
+      allow delete: if isRegistered();
     }
 
     // League Players
     match /leaguePlayers/{playerId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow read: if isRegistered();
+      allow create: if isRegistered();
+      allow update: if isRegistered();
+      allow delete: if isRegistered();
     }
 
     // Tournament Results
     match /tournamentResults/{resultId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow read: if isRegistered();
+      allow create: if isRegistered();
+      allow update: if isRegistered();
+      allow delete: if isRegistered();
     }
 
     // Active Tournaments
+    // - Any authenticated user (including anonymous) can read — needed for player/spectator view
+    // - Only registered owner can create
+    // - Owner can update anything
+    // - Any authenticated user can claim a seat (players array only) — QR check-in
+    // - Transfer code update allowed only for the recipient becoming the new owner
     match /activeTournaments/{tournamentId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isDocOwner();
+      allow create: if isRegistered() && isDocOwner();
       allow update: if isAuthenticated() && (
-        isExistingDocOwner() || 
-        request.resource.data.transferCode != null || 
-        request.resource.data.ownerId == request.auth.uid ||
-        // Allow participants to join by adding themselves to the players array
-        // They can only modify the players array and nothing else
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players']))
+        // Owner can change anything
+        isExistingDocOwner() ||
+        // Participants can only claim a seat (players array) or update timer state
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
+                    'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy', 'ownerId'])
       );
-      allow delete: if isAuthenticated() && isExistingDocOwner();
+      allow delete: if isRegistered() && isExistingDocOwner();
     }
 
-    // League Settings
+    // League Settings — registered users only, scoped to their own settings
     match /leagueSettings/{settingId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create: if isAuthenticated() && isDocUser();
-      allow update: if isAuthenticated() && isExistingDocUser() && request.resource.data.userId == resource.data.userId;
-      allow delete: if isAuthenticated() && isExistingDocUser();
+      allow read: if isRegistered() && resource.data.userId == request.auth.uid;
+      allow create: if isRegistered() && isDocUser();
+      allow update: if isRegistered() && isExistingDocUser()
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isRegistered() && isExistingDocUser();
     }
 
-    // Tournament Templates
+    // Tournament Templates — owner only
     match /tournamentTemplates/{templateId} {
-      allow read: if isAuthenticated() && isDocOwner();
-      allow create: if isAuthenticated() && isDocOwner();
-      allow update: if isAuthenticated() && isExistingDocOwner() && isDocOwner();
-      allow delete: if isAuthenticated() && isExistingDocOwner();
+      allow read: if isRegistered() && resource.data.ownerId == request.auth.uid;
+      allow create: if isRegistered() && isDocOwner();
+      allow update: if isRegistered() && isExistingDocOwner() && isDocOwner();
+      allow delete: if isRegistered() && isExistingDocOwner();
     }
   }
 }

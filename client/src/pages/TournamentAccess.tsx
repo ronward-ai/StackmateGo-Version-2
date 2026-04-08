@@ -109,7 +109,7 @@ export default function TournamentAccess() {
       });
       // Redirect to director dashboard
       setTimeout(() => {
-        window.location.href = `/director/${tournamentId}`;
+        setLocation(`/director/${tournamentId}`);
       }, 1000);
     },
     onError: (error: Error) => {
@@ -318,7 +318,7 @@ export default function TournamentAccess() {
                 </div>
                 {user ? (
                   <Button 
-                    onClick={() => window.location.href = `/director/${tournamentId}`}
+                    onClick={() => setLocation(`/director/${tournamentId}`)}
                     size="lg"
                     className="w-full h-12 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-bold text-base shadow-lg hover:shadow-xl transition-all"
                   >
