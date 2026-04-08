@@ -1,9 +1,13 @@
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, LayoutDashboard, Target, Settings2, Calendar, Plus, Trophy } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ChevronDown, LayoutDashboard, Target, Settings2, Calendar, CalendarIcon, Plus, Trophy } from 'lucide-react';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import SeasonDashboard from '@/components/SeasonDashboard';
 import LeagueTournaments from '@/components/LeagueTournaments';
@@ -11,6 +15,9 @@ import { LeagueSettingsContent } from '@/components/LeagueSettingsContent';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
+import type { DateRange } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 interface LeagueSectionProps {
   tournament?: any;
@@ -20,9 +27,19 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showNewSeason, setShowNewSeason] = useState(false);
+  const [newSeasonName, setNewSeasonName] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const from = new Date();
+    const to = new Date();
+    to.setMonth(to.getMonth() + 3);
+    return { from, to };
+  });
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const { league, setActiveSeasonId } = useLeague();
-  const { seasons, currentSeason, updateSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
+  const { seasons, currentSeason, addSeason, updateSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
 
   useEffect(() => {
     if (currentSeason?.id) {
@@ -55,6 +72,27 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
     });
   };
 
+  const handleCreateSeason = async () => {
+    if (!newSeasonName.trim() || !dateRange?.from || !dateRange?.to) return;
+    setIsCreating(true);
+    try {
+      await addSeason({
+        name: newSeasonName.trim(),
+        startDate: dateRange.from.toISOString(),
+        endDate: dateRange.to.toISOString(),
+        numberOfGames: 12,
+      });
+      setShowNewSeason(false);
+      setNewSeasonName('');
+      const from = new Date();
+      const to = new Date();
+      to.setMonth(to.getMonth() + 3);
+      setDateRange({ from, to });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const gamesPlayed = currentSeason
     ? (tournament?.state?.players?.[0]?.results?.length ?? 0)
     : 0;
@@ -69,6 +107,76 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
   return (
     <div className="space-y-4" data-testid="league-section">
+
+      {/* New Season dialog */}
+      <Dialog open={showNewSeason} onOpenChange={setShowNewSeason}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Season</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Season Name</Label>
+              <Input
+                value={newSeasonName}
+                onChange={e => setNewSeasonName(e.target.value)}
+                placeholder="e.g. Summer 2026"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Date Range</Label>
+              <Popover open={rangeOpen} onOpenChange={setRangeOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !dateRange?.from && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "d MMM yyyy")}
+                          {" → "}
+                          {format(dateRange.to, "d MMM yyyy")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "d MMM yyyy")
+                      )
+                    ) : (
+                      <span>Pick start → end</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarPicker
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={(range) => {
+                      setDateRange(range);
+                      if (range?.from && range?.to) setRangeOpen(false);
+                    }}
+                    numberOfMonths={2}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowNewSeason(false)}>Cancel</Button>
+              <Button
+                onClick={handleCreateSeason}
+                disabled={!newSeasonName.trim() || !dateRange?.from || !dateRange?.to || isCreating}
+              >
+                {isCreating ? 'Creating...' : 'Create Season'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Not in league mode — prominent CTA */}
       {!isSeasonTournament && (
@@ -130,9 +238,9 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                       {currentSeason?.name || 'Season 1'}
                     </span>
                   )}
-                  {currentSeason?.status && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${statusColor[currentSeason.status] || statusColor.draft}`}>
-                      {currentSeason.status.charAt(0).toUpperCase() + currentSeason.status.slice(1)}
+                  {(currentSeason as any)?.status && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${statusColor[(currentSeason as any).status] || statusColor.draft}`}>
+                      {(currentSeason as any).status.charAt(0).toUpperCase() + (currentSeason as any).status.slice(1)}
                     </span>
                   )}
                 </div>
@@ -146,7 +254,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                     size="sm"
                     variant="outline"
                     className="h-7 px-2 text-xs"
-                    onClick={() => setShowSettings(true)}
+                    onClick={() => setShowNewSeason(true)}
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     New Season
