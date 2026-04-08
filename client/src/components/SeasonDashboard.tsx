@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +32,7 @@ import {
   Target,
   TrendingUp,
   Calendar,
+  CalendarIcon,
   DollarSign,
   Award,
   Activity,
@@ -38,7 +41,9 @@ import {
   Archive,
   BarChart2
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import type { DateRange } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 export default function SeasonDashboard() {
   const { league, leaguePlayers } = useLeague();
@@ -46,12 +51,13 @@ export default function SeasonDashboard() {
 
   const [showNewSeasonDialog, setShowNewSeasonDialog] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
-  const [newSeasonStart, setNewSeasonStart] = useState(() => new Date().toISOString().split('T')[0]);
-  const [newSeasonEnd, setNewSeasonEnd] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 3);
-    return d.toISOString().split('T')[0];
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const from = new Date();
+    const to = new Date();
+    to.setMonth(to.getMonth() + 3);
+    return { from, to };
   });
+  const [rangeOpen, setRangeOpen] = useState(false);
   const [newSeasonGames, setNewSeasonGames] = useState(12);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -183,13 +189,13 @@ export default function SeasonDashboard() {
   }, [currentSeasonPlayers]);
 
   const handleCreateSeason = async () => {
-    if (!newSeasonName.trim()) return;
+    if (!newSeasonName.trim() || !dateRange?.from || !dateRange?.to) return;
     setIsCreating(true);
     try {
       await addSeason({
         name: newSeasonName.trim(),
-        startDate: new Date(newSeasonStart).toISOString(),
-        endDate: new Date(newSeasonEnd).toISOString(),
+        startDate: dateRange.from.toISOString(),
+        endDate: dateRange.to.toISOString(),
         numberOfGames: newSeasonGames
       });
       setShowNewSeasonDialog(false);
@@ -278,23 +284,46 @@ export default function SeasonDashboard() {
                       autoFocus
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Input
-                        type="date"
-                        value={newSeasonStart}
-                        onChange={e => setNewSeasonStart(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>End Date</Label>
-                      <Input
-                        type="date"
-                        value={newSeasonEnd}
-                        onChange={e => setNewSeasonEnd(e.target.value)}
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Date Range</Label>
+                    <Popover open={rangeOpen} onOpenChange={setRangeOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !dateRange?.from && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateRange?.from ? (
+                            dateRange.to ? (
+                              <>
+                                {format(dateRange.from, "d MMM yyyy")}
+                                {" → "}
+                                {format(dateRange.to, "d MMM yyyy")}
+                              </>
+                            ) : (
+                              format(dateRange.from, "d MMM yyyy")
+                            )
+                          ) : (
+                            <span>Pick start → end</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarPicker
+                          mode="range"
+                          selected={dateRange}
+                          onSelect={(range) => {
+                            setDateRange(range);
+                            if (range?.from && range?.to) setRangeOpen(false);
+                          }}
+                          numberOfMonths={2}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-2">
                     <Label>Number of Games</Label>
@@ -312,7 +341,7 @@ export default function SeasonDashboard() {
                     </Button>
                     <Button
                       onClick={handleCreateSeason}
-                      disabled={!newSeasonName.trim() || isCreating}
+                      disabled={!newSeasonName.trim() || !dateRange?.from || !dateRange?.to || isCreating}
                     >
                       {isCreating ? 'Creating...' : 'Create Season'}
                     </Button>
