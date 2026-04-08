@@ -18,6 +18,9 @@ export interface PointsFormula {
   positionPoints?: number[]; // Array of points for each position [1st, 2nd, 3rd, ...]
   // For custom system
   customFormula?: string;
+  // Bonus points — apply on top of any formula type
+  participationPoints?: number; // Flat bonus for every player who plays
+  knockoutPoints?: number;      // Points per elimination (bounty games)
 }
 
 export interface PositionPoints {
