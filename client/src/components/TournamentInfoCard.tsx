@@ -22,6 +22,14 @@ function DetailRow({ label, value, highlight }: { label: string; value: string |
   );
 }
 
+const activeStyle = {
+  background: 'linear-gradient(135deg, rgba(249,115,22,0.12) 0%, rgba(249,115,22,0.06) 100%)',
+  color: 'rgb(251,146,60)',
+  borderColor: 'rgba(249,115,22,0.3)',
+  boxShadow: '0 2px 8px rgba(249,115,22,0.15)',
+};
+const inactiveStyle = { borderColor: 'transparent', color: 'var(--muted-foreground)' };
+
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state, updateTournamentDetails, updateSettings } = tournament;
   const { league } = useLeague();
@@ -102,15 +110,12 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         </div>
 
-        {/* Mode toggle — always visible, centered, with game count when in league mode */}
-        <div className="flex items-center justify-center gap-3 mt-3 pt-3 border-t border-border/20">
-          <div className="flex items-center bg-muted/40 border border-border/40 rounded-full p-0.5 gap-0.5">
+        {/* Mode toggle — left-aligned, below header, always visible */}
+        <div className="flex items-center gap-3 mt-2">
+          <div className="inline-flex items-center bg-muted p-1 rounded-md">
             <button
-              className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all ${
-                !isLeagueMode
-                  ? 'bg-orange-500/20 text-orange-400 shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
+              style={!isLeagueMode ? activeStyle : inactiveStyle}
               onClick={() => {
                 updateTournamentDetails({ ...state.details, type: 'standalone' });
                 updateSettings({ isSeasonTournament: false } as any);
@@ -119,11 +124,8 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               Standalone
             </button>
             <button
-              className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all ${
-                isLeagueMode
-                  ? 'bg-orange-500/20 text-orange-400 shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
+              style={isLeagueMode ? activeStyle : inactiveStyle}
               onClick={handleEnableLeague}
             >
               League
@@ -255,7 +257,6 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                   <DetailRow label="Used" value={totalAddons} />
                 </>
               )}
-
             </div>
 
           </div>
