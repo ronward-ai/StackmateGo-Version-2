@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, LogOut, UserCircle, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
+import { User, LogOut, UserCircle, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -90,40 +90,6 @@ function UserMenu() {
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
-  );
-}
-
-function FullscreenButton() {
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [supported, setSupported] = useState(false);
-
-  useEffect(() => {
-    setSupported(!!document.documentElement.requestFullscreen);
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
-  }, []);
-
-  if (!supported) return null;
-
-  const toggle = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      document.documentElement.requestFullscreen();
-    }
-  };
-
-  return (
-    <button
-      onClick={toggle}
-      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-    >
-      {isFullscreen
-        ? <Minimize2 className="h-4 w-4" />
-        : <Maximize2 className="h-4 w-4" />}
-    </button>
   );
 }
 
@@ -379,10 +345,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                 target.style.display = 'none';
               }}
             />
-            <div className="flex items-center gap-2">
-              <FullscreenButton />
-              <UserMenu />
-            </div>
+            <UserMenu />
           </div>
 
           {/* Event Branding */}
