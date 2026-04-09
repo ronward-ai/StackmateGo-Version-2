@@ -183,30 +183,11 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Not in league mode — prominent CTA */}
       {!isSeasonTournament && (
-        <Card className="bg-gradient-to-r from-orange-600/10 to-amber-600/10 border border-orange-500/30 rounded-xl">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Trophy className="h-4 w-4 text-orange-400" />
-                  <span className="font-semibold text-foreground">League Mode is off</span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Switch on to track standings, points, and season history.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                onClick={handleSwitchToLeague}
-                className="bg-orange-600 hover:bg-orange-700 text-white flex-shrink-0"
-              >
-                Enable
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <p>League mode is off.</p>
+          <p className="mt-1">Enable it via the <span className="text-foreground font-medium">Tournament Info</span> card above the tabs.</p>
+        </div>
       )}
 
       {isSeasonTournament && (
