@@ -31,6 +31,7 @@ export default function PlayerClaimView() {
   const [selfRegName, setSelfRegName] = useState('');
   const [showSelfReg, setShowSelfReg] = useState(false);
   const [selfRegLoading, setSelfRegLoading] = useState(false);
+  const [isLeagueTournament, setIsLeagueTournament] = useState(false);
 
   // Sign in anonymously if needed
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function PlayerClaimView() {
               const data = snap.data();
               setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
               setTournamentName(data.details?.name || data.name || 'Tournament');
+              setIsLeagueTournament(data.settings?.isSeasonTournament ?? false);
             } else {
               setError('Tournament not found. Check the QR code and try again.');
             }
@@ -272,8 +274,8 @@ export default function PlayerClaimView() {
         </Card>
       )}
 
-      {/* Self-register form — shown when no pre-loaded players OR user clicks "Not in the list?" */}
-      {(players.length === 0 || showSelfReg) && (
+      {/* Self-register — casual tournaments only */}
+      {!isLeagueTournament && (players.length === 0 || showSelfReg) && (
         <Card className="p-4 mb-4 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <UserPlus className="h-4 w-4 text-orange-500" />
@@ -301,6 +303,14 @@ export default function PlayerClaimView() {
               Cancel
             </button>
           )}
+        </Card>
+      )}
+
+      {/* League tournament — no self-register, direct to director */}
+      {isLeagueTournament && players.length === 0 && (
+        <Card className="p-4 mb-4 text-center text-sm text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">League tournament</p>
+          <p>No players have been added yet. Ask your director to add you before you check in.</p>
         </Card>
       )}
 
@@ -349,15 +359,18 @@ export default function PlayerClaimView() {
 
       {/* Not in the list / spectator */}
       <div className="mt-8 text-center space-y-2">
-        {players.length > 0 && !showSelfReg && (
-          <div>
-            <button
-              className="text-xs text-muted-foreground underline block mx-auto mb-2"
-              onClick={() => setShowSelfReg(true)}
-            >
-              Not in the list? Add yourself
-            </button>
-          </div>
+        {players.length > 0 && !showSelfReg && !isLeagueTournament && (
+          <button
+            className="text-xs text-muted-foreground underline block mx-auto mb-2"
+            onClick={() => setShowSelfReg(true)}
+          >
+            Not in the list? Add yourself
+          </button>
+        )}
+        {players.length > 0 && !showSelfReg && isLeagueTournament && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Not in the list? Ask your director to add you.
+          </p>
         )}
         <button
           className="text-xs text-muted-foreground underline"
