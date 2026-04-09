@@ -81,6 +81,16 @@ function TournamentParticipantView() {
     }
   }, [isAuthenticated, isLoading, signInAnonymously]);
 
+  // Update browser tab title when tournament name is known
+  useEffect(() => {
+    if (tournament?.name) {
+      document.title = `StackMate Live · ${tournament.name}`;
+    } else {
+      document.title = 'StackMate Live';
+    }
+    return () => { document.title = 'StackMate Go - Poker Tournament Timer'; };
+  }, [tournament?.name]);
+
   // Firebase real-time connection — no auth required (activeTournaments is public read)
   useEffect(() => {
     if (!id) return;
@@ -289,9 +299,12 @@ function TournamentParticipantView() {
     return (
       <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 rounded-xl shadow-lg mb-4">
-            <h1 className="text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
-          </div>
+          <img
+            src="/stackmatelogo.svg"
+            alt="StackMate Go"
+            className="h-10 w-auto object-contain mx-auto mb-4"
+            style={{ filter: 'brightness(1.1)' }}
+          />
           {error ? (
             <div className="space-y-2">
               <p className="text-red-400">{error}</p>
@@ -410,17 +423,19 @@ function TournamentParticipantView() {
         {/* Header Section */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <img
-              src="/stackmatelogo.svg"
-              alt="StackMate Go"
-              className="h-8 w-auto object-contain mb-2"
-              style={{ filter: 'brightness(1.1)' }}
-            />
+            <div className="flex items-center gap-2 mb-1">
+              <img
+                src="/stackmatelogo.svg"
+                alt="StackMate Go"
+                className="h-7 w-auto object-contain"
+                style={{ filter: 'brightness(1.1)' }}
+              />
+              <span className="flex items-center gap-1 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                LIVE
+              </span>
+            </div>
             <h1 className="text-xl font-bold text-white leading-tight">{tournament?.name || 'Tournament'}</h1>
-            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              Live
-            </p>
           </div>
         </div>
 
