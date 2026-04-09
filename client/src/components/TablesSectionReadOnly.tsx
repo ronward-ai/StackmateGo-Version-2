@@ -49,13 +49,17 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
     const bgClass = tableBackgrounds[tableIndex] || 'felt-green';
     
     // Convert felt class to gradient background
-    const feltToGradient = {
-      'felt-green': 'bg-gradient-to-br from-green-800 to-green-900',
-      'felt-blue': 'bg-gradient-to-br from-blue-800 to-blue-900', 
-      'felt-red': 'bg-gradient-to-br from-red-800 to-red-900',
-      'felt-purple': 'bg-gradient-to-br from-purple-800 to-purple-900',
-      'felt-black': 'bg-gradient-to-br from-gray-800 to-gray-900',
-      'felt-burgundy': 'bg-gradient-to-br from-red-900 to-red-950'
+    const feltToGradient: Record<string, string> = {
+      'felt-green':    'bg-gradient-to-br from-green-800 to-green-900',
+      'felt-blue':     'bg-gradient-to-br from-blue-800 to-blue-900',
+      'felt-red':      'bg-gradient-to-br from-red-800 to-red-900',
+      'felt-purple':   'bg-gradient-to-br from-purple-800 to-purple-900',
+      'felt-orange':   'bg-gradient-to-br from-orange-700 to-orange-900',
+      'felt-teal':     'bg-gradient-to-br from-teal-700 to-teal-900',
+      'felt-pink':     'bg-gradient-to-br from-pink-700 to-pink-900',
+      'felt-yellow':   'bg-gradient-to-br from-yellow-600 to-yellow-800',
+      'felt-black':    'bg-gradient-to-br from-gray-800 to-gray-900',
+      'felt-burgundy': 'bg-gradient-to-br from-red-900 to-red-950',
     };
     
     return feltToGradient[bgClass] || 'bg-gradient-to-br from-green-800 to-green-900';
