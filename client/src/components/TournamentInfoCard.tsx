@@ -95,22 +95,34 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         </div>
 
-        {/* Mode row — always visible regardless of expand state */}
+        {/* Mode toggle — always visible regardless of expand state */}
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/20">
           <span className="text-xs text-muted-foreground">Mode</span>
-          {isLeagueMode ? (
-            <span className="flex items-center gap-1 text-xs font-semibold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
-              <Trophy className="h-3 w-3" />
-              League game
-            </span>
-          ) : (
+          <div className="flex items-center bg-muted/40 border border-border/40 rounded-full p-0.5 gap-0.5">
             <button
-              onClick={handleEnableLeague}
-              className="text-xs text-orange-400 hover:text-orange-300 transition-colors underline underline-offset-2"
+              className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all ${
+                !isLeagueMode
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => {
+                updateTournamentDetails({ ...state.details, type: 'standalone' });
+                updateSettings({ isSeasonTournament: false } as any);
+              }}
             >
-              Enable League Mode →
+              Standalone
             </button>
-          )}
+            <button
+              className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all ${
+                isLeagueMode
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={handleEnableLeague}
+            >
+              League
+            </button>
+          </div>
         </div>
 
         {isExpanded && (

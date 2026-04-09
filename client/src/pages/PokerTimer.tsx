@@ -359,38 +359,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             <UserMenu />
           </div>
 
-          {/* Row 2: mode toggle centred */}
-          <div className="flex justify-center">
-            <div className="flex items-center bg-muted/40 border border-border/40 rounded-full p-0.5 gap-0.5">
-              <button
-                className={`px-4 py-1 rounded-full text-xs font-medium transition-all ${
-                  tournament.state.details?.type !== 'season'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => tournament.updateTournamentDetails({ ...tournament.state.details, type: 'standalone' })}
-              >
-                Standalone
-              </button>
-              <button
-                className={`px-4 py-1 rounded-full text-xs font-medium transition-all ${
-                  tournament.state.details?.type === 'season'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => tournament.updateTournamentDetails({ ...tournament.state.details, type: 'season' })}
-              >
-                League
-              </button>
-            </div>
-          </div>
-
-          {/* League game count — only in league mode */}
-          <LeagueGameBadge
-            isLeague={tournament.state.details?.type === 'season'}
-            players={tournament.state.players}
-          />
-
           {/* Event Branding */}
           {tournament.state.settings.branding?.isVisible && (tournament.state.settings.branding?.leagueName || tournament.state.settings.branding?.logoUrl) && (
             <div className="mt-2 sm:mt-4 flex items-center justify-center gap-4">
