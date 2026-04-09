@@ -3,7 +3,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
@@ -68,10 +67,14 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
   const [breakDuration, setBreakDuration] = useState(10);
   const [selectedLevel, setSelectedLevel] = useState<string | undefined>();
 
-  const [antesDialogOpen, setAntesDialogOpen] = useState(false);
-  const [anteAmount, setAnteAmount] = useState(1);
-  const [anteType, setAnteType] = useState<'fixed' | 'percentage'>('percentage');
-  const [selectedLevelsForAntes, setSelectedLevelsForAntes] = useState<number[]>([]);
+  const [antesVisible, setAntesVisible] = useState(false);
+  const hasAntes = state.levels.some(l => !l.isBreak && (l.ante || 0) > 0);
+  const showAnteCol = antesVisible || hasAntes;
+
+  const handleClearAntes = () => {
+    state.levels.forEach((_, i) => updateBlindLevel(i, { ante: 0 }));
+    setAntesVisible(false);
+  };
 
   const applyTemplate = (key: string) => {
     const t = TEMPLATES[key];
@@ -128,18 +131,38 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               <Coffee className="h-3.5 w-3.5" />
               Add Break
             </Button>
-            <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs" onClick={() => setAntesDialogOpen(true)}>
-              <Coins className="h-3.5 w-3.5" />
-              Add Antes
-            </Button>
+            {!showAnteCol && (
+              <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs" onClick={() => setAntesVisible(true)}>
+                <Coins className="h-3.5 w-3.5" />
+                Add Antes
+              </Button>
+            )}
           </div>
 
           {/* Blind levels table */}
           <div className="rounded-lg overflow-x-auto border border-border/30">
             {/* Table header */}
-            <div className="grid grid-cols-[28px_1fr_1fr_1fr_1fr_28px] gap-1 px-2 py-2 bg-muted/40 border-b border-border/30 min-w-[240px]">
-              {['#', 'SB', 'BB', state.settings.bigBlindAnte ? 'BB Ante' : 'Ante', 'Mins', ''].map((h, i) => (
-                <div key={i} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
+            <div className={cn(
+              "grid gap-1 px-2 py-2 bg-muted/40 border-b border-border/30 min-w-[200px]",
+              showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]"
+            )}>
+              {['#', 'SB', 'BB'].map((h) => (
+                <div key={h} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
+              ))}
+              {showAnteCol && (
+                <div className="flex items-center justify-center gap-0.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}
+                  </span>
+                  <button
+                    onClick={handleClearAntes}
+                    className="text-muted-foreground/40 hover:text-destructive text-sm leading-none"
+                    title="Remove antes"
+                  >×</button>
+                </div>
+              )}
+              {['Mins', ''].map((h) => (
+                <div key={h} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
               ))}
             </div>
 
@@ -154,7 +177,8 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                     <div
                       key={index}
                       className={cn(
-                        "grid grid-cols-[28px_1fr_1fr_1fr_1fr_28px] gap-1 px-2 py-2 items-center min-w-[240px]",
+                        "grid gap-1 px-2 py-2 items-center min-w-[200px]",
+                        showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
                         "bg-amber-500/5 border-l-2 border-amber-500/40",
                         isCurrentLevel && "bg-amber-500/15 border-l-2 border-amber-400"
                       )}
@@ -162,7 +186,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                       <div className="flex justify-center">
                         <Coffee className="h-3.5 w-3.5 text-amber-400" />
                       </div>
-                      <div className="col-span-3 text-center">
+                      <div className={cn("text-center", showAnteCol ? "col-span-3" : "col-span-2")}>
                         <span className="text-xs text-amber-400 font-medium">
                           Break {isCurrentLevel && '← Current'}
                         </span>
@@ -195,7 +219,8 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   <div
                     key={index}
                     className={cn(
-                      "grid grid-cols-[28px_1fr_1fr_1fr_1fr_28px] gap-1 px-2 py-2 items-center min-w-[240px]",
+                      "grid gap-1 px-2 py-2 items-center min-w-[200px]",
+                      showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
                       "hover:bg-muted/20 transition-colors",
                       isCurrentLevel && "bg-primary/5 border-l-2 border-primary"
                     )}
@@ -231,15 +256,17 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                       />
                     </div>
 
-                    {/* Ante */}
-                    <div className="flex justify-center">
-                      <LevelInput
-                        value={level.ante || 0}
-                        onChange={(v) => updateBlindLevel(index, { ante: v })}
-                        onBlur={(v) => updateBlindLevel(index, { ante: Math.max(0, v) })}
-                        min={0}
-                      />
-                    </div>
+                    {/* Ante — only when column is visible */}
+                    {showAnteCol && (
+                      <div className="flex justify-center">
+                        <LevelInput
+                          value={level.ante || 0}
+                          onChange={(v) => updateBlindLevel(index, { ante: v })}
+                          onBlur={(v) => updateBlindLevel(index, { ante: Math.max(0, v) })}
+                          min={0}
+                        />
+                      </div>
+                    )}
 
                     {/* Duration */}
                     <div className="flex justify-center">
@@ -365,147 +392,6 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
         </DialogContent>
       </Dialog>
 
-      {/* Add Antes Dialog */}
-      <Dialog open={antesDialogOpen} onOpenChange={setAntesDialogOpen}>
-        <DialogContent className="sm:max-w-[460px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-purple-400" />
-              Add Antes
-            </DialogTitle>
-            <DialogDescription>Apply antes to selected blind levels.</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="flex items-center justify-between gap-4">
-              <Label className="text-sm">Ante Type</Label>
-              <Select value={anteType} onValueChange={(v: 'fixed' | 'percentage') => setAnteType(v)}>
-                <SelectTrigger className="w-52 h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percentage">% of Small Blind</SelectItem>
-                  <SelectItem value="fixed">Fixed Amount</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <Label className="text-sm">{anteType === 'percentage' ? 'Percentage' : 'Amount'}</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="text"
-                  value={anteAmount.toString()}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value);
-                    if (!isNaN(v) && v >= 1) setAnteAmount(v);
-                    else if (e.target.value === '') setAnteAmount(1);
-                  }}
-                  className="w-20 h-9 text-center"
-                  inputMode="numeric"
-                />
-                <span className="text-sm text-muted-foreground">
-                  {anteType === 'percentage' ? '%' : 'chips'}
-                </span>
-              </div>
-            </div>
-
-            {/* Level selector */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">Apply to Levels</Label>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setSelectedLevelsForAntes(
-                      state.levels.map((l, i) => (!l.isBreak ? i : -1)).filter(i => i >= 0)
-                    )}
-                  >
-                    Select All
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setSelectedLevelsForAntes([])}
-                  >
-                    Clear
-                  </Button>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border/30 divide-y divide-border/20 max-h-52 overflow-y-auto">
-                {state.levels
-                  .map((level, index) => ({ level, index }))
-                  .filter(({ level }) => !level.isBreak)
-                  .map(({ level, index }) => {
-                    const levelNum = state.levels.slice(0, index + 1).filter(l => !l.isBreak).length;
-                    const checked = selectedLevelsForAntes.includes(index);
-                    return (
-                      <div
-                        key={index}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors",
-                          checked && "bg-purple-500/5"
-                        )}
-                        onClick={() => setSelectedLevelsForAntes(
-                          checked
-                            ? selectedLevelsForAntes.filter(i => i !== index)
-                            : [...selectedLevelsForAntes, index]
-                        )}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(c) => setSelectedLevelsForAntes(
-                            c ? [...selectedLevelsForAntes, index] : selectedLevelsForAntes.filter(i => i !== index)
-                          )}
-                        />
-                        <span className="text-sm flex-1">
-                          Level {levelNum}: {level.small}/{level.big}
-                        </span>
-                        {(level.ante || 0) > 0 && (
-                          <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-300">
-                            ante: {level.ante}
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {selectedLevelsForAntes.length} level{selectedLevelsForAntes.length !== 1 ? 's' : ''} selected
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAntesDialogOpen(false)}>Cancel</Button>
-            <Button
-              className="btn-add-antes"
-              disabled={selectedLevelsForAntes.length === 0}
-              onClick={() => {
-                selectedLevelsForAntes.forEach(levelIndex => {
-                  const level = state.levels[levelIndex];
-                  if (!level.isBreak) {
-                    const anteValue = anteType === 'percentage'
-                      ? Math.max(1, Math.floor(level.small * (anteAmount / 100)))
-                      : anteAmount;
-                    updateBlindLevel(levelIndex, { ante: anteValue });
-                  }
-                });
-                setAntesDialogOpen(false);
-                setSelectedLevelsForAntes([]);
-                setAnteAmount(1);
-                setAnteType('percentage');
-              }}
-            >
-              Apply Antes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
