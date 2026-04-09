@@ -401,24 +401,14 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         </div>
 
         {/* Tabbed Management Sections */}
-        <div className="mb-6">
-          <div className="flex justify-end mb-4">
-            <TournamentTemplatesDialog 
-              currentBlindLevels={tournament.state.levels}
-              currentPrizeStructure={tournament.state.prizeStructure || { buyIn: 0 }}
-              onLoadTemplate={(blindLevels, prizeStructure) => {
-                tournament.setBlindLevels(blindLevels);
-                tournament.updatePrizeStructure(prizeStructure);
-              }}
-            />
-          </div>
+        <div className="mb-6 rounded-xl border border-border/40 overflow-hidden">
           <Tabs defaultValue="players" className="w-full">
             <div className="relative">
-              <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center">
+              <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none">
                 <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
-                <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Tables</TabsTrigger>
-                <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
                 <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
+                <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
+                <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Tables</TabsTrigger>
                 <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
                 <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">🔴 Live</TabsTrigger>
                 <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
@@ -426,31 +416,41 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
               <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
             </div>
 
-            <TabsContent value="players" className="mt-6">
+            <TabsContent value="players" className="mt-0 p-4 pt-5">
               <PlayerSection tournament={tournament} />
             </TabsContent>
 
-            <TabsContent value="tables" className="mt-6">
-              <TablesSection tournament={tournament} />
-            </TabsContent>
-
-            <TabsContent value="levels" className="mt-6">
-              <BlindLevelsSection tournament={tournament} />
-            </TabsContent>
-
-            <TabsContent value="buyins" className="mt-6">
+            <TabsContent value="buyins" className="mt-0 p-4 pt-5">
               <BuyInSection tournament={tournament} />
             </TabsContent>
 
-            <TabsContent value="league" className="mt-6">
+            <TabsContent value="levels" className="mt-0 p-4 pt-5">
+              <div className="flex justify-end mb-3">
+                <TournamentTemplatesDialog
+                  currentBlindLevels={tournament.state.levels}
+                  currentPrizeStructure={tournament.state.prizeStructure || { buyIn: 0 }}
+                  onLoadTemplate={(blindLevels, prizeStructure) => {
+                    tournament.setBlindLevels(blindLevels);
+                    tournament.updatePrizeStructure(prizeStructure);
+                  }}
+                />
+              </div>
+              <BlindLevelsSection tournament={tournament} />
+            </TabsContent>
+
+            <TabsContent value="tables" className="mt-0 p-4 pt-5">
+              <TablesSection tournament={tournament} />
+            </TabsContent>
+
+            <TabsContent value="league" className="mt-0 p-4 pt-5">
               <LeagueSection tournament={tournament} />
             </TabsContent>
 
-            <TabsContent value="qr" className="mt-6">
+            <TabsContent value="qr" className="mt-0 p-4 pt-5">
               <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} />
             </TabsContent>
 
-            <TabsContent value="settings" className="mt-6">
+            <TabsContent value="settings" className="mt-0 p-4 pt-5">
               <SettingsSection tournament={tournament} />
             </TabsContent>
           </Tabs>
