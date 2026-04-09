@@ -25,6 +25,7 @@ export default function PlayerClaimView() {
   const [claiming, setClaming] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Sign in anonymously if needed
@@ -117,7 +118,10 @@ export default function PlayerClaimView() {
       setClaimed(player.id);
       setTimeout(() => setLocation(`/tournament/${tournamentId}`), 1200);
     } catch (e: any) {
-      setError('Could not claim seat. Please try again.');
+      const msg = e?.code === 'permission-denied'
+        ? 'Check-in requires a connection — try again or enter as spectator.'
+        : 'Could not claim seat. Please try again.';
+      setClaimError(msg);
     } finally {
       setClaming(null);
     }
@@ -209,6 +213,21 @@ export default function PlayerClaimView() {
         <h1 className="text-xl font-bold">{tournamentName}</h1>
         <p className="text-muted-foreground text-sm mt-1">Tap your name to check in</p>
       </div>
+
+      {/* Inline claim error */}
+      {claimError && (
+        <Card className="p-4 mb-4 border-destructive/40 text-center space-y-3">
+          <p className="text-sm text-destructive">{claimError}</p>
+          <div className="flex gap-2 justify-center">
+            <Button size="sm" variant="outline" onClick={() => setClaimError(null)}>
+              Try again
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setLocation(`/tournament/${tournamentId}`)}>
+              Enter as spectator
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Unclaimed players */}
       {unclaimed.length === 0 ? (
