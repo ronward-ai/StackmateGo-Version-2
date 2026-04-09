@@ -410,9 +410,12 @@ function TournamentParticipantView() {
         {/* Header Section */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-3 py-1 rounded-lg shadow mb-2">
-              <span className="text-sm font-bold text-white tracking-tight">Stackmate Go</span>
-            </div>
+            <img
+              src="/stackmatelogo.svg"
+              alt="StackMate Go"
+              className="h-8 w-auto object-contain mb-2"
+              style={{ filter: 'brightness(1.1)' }}
+            />
             <h1 className="text-xl font-bold text-white leading-tight">{tournament?.name || 'Tournament'}</h1>
             <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
