@@ -132,9 +132,9 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               Add Break
             </Button>
             {showAnteCol ? (
-              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs text-destructive/70 hover:text-destructive border-destructive/30 hover:border-destructive/60" onClick={handleClearAntes}>
+              <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs opacity-60 hover:opacity-100" onClick={handleClearAntes}>
                 <Coins className="h-3.5 w-3.5" />
-                Remove Antes
+                No Antes
               </Button>
             ) : (
               <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs" onClick={() => setAntesVisible(true)}>
