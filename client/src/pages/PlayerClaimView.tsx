@@ -43,9 +43,9 @@ export default function PlayerClaimView() {
     }
   }, [tournamentId]);
 
-  // Load players from Firestore
+  // Load players from Firestore — no auth required to read
   useEffect(() => {
-    if (!tournamentId || !isAuthenticated) return;
+    if (!tournamentId) return;
 
     const load = async () => {
       try {
@@ -71,7 +71,7 @@ export default function PlayerClaimView() {
 
     const unsub = load();
     return () => { unsub.then(fn => fn()); };
-  }, [tournamentId, isAuthenticated]);
+  }, [tournamentId]);
 
   const handleClaim = async (player: TournamentPlayer) => {
     if (!user || !tournamentId) return;
@@ -86,7 +86,7 @@ export default function PlayerClaimView() {
 
       const data = snap.data();
       const updatedPlayers = (data.players || []).map((p: TournamentPlayer) =>
-        p.id === player.id ? { ...p, claimedBy: user.uid } : p
+        p.id === player.id ? { ...p, claimedBy: (user as any).uid } : p
       );
       await updateDoc(docRef, { players: updatedPlayers });
 
