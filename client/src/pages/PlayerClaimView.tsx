@@ -3,7 +3,8 @@ import { useParams, useLocation } from 'wouter';
 import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UserCheck, Users, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { UserCheck, Users, ChevronRight, CheckCircle2, UserPlus } from 'lucide-react';
 
 interface TournamentPlayer {
   id: string;
@@ -27,6 +28,9 @@ export default function PlayerClaimView() {
   const [error, setError] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [selfRegName, setSelfRegName] = useState('');
+  const [showSelfReg, setShowSelfReg] = useState(false);
+  const [selfRegLoading, setSelfRegLoading] = useState(false);
 
   // Sign in anonymously if needed
   useEffect(() => {
@@ -124,6 +128,45 @@ export default function PlayerClaimView() {
       setClaimError(msg);
     } finally {
       setClaming(null);
+    }
+  };
+
+  const handleSelfRegister = async () => {
+    const name = selfRegName.trim();
+    if (!name || !tournamentId) return;
+    setSelfRegLoading(true);
+    try {
+      let uid: string | undefined;
+      try {
+        const { getAuth, signInAnonymously: firebaseSignIn } = await import('firebase/auth');
+        const { app } = await import('@/lib/firebase');
+        const result = await firebaseSignIn(getAuth(app));
+        uid = result.user.uid;
+      } catch { /* proceed without uid */ }
+
+      const { doc, updateDoc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const docRef = doc(db, 'activeTournaments', tournamentId);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) throw new Error('Tournament not found');
+
+      const newPlayer: TournamentPlayer = {
+        id: `player_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        isActive: true,
+        claimedBy: uid ?? `device_${Date.now()}`,
+      };
+
+      const data = snap.data();
+      await updateDoc(docRef, { players: [...(data.players || []), newPlayer] });
+
+      localStorage.setItem(`claimedPlayer_${tournamentId}`, newPlayer.id);
+      setClaimed(newPlayer.id);
+      setTimeout(() => setLocation(`/tournament/${tournamentId}`), 1200);
+    } catch (e: any) {
+      setClaimError('Could not join. Please try again.');
+    } finally {
+      setSelfRegLoading(false);
     }
   };
 
@@ -229,12 +272,40 @@ export default function PlayerClaimView() {
         </Card>
       )}
 
-      {/* Unclaimed players */}
-      {unclaimed.length === 0 ? (
-        <Card className="p-4 text-center text-muted-foreground text-sm">
-          All players have checked in
+      {/* Self-register form — shown when no pre-loaded players OR user clicks "Not in the list?" */}
+      {(players.length === 0 || showSelfReg) && (
+        <Card className="p-4 mb-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <UserPlus className="h-4 w-4 text-orange-500" />
+            {players.length === 0 ? 'Enter your name to join' : 'Add yourself'}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Your name"
+              value={selfRegName}
+              onChange={e => setSelfRegName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSelfRegister()}
+              className="flex-1"
+              autoFocus={players.length === 0}
+            />
+            <Button
+              onClick={handleSelfRegister}
+              disabled={!selfRegName.trim() || selfRegLoading}
+              className="shrink-0"
+            >
+              {selfRegLoading ? 'Joining…' : 'Join'}
+            </Button>
+          </div>
+          {showSelfReg && players.length > 0 && (
+            <button className="text-xs text-muted-foreground underline" onClick={() => setShowSelfReg(false)}>
+              Cancel
+            </button>
+          )}
         </Card>
-      ) : (
+      )}
+
+      {/* Unclaimed players */}
+      {unclaimed.length > 0 && (
         <div className="space-y-2">
           {unclaimed.map(player => (
             <button
@@ -276,8 +347,18 @@ export default function PlayerClaimView() {
         </div>
       )}
 
-      {/* Spectator link */}
-      <div className="mt-8 text-center">
+      {/* Not in the list / spectator */}
+      <div className="mt-8 text-center space-y-2">
+        {players.length > 0 && !showSelfReg && (
+          <div>
+            <button
+              className="text-xs text-muted-foreground underline block mx-auto mb-2"
+              onClick={() => setShowSelfReg(true)}
+            >
+              Not in the list? Add yourself
+            </button>
+          </div>
+        )}
         <button
           className="text-xs text-muted-foreground underline"
           onClick={() => setLocation(`/tournament/${tournamentId}`)}
