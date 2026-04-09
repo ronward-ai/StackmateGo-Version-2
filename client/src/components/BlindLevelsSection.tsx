@@ -135,9 +135,9 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
           </div>
 
           {/* Blind levels table */}
-          <div className="rounded-lg overflow-hidden border border-border/30">
+          <div className="rounded-lg overflow-x-auto border border-border/30">
             {/* Table header */}
-            <div className="grid grid-cols-[32px_1fr_1fr_1fr_1fr_32px] gap-1 px-3 py-2 bg-muted/40 border-b border-border/30">
+            <div className="grid grid-cols-[32px_56px_56px_56px_56px_32px] gap-1 px-3 py-2 bg-muted/40 border-b border-border/30 min-w-[260px]">
               {['#', 'SB', 'BB', state.settings.bigBlindAnte ? 'BB Ante' : 'Ante', 'Mins', ''].map((h, i) => (
                 <div key={i} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
               ))}
@@ -154,7 +154,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                     <div
                       key={index}
                       className={cn(
-                        "grid grid-cols-[32px_1fr_1fr_1fr_1fr_32px] gap-1 px-3 py-2 items-center",
+                        "grid grid-cols-[32px_56px_56px_56px_56px_32px] gap-1 px-3 py-2 items-center min-w-[260px]",
                         "bg-amber-500/5 border-l-2 border-amber-500/40",
                         isCurrentLevel && "bg-amber-500/15 border-l-2 border-amber-400"
                       )}
@@ -195,7 +195,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   <div
                     key={index}
                     className={cn(
-                      "grid grid-cols-[32px_1fr_1fr_1fr_1fr_32px] gap-1 px-3 py-2 items-center",
+                      "grid grid-cols-[32px_56px_56px_56px_56px_32px] gap-1 px-3 py-2 items-center min-w-[260px]",
                       "hover:bg-muted/20 transition-colors",
                       isCurrentLevel && "bg-primary/5 border-l-2 border-primary"
                     )}
