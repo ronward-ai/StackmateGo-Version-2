@@ -179,13 +179,19 @@ service cloud.firestore {
     match /activeTournaments/{tournamentId} {
       allow read: if true;
       allow create: if isRegistered() && isDocOwner();
-      allow update: if isAuthenticated() && (
+      allow update: if (
         // Owner can change anything
-        isExistingDocOwner() ||
-        // Participants can only claim a seat (players array) or update timer state
+        isAuthenticated() && isExistingDocOwner()
+      ) || (
+        // Authenticated participants can update timer/player/transfer fields
+        isAuthenticated() &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
                     'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy', 'ownerId'])
+      ) || (
+        // Unauthenticated players can claim a seat (players array only) — QR check-in
+        // when Firebase Auth domain is not whitelisted on this deployment
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players'])
       );
       allow delete: if isRegistered() && isExistingDocOwner();
     }

@@ -83,10 +83,24 @@ export default function PlayerClaimView() {
   }, [tournamentId]);
 
   const handleClaim = async (player: TournamentPlayer) => {
-    if (!user || !tournamentId) return;
+    if (!tournamentId) return;
     setClaming(player.id);
 
     try {
+      // Attempt anonymous sign-in inline if not yet authenticated
+      let uid = (user as any)?.uid as string | undefined;
+      if (!uid) {
+        try {
+          const { getAuth, signInAnonymously: firebaseSignIn } = await import('firebase/auth');
+          const { app } = await import('@/lib/firebase');
+          const result = await firebaseSignIn(getAuth(app));
+          uid = result.user.uid;
+        } catch {
+          // Auth failed (domain not whitelisted) — proceed without uid;
+          // Firestore rule allows unauthenticated players-array updates
+        }
+      }
+
       const { doc, updateDoc, getDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       const docRef = doc(db, 'activeTournaments', tournamentId);
@@ -95,13 +109,12 @@ export default function PlayerClaimView() {
 
       const data = snap.data();
       const updatedPlayers = (data.players || []).map((p: TournamentPlayer) =>
-        p.id === player.id ? { ...p, claimedBy: (user as any).uid } : p
+        p.id === player.id ? { ...p, claimedBy: uid ?? `device_${player.id}` } : p
       );
       await updateDoc(docRef, { players: updatedPlayers });
 
       localStorage.setItem(`claimedPlayer_${tournamentId}`, player.id);
       setClaimed(player.id);
-      // Redirect to participant view after short delay
       setTimeout(() => setLocation(`/tournament/${tournamentId}`), 1200);
     } catch (e: any) {
       setError('Could not claim seat. Please try again.');
