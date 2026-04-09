@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculato
 import { cn } from "@/lib/utils";
 import { calculatePrizePool } from "@/lib/prizePool";
 import ChipChopCalculator from './ChipChopCalculator';
+import { useLeague } from '@/hooks/useLeague';
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -21,9 +22,21 @@ function DetailRow({ label, value, highlight }: { label: string; value: string |
 }
 
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
-  const { state } = tournament;
+  const { state, updateTournamentDetails, updateSettings } = tournament;
+  const { league } = useLeague();
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
+
+  const isLeagueMode =
+    state.details?.type === 'season' ||
+    (state.settings as any)?.isSeasonTournament === true;
+
+  const handleEnableLeague = () => {
+    updateTournamentDetails({ ...state.details, type: 'season' });
+    if (league?.id) {
+      updateSettings({ isSeasonTournament: true, leagueId: String(league.id) } as any);
+    }
+  };
 
   const sym = state.settings.currency || '£';
   const p = state.prizeStructure;
@@ -201,6 +214,24 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                   <DetailRow label="Used" value={totalAddons} />
                 </>
               )}
+
+              {/* Mode row */}
+              <div className="border-t border-border/20 mt-3 pt-3 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Mode</span>
+                {isLeagueMode ? (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
+                    <Trophy className="h-3 w-3" />
+                    League game
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleEnableLeague}
+                    className="text-xs text-orange-400 hover:text-orange-300 transition-colors underline underline-offset-2"
+                  >
+                    Enable League Mode →
+                  </button>
+                )}
+              </div>
             </div>
 
           </div>
