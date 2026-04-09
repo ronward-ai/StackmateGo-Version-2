@@ -16,12 +16,49 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Play, Pause, RotateCcw, SkipForward, SkipBack, Volume2, VolumeX, Settings } from 'lucide-react';
+import { Play, Pause, RotateCcw, SkipForward, SkipBack, Volume2, VolumeX, Settings, Maximize2, Minimize2 } from 'lucide-react';
 import { Slider } from './ui/slider';
 
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   recentLevelChange: boolean;
+}
+
+function FullscreenButton() {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [supported, setSupported] = useState(false);
+
+  useEffect(() => {
+    setSupported(!!document.documentElement.requestFullscreen);
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  if (!supported) return null;
+
+  const toggle = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      className="absolute top-3 right-3 flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-muted-foreground hover:text-foreground transition-all"
+      aria-label={isFullscreen ? 'Exit fullscreen' : 'Go fullscreen'}
+    >
+      {isFullscreen
+        ? <Minimize2 className="h-4 w-4" />
+        : <Maximize2 className="h-4 w-4" />}
+      <span className="text-[9px] leading-none font-medium uppercase tracking-wide">
+        {isFullscreen ? 'Exit' : 'Full'}
+      </span>
+    </button>
+  );
 }
 
 function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
@@ -207,7 +244,8 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   };
 
   return (
-    <Card className="bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20 rounded-xl shadow-lg p-4 sm:p-8 flex flex-col items-center">
+    <Card className="relative bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20 rounded-xl shadow-lg p-4 sm:p-8 flex flex-col items-center">
+      <FullscreenButton />
 
       <div className="font-mono text-8xl sm:text-[10rem] md:text-[16rem] lg:text-[20rem] font-bold tracking-tight my-4 sm:my-8 flex-shrink-0 timer-responsive" style={{ lineHeight: '0.85' }}>
         {formatTime()}
