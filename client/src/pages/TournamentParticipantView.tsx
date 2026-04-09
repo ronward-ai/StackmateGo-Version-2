@@ -408,14 +408,16 @@ function TournamentParticipantView() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white overflow-auto">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Header Section */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-white">{tournament?.name || 'Tournament'}</h1>
-            <p className="text-gray-300">Live Tournament View</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Director access button removed as it's no longer password-based */}
+            <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-3 py-1 rounded-lg shadow mb-2">
+              <span className="text-sm font-bold text-white tracking-tight">Stackmate Go</span>
+            </div>
+            <h1 className="text-xl font-bold text-white leading-tight">{tournament?.name || 'Tournament'}</h1>
+            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              Live
+            </p>
           </div>
         </div>
 
@@ -453,7 +455,11 @@ function TournamentParticipantView() {
                       <p className="font-bold text-white">{me.name}</p>
                       <p className="text-xs text-orange-300">
                         {me.isActive === false
-                          ? `Eliminated ${me.position ? `in position ${me.position}` : ''}`
+                          ? me.position === 1
+                            ? '🏆 Winner!'
+                            : me.position
+                            ? `Finished in position ${me.position}`
+                            : 'Eliminated'
                           : seat
                           ? `Table ${(seat.tableIndex ?? 0) + 1} · Seat ${(seat.seatIndex ?? 0) + 1}`
                           : 'Active'}
