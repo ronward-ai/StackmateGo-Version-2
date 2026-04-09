@@ -43,34 +43,43 @@ export default function PlayerClaimView() {
     }
   }, [tournamentId]);
 
-  // Load players from Firestore — no auth required to read
+  // Load players from Firestore
   useEffect(() => {
     if (!tournamentId) return;
+
+    let unsubscribe: (() => void) | null = null;
 
     const load = async () => {
       try {
         const { doc, onSnapshot } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');
         const docRef = doc(db, 'activeTournaments', tournamentId);
-        return onSnapshot(docRef, (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
-            setTournamentName(data.details?.name || data.name || 'Tournament');
-          } else {
-            setError('Tournament not found. Check the QR code and try again.');
+        unsubscribe = onSnapshot(
+          docRef,
+          (snap) => {
+            if (snap.exists()) {
+              const data = snap.data();
+              setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
+              setTournamentName(data.details?.name || data.name || 'Tournament');
+            } else {
+              setError('Tournament not found. Check the QR code and try again.');
+            }
+            setDataLoaded(true);
+          },
+          (err) => {
+            console.error('Firestore read error:', err);
+            setError('Could not load tournament data. Please try again.');
+            setDataLoaded(true);
           }
-          setDataLoaded(true);
-        });
+        );
       } catch (e: any) {
         setError('Could not connect. Check your connection and try again.');
         setDataLoaded(true);
-        return () => {};
       }
     };
 
-    const unsub = load();
-    return () => { unsub.then(fn => fn()); };
+    load();
+    return () => { unsubscribe?.(); };
   }, [tournamentId]);
 
   const handleClaim = async (player: TournamentPlayer) => {
