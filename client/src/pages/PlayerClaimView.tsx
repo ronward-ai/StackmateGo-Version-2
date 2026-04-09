@@ -15,6 +15,11 @@ interface TournamentPlayer {
   seatInfo?: { tableIndex: number; seatIndex: number; totalSeatedPlayers: number };
 }
 
+interface LeaguePlayerRecord {
+  id: string;
+  name: string;
+}
+
 export default function PlayerClaimView() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = params.tournamentId;
@@ -32,6 +37,8 @@ export default function PlayerClaimView() {
   const [showSelfReg, setShowSelfReg] = useState(false);
   const [selfRegLoading, setSelfRegLoading] = useState(false);
   const [isLeagueTournament, setIsLeagueTournament] = useState(false);
+  const [leagueId, setLeagueId] = useState<string | null>(null);
+  const [leagueRoster, setLeagueRoster] = useState<LeaguePlayerRecord[]>([]);
 
   // Sign in anonymously if needed
   useEffect(() => {
@@ -68,6 +75,7 @@ export default function PlayerClaimView() {
               setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
               setTournamentName(data.details?.name || data.name || 'Tournament');
               setIsLeagueTournament(data.settings?.isSeasonTournament ?? false);
+              setLeagueId(data.settings?.leagueId || null);
             } else {
               setError('Tournament not found. Check the QR code and try again.');
             }
@@ -89,12 +97,33 @@ export default function PlayerClaimView() {
     return () => { unsubscribe?.(); };
   }, [tournamentId]);
 
+  // Load league roster once leagueId is known (anonymous auth is sufficient)
+  useEffect(() => {
+    if (!leagueId) return;
+
+    const load = async () => {
+      try {
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const q = query(collection(db, 'leaguePlayers'), where('leagueId', '==', leagueId));
+        const snap = await getDocs(q);
+        const roster: LeaguePlayerRecord[] = snap.docs
+          .map(d => ({ id: d.id, name: d.data().name as string }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setLeagueRoster(roster);
+      } catch (e) {
+        // silently ignore — fall back to "ask director" message
+      }
+    };
+
+    load();
+  }, [leagueId]);
+
   const handleClaim = async (player: TournamentPlayer) => {
     if (!tournamentId) return;
     setClaming(player.id);
 
     try {
-      // Attempt anonymous sign-in inline if not yet authenticated
       let uid = (user as any)?.uid as string | undefined;
       if (!uid) {
         try {
@@ -103,8 +132,7 @@ export default function PlayerClaimView() {
           const result = await firebaseSignIn(getAuth(app));
           uid = result.user.uid;
         } catch {
-          // Auth failed (domain not whitelisted) — proceed without uid;
-          // Firestore rule allows unauthenticated players-array updates
+          // proceed without uid
         }
       }
 
@@ -127,6 +155,49 @@ export default function PlayerClaimView() {
       const msg = e?.code === 'permission-denied'
         ? 'Check-in requires a connection — try again or enter as spectator.'
         : 'Could not claim seat. Please try again.';
+      setClaimError(msg);
+    } finally {
+      setClaming(null);
+    }
+  };
+
+  // Add a league roster member to this tournament and immediately claim their seat
+  const handleLeaguePlayerJoin = async (leaguePlayer: LeaguePlayerRecord) => {
+    if (!tournamentId) return;
+    setClaming(leaguePlayer.id);
+
+    try {
+      let uid: string | undefined;
+      try {
+        const { getAuth, signInAnonymously: firebaseSignIn } = await import('firebase/auth');
+        const { app } = await import('@/lib/firebase');
+        const result = await firebaseSignIn(getAuth(app));
+        uid = result.user.uid;
+      } catch { /* proceed without uid */ }
+
+      const { doc, updateDoc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const docRef = doc(db, 'activeTournaments', tournamentId);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) throw new Error('Tournament not found');
+
+      const newPlayer: TournamentPlayer = {
+        id: `player_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name: leaguePlayer.name,
+        isActive: true,
+        claimedBy: uid ?? `device_${Date.now()}`,
+      };
+
+      const data = snap.data();
+      await updateDoc(docRef, { players: [...(data.players || []), newPlayer] });
+
+      localStorage.setItem(`claimedPlayer_${tournamentId}`, newPlayer.id);
+      setClaimed(newPlayer.id);
+      setTimeout(() => setLocation(`/tournament/${tournamentId}`), 1200);
+    } catch (e: any) {
+      const msg = e?.code === 'permission-denied'
+        ? 'Check-in requires a connection — try again or enter as spectator.'
+        : 'Could not join. Please try again.';
       setClaimError(msg);
     } finally {
       setClaming(null);
@@ -250,6 +321,13 @@ export default function PlayerClaimView() {
   const unclaimed = players.filter(p => !p.claimedBy);
   const alreadyClaimed = players.filter(p => p.claimedBy && p.claimedBy !== uid);
 
+  // Match a league roster name against the tournament player list (case-insensitive)
+  const findTournamentPlayer = (rosterName: string) =>
+    players.find(p => p.name.toLowerCase() === rosterName.toLowerCase());
+
+  // Show league roster when this is a league tournament AND we have players on record
+  const showLeagueRoster = isLeagueTournament && leagueRoster.length > 0;
+
   return (
     <div className="min-h-screen bg-background px-4 py-8 max-w-md mx-auto">
       {/* Header */}
@@ -274,7 +352,53 @@ export default function PlayerClaimView() {
         </Card>
       )}
 
-      {/* Self-register — casual tournaments only */}
+      {/* ── League roster ── */}
+      {showLeagueRoster && (
+        <div className="space-y-2">
+          {leagueRoster.map(rp => {
+            const tp = findTournamentPlayer(rp.name);
+            const isCheckedIn = !!tp?.claimedBy;
+            const canClaim = tp && !tp.claimedBy;  // added by director, not yet claimed
+            const isClaiming = claiming === (tp?.id ?? rp.id);
+
+            if (isCheckedIn) {
+              return (
+                <Card key={rp.id} className="p-4 flex items-center gap-3 opacity-40">
+                  <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                  <span className="text-sm">{rp.name}</span>
+                </Card>
+              );
+            }
+
+            return (
+              <button
+                key={rp.id}
+                onClick={() => canClaim ? handleClaim(tp!) : handleLeaguePlayerJoin(rp)}
+                disabled={isClaiming}
+                className="w-full text-left"
+              >
+                <Card className="p-4 flex items-center justify-between hover:border-orange-500/50 transition-colors active:scale-[0.98]">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-orange-400 font-bold text-sm">
+                        {rp.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="font-medium">{rp.name}</span>
+                  </div>
+                  {isClaiming ? (
+                    <span className="text-xs text-muted-foreground animate-pulse">Joining…</span>
+                  ) : (
+                    <UserCheck className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Card>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Casual tournament: self-register form ── */}
       {!isLeagueTournament && (players.length === 0 || showSelfReg) && (
         <Card className="p-4 mb-4 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
@@ -306,16 +430,8 @@ export default function PlayerClaimView() {
         </Card>
       )}
 
-      {/* League tournament — no self-register, direct to director */}
-      {isLeagueTournament && players.length === 0 && (
-        <Card className="p-4 mb-4 text-center text-sm text-muted-foreground space-y-1">
-          <p className="font-medium text-foreground">League tournament</p>
-          <p>No players have been added yet. Ask your director to add you before you check in.</p>
-        </Card>
-      )}
-
-      {/* Unclaimed players */}
-      {unclaimed.length > 0 && (
+      {/* ── Casual tournament: director-added unclaimed players ── */}
+      {!showLeagueRoster && unclaimed.length > 0 && (
         <div className="space-y-2">
           {unclaimed.map(player => (
             <button
@@ -344,8 +460,8 @@ export default function PlayerClaimView() {
         </div>
       )}
 
-      {/* Already claimed players (greyed out) */}
-      {alreadyClaimed.length > 0 && (
+      {/* ── Casual tournament: already claimed ── */}
+      {!showLeagueRoster && alreadyClaimed.length > 0 && (
         <div className="mt-4 space-y-2">
           <p className="text-xs text-muted-foreground px-1">Already checked in</p>
           {alreadyClaimed.map(player => (
@@ -357,9 +473,17 @@ export default function PlayerClaimView() {
         </div>
       )}
 
-      {/* Not in the list / spectator */}
+      {/* ── League with no roster yet (leagueId not stored or no players added yet) ── */}
+      {isLeagueTournament && !showLeagueRoster && (
+        <Card className="p-4 mb-4 text-center text-sm text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">League tournament</p>
+          <p>No league players found. Ask your director to add players to the league first.</p>
+        </Card>
+      )}
+
+      {/* Bottom actions */}
       <div className="mt-8 text-center space-y-2">
-        {players.length > 0 && !showSelfReg && !isLeagueTournament && (
+        {!isLeagueTournament && players.length > 0 && !showSelfReg && (
           <button
             className="text-xs text-muted-foreground underline block mx-auto mb-2"
             onClick={() => setShowSelfReg(true)}
@@ -367,9 +491,9 @@ export default function PlayerClaimView() {
             Not in the list? Add yourself
           </button>
         )}
-        {players.length > 0 && !showSelfReg && isLeagueTournament && (
+        {isLeagueTournament && showLeagueRoster && (
           <p className="text-xs text-muted-foreground mb-2">
-            Not in the list? Ask your director to add you.
+            Not in the list? Ask your director to add you to the league.
           </p>
         )}
         <button
