@@ -95,6 +95,24 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         </div>
 
+        {/* Mode row — always visible regardless of expand state */}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/20">
+          <span className="text-xs text-muted-foreground">Mode</span>
+          {isLeagueMode ? (
+            <span className="flex items-center gap-1 text-xs font-semibold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
+              <Trophy className="h-3 w-3" />
+              League game
+            </span>
+          ) : (
+            <button
+              onClick={handleEnableLeague}
+              className="text-xs text-orange-400 hover:text-orange-300 transition-colors underline underline-offset-2"
+            >
+              Enable League Mode →
+            </button>
+          )}
+        </div>
+
         {isExpanded && (
           <div className="mt-4 space-y-3">
 
@@ -215,23 +233,6 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                 </>
               )}
 
-              {/* Mode row */}
-              <div className="border-t border-border/20 mt-3 pt-3 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Mode</span>
-                {isLeagueMode ? (
-                  <span className="flex items-center gap-1 text-xs font-semibold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
-                    <Trophy className="h-3 w-3" />
-                    League game
-                  </span>
-                ) : (
-                  <button
-                    onClick={handleEnableLeague}
-                    className="text-xs text-orange-400 hover:text-orange-300 transition-colors underline underline-offset-2"
-                  >
-                    Enable League Mode →
-                  </button>
-                )}
-              </div>
             </div>
 
           </div>
