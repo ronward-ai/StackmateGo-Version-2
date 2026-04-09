@@ -171,13 +171,13 @@ service cloud.firestore {
     }
 
     // Active Tournaments
-    // - Any authenticated user (including anonymous) can read — needed for player/spectator view
+    // - Anyone can read — players scan a QR code; no login required to view
     // - Only registered owner can create
     // - Owner can update anything
     // - Any authenticated user can claim a seat (players array only) — QR check-in
     // - Transfer code update allowed only for the recipient becoming the new owner
     match /activeTournaments/{tournamentId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered() && isDocOwner();
       allow update: if isAuthenticated() && (
         // Owner can change anything

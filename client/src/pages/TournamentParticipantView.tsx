@@ -81,8 +81,9 @@ function TournamentParticipantView() {
     }
   }, [isAuthenticated, isLoading, signInAnonymously]);
 
+  // Firebase real-time connection — no auth required (activeTournaments is public read)
   useEffect(() => {
-    if (!id || !isAuthenticated) return;
+    if (!id) return;
 
     const initializeConnection = async () => {
       try {
