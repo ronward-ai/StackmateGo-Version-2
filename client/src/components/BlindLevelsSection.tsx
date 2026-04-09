@@ -122,7 +122,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
           </div>
 
           {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="grid grid-cols-3 gap-2 mb-4">
             <Button variant="outline" size="sm" className="btn-add-level gap-1.5 h-8 text-xs" onClick={addBlindLevel}>
               <Plus className="h-3.5 w-3.5" />
               Add Level
@@ -131,7 +131,12 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               <Coffee className="h-3.5 w-3.5" />
               Add Break
             </Button>
-            {!showAnteCol && (
+            {showAnteCol ? (
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs text-destructive/70 hover:text-destructive border-destructive/30 hover:border-destructive/60" onClick={handleClearAntes}>
+                <Coins className="h-3.5 w-3.5" />
+                Remove Antes
+              </Button>
+            ) : (
               <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs" onClick={() => setAntesVisible(true)}>
                 <Coins className="h-3.5 w-3.5" />
                 Add Antes
@@ -150,13 +155,8 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                 <div key={h} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
               ))}
               {showAnteCol && (
-                <div className="relative text-xs font-medium text-muted-foreground text-center">
+                <div className="text-xs font-medium text-muted-foreground text-center">
                   {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}
-                  <button
-                    onClick={handleClearAntes}
-                    className="absolute -top-1 -right-0.5 text-muted-foreground/40 hover:text-destructive text-[10px] leading-none"
-                    title="Remove antes"
-                  >×</button>
                 </div>
               )}
               {['Mins', ''].map((h) => (
