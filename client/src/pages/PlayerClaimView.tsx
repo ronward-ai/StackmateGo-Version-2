@@ -329,7 +329,18 @@ export default function PlayerClaimView() {
     <div className="min-h-screen bg-background px-4 py-8 max-w-md mx-auto">
       {/* Header */}
       <div className="text-center mb-6">
-        <Users className="h-10 w-10 text-orange-500 mx-auto mb-2" />
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <img
+            src="/stackmatelogo.svg"
+            alt="StackMate Go"
+            className="h-7 w-auto object-contain"
+            style={{ filter: 'brightness(1.1)' }}
+          />
+          <span className="flex items-center gap-1 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+            LIVE
+          </span>
+        </div>
         <h1 className="text-xl font-bold">{tournamentName}</h1>
         <p className="text-muted-foreground text-sm mt-1">Tap your name to check in</p>
       </div>
