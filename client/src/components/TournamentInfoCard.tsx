@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { calculatePrizePool } from "@/lib/prizePool";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
+import { useSeasons } from '@/hooks/useSeasons';
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -24,6 +25,7 @@ function DetailRow({ label, value, highlight }: { label: string; value: string |
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state, updateTournamentDetails, updateSettings } = tournament;
   const { league } = useLeague();
+  const { currentSeason } = useSeasons({ leagueId: league?.id });
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
 
@@ -37,6 +39,11 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
       updateSettings({ isSeasonTournament: true, leagueId: String(league.id) } as any);
     }
   };
+
+  const gameNumber = isLeagueMode && currentSeason
+    ? (state.players[0]?.results?.length ?? 0) + 1
+    : null;
+  const totalGames = currentSeason?.numberOfGames || 12;
 
   const sym = state.settings.currency || '£';
   const p = state.prizeStructure;
@@ -95,14 +102,13 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
         </div>
 
-        {/* Mode toggle — always visible regardless of expand state */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/20">
-          <span className="text-xs text-muted-foreground">Mode</span>
+        {/* Mode toggle — always visible, centered, with game count when in league mode */}
+        <div className="flex items-center justify-center gap-3 mt-3 pt-3 border-t border-border/20">
           <div className="flex items-center bg-muted/40 border border-border/40 rounded-full p-0.5 gap-0.5">
             <button
               className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all ${
                 !isLeagueMode
-                  ? 'bg-background text-foreground shadow-sm'
+                  ? 'bg-orange-500/20 text-orange-400 shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
               onClick={() => {
@@ -115,7 +121,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             <button
               className={`px-3 py-0.5 rounded-full text-xs font-medium transition-all ${
                 isLeagueMode
-                  ? 'bg-background text-foreground shadow-sm'
+                  ? 'bg-orange-500/20 text-orange-400 shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
               onClick={handleEnableLeague}
@@ -123,6 +129,11 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               League
             </button>
           </div>
+          {isLeagueMode && gameNumber !== null && (
+            <span className="text-xs font-medium text-orange-400">
+              Game {gameNumber} of {totalGames}
+            </span>
+          )}
         </div>
 
         {isExpanded && (

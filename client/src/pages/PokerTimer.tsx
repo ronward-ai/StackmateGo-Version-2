@@ -93,16 +93,6 @@ function UserMenu() {
   );
 }
 
-function LeagueGameBadge({ isLeague, players }: { isLeague: boolean; players: any[] }) {
-  const { currentSeason } = useSeasons();
-  if (!isLeague || !currentSeason) return null;
-  const totalGames = players[0]?.results?.length || 0;
-  return (
-    <p className="text-center text-xs sm:text-sm text-orange-400 mt-1">
-      Game {totalGames + 1} of {currentSeason.numberOfGames || 12} — {currentSeason.name}
-    </p>
-  );
-}
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
