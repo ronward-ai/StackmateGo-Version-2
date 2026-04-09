@@ -52,7 +52,7 @@ function LevelInput({
       inputMode="numeric"
       pattern="[0-9]*"
       className={cn(
-        "w-14 h-8 text-xs text-center px-1",
+        "w-full h-8 text-xs text-center px-1",
         "border-border/50 focus:border-primary",
         "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
         disabled && "opacity-30 cursor-not-allowed"
@@ -137,7 +137,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
           {/* Blind levels table */}
           <div className="rounded-lg overflow-x-auto border border-border/30">
             {/* Table header */}
-            <div className="grid grid-cols-[32px_56px_56px_56px_56px_32px] gap-1 px-3 py-2 bg-muted/40 border-b border-border/30 min-w-[260px]">
+            <div className="grid grid-cols-[28px_1fr_1fr_1fr_1fr_28px] gap-1 px-2 py-2 bg-muted/40 border-b border-border/30 min-w-[240px]">
               {['#', 'SB', 'BB', state.settings.bigBlindAnte ? 'BB Ante' : 'Ante', 'Mins', ''].map((h, i) => (
                 <div key={i} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
               ))}
@@ -154,7 +154,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                     <div
                       key={index}
                       className={cn(
-                        "grid grid-cols-[32px_56px_56px_56px_56px_32px] gap-1 px-3 py-2 items-center min-w-[260px]",
+                        "grid grid-cols-[28px_1fr_1fr_1fr_1fr_28px] gap-1 px-2 py-2 items-center min-w-[240px]",
                         "bg-amber-500/5 border-l-2 border-amber-500/40",
                         isCurrentLevel && "bg-amber-500/15 border-l-2 border-amber-400"
                       )}
@@ -195,7 +195,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   <div
                     key={index}
                     className={cn(
-                      "grid grid-cols-[32px_56px_56px_56px_56px_32px] gap-1 px-3 py-2 items-center min-w-[260px]",
+                      "grid grid-cols-[28px_1fr_1fr_1fr_1fr_28px] gap-1 px-2 py-2 items-center min-w-[240px]",
                       "hover:bg-muted/20 transition-colors",
                       isCurrentLevel && "bg-primary/5 border-l-2 border-primary"
                     )}
