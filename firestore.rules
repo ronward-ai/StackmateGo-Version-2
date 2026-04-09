@@ -155,8 +155,10 @@ service cloud.firestore {
     }
 
     // League Players
+    // Authenticated (incl. anonymous QR-scan users) can read so the participant
+    // view can display the league roster for self-check-in.
     match /leaguePlayers/{playerId} {
-      allow read: if isRegistered();
+      allow read: if isAuthenticated();
       allow create: if isRegistered();
       allow update: if isRegistered();
       allow delete: if isRegistered();

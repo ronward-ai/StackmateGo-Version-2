@@ -70,6 +70,11 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
       ...tournament?.state?.details,
       type: 'season',
     });
+    // Persist leagueId + flag into tournament settings so the QR scan view
+    // can load the league player roster without knowing who the director is.
+    if (league?.id) {
+      tournament?.updateSettings?.({ isSeasonTournament: true, leagueId: String(league.id) });
+    }
   };
 
   const handleCreateSeason = async () => {
