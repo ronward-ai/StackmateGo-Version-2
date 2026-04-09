@@ -150,13 +150,11 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                 <div key={h} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
               ))}
               {showAnteCol && (
-                <div className="flex items-center justify-center gap-0.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}
-                  </span>
+                <div className="relative text-xs font-medium text-muted-foreground text-center">
+                  {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}
                   <button
                     onClick={handleClearAntes}
-                    className="text-muted-foreground/40 hover:text-destructive text-sm leading-none"
+                    className="absolute -top-1 -right-0.5 text-muted-foreground/40 hover:text-destructive text-[10px] leading-none"
                     title="Remove antes"
                   >×</button>
                 </div>
