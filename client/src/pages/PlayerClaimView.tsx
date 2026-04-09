@@ -150,7 +150,6 @@ export default function PlayerClaimView() {
 
       localStorage.setItem(`claimedPlayer_${tournamentId}`, player.id);
       setClaimed(player.id);
-      setTimeout(() => setLocation(`/tournament/${tournamentId}`), 1200);
     } catch (e: any) {
       const msg = e?.code === 'permission-denied'
         ? 'Check-in requires a connection — try again or enter as spectator.'
@@ -193,7 +192,6 @@ export default function PlayerClaimView() {
 
       localStorage.setItem(`claimedPlayer_${tournamentId}`, newPlayer.id);
       setClaimed(newPlayer.id);
-      setTimeout(() => setLocation(`/tournament/${tournamentId}`), 1200);
     } catch (e: any) {
       const msg = e?.code === 'permission-denied'
         ? 'Check-in requires a connection — try again or enter as spectator.'
@@ -235,7 +233,6 @@ export default function PlayerClaimView() {
 
       localStorage.setItem(`claimedPlayer_${tournamentId}`, newPlayer.id);
       setClaimed(newPlayer.id);
-      setTimeout(() => setLocation(`/tournament/${tournamentId}`), 1200);
     } catch (e: any) {
       setClaimError('Could not join. Please try again.');
     } finally {
