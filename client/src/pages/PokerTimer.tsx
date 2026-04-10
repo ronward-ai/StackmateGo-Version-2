@@ -176,6 +176,26 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     createDatabaseTournament();
   }, [user, isAnonymous, dbTournamentId]);
 
+  // Directly sync players to Firestore whenever they change.
+  // This is a reliable belt-and-suspenders sync that bypasses the broadcast chain.
+  useEffect(() => {
+    if (!dbTournamentId || !user || isAnonymous) return;
+    const sync = async () => {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const { sanitizeForFirestore } = await import('@/lib/utils');
+      try {
+        await updateDoc(
+          doc(db, 'activeTournaments', dbTournamentId),
+          sanitizeForFirestore({ players: tournament.state.players })
+        );
+      } catch (e) {
+        console.error('Player sync to Firestore failed:', e);
+      }
+    };
+    sync();
+  }, [tournament.state.players, dbTournamentId, user, isAnonymous]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Setup Socket.IO connection for real-time updates removed
 
   // Listen for director coordination sync events
