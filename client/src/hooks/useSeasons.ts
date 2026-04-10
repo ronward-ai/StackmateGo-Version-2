@@ -28,6 +28,7 @@ interface MinimalSeason {
   endDate: string;
   isActive: boolean;
   numberOfGames?: number;
+  settings?: any;
 }
 
 interface UseSeasonsOptions {
@@ -173,7 +174,8 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
         startDate: season.startDate,
         endDate: season.endDate,
         isActive: season.status === 'active',
-        numberOfGames: season.numberOfGames
+        numberOfGames: season.numberOfGames,
+        settings: season.settings,
       }));
     }
     return [fallbackSeason];

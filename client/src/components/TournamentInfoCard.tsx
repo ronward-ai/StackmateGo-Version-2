@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -47,6 +47,18 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
       updateSettings({ isSeasonTournament: true, leagueId: String(league.id) } as any);
     }
   };
+
+  // Auto-load structure when league mode activates or season switches
+  const lastLoadedSeasonId = useRef<string | number | null>(null);
+  useEffect(() => {
+    if (!isLeagueMode || !currentSeason) return;
+    const saved = currentSeason.settings;
+    if (!saved?.blindLevels || !saved?.prizeStructure) return;
+    if (lastLoadedSeasonId.current === currentSeason.id) return;
+    lastLoadedSeasonId.current = currentSeason.id;
+    tournament.setBlindLevels(saved.blindLevels);
+    tournament.updatePrizeStructure(saved.prizeStructure);
+  }, [isLeagueMode, currentSeason?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gameNumber = isLeagueMode && currentSeason
     ? (state.players[0]?.results?.length ?? 0) + 1

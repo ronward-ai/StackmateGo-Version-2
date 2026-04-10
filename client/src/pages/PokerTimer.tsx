@@ -421,10 +421,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             </TabsContent>
 
             <TabsContent value="buyins" className="mt-0 p-4 pt-5">
-              <BuyInSection tournament={tournament} />
-            </TabsContent>
-
-            <TabsContent value="levels" className="mt-0 p-4 pt-5">
               <div className="flex justify-end mb-3">
                 <TournamentTemplatesDialog
                   currentBlindLevels={tournament.state.levels}
@@ -435,6 +431,10 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                   }}
                 />
               </div>
+              <BuyInSection tournament={tournament} />
+            </TabsContent>
+
+            <TabsContent value="levels" className="mt-0 p-4 pt-5">
               <BlindLevelsSection tournament={tournament} />
             </TabsContent>
 
