@@ -96,7 +96,8 @@ function UserMenu() {
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
   const tournament = useTournament(tournamentId); // Pass tournamentId here
-  const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer } = useLeague();
+  const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, league } = useLeague();
+  const { currentSeason } = useSeasons({ leagueId: league?.id });
   const { user, isAnonymous } = useAuth();
   const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
   const [activeTab, setActiveTab] = useState('players'); // State to manage active tab
@@ -299,13 +300,14 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
 
             // Record tournament result for this player
             recordResultByName(
-              player.name, 
-              player.position, 
-              tournament.state.players.length, 
-              eliminationsCount, 
-              prizeMoney, 
-              tournament.state.prizeStructure?.buyIn || 10, 
-              tournament.state.details?.id
+              player.name,
+              player.position,
+              tournament.state.players.length,
+              eliminationsCount,
+              prizeMoney,
+              tournament.state.prizeStructure?.buyIn || 10,
+              tournament.state.details?.id,
+              currentSeason?.id ? String(currentSeason.id) : undefined
             );
 
             // Track successful processing
