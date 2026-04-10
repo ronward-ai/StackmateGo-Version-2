@@ -196,6 +196,40 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     sync();
   }, [tournament.state.players, dbTournamentId, user, isAnonymous]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Directly sync timer state to Firestore whenever it changes.
+  useEffect(() => {
+    if (!dbTournamentId || !user || isAnonymous) return;
+    const sync = async () => {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const { sanitizeForFirestore } = await import('@/lib/utils');
+      try {
+        await updateDoc(
+          doc(db, 'activeTournaments', dbTournamentId),
+          sanitizeForFirestore({
+            currentLevel: tournament.state.currentLevel,
+            secondsLeft: tournament.state.secondsLeft,
+            isRunning: tournament.state.isRunning,
+            targetEndTime: tournament.state.targetEndTime || null,
+            smallBlind: tournament.state.levels[tournament.state.currentLevel]?.small || 0,
+            bigBlind: tournament.state.levels[tournament.state.currentLevel]?.big || 0,
+            ante: tournament.state.levels[tournament.state.currentLevel]?.ante || 0,
+          })
+        );
+      } catch (e) {
+        console.error('Timer sync to Firestore failed:', e);
+      }
+    };
+    sync();
+  }, [ // eslint-disable-line react-hooks/exhaustive-deps
+    tournament.state.isRunning,       // start / pause
+    tournament.state.currentLevel,    // level skip
+    tournament.state.targetEndTime,   // set on start, cleared on pause
+    dbTournamentId,
+    user,
+    isAnonymous,
+  ]);
+
   // Setup Socket.IO connection for real-time updates removed
 
   // Listen for director coordination sync events
