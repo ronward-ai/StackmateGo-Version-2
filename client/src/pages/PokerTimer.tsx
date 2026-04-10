@@ -254,7 +254,9 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   useEffect(() => {
     // Wrap the entire effect in a try-catch to prevent crashes
     try {
-      const isSeasonTournament = tournament?.state?.details?.type === 'season';
+      const isSeasonTournament =
+        tournament?.state?.details?.type === 'season' ||
+        (tournament?.state?.settings as any)?.isSeasonTournament === true;
 
       if (!isSeasonTournament) {
         return;

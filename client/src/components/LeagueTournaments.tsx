@@ -19,7 +19,7 @@ export default function LeagueTournaments() {
     // Group by tournament and date
     const tournaments = new Map<string, { date: string; players: typeof allResults }>();
     allResults.forEach(result => {
-      const key = `${result.id}-${result.date}`;
+      const key = `${result.tournamentId || result.id}-${result.date?.split('T')[0] ?? ''}`;
       if (!tournaments.has(key)) {
         tournaments.set(key, { date: result.date, players: [] });
       }

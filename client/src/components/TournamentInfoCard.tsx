@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -32,7 +32,7 @@ const inactiveStyle = { borderColor: 'transparent', color: 'var(--muted-foregrou
 
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state, updateTournamentDetails, updateSettings } = tournament;
-  const { league } = useLeague();
+  const { league, leaguePlayers } = useLeague();
   const { currentSeason } = useSeasons({ leagueId: league?.id });
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
@@ -60,9 +60,18 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
     tournament.updatePrizeStructure(saved.prizeStructure);
   }, [isLeagueMode, currentSeason?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const gameNumber = isLeagueMode && currentSeason
-    ? (state.players[0]?.results?.length ?? 0) + 1
-    : null;
+  // Count completed games in this season by counting unique tournamentIds across all league players
+  const completedGames = useMemo(() => {
+    if (!isLeagueMode || !currentSeason) return 0;
+    const ids = new Set<string>();
+    leaguePlayers.forEach((player: any) => {
+      (player.tournamentResults || [])
+        .filter((r: any) => r.seasonId === String(currentSeason.id))
+        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
+    });
+    return ids.size;
+  }, [isLeagueMode, currentSeason?.id, leaguePlayers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gameNumber = isLeagueMode && currentSeason ? completedGames + 1 : null;
   const totalGames = currentSeason?.numberOfGames || 12;
 
   const sym = state.settings.currency || '£';
