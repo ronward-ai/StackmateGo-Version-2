@@ -33,7 +33,11 @@ function RealTimeLeagueTable({
   const exportRef = useRef<HTMLDivElement>(null);
   const settingsData = useLeagueSettings(tournament?.ownerId);
   const leagueData = useLeague(tournament?.ownerId);
-  const leagueId = (leagueData as any)?.league?.id ?? tournament?.settings?.leagueId ?? null;
+  // 'pending' is a placeholder returned while loading — fall through to the stored leagueId in that case
+  const _rawLeagueId = (leagueData as any)?.league?.id;
+  const leagueId = (_rawLeagueId && _rawLeagueId !== 'pending')
+    ? _rawLeagueId
+    : (tournament?.settings?.leagueId ?? null);
   const { currentSeason } = useSeasons({ leagueId });
 
   // ALL hook calls complete - now safe to do any logic
@@ -61,45 +65,10 @@ function RealTimeLeagueTable({
     }
   }, [leagueSettings]);
 
-  let leagueStandings = [];
-  let totalTournaments = 0;
-
   // Get current season name from league settings, or fallback to tournament data, or default
-  const currentSeasonName = leagueSettings?.seasonSettings?.seasonName || tournament?.season?.name || 'Current Season';
+  const currentSeasonName = leagueSettings?.seasonSettings?.seasonName || currentSeason?.name || tournament?.season?.name || 'Current Season';
 
-  try {
-    // Get basic league standings first
-    leagueStandings = typeof getLeagueStandings === 'function' ? getLeagueStandings() : [];
-
-    // Debug logging for participant view
-    if (isParticipantView) {
-      console.log('🔍 Participant View - League Players:', leaguePlayers?.length || 0);
-      console.log('🔍 Participant View - League Standings:', leagueStandings?.length || 0);
-    }
-
-    // Calculate total tournaments from season-filtered players
-    if (Array.isArray(seasonFilteredPlayers) && seasonFilteredPlayers.length > 0) {
-      const tournamentIds = new Set();
-      seasonFilteredPlayers.forEach(player => {
-        if (player.tournamentResults && Array.isArray(player.tournamentResults)) {
-          player.tournamentResults.forEach((result: any) => {
-            if (result.tournamentId) {
-              tournamentIds.add(result.tournamentId);
-            } else if (result.id) {
-              tournamentIds.add(result.id);
-            }
-          });
-        }
-      });
-      totalTournaments = tournamentIds.size;
-    }
-  } catch (error) {
-    console.error('Error processing league data:', error);
-    leagueStandings = [];
-    totalTournaments = 0;
-  }
-
-  // Filter each player's results to the active season
+  // Filter each player's results to the active season — must be before any logic that uses it
   const seasonId = currentSeason?.id ? String(currentSeason.id) : null;
   const seasonFilteredPlayers = useMemo(() => {
     if (!seasonId || !Array.isArray(leaguePlayers)) return leaguePlayers;
@@ -110,6 +79,18 @@ function RealTimeLeagueTable({
       )
     }));
   }, [leaguePlayers, seasonId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Count unique tournaments in season
+  const totalTournaments = useMemo(() => {
+    const ids = new Set<string>();
+    seasonFilteredPlayers.forEach(player => {
+      (player.tournamentResults || []).forEach((r: any) => {
+        if (r.tournamentId) ids.add(String(r.tournamentId));
+        else if (r.id) ids.add(String(r.id));
+      });
+    });
+    return ids.size;
+  }, [seasonFilteredPlayers]);
 
   // Ensure we have valid standings data
   const standings = Array.isArray(leagueStandings) ? leagueStandings : [];
@@ -233,7 +214,7 @@ function RealTimeLeagueTable({
         displayPoints: player.totalPoints || totalPoints
       };
     });
-  }, [leaguePlayers]);
+  }, [seasonFilteredPlayers]);
 
   // Calculate stats for a player
   const getPlayerStat = (player: any, stat: string) => {
@@ -279,7 +260,8 @@ function RealTimeLeagueTable({
 
   // Check if we have any league data at all
   const hasAnyLeagueData = leaguePlayers && leaguePlayers.length > 0;
-  const hasAnyResults = hasAnyLeagueData && leaguePlayers.some(p => p.tournamentResults && p.tournamentResults.length > 0);
+  // Use season-filtered results so "no results yet" message is accurate for the current season
+  const hasAnyResults = hasAnyLeagueData && seasonFilteredPlayers.some(p => p.tournamentResults && p.tournamentResults.length > 0);
 
   // Simple logging for debugging
   if (isParticipantView) {

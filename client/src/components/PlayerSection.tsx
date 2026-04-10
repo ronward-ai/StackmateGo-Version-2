@@ -32,6 +32,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
   const [showAllRecent, setShowAllRecent] = useState(false);
+  const [showLeagueRoster, setShowLeagueRoster] = useState(false);
   const [recentSearchTerm, setRecentSearchTerm] = useState('');
   const [playerToRemove, setPlayerToRemove] = useState<Player | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -377,29 +378,50 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             </Button>
           </div>
 
-          {/* League Roster Quick-Add - shown in league mode */}
+          {/* League Roster Quick-Add - shown in league mode, behind toggle */}
           {isLeagueMode && leaguePlayers.length > 0 && (() => {
             const available = leaguePlayers
               .filter((lp: any) => !state.players.some(p => p.name.toLowerCase() === (lp.name || '').toLowerCase()))
               .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
-            if (available.length === 0) return null;
             return (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-blue-400">
-                  <Users className="h-3.5 w-3.5" />
-                  <span>League Roster</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {available.map((lp: any) => (
-                    <button
-                      key={lp.id}
-                      onClick={() => handleSelectName(lp.name)}
-                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/15 border border-blue-500/30 text-blue-300 hover:bg-blue-500/25 hover:text-blue-200 transition-colors"
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowLeagueRoster(v => !v)}
+                    className="text-xs text-blue-400 hover:text-blue-300 h-6 px-0 font-medium"
+                  >
+                    <Users className="h-3 w-3 mr-1" />
+                    League Roster ({available.length} available)
+                  </Button>
+                  {showLeagueRoster && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowLeagueRoster(false)}
+                      className="text-xs text-blue-400 hover:text-blue-300 h-6 px-2"
                     >
-                      {lp.name}
-                    </button>
-                  ))}
+                      Show Less
+                    </Button>
+                  )}
                 </div>
+                {showLeagueRoster && available.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {available.map((lp: any) => (
+                      <button
+                        key={lp.id}
+                        onClick={() => handleSelectName(lp.name)}
+                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/15 border border-blue-500/30 text-blue-300 hover:bg-blue-500/25 hover:text-blue-200 transition-colors"
+                      >
+                        {lp.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showLeagueRoster && available.length === 0 && (
+                  <p className="text-xs text-muted-foreground">All league players already added.</p>
+                )}
               </div>
             );
           })()}
