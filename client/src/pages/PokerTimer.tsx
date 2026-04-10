@@ -410,7 +410,17 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                 <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
                 <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
                 <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
-                <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">🔴 Live</TabsTrigger>
+                <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60" style={{ animationDuration: '1.5s', animationDelay: '0s' }} />
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-40" style={{ animationDuration: '1.5s', animationDelay: '0.5s' }} />
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-20" style={{ animationDuration: '1.5s', animationDelay: '1s' }} />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    </span>
+                    Live
+                  </span>
+                </TabsTrigger>
                 <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
               </TabsList>
               <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
