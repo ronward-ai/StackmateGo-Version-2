@@ -4,10 +4,11 @@ import { getButtonVariant, buttonCombinations } from "@/lib/buttonUtils";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { X, Zap, Download } from 'lucide-react';
+import { X, Zap, Download, Users } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { Player } from '@/types';
 import DealCalculatorDialog from './DealCalculatorDialog';
+import { useLeague } from '@/hooks/useLeague';
 
 interface RecentPlayer {
   name: string;
@@ -20,7 +21,12 @@ interface PlayerSectionProps {
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const { state, addKnockout, addPlayer, removePlayer, processRebuy, calculatePrizePool } = tournament;
+  const { leaguePlayers } = useLeague();
   const [playerName, setPlayerName] = useState('');
+
+  const isLeagueMode =
+    state.details?.type === 'season' ||
+    (state.settings as any)?.isSeasonTournament === true;
   
   const [recentPlayers, setRecentPlayers] = useState<RecentPlayer[]>([]);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -370,6 +376,33 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               <span>Add</span>
             </Button>
           </div>
+
+          {/* League Roster Quick-Add - shown in league mode */}
+          {isLeagueMode && leaguePlayers.length > 0 && (() => {
+            const available = leaguePlayers
+              .filter((lp: any) => !state.players.some(p => p.name.toLowerCase() === (lp.name || '').toLowerCase()))
+              .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+            if (available.length === 0) return null;
+            return (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-blue-400">
+                  <Users className="h-3.5 w-3.5" />
+                  <span>League Roster</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {available.map((lp: any) => (
+                    <button
+                      key={lp.id}
+                      onClick={() => handleSelectName(lp.name)}
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/15 border border-blue-500/30 text-blue-300 hover:bg-blue-500/25 hover:text-blue-200 transition-colors"
+                    >
+                      {lp.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Quick Add Recent Players - Compact View */}
           {state.settings.enableRecentPlayers && recentPlayers.length > 0 && (
