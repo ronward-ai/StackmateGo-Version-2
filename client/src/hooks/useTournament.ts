@@ -1223,23 +1223,25 @@ export function useTournament(tournamentId?: string) {
     // Preserve current settings instead of resetting to defaults
     const currentSettings = state.settings;
     const currentPrizeStructure = state.prizeStructure;
+    // Preserve league/standalone mode — only clear the per-tournament IDs
+    const preservedType = state.details?.type === 'season' ? 'season' : 'standalone';
 
-    // Reset to initial state but preserve settings
+    // Reset to initial state but preserve settings and tournament mode
     setState({
       levels: loadSavedBlindLevels(),
       players: [],
       currentLevel: 0,
       secondsLeft: loadSavedBlindLevels()[0].duration,
       isRunning: false,
-      settings: currentSettings, // Preserve current settings
+      settings: currentSettings,
       bestLosingHand: undefined,
       prizeStructure: currentPrizeStructure || loadSavedPrizeStructure(),
-      isFinalTable: false, // Reset final table flag
+      isFinalTable: false,
       details: {
-        type: 'standalone'
+        type: preservedType,
       }
     });
-  }, [state.settings, state.prizeStructure]);
+  }, [state.settings, state.prizeStructure, state.details]);
 
   // Update players with comprehensive validation and immediate broadcasting
   const updatePlayers = (newPlayers: Player[]) => {
