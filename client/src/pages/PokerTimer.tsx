@@ -408,7 +408,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                 <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
                 <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
                 <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
-                <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Tables</TabsTrigger>
+                <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
                 <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
                 <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">🔴 Live</TabsTrigger>
                 <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
