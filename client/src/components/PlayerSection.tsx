@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { getButtonVariant, buttonCombinations } from "@/lib/buttonUtils";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { X, Zap, Download, Users } from 'lucide-react';
+import { X, Download, Users } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { Player } from '@/types';
-import DealCalculatorDialog from './DealCalculatorDialog';
 import { useLeague } from '@/hooks/useLeague';
 
 interface RecentPlayer {
@@ -312,15 +310,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           Players & Rankings ({activePlayers.length})
         </h2>
         <div className="flex items-center gap-2">
-          {/* Deal Calculator */}
-          {activePlayers.length > 1 && state.prizeStructure?.manualPayouts && state.prizeStructure.manualPayouts.length > 0 && (
-            <DealCalculatorDialog 
-              players={state.players} 
-              prizePool={calculatePrizePool().netPrizePool}
-              payouts={state.prizeStructure.manualPayouts.map(p => p.percentage / 100 * calculatePrizePool().netPrizePool)}
-              currencySymbol={state.settings.currency || '$'}
-            />
-          )}
           {/* Export button - only show when tournament is finished */}
           {tournamentFinished && (
             <Button
@@ -380,8 +369,15 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
           {/* League Roster Quick-Add - shown in league mode, behind toggle */}
           {isLeagueMode && leaguePlayers.length > 0 && (() => {
+            // Deduplicate by name (Firestore may have stale duplicate docs)
+            const seen = new Set<string>();
             const available = leaguePlayers
-              .filter((lp: any) => !state.players.some(p => p.name.toLowerCase() === (lp.name || '').toLowerCase()))
+              .filter((lp: any) => {
+                const key = (lp.name || '').toLowerCase();
+                if (!key || state.players.some(p => p.name.toLowerCase() === key) || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              })
               .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
             return (
               <div className="space-y-2">

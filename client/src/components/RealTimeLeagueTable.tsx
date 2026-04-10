@@ -45,8 +45,7 @@ function RealTimeLeagueTable({
 
   // Safely destructure with fallbacks
   const {
-    leaguePlayers = [],
-    getLeagueStandings = () => []
+    leaguePlayers = []
   } = leagueData || {};
 
   const {
@@ -91,9 +90,6 @@ function RealTimeLeagueTable({
     });
     return ids.size;
   }, [seasonFilteredPlayers]);
-
-  // Ensure we have valid standings data
-  const standings = Array.isArray(leagueStandings) ? leagueStandings : [];
 
   const statLabels: {[key: string]: string} = {
     points: 'Points',
