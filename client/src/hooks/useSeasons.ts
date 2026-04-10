@@ -35,6 +35,9 @@ interface UseSeasonsOptions {
   leagueId?: string | number;
 }
 
+// Module-level — survives component mounts/unmounts, shared across all instances
+const _attemptedLeagueIds = new Set<string | number>();
+
 export function useSeasons(options: UseSeasonsOptions = {}) {
   const { leagueId } = options;
   const { settings } = useLeagueSettings();
@@ -140,17 +143,17 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   }, [settings]);
 
   // Auto-create default season for leagues that don't have any
-  // Track which leagues have had creation attempted (persists across component renders)
-  const attemptedLeagueIds = useRef(new Set<string | number>());
+  // Module-level set — shared across ALL useSeasons instances so only one
+  // component ever fires the creation, even if multiple mount simultaneously.
   useEffect(() => {
     if (
       leagueId && 
       !isLoading && 
       dbSeasons.length === 0 && 
       !createSeasonMutation.isPending && 
-      !attemptedLeagueIds.current.has(leagueId)
+      !_attemptedLeagueIds.has(leagueId)
     ) {
-      attemptedLeagueIds.current.add(leagueId);
+      _attemptedLeagueIds.add(leagueId);
       
       const now = new Date();
       const threeMonthsLater = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);

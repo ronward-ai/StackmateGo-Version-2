@@ -278,6 +278,17 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                   <DetailRow label="Used" value={totalAddons} />
                 </>
               )}
+
+              {p?.enableBounties && (
+                <>
+                  <div className="flex items-center gap-2 pt-3 pb-1">
+                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-yellow-400">Bounties</span>
+                  </div>
+                  <DetailRow label="Type" value={p.bountyType === 'progressive' ? 'Progressive (PKO)' : 'Standard'} />
+                  <DetailRow label="Bounty" value={`${sym}${p.bountyAmount || 0}`} />
+                </>
+              )}
             </div>
 
           </div>
