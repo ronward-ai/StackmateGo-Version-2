@@ -412,11 +412,11 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                 <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
                 <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">
                   <span className="flex items-center gap-1.5">
-                    <span className="relative flex items-center justify-center h-4 w-4 flex-shrink-0">
-                      <span className="radar-ring absolute inline-flex h-3 w-3 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
-                      <span className="radar-ring absolute inline-flex h-3 w-3 rounded-full bg-red-500" style={{ animationDelay: '0.65s' }} />
-                      <span className="radar-ring absolute inline-flex h-3 w-3 rounded-full bg-red-500" style={{ animationDelay: '1.3s' }} />
-                      <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                    <span className="relative flex items-center justify-center h-3.5 w-3.5 flex-shrink-0">
+                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
+                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '1s' }} />
+                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '2s' }} />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
                     </span>
                     Live
                   </span>
