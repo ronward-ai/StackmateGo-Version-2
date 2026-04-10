@@ -14,6 +14,7 @@ import {
 import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
+import { useSeasons } from '@/hooks/useSeasons';
 import html2canvas from 'html2canvas';
 
 interface RealTimeLeagueTableProps {
@@ -32,6 +33,8 @@ function RealTimeLeagueTable({
   const exportRef = useRef<HTMLDivElement>(null);
   const settingsData = useLeagueSettings(tournament?.ownerId);
   const leagueData = useLeague(tournament?.ownerId);
+  const leagueId = (leagueData as any)?.league?.id ?? tournament?.settings?.leagueId ?? null;
+  const { currentSeason } = useSeasons({ leagueId });
 
   // ALL hook calls complete - now safe to do any logic
   const isSeasonTournament = tournament?.isSeasonTournament === true || tournament?.settings?.isSeasonTournament === true;
@@ -74,16 +77,15 @@ function RealTimeLeagueTable({
       console.log('🔍 Participant View - League Standings:', leagueStandings?.length || 0);
     }
 
-    // Calculate total tournaments safely
-    if (Array.isArray(leaguePlayers) && leaguePlayers.length > 0) {
+    // Calculate total tournaments from season-filtered players
+    if (Array.isArray(seasonFilteredPlayers) && seasonFilteredPlayers.length > 0) {
       const tournamentIds = new Set();
-      leaguePlayers.forEach(player => {
+      seasonFilteredPlayers.forEach(player => {
         if (player.tournamentResults && Array.isArray(player.tournamentResults)) {
-          player.tournamentResults.forEach(result => {
+          player.tournamentResults.forEach((result: any) => {
             if (result.tournamentId) {
               tournamentIds.add(result.tournamentId);
             } else if (result.id) {
-              // Fallback to result ID if tournamentId is missing (legacy data)
               tournamentIds.add(result.id);
             }
           });
@@ -96,6 +98,18 @@ function RealTimeLeagueTable({
     leagueStandings = [];
     totalTournaments = 0;
   }
+
+  // Filter each player's results to the active season
+  const seasonId = currentSeason?.id ? String(currentSeason.id) : null;
+  const seasonFilteredPlayers = useMemo(() => {
+    if (!seasonId || !Array.isArray(leaguePlayers)) return leaguePlayers;
+    return leaguePlayers.map(player => ({
+      ...player,
+      tournamentResults: (player.tournamentResults || []).filter(
+        (r: any) => r.seasonId === seasonId
+      )
+    }));
+  }, [leaguePlayers, seasonId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ensure we have valid standings data
   const standings = Array.isArray(leagueStandings) ? leagueStandings : [];
@@ -134,9 +148,9 @@ function RealTimeLeagueTable({
     return enabledFromSettings;
   }, [leagueSettings?.statsToDisplay]);
 
-  // Calculate stats for each player
+  // Calculate stats for each player (season-filtered)
   const playersWithStats = useMemo(() => {
-    return leaguePlayers.map(player => {
+    return seasonFilteredPlayers.map(player => {
       const results = player.tournamentResults || [];
 
       // Basic stats

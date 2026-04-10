@@ -390,6 +390,17 @@ export function useLeague(overrideOwnerId?: string) {
         targetPlayer = newPlayer;
       }
 
+      // Deduplicate: skip if a result already exists for this player+tournament
+      if (tournamentId) {
+        const alreadyRecorded = cloudResults.some(r =>
+          r.leaguePlayerId === String(targetPlayer.id) && r.tournamentId === tournamentId
+        );
+        if (alreadyRecorded) {
+          console.log(`Result already recorded for ${playerName} in tournament ${tournamentId}, skipping`);
+          return;
+        }
+      }
+
       // Calculate points
       const points = calculatePointsFromSettings(position, totalPlayers);
 

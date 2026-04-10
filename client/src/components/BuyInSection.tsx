@@ -102,6 +102,8 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(3);
 
   const [allowReEntry, setAllowReEntry] = useState(false);
+  const [maxReEntries, setMaxReEntries] = useState(0);
+  const [reEntryPeriodLevels, setReEntryPeriodLevels] = useState(4);
 
   const [allowAddons, setAllowAddons] = useState(false);
   const [addonAmount, setAddonAmount] = useState(10);
@@ -135,6 +137,8 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setMaxRebuys(p.maxRebuys || 0);
     setRebuyPeriodLevels(p.rebuyPeriodLevels || 3);
     setAllowReEntry(p.allowReEntry || false);
+    setMaxReEntries(p.maxReEntries || 0);
+    setReEntryPeriodLevels(p.reEntryPeriodLevels || 4);
     setAllowAddons(p.allowAddons || false);
     setAddonAmount(p.addonAmount || 10);
     setAddonChips(p.addonChips || 10000);
@@ -167,7 +171,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         rakeType, rakePercentage, rakeAmount,
         enableBounties, bountyAmount, bountyType,
         allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-        allowReEntry,
+        allowReEntry, maxReEntries, reEntryPeriodLevels,
         allowAddons, addonAmount, addonChips, addonAvailableLevel,
         manualPayouts
       });
@@ -184,7 +188,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
             rakeType, rakePercentage, rakeAmount,
             enableBounties, bountyAmount, bountyType,
             allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-            allowReEntry,
+            allowReEntry, maxReEntries, reEntryPeriodLevels,
             allowAddons, addonAmount, addonChips, addonAvailableLevel,
             manualPayouts
           }
@@ -375,6 +379,24 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               className="h-5 w-5"
             />
           </div>
+
+          {allowReEntry && (
+            <SubSection color="blue">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Re-entry Period</Label>
+                  <NumberInput value={reEntryPeriodLevels} onChange={setReEntryPeriodLevels} suffix="lvls" min={1} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Max Re-entries</Label>
+                  <NumberInput value={maxReEntries} onChange={setMaxReEntries} placeholder="∞" />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Full buy-in cost, fresh starting stack. Max 0 = unlimited.
+              </p>
+            </SubSection>
+          )}
         </CardContent>
       </Card>
 
