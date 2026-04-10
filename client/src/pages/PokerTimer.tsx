@@ -164,7 +164,8 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
           id: docRef.id,
           name: tournamentName,
           participantCode,
-          directorCode
+          directorCode,
+          ownerId: user.id,
         });
       } catch (error) {
         console.error('Failed to create database tournament:', error);
