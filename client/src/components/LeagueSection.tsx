@@ -48,9 +48,8 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   }, [currentSeason?.id, setActiveSeasonId]);
 
   const isSeasonTournament =
-    tournament?.isSeasonTournament === true ||
-    tournament?.settings?.isSeasonTournament === true ||
-    tournament?.state?.details?.type === 'season';
+    tournament?.state?.details?.type === 'season' ||
+    (tournament?.state?.settings as any)?.isSeasonTournament === true;
 
   const handleSeasonChange = async (seasonId: string) => {
     const numericId = parseInt(seasonId);
