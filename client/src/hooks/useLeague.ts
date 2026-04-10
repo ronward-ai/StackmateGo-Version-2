@@ -365,7 +365,8 @@ export function useLeague(overrideOwnerId?: string) {
     playersEliminatedCount: number = 0,
     prizeMoney: number = 0,
     buyInAmount?: number,
-    tournamentId?: string
+    tournamentId?: string,
+    seasonId?: string
   ) => {
     try {
       const leagueId = await waitForLeague();
@@ -377,7 +378,7 @@ export function useLeague(overrideOwnerId?: string) {
       console.log(`🎯 Recording result for ${playerName}: position ${position}/${totalPlayers}`);
 
       // Find or create the player
-      let targetPlayer = leaguePlayers.find((p: any) => 
+      let targetPlayer = leaguePlayers.find((p: any) =>
         p.name.toLowerCase() === playerName.toLowerCase()
       );
 
@@ -404,7 +405,7 @@ export function useLeague(overrideOwnerId?: string) {
         tournamentDate: new Date(),
         tournamentName: 'Tournament Result',
         tournamentId,
-        seasonId: activeSeasonId
+        seasonId: seasonId ?? activeSeasonId
       });
     } catch (error) {
       console.error('❌ Error in recordResultByName:', error);
