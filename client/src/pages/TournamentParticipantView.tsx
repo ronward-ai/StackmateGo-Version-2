@@ -393,17 +393,16 @@ function TournamentParticipantView() {
       grossPrizePool += actualAddons * (tournamentData.prizeStructure?.addonAmount || buyIn);
     }
 
-    // Calculate rake — applies only to initial buy-in total, not rebuys/add-ons
+    // Rake is a per-player house fee on top of the buy-in — does NOT reduce the prize pool
     const rakePercentage = tournamentData.prizeStructure?.rakePercentage || 0;
     const rakeType = tournamentData.prizeStructure?.rakeType || 'percentage';
     const rakeAmountFixed = tournamentData.prizeStructure?.rakeAmount || 0;
-    const buyInTotal = totalPlayers * buyIn;
 
     const rakeAmount = rakeType === 'percentage'
-      ? Math.floor(buyInTotal * (rakePercentage / 100))
-      : rakeAmountFixed;
-      
-    const totalPool = Math.max(0, grossPrizePool - rakeAmount);
+      ? Math.floor(buyIn * (rakePercentage / 100)) * totalPlayers
+      : rakeAmountFixed * totalPlayers;
+
+    const totalPool = grossPrizePool;
 
     return {
       totalPlayers,
@@ -675,28 +674,16 @@ function TournamentParticipantView() {
                     return null;
                   })()}
                   <div className="border-t border-muted pt-2 mt-2">
-                    {(() => {
-                      return (
-                        <>
-                          {prizePoolData.rakeAmount > 0 && (
-                            <>
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Total Collected:</span>
-                                <span>{currencySymbol}{prizePoolData.grossPrizePool}</span>
-                              </div>
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Tournament Fee / Rake {prizePoolData.rakeType === 'percentage' ? `(${prizePoolData.rakePercentage}%)` : ''}:</span>
-                                <span>-{currencySymbol}{prizePoolData.rakeAmount}</span>
-                              </div>
-                            </>
-                          )}
-                          <div className="flex justify-between font-medium mt-1">
-                            <span>Net Prize Pool:</span>
-                            <span>{currencySymbol}{prizePoolData.totalPool}</span>
-                          </div>
-                        </>
-                      );
-                    })()}
+                    {prizePoolData.rakeAmount > 0 && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>House Fee / Rake {prizePoolData.rakeType === 'percentage' ? `(${prizePoolData.rakePercentage}% per player)` : '(per player)'}:</span>
+                        <span>{currencySymbol}{prizePoolData.rakeAmount}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium mt-1">
+                      <span>Prize Pool:</span>
+                      <span>{currencySymbol}{prizePoolData.totalPool}</span>
+                    </div>
                   </div>
 
                   {tournament.prizeStructure?.manualPayouts && tournament.prizeStructure.manualPayouts.length > 0 && (

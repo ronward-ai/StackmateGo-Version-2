@@ -238,7 +238,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
 
           <FieldRow
             label="Tournament Fee / Rake"
-            hint={rakeType === 'percentage' ? 'Deducted from prize pool' : 'Fixed amount deducted'}
+            hint={rakeType === 'percentage' ? 'House fee per player (on top of buy-in)' : 'Fixed house fee per player (on top of buy-in)'}
           >
             <div className="flex items-center gap-2">
               <Select value={rakeType} onValueChange={(v: 'percentage' | 'fixed') => setRakeType(v)}>
