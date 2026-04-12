@@ -231,6 +231,28 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     isAnonymous,
   ]);
 
+  // Directly sync prizeStructure and settings to Firestore whenever they change.
+  useEffect(() => {
+    if (!dbTournamentId || !user || isAnonymous) return;
+    const sync = async () => {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const { sanitizeForFirestore } = await import('@/lib/utils');
+      try {
+        await updateDoc(
+          doc(db, 'activeTournaments', dbTournamentId),
+          sanitizeForFirestore({
+            prizeStructure: tournament.state.prizeStructure,
+            settings: tournament.state.settings,
+          })
+        );
+      } catch (e) {
+        console.error('PrizeStructure sync to Firestore failed:', e);
+      }
+    };
+    sync();
+  }, [tournament.state.prizeStructure, tournament.state.settings, dbTournamentId, user, isAnonymous]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Setup Socket.IO connection for real-time updates removed
 
   // Listen for director coordination sync events

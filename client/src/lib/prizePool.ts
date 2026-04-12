@@ -17,13 +17,15 @@ export interface PrizePoolResult {
 }
 
 export function calculatePrizePool(inputs: PrizePoolInputs): PrizePoolResult {
+  const buyInTotal = inputs.buyIn * inputs.playerCount;
   const gross =
-    (inputs.buyIn * inputs.playerCount) +
+    buyInTotal +
     ((inputs.rebuyAmount ?? 0) * (inputs.totalRebuys ?? 0)) +
     ((inputs.addonAmount ?? 0) * (inputs.totalAddons ?? 0));
 
+  // Rake applies only to the initial buy-in total, not to rebuys or add-ons
   const rake = (inputs.rakeType ?? 'percentage') === 'percentage'
-    ? Math.floor(gross * ((inputs.rakePercentage ?? 0) / 100))
+    ? Math.floor(buyInTotal * ((inputs.rakePercentage ?? 0) / 100))
     : (inputs.rakeAmount ?? 0);
 
   return { gross, rake, net: Math.max(0, gross - rake) };

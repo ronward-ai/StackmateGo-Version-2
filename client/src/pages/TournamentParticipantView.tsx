@@ -393,13 +393,14 @@ function TournamentParticipantView() {
       grossPrizePool += actualAddons * (tournamentData.prizeStructure?.addonAmount || buyIn);
     }
 
-    // Calculate rake
+    // Calculate rake — applies only to initial buy-in total, not rebuys/add-ons
     const rakePercentage = tournamentData.prizeStructure?.rakePercentage || 0;
     const rakeType = tournamentData.prizeStructure?.rakeType || 'percentage';
     const rakeAmountFixed = tournamentData.prizeStructure?.rakeAmount || 0;
-    
-    const rakeAmount = rakeType === 'percentage' 
-      ? Math.floor(grossPrizePool * (rakePercentage / 100))
+    const buyInTotal = totalPlayers * buyIn;
+
+    const rakeAmount = rakeType === 'percentage'
+      ? Math.floor(buyInTotal * (rakePercentage / 100))
       : rakeAmountFixed;
       
     const totalPool = Math.max(0, grossPrizePool - rakeAmount);
@@ -771,6 +772,44 @@ function TournamentParticipantView() {
                         <div className="flex justify-between">
                           <span>Add-ons Used:</span>
                           <span>{tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Re-entry Information - Show when enabled */}
+                  {tournament.prizeStructure?.allowReEntry && (
+                    <div className="border-t border-muted mt-3 pt-3">
+                      <div className="font-medium mb-2">
+                        Re-entry Information:
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Re-entry Period:</span>
+                          <span>First {tournament.prizeStructure.reEntryPeriodLevels || 3} levels</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Re-entry Cost:</span>
+                          <span>{currencySymbol}{tournament.prizeStructure.buyIn || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Re-entries Used:</span>
+                          <span>{tournament.players?.reduce((sum, player) => sum + (player.reEntries || 0), 0) || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bounty Information - Show when enabled */}
+                  {tournament.prizeStructure?.enableBounties && tournament.prizeStructure?.bountyAmount > 0 && (
+                    <div className="border-t border-muted mt-3 pt-3">
+                      <div className="font-medium mb-2">
+                        Bounty Information:
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Bounty per knockout:</span>
+                          <span>{currencySymbol}{tournament.prizeStructure.bountyAmount}</span>
                         </div>
                       </div>
                     </div>
