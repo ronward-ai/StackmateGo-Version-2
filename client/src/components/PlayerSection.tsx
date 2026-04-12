@@ -741,14 +741,14 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">refresh</span>
-                <span>Re-entry ({state.players.filter(p => p.isActive === false).length})</span>
+                <span>Rebuys ({state.players.filter(p => p.isActive === false).length} out)</span>
               </h4>
               <span className="text-xs text-green-400">Available</span>
             </div>
 
             <div className="flex flex-wrap gap-2">
               {state.players.filter(p => p.isActive === false).map((player) => {
-                const canRebuy = state.prizeStructure?.allowRebuys && 
+                const canRebuy = state.prizeStructure?.allowRebuys &&
                   (player.rebuys || 0) < (state.prizeStructure?.maxRebuys || 3);
 
                 return (
@@ -757,15 +757,92 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     variant="outline"
                     size="sm"
                     disabled={!canRebuy}
-                    onClick={() => canRebuy && addKnockout(player.id)}
+                    onClick={() => canRebuy && processRebuy(player.id)}
                     className={`text-xs flex items-center gap-1 ${
-                      canRebuy 
-                        ? 'bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10' 
+                      canRebuy
+                        ? 'bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10'
                         : 'bg-gray-600 text-gray-300 cursor-not-allowed'
                     }`}
                   >
                     <span className="material-icons text-sm">refresh</span>
                     {player.name} ({player.rebuys || 0})
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Re-entry Section - Compact - Only show when re-entries are enabled */}
+        {state.prizeStructure?.allowReEntry && state.players.filter(p => p.isActive === false).length > 0 && (
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <span className="material-icons text-sm">login</span>
+                <span>Re-entries ({state.players.filter(p => p.isActive === false).length} out)</span>
+              </h4>
+              <span className="text-xs text-green-400">Available</span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {state.players.filter(p => p.isActive === false).map((player) => {
+                const maxReEntries = state.prizeStructure?.maxReEntries ?? 99;
+                const canReEnter = (player.reEntries || 0) < maxReEntries;
+
+                return (
+                  <Button
+                    key={player.id}
+                    variant="outline"
+                    size="sm"
+                    disabled={!canReEnter}
+                    onClick={() => canReEnter && tournament.processReEntry(player.id)}
+                    className={`text-xs flex items-center gap-1 ${
+                      canReEnter
+                        ? 'bg-card border border-blue-500 text-blue-400 hover:bg-blue-500/10'
+                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="material-icons text-sm">login</span>
+                    {player.name} ({player.reEntries || 0})
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Add-on Section - Compact - Only show when add-ons are enabled and level reached */}
+        {state.prizeStructure?.allowAddons &&
+          (state.currentLevel + 1) >= (state.prizeStructure?.addonAvailableLevel ?? 1) &&
+          state.players.filter(p => p.isActive !== false).length > 0 && (
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <span className="material-icons text-sm">add_circle</span>
+                <span>Add-ons (Level {state.currentLevel + 1}+)</span>
+              </h4>
+              <span className="text-xs text-green-400">Available</span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {state.players.filter(p => p.isActive !== false).map((player) => {
+                const hasAddon = (player.addons || 0) > 0;
+
+                return (
+                  <Button
+                    key={player.id}
+                    variant="outline"
+                    size="sm"
+                    disabled={hasAddon}
+                    onClick={() => !hasAddon && tournament.processAddon(player.id)}
+                    className={`text-xs flex items-center gap-1 ${
+                      !hasAddon
+                        ? 'bg-card border border-amber-500 text-amber-400 hover:bg-amber-500/10'
+                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="material-icons text-sm">add_circle</span>
+                    {player.name} {hasAddon ? '✓' : ''}
                   </Button>
                 );
               })}

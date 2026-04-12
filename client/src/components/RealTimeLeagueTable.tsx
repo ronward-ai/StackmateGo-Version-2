@@ -29,7 +29,8 @@ function RealTimeLeagueTable({
   // ALWAYS call ALL hooks first - never conditionally
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [previousRankings, setPreviousRankings] = useState<{[playerId: string]: number}>({});
+  // previousRankings is derived from data (no component state needed)
+  // computed below after seasonFilteredPlayers is defined
   const exportRef = useRef<HTMLDivElement>(null);
   const settingsData = useLeagueSettings(tournament?.ownerId);
   const leagueData = useLeague(tournament?.ownerId);
@@ -78,6 +79,52 @@ function RealTimeLeagueTable({
       )
     }));
   }, [leaguePlayers, seasonId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Derive "previous rankings" from data: rankings before the most recent tournament.
+  // This is always accurate regardless of component lifecycle / remounts.
+  const previousRankings = useMemo(() => {
+    if (!Array.isArray(seasonFilteredPlayers) || seasonFilteredPlayers.length === 0) return {};
+
+    // Find the most recent tournament identifier across all players
+    let latestDate = 0;
+    let latestId: string | null = null;
+    seasonFilteredPlayers.forEach(player => {
+      (player.tournamentResults || []).forEach((r: any) => {
+        const ts = r.tournamentDate?.seconds
+          ? r.tournamentDate.seconds
+          : (typeof r.tournamentDate === 'number' ? r.tournamentDate : 0);
+        if (ts > latestDate) {
+          latestDate = ts;
+          latestId = r.tournamentId ? String(r.tournamentId) : (r.id ? String(r.id) : null);
+        }
+      });
+    });
+
+    if (!latestId) return {};
+
+    // Compute points per player excluding the latest tournament
+    const prevStats = seasonFilteredPlayers.map(player => {
+      const prevResults = (player.tournamentResults || []).filter((r: any) => {
+        const tid = r.tournamentId ? String(r.tournamentId) : (r.id ? String(r.id) : null);
+        return tid !== latestId;
+      });
+      const totalPoints = prevResults.reduce((sum: number, r: any) => sum + (r.points || 0), 0);
+      const games = prevResults.length;
+      return { id: player.id, totalPoints, games };
+    });
+
+    // Everyone has 0 games before the latest tournament = first tournament ever, no arrows
+    if (prevStats.every(p => p.games === 0)) return {};
+
+    const sorted = [...prevStats].sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      return a.games - b.games;
+    });
+
+    const rankings: {[playerId: string]: number} = {};
+    sorted.forEach((p, i) => { rankings[p.id] = i + 1; });
+    return rankings;
+  }, [seasonFilteredPlayers]);
 
   // Count unique tournaments in season
   const totalTournaments = useMemo(() => {
@@ -306,50 +353,6 @@ function RealTimeLeagueTable({
     });
   }, [playersWithStats]);
 
-  // Update previous rankings when display order changes
-  useEffect(() => {
-    if (displayPlayers.length > 0) {
-      const currentRankings: {[playerId: string]: number} = {};
-      displayPlayers.forEach((player, index) => {
-        currentRankings[player.id] = index + 1;
-      });
-
-      // Check if this is the first time we're setting rankings
-      const isFirstTime = Object.keys(previousRankings).length === 0;
-
-      if (isFirstTime) {
-        // On first load, store current rankings without showing arrows
-        setPreviousRankings(currentRankings);
-      } else {
-        // Check if rankings have actually changed
-        const hasChanged = Object.keys(currentRankings).some(playerId =>
-          currentRankings[playerId] !== previousRankings[playerId]
-        );
-
-        if (hasChanged) {
-          // Don't update previous rankings - keep them for permanent comparison
-          console.log('🎯 Rankings changed - arrows will stay visible permanently');
-
-          // Only update previous rankings if movement arrows are disabled
-          if (!leagueSettings?.displaySettings?.showMovementArrows) {
-            setPreviousRankings(currentRankings);
-          }
-        }
-      }
-    }
-  }, [displayPlayers, leagueSettings?.displaySettings?.showMovementArrows]);
-
-  // Clear movement arrows when the toggle is disabled
-  useEffect(() => {
-    if (!leagueSettings?.displaySettings?.showMovementArrows) {
-      const currentRankings: {[playerId: string]: number} = {};
-      displayPlayers.forEach((player, index) => {
-        currentRankings[player.id] = index + 1;
-      });
-      setPreviousRankings(currentRankings);
-      console.log('🎯 Movement arrows disabled - clearing arrow indicators');
-    }
-  }, [leagueSettings?.displaySettings?.showMovementArrows]);
 
   const handleExportImage = async () => {
     if (!exportRef.current) return;
