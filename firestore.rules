@@ -123,9 +123,9 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Leagues — registered users only (not anonymous)
+    // Leagues — any authenticated user can read (incl. anonymous QR-scan participants)
     match /leagues/{leagueId} {
-      allow read: if isRegistered();
+      allow read: if isAuthenticated();
       allow create: if isRegistered() && isDocOwner()
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
@@ -146,9 +146,9 @@ service cloud.firestore {
       allow delete: if isRegistered();
     }
 
-    // Seasons — registered users only
+    // Seasons — any authenticated user can read (participants need to resolve current season)
     match /seasons/{seasonId} {
-      allow read: if isRegistered();
+      allow read: if isAuthenticated();
       allow create: if isRegistered();
       allow update: if isRegistered();
       allow delete: if isRegistered();
@@ -164,9 +164,9 @@ service cloud.firestore {
       allow delete: if isRegistered();
     }
 
-    // Tournament Results
+    // Tournament Results — any authenticated user can read (participants see live standings)
     match /tournamentResults/{resultId} {
-      allow read: if isRegistered();
+      allow read: if isAuthenticated();
       allow create: if isRegistered();
       allow update: if isRegistered();
       allow delete: if isRegistered();

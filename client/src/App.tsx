@@ -3,6 +3,7 @@ import { Route, Switch, useLocation } from 'wouter';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { Toaster } from '@/components/ui/toaster';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Import components directly without lazy loading
 import PokerTimer from './pages/PokerTimer';
@@ -33,17 +34,19 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-background">
-        <Switch>
-          <Route path="/" component={PokerTimer} />
-          <Route path="/tournament" component={PokerTimer} />
-          <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
-          <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
-          <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
-          <Route path="/tournament/:tournamentId/participant" component={TournamentParticipant} />
-          <Route path="/tournament/:tournamentId/participant-view" component={TournamentParticipantView} />
-          <Route path="/tournament-participant" component={TournamentParticipant} />
-          <Route component={NotFoundPage} />
-        </Switch>
+        <ErrorBoundary>
+          <Switch>
+            <Route path="/" component={PokerTimer} />
+            <Route path="/tournament" component={PokerTimer} />
+            <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
+            <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
+            <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
+            <Route path="/tournament/:tournamentId/participant" component={TournamentParticipant} />
+            <Route path="/tournament/:tournamentId/participant-view" component={TournamentParticipantView} />
+            <Route path="/tournament-participant" component={TournamentParticipant} />
+            <Route component={NotFoundPage} />
+          </Switch>
+        </ErrorBoundary>
         <Toaster />
       </div>
     </QueryClientProvider>
