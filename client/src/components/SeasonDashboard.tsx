@@ -35,13 +35,12 @@ import {
   CalendarIcon,
   DollarSign,
   Award,
-  Activity,
   Plus,
   CheckCircle,
   Archive,
   BarChart2
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 
@@ -99,40 +98,6 @@ export default function SeasonDashboard() {
     };
   }, [currentSeasonPlayers, currentSeason]);
 
-  // Recent tournaments derived from filtered results
-  const recentTournaments = useMemo(() => {
-    const tournamentMap = new Map<string | number, {
-      id: string | number;
-      date: string;
-      playerCount: number;
-      winner: string;
-      prizePool: number;
-    }>();
-
-    currentSeasonPlayers.forEach(player => {
-      player.tournamentResults.forEach(result => {
-        if (!result.tournamentId) return;
-        if (!tournamentMap.has(result.tournamentId)) {
-          tournamentMap.set(result.tournamentId, {
-            id: result.tournamentId,
-            date: result.date,
-            playerCount: 0,
-            winner: '',
-            prizePool: 0
-          });
-        }
-        const tournament = tournamentMap.get(result.tournamentId)!;
-        tournament.playerCount++;
-        tournament.prizePool += result.cashWon || 0;
-        if (result.position === 1) tournament.winner = player.name;
-      });
-    });
-
-    return Array.from(tournamentMap.values())
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-  }, [currentSeasonPlayers]);
-
   // Top performers for current season
   const topPerformers = useMemo(() => {
     return [...currentSeasonPlayers]
@@ -149,43 +114,6 @@ export default function SeasonDashboard() {
         const cashWon = player.tournamentResults.reduce((s, r) => s + (r.cashWon || 0), 0);
         return { ...player, rank: index + 1, seasonPoints, wins, cashWon };
       });
-  }, [currentSeasonPlayers]);
-
-  // Recent activity feed
-  const recentActivity = useMemo(() => {
-    const activities: Array<{
-      id: string;
-      type: 'win' | 'podium';
-      playerName: string;
-      description: string;
-      date: string;
-    }> = [];
-
-    currentSeasonPlayers.forEach(player => {
-      player.tournamentResults.forEach(result => {
-        if (result.position === 1) {
-          activities.push({
-            id: `${player.id}-${result.tournamentId}`,
-            type: 'win',
-            playerName: player.name,
-            description: 'won a tournament',
-            date: result.date
-          });
-        } else if (result.position <= 3) {
-          activities.push({
-            id: `${player.id}-${result.tournamentId}`,
-            type: 'podium',
-            playerName: player.name,
-            description: `finished ${result.position === 2 ? '2nd' : '3rd'}`,
-            date: result.date
-          });
-        }
-      });
-    });
-
-    return activities
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 10);
   }, [currentSeasonPlayers]);
 
   const handleCreateSeason = async () => {
@@ -481,96 +409,6 @@ export default function SeasonDashboard() {
             </Card>
           )}
         </div>
-      </div>
-
-      {/* Recent Tournaments */}
-      <div>
-        <div className="flex items-center mb-4">
-          <Target className="h-5 w-5 mr-2 text-primary" />
-          <h3 className="text-xl font-semibold">Recent Tournaments</h3>
-        </div>
-        <Card>
-          <CardContent className="p-0">
-            {recentTournaments.length > 0 ? (
-              <div className="divide-y">
-                {recentTournaments.map((tournament) => (
-                  <div key={tournament.id} className="p-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-medium">
-                            {new Date(tournament.date).toLocaleDateString('en-GB', {
-                              day: 'numeric', month: 'short', year: 'numeric'
-                            })}
-                          </p>
-                          <Badge variant="outline" className="text-xs">
-                            {tournament.playerCount} players
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Winner: <span className="text-foreground font-medium">{tournament.winner || 'Unknown'}</span>
-                        </p>
-                      </div>
-                      {tournament.prizePool > 0 && (
-                        <div className="text-right">
-                          <p className="font-mono font-bold text-lg">£{tournament.prizePool}</p>
-                          <p className="text-xs text-muted-foreground">Prize Pool</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p>No tournaments recorded for {currentSeason.name} yet</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity Feed */}
-      <div>
-        <div className="flex items-center mb-4">
-          <Activity className="h-5 w-5 mr-2 text-primary" />
-          <h3 className="text-xl font-semibold">Recent Activity</h3>
-        </div>
-        <Card>
-          <CardContent className="p-0">
-            {recentActivity.length > 0 ? (
-              <div className="divide-y">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      activity.type === 'win' ? 'bg-yellow-500/20' : 'bg-primary/20'
-                    }`}>
-                      {activity.type === 'win'
-                        ? <Trophy className="h-4 w-4 text-yellow-500" />
-                        : <Award className="h-4 w-4 text-primary" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm">
-                        <span className="font-medium">{activity.playerName}</span>{' '}
-                        {activity.description}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(activity.date), { addSuffix: true })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">
-                <Activity className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p>No activity for {currentSeason.name} yet</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* All Seasons Summary */}

@@ -197,6 +197,52 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
 
 
+  // Randomly assign seats to all currently unseated active players at once
+  const seatAllPlayers = () => {
+    const { updatePlayers } = tournament;
+    const currentPlayers = [...state.players];
+    const tables = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
+    const { numberOfTables, seatsPerTable } = tables;
+
+    // Build set of already-occupied seats
+    const occupiedSeats = new Set<string>();
+    currentPlayers.forEach(p => {
+      if (p.seated && p.tableAssignment) {
+        occupiedSeats.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
+      }
+    });
+
+    // Collect all available seats
+    const availableSeats: { tableIndex: number; seatIndex: number }[] = [];
+    for (let t = 0; t < numberOfTables; t++) {
+      for (let s = 0; s < seatsPerTable; s++) {
+        if (!occupiedSeats.has(`${t}-${s}`)) {
+          availableSeats.push({ tableIndex: t, seatIndex: s });
+        }
+      }
+    }
+
+    // Fisher-Yates shuffle of available seats
+    for (let i = availableSeats.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [availableSeats[i], availableSeats[j]] = [availableSeats[j], availableSeats[i]];
+    }
+
+    // Assign shuffled seats to unseated active players
+    const unseated = currentPlayers.filter(p => p.isActive !== false && !p.seated);
+    const assignments = new Map<string, { tableIndex: number; seatIndex: number }>();
+    unseated.forEach((player, i) => {
+      if (i < availableSeats.length) assignments.set(player.id, availableSeats[i]);
+    });
+
+    const updatedPlayers = currentPlayers.map(p => {
+      const seat = assignments.get(p.id);
+      return seat ? { ...p, seated: true, tableAssignment: seat } : p;
+    });
+
+    updatePlayers(updatedPlayers);
+  };
+
   // Function to seat a single player using the tournament's seating system
   const seatSinglePlayer = (player: Player) => {
     // Import the seating function from TablesSection or create a simplified version
@@ -310,6 +356,17 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           Players & Rankings ({activePlayers.length})
         </h2>
         <div className="flex items-center gap-2">
+          {/* Seat All — randomly assign seats to all unseated active players */}
+          {state.players.some(p => p.isActive !== false && !p.seated) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={seatAllPlayers}
+              className="h-8 px-2 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+            >
+              Seat Players
+            </Button>
+          )}
           {/* Export button - only show when tournament is finished */}
           {tournamentFinished && (
             <Button
