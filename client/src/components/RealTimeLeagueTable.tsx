@@ -399,7 +399,18 @@ function RealTimeLeagueTable({
         allowTaint: false,
         height: exportRef.current.scrollHeight,
         windowWidth: exportRef.current.scrollWidth,
-        windowHeight: exportRef.current.scrollHeight
+        windowHeight: exportRef.current.scrollHeight,
+        onclone: (_doc: Document, el: HTMLElement) => {
+          // Strip Material Icons spans (unrenderable without the CDN font)
+          el.querySelectorAll('.material-icons, .material-icons-outlined').forEach(icon => icon.remove());
+          // Strip Lucide SVG icons (decorative only — they render as broken glyphs)
+          el.querySelectorAll('svg').forEach(svg => {
+            // Only remove icons that are standalone decorative SVGs (no meaningful text sibling)
+            if (!svg.closest('button') && !svg.closest('[role="img"]')) svg.remove();
+          });
+          // Strip export button itself so it doesn't appear in the image
+          el.querySelectorAll('button').forEach(btn => btn.remove());
+        }
       } as any);
 
       // Restore original styles

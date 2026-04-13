@@ -336,7 +336,17 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         backgroundColor: '#1e1e1e',
         scale: 2,
         useCORS: true,
-        allowTaint: false
+        allowTaint: false,
+        onclone: (_doc: Document, el: HTMLElement) => {
+          // Strip Material Icons spans (unrenderable without the CDN font)
+          el.querySelectorAll('.material-icons, .material-icons-outlined').forEach(icon => icon.remove());
+          // Strip Lucide SVG icons (decorative only — they render as broken glyphs)
+          el.querySelectorAll('svg').forEach(svg => {
+            if (!svg.closest('button') && !svg.closest('[role="img"]')) svg.remove();
+          });
+          // Strip action buttons so they don't appear in the exported image
+          el.querySelectorAll('button').forEach(btn => btn.remove());
+        }
       } as any);
 
       const link = document.createElement('a');
