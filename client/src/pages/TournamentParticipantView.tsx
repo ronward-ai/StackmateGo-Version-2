@@ -891,10 +891,13 @@ function TournamentParticipantView() {
           <TablesSectionReadOnly tournament={tournamentForComponents} />
         </div>
 
-        {/* Real-Time League Table */}
-        <div className="mb-6">
-          <RealTimeLeagueTable tournament={tournament} isParticipantView={true} />
-        </div>
+        {/* Real-Time League Table — only rendered after Firebase auth is confirmed so
+            Firestore queries have valid credentials when they fire */}
+        {isAuthenticated && (
+          <div className="mb-6">
+            <RealTimeLeagueTable tournament={tournament} isParticipantView={true} />
+          </div>
+        )}
 
         {/* Tournament Notes Section */}
         {(() => {

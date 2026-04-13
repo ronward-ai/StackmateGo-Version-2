@@ -69,14 +69,16 @@ function RealTimeLeagueTable({
   // Get current season name from league settings, or fallback to tournament data, or default
   const currentSeasonName = leagueSettings?.seasonSettings?.seasonName || currentSeason?.name || tournament?.season?.name || 'Current Season';
 
-  // Filter each player's results to the active season — must be before any logic that uses it
+  // Filter each player's results to the active season — must be before any logic that uses it.
+  // Results with no seasonId (null/undefined) are treated as belonging to the current season
+  // for backward compatibility with data recorded before season tracking was added.
   const seasonId = currentSeason?.id ? String(currentSeason.id) : null;
   const seasonFilteredPlayers = useMemo(() => {
     if (!seasonId || !Array.isArray(leaguePlayers)) return leaguePlayers;
     return leaguePlayers.map(player => ({
       ...player,
       tournamentResults: (player.tournamentResults || []).filter(
-        (r: any) => r.seasonId === seasonId
+        (r: any) => !r.seasonId || r.seasonId === seasonId
       )
     }));
   }, [leaguePlayers, seasonId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -445,8 +447,8 @@ function RealTimeLeagueTable({
     return <div style={{ display: 'none' }} />;
   }
 
-  // Show loading spinner while data is being fetched (especially important in participant view)
-  if (leagueDataLoading && !hasAnyLeagueData) {
+  // Show loading spinner while data is being fetched
+  if (leagueDataLoading) {
     return (
       <Card>
         <CardHeader>
@@ -466,8 +468,6 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyLeagueData) {
-    // In participant view, don't show anything if there's no league data
-    if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
         <CardHeader>
@@ -490,25 +490,6 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyResults) {
-    // In participant view, show a minimal message
-    if (isParticipantView) {
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="mr-3 h-5 w-5 text-orange-500" />
-              League Standings - {currentSeasonName}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-6 text-muted-foreground">
-              <Trophy className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm font-medium">Season results will appear here once recorded.</p>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
     return (
       <Card>
         <CardHeader>
