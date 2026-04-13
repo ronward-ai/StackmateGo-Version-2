@@ -334,10 +334,29 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     try {
       const el = exportRef.current;
 
-      // Temporarily expand overflow so html2canvas sees the full height
-      const originalOverflow = el.style.overflow;
+      // Walk up the DOM removing all overflow/height restrictions so
+      // html2canvas can see the full scrollable content
+      const restored: { node: HTMLElement; overflow: string; maxHeight: string; height: string }[] = [];
+      let node: HTMLElement | null = el;
+      while (node && node !== document.body) {
+        const s = node.style;
+        if (s.overflow || s.maxHeight || s.height) {
+          restored.push({ node, overflow: s.overflow, maxHeight: s.maxHeight, height: s.height });
+        }
+        // Also check computed style for CSS-set overflow
+        const computed = window.getComputedStyle(node);
+        if (computed.overflow === 'hidden' || computed.overflowY === 'hidden') {
+          restored.push({ node, overflow: s.overflow, maxHeight: s.maxHeight, height: s.height });
+          s.overflow = 'visible';
+          s.maxHeight = 'none';
+        }
+        node = node.parentElement;
+      }
       el.style.overflow = 'visible';
-      await new Promise(resolve => setTimeout(resolve, 50));
+      el.style.height = 'auto';
+
+      // Let layout settle
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const canvas = await html2canvas(el, {
         backgroundColor: '#1e1e1e',
@@ -345,32 +364,37 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         useCORS: true,
         allowTaint: false,
         height: el.scrollHeight,
-        windowWidth: el.scrollWidth,
+        windowWidth: Math.max(el.scrollWidth, 800),
         windowHeight: el.scrollHeight,
         onclone: (_doc: Document, clone: HTMLElement) => {
-          // Strip Material Icons spans (unrenderable without the CDN font)
-          clone.querySelectorAll('.material-icons, .material-icons-outlined').forEach(icon => icon.remove());
+          // Strip Material Icons font spans (render as boxes without CDN font)
+          clone.querySelectorAll('.material-icons, .material-icons-outlined').forEach(n => n.remove());
           // Strip decorative Lucide SVGs
           clone.querySelectorAll('svg').forEach(svg => {
-            if (!svg.closest('button') && !svg.closest('[role="img"]')) svg.remove();
+            if (!svg.closest('[role="img"]')) svg.remove();
           });
-          // Strip action buttons (KO, Re-buy, Re-enter, Seat, Remove)
-          clone.querySelectorAll('button').forEach(btn => btn.remove());
-          // Strip rebuy / re-entry / add-on action panels (results-only export)
-          clone.querySelectorAll('[data-export-hide]').forEach(panel => panel.remove());
+          // Strip all buttons
+          clone.querySelectorAll('button').forEach(n => n.remove());
+          // Strip action panels marked with the export-hide class
+          clone.querySelectorAll('.export-hide').forEach(n => n.remove());
         }
       } as any);
 
-      el.style.overflow = originalOverflow;
+      // Restore DOM
+      restored.forEach(({ node, overflow, maxHeight, height }) => {
+        node.style.overflow = overflow;
+        node.style.maxHeight = maxHeight;
+        node.style.height = height;
+      });
 
       const link = document.createElement('a');
-      const tournamentName = 'tournament';
       const date = new Date().toISOString().split('T')[0];
-      link.download = `${tournamentName}-players-rankings-${date}.png`;
+      link.download = `tournament-results-${date}.png`;
       link.href = canvas.toDataURL();
       link.click();
     } catch (error) {
       console.error('Error exporting players & rankings:', error);
+      setIsExporting(false);
     } finally {
       setIsExporting(false);
     }
@@ -414,7 +438,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
       <div className="pt-4 space-y-4" ref={exportRef}>
         {/* Add Player Section - Mobile Optimized */}
-        <div data-export-hide className="space-y-3">
+        <div className="space-y-3 export-hide">
           <div className="flex gap-2">
             <div className="flex-1 relative" ref={autocompleteRef}>
               <Input
@@ -564,7 +588,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Seat Players — centred above player list, visible while unseated players exist */}
         {activePlayers.length > 0 && (
-          <div data-export-hide className="flex justify-center">
+          <div className="flex justify-center export-hide">
             <Button
               variant="outline"
               size="sm"
@@ -857,7 +881,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Rebuy Section - Compact - Only show when rebuys are enabled */}
         {state.prizeStructure?.allowRebuys && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div data-export-hide className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">refresh</span>
@@ -895,7 +919,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Re-entry Section - Compact - Only show when re-entries are enabled */}
         {state.prizeStructure?.allowReEntry && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div data-export-hide className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">login</span>
@@ -935,7 +959,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         {state.prizeStructure?.allowAddons &&
           (state.currentLevel + 1) >= (state.prizeStructure?.addonAvailableLevel ?? 1) &&
           state.players.filter(p => p.isActive !== false).length > 0 && (
-          <div data-export-hide className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">add_circle</span>
