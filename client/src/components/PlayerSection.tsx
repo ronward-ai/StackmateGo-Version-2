@@ -214,58 +214,47 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   };
 
 
-
-  // Seat players button logic:
-  // - Fresh seating (nobody seated yet): assign seats 1-N in a random order, balanced across tables
-  // - 1 late joiner: give them the next sequential seat (N+1)
-  // - Multiple late joiners: assign them random seats from the next available positions
-  // Round-robin across tables ensures balanced distribution.
+  // Seat Players — reseats ALL active players from scratch each time.
+  // Uses the minimum number of tables needed so no table exceeds seatsPerTable.
+  // e.g. 6 players, 8-seat tables → 1 table (all together)
+  //      10 players, 8-seat tables → 2 tables (5 + 5)
+  //      18 players, 8-seat tables → 3 tables (6 + 6 + 6)
   const seatAllPlayers = () => {
     const { updatePlayers } = tournament;
     const currentPlayers = [...state.players];
     const tables = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
-    const { numberOfTables } = tables;
+    const { numberOfTables, seatsPerTable = 9 } = tables;
 
-    const activeUnseated = currentPlayers.filter(p => p.isActive !== false && !p.seated);
-    const activeSeated   = currentPlayers.filter(p => p.isActive !== false && p.seated);
+    const activePlayers = currentPlayers.filter(p => p.isActive !== false);
+    if (activePlayers.length === 0) return;
 
-    if (activeUnseated.length === 0) return;
+    const totalN = activePlayers.length;
 
-    // Map a logical seat index (0-based) to a physical table+seat using round-robin
-    // so players are spread evenly: 0→T0S0, 1→T1S0, 2→T0S1, 3→T1S1, …
-    const toPhysical = (idx: number) => ({
-      tableIndex: idx % numberOfTables,
-      seatIndex:  Math.floor(idx / numberOfTables),
-    });
+    // Minimum tables needed so no table exceeds seatsPerTable, capped at configured tables
+    const tablesNeeded = Math.min(Math.max(1, Math.ceil(totalN / seatsPerTable)), numberOfTables);
+    const base  = Math.floor(totalN / tablesNeeded);
+    const extra = totalN % tablesNeeded; // first 'extra' tables get base+1 players
 
-    const seatedCount = activeSeated.length;
-    const newCount    = activeUnseated.length;
-
-    let slots: { tableIndex: number; seatIndex: number }[];
-
-    if (seatedCount === 0) {
-      // Fresh: seats 0..N-1, shuffled
-      slots = Array.from({ length: newCount }, (_, i) => toPhysical(i));
-      for (let i = slots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slots[i], slots[j]] = [slots[j], slots[i]];
-      }
-    } else if (newCount === 1) {
-      // Single late joiner → next sequential seat
-      slots = [toPhysical(seatedCount)];
-    } else {
-      // Multiple late joiners → random order from next available positions
-      slots = Array.from({ length: newCount }, (_, i) => toPhysical(seatedCount + i));
-      for (let i = slots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slots[i], slots[j]] = [slots[j], slots[i]];
+    // Build seat list distributed evenly across tablesNeeded tables
+    const seats: { tableIndex: number; seatIndex: number }[] = [];
+    for (let t = 0; t < tablesNeeded; t++) {
+      const count = t < extra ? base + 1 : base;
+      for (let s = 0; s < count; s++) {
+        seats.push({ tableIndex: t, seatIndex: s });
       }
     }
 
+    // Fisher-Yates shuffle for random assignment
+    for (let i = seats.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [seats[i], seats[j]] = [seats[j], seats[i]];
+    }
+
+    // Reseat all active players; leave eliminated players untouched
     const updatedPlayers = currentPlayers.map(p => {
-      const idx = activeUnseated.findIndex(u => u.id === p.id);
-      if (idx !== -1) return { ...p, seated: true, tableAssignment: slots[idx] };
-      return p;
+      if (p.isActive === false) return p;
+      const idx = activePlayers.findIndex(a => a.id === p.id);
+      return idx !== -1 ? { ...p, seated: true, tableAssignment: seats[idx] } : p;
     });
 
     updatePlayers(updatedPlayers);
