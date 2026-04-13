@@ -98,7 +98,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   // Table balance check
   useEffect(() => {
-    if (isFinalTableDialogOpen || shouldPromptForFinalTable()) return;
+    if (isFinalTableDialogOpen || moveMode || tableBalanceDialogOpen || shouldPromptForFinalTable()) return;
     const seated = state.players.filter(p => p.seated && p.isActive !== false);
     if (seated.length < 2) return;
     const byTable: Record<number, Player[]> = {};
@@ -116,7 +116,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       setBalanceOptions({ overloadedTable: max.idx, underloadedTable: min.idx, playersToMove: max.players });
       setTableBalanceDialogOpen(true);
     }
-  }, [state.players, isFinalTableDialogOpen]);
+  }, [state.players, isFinalTableDialogOpen, moveMode, tableBalanceDialogOpen]);
 
   const expandTableNames = (n: number) => {
     setTableNames(prev => n > prev.length
