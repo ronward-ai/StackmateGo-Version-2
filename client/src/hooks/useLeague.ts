@@ -42,7 +42,7 @@ export interface LeaguePlayer {
 const DEFAULT_LEAGUE_NAME = 'Main League';
 
 export function useLeague(overrideOwnerId?: string) {
-  const { user, isAnonymous } = useAuth();
+  const { user, isAnonymous, isAuthenticated: isUserAuthenticated } = useAuth();
   const { calculatePoints: calculatePointsFromSettings } = useLeagueSettings(overrideOwnerId);
   const queryClient = useQueryClient();
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
@@ -52,7 +52,8 @@ export function useLeague(overrideOwnerId?: string) {
 
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
 
-  // Fetch user's leagues first
+  // Fetch user's leagues first — wait for Firebase auth to complete before querying
+  // (anonymous participants must be signed in before Firestore rules allow the read)
   const { data: userLeagues = [], isLoading: leaguesLoading } = useQuery<any[]>({
     queryKey: ['leagues', targetOwnerId],
     queryFn: async () => {
@@ -62,7 +63,7 @@ export function useLeague(overrideOwnerId?: string) {
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
     staleTime: 30000, // Cache for 30 seconds
-    enabled: !!targetOwnerId
+    enabled: !!targetOwnerId && isUserAuthenticated
   });
 
   // Get current league (first one or null)
