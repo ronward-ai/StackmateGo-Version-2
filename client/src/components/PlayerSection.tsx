@@ -198,55 +198,83 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
 
   // Seat players button logic:
-  // - Fresh seating (nobody seated yet): assign seats 1-N in a random order, balanced across tables
-  // - 1 late joiner: give them the next sequential seat (N+1)
-  // - Multiple late joiners: assign them random seats from the next available positions
-  // Round-robin across tables ensures balanced distribution.
+  // - Fresh seating: fill the minimum number of tables needed, spread evenly, then shuffle.
+  //   e.g. 10 players @ 8 seats/table → 2 tables of 5 (not 8+2).
+  // - 1 late joiner: next sequential empty seat (table order, seat order).
+  // - Multiple late joiners: random draw from all remaining empty seats.
   const seatAllPlayers = () => {
     const { updatePlayers } = tournament;
     const currentPlayers = [...state.players];
     const tables = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
-    const { numberOfTables } = tables;
+    const { numberOfTables, seatsPerTable } = tables;
 
     const activeUnseated = currentPlayers.filter(p => p.isActive !== false && !p.seated);
     const activeSeated   = currentPlayers.filter(p => p.isActive !== false && p.seated);
 
     if (activeUnseated.length === 0) return;
 
-    // Map a logical seat index (0-based) to a physical table+seat using round-robin
-    // so players are spread evenly: 0→T0S0, 1→T1S0, 2→T0S1, 3→T1S1, …
-    const toPhysical = (idx: number) => ({
-      tableIndex: idx % numberOfTables,
-      seatIndex:  Math.floor(idx / numberOfTables),
-    });
-
     const seatedCount = activeSeated.length;
     const newCount    = activeUnseated.length;
+    const totalN      = seatedCount + newCount;
 
     let slots: { tableIndex: number; seatIndex: number }[];
 
     if (seatedCount === 0) {
-      // Fresh: seats 0..N-1, shuffled
-      slots = Array.from({ length: newCount }, (_, i) => toPhysical(i));
+      // Fresh seating — use the minimum number of tables needed and distribute evenly.
+      const tablesNeeded = Math.min(Math.max(1, Math.ceil(totalN / seatsPerTable)), numberOfTables);
+      const base  = Math.floor(totalN / tablesNeeded);
+      const extra = totalN % tablesNeeded; // first 'extra' tables get one extra player
+
+      const orderedSeats: { tableIndex: number; seatIndex: number }[] = [];
+      for (let t = 0; t < tablesNeeded; t++) {
+        const count = t < extra ? base + 1 : base;
+        for (let s = 0; s < count; s++) {
+          orderedSeats.push({ tableIndex: t, seatIndex: s });
+        }
+      }
+
+      // Fisher-Yates shuffle so assignment is random
+      slots = orderedSeats;
       for (let i = slots.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [slots[i], slots[j]] = [slots[j], slots[i]];
       }
-    } else if (newCount === 1) {
-      // Single late joiner → next sequential seat
-      slots = [toPhysical(seatedCount)];
     } else {
-      // Multiple late joiners → random order from next available positions
-      slots = Array.from({ length: newCount }, (_, i) => toPhysical(seatedCount + i));
-      for (let i = slots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slots[i], slots[j]] = [slots[j], slots[i]];
+      // Late joiners — find all unoccupied physical seats in table/seat order
+      const occupiedSeats = new Set<string>();
+      currentPlayers.forEach(p => {
+        if (p.seated && p.tableAssignment) {
+          occupiedSeats.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
+        }
+      });
+
+      const available: { tableIndex: number; seatIndex: number }[] = [];
+      for (let t = 0; t < numberOfTables; t++) {
+        for (let s = 0; s < seatsPerTable; s++) {
+          if (!occupiedSeats.has(`${t}-${s}`)) {
+            available.push({ tableIndex: t, seatIndex: s });
+          }
+        }
+      }
+
+      if (newCount === 1) {
+        // Single late joiner → next sequential empty seat
+        slots = available.slice(0, 1);
+      } else {
+        // Multiple late joiners → random draw from empty seats
+        for (let i = available.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [available[i], available[j]] = [available[j], available[i]];
+        }
+        slots = available.slice(0, newCount);
       }
     }
 
     const updatedPlayers = currentPlayers.map(p => {
       const idx = activeUnseated.findIndex(u => u.id === p.id);
-      if (idx !== -1) return { ...p, seated: true, tableAssignment: slots[idx] };
+      if (idx !== -1 && idx < slots.length) {
+        return { ...p, seated: true, tableAssignment: slots[idx] };
+      }
       return p;
     });
 
