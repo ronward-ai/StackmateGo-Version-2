@@ -3,10 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, Download, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import { Player } from '@/types';
 import { useLeague } from '@/hooks/useLeague';
+import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 
 interface RecentPlayer {
   name: string;
@@ -18,14 +21,20 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy, calculatePrizePool } = tournament;
+  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, calculatePrizePool } = tournament;
   const { leaguePlayers } = useLeague();
+  const { calculatePoints } = useLeagueSettings((state.details as any)?.ownerId);
   const [playerName, setPlayerName] = useState('');
 
   const isLeagueMode =
     state.details?.type === 'season' ||
     (state.settings as any)?.isSeasonTournament === true;
-  
+
+  // KO dialog state
+  const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
+  const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
+  const [hitmanId, setHitmanId] = useState<string | null>(null);
+
   const [recentPlayers, setRecentPlayers] = useState<RecentPlayer[]>([]);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
@@ -195,6 +204,15 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     }
   };
 
+  const handleBustOut = () => {
+    if (!playerToBustOut || !hitmanId) return;
+    eliminatePlayer(playerToBustOut.id, hitmanId);
+    setTimeout(() => addKnockout(hitmanId), 100);
+    setBustOutDialogOpen(false);
+    setPlayerToBustOut(null);
+    setHitmanId(null);
+  };
+
 
 
   // Seat players button logic:
@@ -322,23 +340,128 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     }
   };
 
-  // Handle export image functionality
+  // Handle export image functionality — builds a fresh off-screen DOM from
+  // state data so no scroll-container clipping can affect the output.
   const handleExportImage = async () => {
-    if (!exportRef.current) return;
-
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(exportRef.current, {
+      const sym = state.settings.currency || '£';
+      const ps = state.prizeStructure;
+      const buyIn = ps?.buyIn || 0;
+      const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
+      const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
+      const gross = (buyIn * state.players.length)
+        + ((ps?.rebuyAmount || 0) * totalRebuys)
+        + ((ps?.addonAmount || 0) * totalAddons);
+      const rake = (ps?.rakeType || 'percentage') === 'percentage'
+        ? Math.floor(buyIn * ((ps?.rakePercentage || 0) / 100)) * state.players.length
+        : (ps?.rakeAmount || 0) * state.players.length;
+      const prizePool = Math.max(0, gross - rake);
+
+      const sorted = [...state.players].sort((a, b) => {
+        if (a.isActive !== false && b.isActive === false) return -1;
+        if (a.isActive === false && b.isActive !== false) return 1;
+        return (a.position || 999) - (b.position || 999);
+      });
+
+      // Build off-screen container — no overflow, no height limits
+      const wrap = document.createElement('div');
+      wrap.style.cssText = [
+        'position:fixed', 'left:-9999px', 'top:0',
+        'width:700px', 'background:#1e1e1e',
+        'padding:20px', 'font-family:system-ui,sans-serif',
+        'box-sizing:border-box'
+      ].join(';');
+
+      sorted.forEach(player => {
+        const pos = player.position || 0;
+        const rankText = pos === 1 ? '1st' : pos === 2 ? '2nd' : pos === 3 ? '3rd'
+          : pos > 0 ? `${pos}th` : 'Active';
+        const rankBg = pos === 1 ? '#f59e0b' : pos === 2 ? '#d1d5db' : pos === 3 ? '#d97706'
+          : pos > 0 ? '#7f1d1d' : '#16a34a';
+        const rankFg = pos <= 2 ? '#000' : '#fff';
+
+        // Winnings
+        let winnings = 0;
+        if (ps?.enableBounties && ps?.bountyAmount) {
+          const kos = player.knockouts || 0;
+          winnings += pos === 1 ? (kos + 1) * ps.bountyAmount : kos * ps.bountyAmount;
+        }
+        if (pos > 0 && ps?.manualPayouts) {
+          const payout = ps.manualPayouts.find((p: any) => p.position === pos);
+          if (payout?.percentage > 0) winnings += Math.floor(prizePool * payout.percentage / 100);
+        }
+
+        const row = document.createElement('div');
+        row.style.cssText = [
+          'display:flex', 'align-items:center', 'justify-content:space-between',
+          'padding:10px 12px', 'margin-bottom:8px',
+          'background:#1a1a1a', 'border-radius:8px',
+          'border:1px solid #2a2a2a'
+        ].join(';');
+
+        // Left: rank badge + name
+        const left = document.createElement('div');
+        left.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+        const badge = document.createElement('span');
+        badge.textContent = rankText;
+        badge.style.cssText = `background:${rankBg};color:${rankFg};padding:5px 9px;border-radius:5px;font-size:13px;font-weight:700;white-space:nowrap;`;
+
+        const name = document.createElement('span');
+        name.textContent = player.name;
+        name.style.cssText = 'font-size:17px;font-weight:700;color:#fff;';
+
+        left.append(badge, name);
+
+        // Right: info badges
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;';
+
+        const addBadge = (text: string, bg: string, fg = '#fff') => {
+          const b = document.createElement('span');
+          b.textContent = text;
+          b.style.cssText = `background:${bg};color:${fg};padding:5px 9px;border-radius:5px;font-size:12px;font-weight:600;white-space:nowrap;`;
+          right.appendChild(b);
+        };
+
+        if (player.seated && player.tableAssignment)
+          addBadge(`T${player.tableAssignment.tableIndex + 1}S${player.tableAssignment.seatIndex + 1}`, '#1d4ed8', '#bfdbfe');
+        if ((player.knockouts || 0) > 0)
+          addBadge(`KO x${player.knockouts}`, '#9a3412', '#fed7aa');
+        if (player.isActive === false && player.eliminatedBy) {
+          const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
+          if (killer) addBadge(`out: ${killer.name}`, '#7f1d1d');
+        }
+        if ((player.rebuys || 0) > 0)
+          addBadge(`R x${player.rebuys}`, '#581c87', '#e9d5ff');
+        if (winnings > 0)
+          addBadge(`${sym}${winnings}`, '#14532d', '#86efac');
+        // League points
+        if (isLeagueMode && pos > 0) {
+          const pts = calculatePoints(pos, state.players.length, player.knockouts || 0, buyIn, 0, 0);
+          if (pts > 0) addBadge(`${pts} pts`, '#713f12', '#fde68a');
+        }
+
+        row.append(left, right);
+        wrap.appendChild(row);
+      });
+
+      document.body.appendChild(wrap);
+      await new Promise(resolve => setTimeout(resolve, 80));
+
+      const canvas = await html2canvas(wrap, {
         backgroundColor: '#1e1e1e',
         scale: 2,
         useCORS: true,
-        allowTaint: false
+        allowTaint: false,
       } as any);
 
+      document.body.removeChild(wrap);
+
       const link = document.createElement('a');
-      const tournamentName = 'tournament';
       const date = new Date().toISOString().split('T')[0];
-      link.download = `${tournamentName}-players-rankings-${date}.png`;
+      link.download = `tournament-results-${date}.png`;
       link.href = canvas.toDataURL();
       link.click();
     } catch (error) {
@@ -386,7 +509,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
       <div className="pt-4 space-y-4" ref={exportRef}>
         {/* Add Player Section - Mobile Optimized */}
-        <div className="space-y-3">
+        <div className="space-y-3 export-hide">
           <div className="flex gap-2">
             <div className="flex-1 relative" ref={autocompleteRef}>
               <Input
@@ -535,15 +658,17 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         </div>
 
         {/* Seat Players — centred above player list, visible while unseated players exist */}
-        {state.players.some(p => p.isActive !== false && !p.seated) && (
-          <div className="flex justify-center">
+        {activePlayers.length > 0 && (
+          <div className="flex justify-center export-hide">
             <Button
               variant="outline"
               size="sm"
               onClick={seatAllPlayers}
               className="text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/10 px-4"
             >
-              Seat Players
+              {state.players.some(p => p.isActive !== false && p.seated)
+                ? 'Reseat All Players'
+                : 'Seat Players'}
             </Button>
           </div>
         )}
@@ -689,10 +814,32 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
                       {/* Eliminated By - more subtle */}
                       {player.isActive === false && player.eliminatedBy && (
-                        <span className="text-xs bg-red-600/50 text-red-200 px-2 py-1 rounded font-normal">
-                          💀 {state.players.find(p => p.id === player.eliminatedBy)?.name || 'Unknown'}
-                        </span>
+                        (() => {
+                          const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
+                          return killer ? (
+                            <span className="text-xs bg-red-600/50 text-red-200 px-2 py-1 rounded font-normal">
+                              💀 {killer.name}
+                            </span>
+                          ) : null;
+                        })()
                       )}
+
+                      {/* League Points — only when position is known in a league game */}
+                      {isLeagueMode && player.position && player.position > 0 && (() => {
+                        const pts = calculatePoints(
+                          player.position,
+                          state.players.length,
+                          player.knockouts || 0,
+                          state.prizeStructure?.buyIn || 0,
+                          0,
+                          0
+                        );
+                        return pts > 0 ? (
+                          <span className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 px-2 py-1 rounded font-semibold">
+                            {pts} pts
+                          </span>
+                        ) : null;
+                      })()}
 
                       {/* Rebuys */}
                       {(player.rebuys || 0) > 0 && (
@@ -728,6 +875,21 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                           >
                             Seat
                           </Button>
+                        )}
+
+                        {/* KO button for active players */}
+                        {player.isActive !== false && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPlayerToBustOut(player);
+                              setHitmanId(null);
+                              setBustOutDialogOpen(true);
+                            }}
+                            className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold flex-shrink-0 transition-colors"
+                          >
+                            KO
+                          </button>
                         )}
 
                         {/* Re-buy button for eliminated players (when rebuys are enabled) */}
@@ -807,7 +969,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Rebuy Section - Compact - Only show when rebuys are enabled */}
         {state.prizeStructure?.allowRebuys && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">refresh</span>
@@ -845,7 +1007,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Re-entry Section - Compact - Only show when re-entries are enabled */}
         {state.prizeStructure?.allowReEntry && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">login</span>
@@ -885,7 +1047,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         {state.prizeStructure?.allowAddons &&
           (state.currentLevel + 1) >= (state.prizeStructure?.addonAvailableLevel ?? 1) &&
           state.players.filter(p => p.isActive !== false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">add_circle</span>
@@ -920,6 +1082,42 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           </div>
         )}
       </div>
+
+      {/* Bust Out Dialog */}
+      <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Bust Out — {playerToBustOut?.name}</DialogTitle>
+            <DialogDescription>Who knocked them out?</DialogDescription>
+          </DialogHeader>
+          <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
+            {state.players
+              .filter(p => p.isActive !== false && p.id !== playerToBustOut?.id)
+              .map(player => (
+                <div
+                  key={player.id}
+                  onClick={() => setHitmanId(player.id)}
+                  className={cn(
+                    "p-3 rounded-lg border cursor-pointer transition-colors flex items-center justify-between",
+                    hitmanId === player.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:bg-muted/30"
+                  )}
+                >
+                  <span className="font-medium">{player.name}</span>
+                  <span className="text-xs text-muted-foreground">{player.knockouts || 0} KOs</span>
+                </div>
+              ))}
+            {state.players.filter(p => p.isActive !== false && p.id !== playerToBustOut?.id).length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">No other active players</p>
+            )}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setBustOutDialogOpen(false)}>Cancel</Button>
+            <Button className="flex-1" disabled={!hitmanId} onClick={handleBustOut}>Confirm KO</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

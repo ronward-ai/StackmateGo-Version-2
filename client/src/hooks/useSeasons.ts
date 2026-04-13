@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useEffect, useState, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from './useLeagueSettings';
 import { db, collections } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 
 // Season interface matching database schema
@@ -35,8 +35,6 @@ interface UseSeasonsOptions {
   leagueId?: string | number;
 }
 
-// Module-level — survives component mounts/unmounts, shared across all instances
-const _attemptedLeagueIds = new Set<string | number>();
 
 export function useSeasons(options: UseSeasonsOptions = {}) {
   const { leagueId } = options;
@@ -142,47 +140,67 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     };
   }, [settings]);
 
-  // Auto-create default season for leagues that don't have any
-  // Module-level set — shared across ALL useSeasons instances so only one
-  // component ever fires the creation, even if multiple mount simultaneously.
+  // Auto-create a default season if none exist. Uses a deterministic document ID
+  // so setDoc is idempotent — safe to call on every page load, no duplicates created.
+  const creatingRef = useRef(false);
   useEffect(() => {
-    if (
-      leagueId && 
-      !isLoading && 
-      dbSeasons.length === 0 && 
-      !createSeasonMutation.isPending && 
-      !_attemptedLeagueIds.has(leagueId)
-    ) {
-      _attemptedLeagueIds.add(leagueId);
-      
-      const now = new Date();
-      const threeMonthsLater = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-      
-      createSeasonMutation.mutate({
-        name: 'Season 1',
-        startDate: now.toISOString(),
-        endDate: threeMonthsLater.toISOString(),
-        numberOfGames: 12,
-        status: 'active'
-      });
-    }
-  }, [leagueId, isLoading, dbSeasons.length, createSeasonMutation]);
+    if (!leagueId || isLoading || dbSeasons.length > 0 || creatingRef.current) return;
+    creatingRef.current = true;
 
-  // Convert database seasons to MinimalSeason format
+    const defaultSeasonId = `${leagueId}-season-1`;
+    const now = new Date();
+    const threeMonthsLater = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+    const newSeason = sanitizeForFirestore({
+      name: 'Season 1',
+      leagueId: String(leagueId),
+      startDate: now.toISOString(),
+      endDate: threeMonthsLater.toISOString(),
+      numberOfGames: 12,
+      status: 'active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    setDoc(doc(db, 'seasons', defaultSeasonId), newSeason, { merge: true }).catch(err => {
+      console.error('Failed to create default season:', err);
+      creatingRef.current = false;
+    });
+  }, [leagueId, isLoading, dbSeasons.length]);
+
+  // Convert database seasons to MinimalSeason format, deduplicating by name
   const seasons: MinimalSeason[] = useMemo(() => {
     if (dbSeasons.length > 0) {
-      return dbSeasons.map(season => ({
-        id: season.id,
-        name: season.name,
-        startDate: season.startDate,
-        endDate: season.endDate,
-        isActive: season.status === 'active',
-        numberOfGames: season.numberOfGames,
-        settings: season.settings,
-      }));
+      const seen = new Set<string>();
+      const unique: MinimalSeason[] = [];
+      // Prefer the deterministic ID doc (e.g. "<leagueId>-season-1") by sorting it first
+      const sorted = [...dbSeasons].sort((a, b) => {
+        const aId = String(a.id);
+        const bId = String(b.id);
+        const aIsDeterministic = leagueId && aId === `${leagueId}-season-1`;
+        const bIsDeterministic = leagueId && bId === `${leagueId}-season-1`;
+        if (aIsDeterministic) return -1;
+        if (bIsDeterministic) return 1;
+        return aId.localeCompare(bId);
+      });
+      for (const season of sorted) {
+        const key = season.name.trim().toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push({
+          id: season.id,
+          name: season.name,
+          startDate: season.startDate,
+          endDate: season.endDate,
+          isActive: season.status === 'active',
+          numberOfGames: season.numberOfGames,
+          settings: season.settings,
+        });
+      }
+      return unique;
     }
     return [fallbackSeason];
-  }, [dbSeasons, fallbackSeason]);
+  }, [dbSeasons, fallbackSeason, leagueId]);
 
   // Get current active season
   const currentSeason = useMemo(() => {

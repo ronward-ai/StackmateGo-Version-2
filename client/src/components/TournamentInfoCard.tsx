@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { calculatePrizePool } from "@/lib/prizePool";
 import ChipChopCalculator from './ChipChopCalculator';
@@ -83,6 +83,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
   const rakePct = p?.rakePercentage || 0;
   const totalRebuys = state.players.reduce((s, pl) => s + (pl.rebuys || 0), 0);
   const totalAddons = state.players.reduce((s, pl) => s + (pl.addons || 0), 0);
+  const totalReEntries = state.players.reduce((s, pl) => s + (pl.reEntries || 0), 0);
 
   const { gross, rake, net: pool } = calculatePrizePool({
     buyIn, playerCount: state.players.length,
@@ -264,6 +265,18 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                   <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || 0}`} />
                   <DetailRow label="Chips" value={(p?.rebuyChips || 10000).toLocaleString()} />
                   <DetailRow label="Used" value={totalRebuys} />
+                </>
+              )}
+
+              {p?.allowReEntry && (
+                <>
+                  <div className="flex items-center gap-2 pt-3 pb-1">
+                    <LogIn className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Re-entries</span>
+                  </div>
+                  <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || buyIn}`} />
+                  {(p?.maxReEntries ?? 0) > 0 && <DetailRow label="Max per player" value={p!.maxReEntries!} />}
+                  <DetailRow label="Used" value={totalReEntries} />
                 </>
               )}
 
