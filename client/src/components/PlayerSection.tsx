@@ -356,17 +356,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           Players & Rankings ({activePlayers.length})
         </h2>
         <div className="flex items-center gap-2">
-          {/* Seat All — randomly assign seats to all unseated active players */}
-          {state.players.some(p => p.isActive !== false && !p.seated) && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={seatAllPlayers}
-              className="h-8 px-2 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
-            >
-              Seat Players
-            </Button>
-          )}
           {/* Export button - only show when tournament is finished */}
           {tournamentFinished && (
             <Button
@@ -534,6 +523,20 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             </div>
           )}
         </div>
+
+        {/* Seat Players — centred above player list, visible while unseated players exist */}
+        {state.players.some(p => p.isActive !== false && !p.seated) && (
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={seatAllPlayers}
+              className="text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/10 px-4"
+            >
+              Seat Players
+            </Button>
+          </div>
+        )}
 
         {/* Players List with Rankings - Mobile Optimized */}
         <div className="space-y-2">
