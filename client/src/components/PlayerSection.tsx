@@ -326,66 +326,119 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     }
   };
 
-  // Handle export image functionality
+  // Handle export image functionality — builds a fresh off-screen DOM from
+  // state data so no scroll-container clipping can affect the output.
   const handleExportImage = async () => {
-    if (!exportRef.current) return;
-
     setIsExporting(true);
     try {
-      const el = exportRef.current;
+      const sym = state.settings.currency || '£';
+      const ps = state.prizeStructure;
+      const buyIn = ps?.buyIn || 0;
+      const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
+      const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
+      const gross = (buyIn * state.players.length)
+        + ((ps?.rebuyAmount || 0) * totalRebuys)
+        + ((ps?.addonAmount || 0) * totalAddons);
+      const rake = (ps?.rakeType || 'percentage') === 'percentage'
+        ? Math.floor(buyIn * ((ps?.rakePercentage || 0) / 100)) * state.players.length
+        : (ps?.rakeAmount || 0) * state.players.length;
+      const prizePool = Math.max(0, gross - rake);
 
-      // Walk up the DOM removing all overflow/height restrictions so
-      // html2canvas can see the full scrollable content
-      const restored: { node: HTMLElement; overflow: string; maxHeight: string; height: string }[] = [];
-      let node: HTMLElement | null = el;
-      while (node && node !== document.body) {
-        const s = node.style;
-        if (s.overflow || s.maxHeight || s.height) {
-          restored.push({ node, overflow: s.overflow, maxHeight: s.maxHeight, height: s.height });
+      const sorted = [...state.players].sort((a, b) => {
+        if (a.isActive !== false && b.isActive === false) return -1;
+        if (a.isActive === false && b.isActive !== false) return 1;
+        return (a.position || 999) - (b.position || 999);
+      });
+
+      // Build off-screen container — no overflow, no height limits
+      const wrap = document.createElement('div');
+      wrap.style.cssText = [
+        'position:fixed', 'left:-9999px', 'top:0',
+        'width:700px', 'background:#1e1e1e',
+        'padding:20px', 'font-family:system-ui,sans-serif',
+        'box-sizing:border-box'
+      ].join(';');
+
+      sorted.forEach(player => {
+        const pos = player.position || 0;
+        const rankText = pos === 1 ? '1st' : pos === 2 ? '2nd' : pos === 3 ? '3rd'
+          : pos > 0 ? `${pos}th` : 'Active';
+        const rankBg = pos === 1 ? '#f59e0b' : pos === 2 ? '#d1d5db' : pos === 3 ? '#d97706'
+          : pos > 0 ? '#7f1d1d' : '#16a34a';
+        const rankFg = pos <= 2 ? '#000' : '#fff';
+
+        // Winnings
+        let winnings = 0;
+        if (ps?.enableBounties && ps?.bountyAmount) {
+          const kos = player.knockouts || 0;
+          winnings += pos === 1 ? (kos + 1) * ps.bountyAmount : kos * ps.bountyAmount;
         }
-        // Also check computed style for CSS-set overflow
-        const computed = window.getComputedStyle(node);
-        if (computed.overflow === 'hidden' || computed.overflowY === 'hidden') {
-          restored.push({ node, overflow: s.overflow, maxHeight: s.maxHeight, height: s.height });
-          s.overflow = 'visible';
-          s.maxHeight = 'none';
+        if (pos > 0 && ps?.manualPayouts) {
+          const payout = ps.manualPayouts.find((p: any) => p.position === pos);
+          if (payout?.percentage > 0) winnings += Math.floor(prizePool * payout.percentage / 100);
         }
-        node = node.parentElement;
-      }
-      el.style.overflow = 'visible';
-      el.style.height = 'auto';
 
-      // Let layout settle
-      await new Promise(resolve => setTimeout(resolve, 100));
+        const row = document.createElement('div');
+        row.style.cssText = [
+          'display:flex', 'align-items:center', 'justify-content:space-between',
+          'padding:10px 12px', 'margin-bottom:8px',
+          'background:#1a1a1a', 'border-radius:8px',
+          'border:1px solid #2a2a2a'
+        ].join(';');
 
-      const canvas = await html2canvas(el, {
+        // Left: rank badge + name
+        const left = document.createElement('div');
+        left.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+        const badge = document.createElement('span');
+        badge.textContent = rankText;
+        badge.style.cssText = `background:${rankBg};color:${rankFg};padding:5px 9px;border-radius:5px;font-size:13px;font-weight:700;white-space:nowrap;`;
+
+        const name = document.createElement('span');
+        name.textContent = player.name;
+        name.style.cssText = 'font-size:17px;font-weight:700;color:#fff;';
+
+        left.append(badge, name);
+
+        // Right: info badges
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;';
+
+        const addBadge = (text: string, bg: string, fg = '#fff') => {
+          const b = document.createElement('span');
+          b.textContent = text;
+          b.style.cssText = `background:${bg};color:${fg};padding:5px 9px;border-radius:5px;font-size:12px;font-weight:600;white-space:nowrap;`;
+          right.appendChild(b);
+        };
+
+        if (player.seated && player.tableAssignment)
+          addBadge(`T${player.tableAssignment.tableIndex + 1}S${player.tableAssignment.seatIndex + 1}`, '#1d4ed8', '#bfdbfe');
+        if ((player.knockouts || 0) > 0)
+          addBadge(`KO x${player.knockouts}`, '#9a3412', '#fed7aa');
+        if (player.isActive === false && player.eliminatedBy) {
+          const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
+          if (killer) addBadge(`out: ${killer.name}`, '#7f1d1d');
+        }
+        if ((player.rebuys || 0) > 0)
+          addBadge(`R x${player.rebuys}`, '#581c87', '#e9d5ff');
+        if (winnings > 0)
+          addBadge(`${sym}${winnings}`, '#14532d', '#86efac');
+
+        row.append(left, right);
+        wrap.appendChild(row);
+      });
+
+      document.body.appendChild(wrap);
+      await new Promise(resolve => setTimeout(resolve, 80));
+
+      const canvas = await html2canvas(wrap, {
         backgroundColor: '#1e1e1e',
         scale: 2,
         useCORS: true,
         allowTaint: false,
-        height: el.scrollHeight,
-        windowWidth: Math.max(el.scrollWidth, 800),
-        windowHeight: el.scrollHeight,
-        onclone: (_doc: Document, clone: HTMLElement) => {
-          // Strip Material Icons font spans (render as boxes without CDN font)
-          clone.querySelectorAll('.material-icons, .material-icons-outlined').forEach(n => n.remove());
-          // Strip decorative Lucide SVGs
-          clone.querySelectorAll('svg').forEach(svg => {
-            if (!svg.closest('[role="img"]')) svg.remove();
-          });
-          // Strip all buttons
-          clone.querySelectorAll('button').forEach(n => n.remove());
-          // Strip action panels marked with the export-hide class
-          clone.querySelectorAll('.export-hide').forEach(n => n.remove());
-        }
       } as any);
 
-      // Restore DOM
-      restored.forEach(({ node, overflow, maxHeight, height }) => {
-        node.style.overflow = overflow;
-        node.style.maxHeight = maxHeight;
-        node.style.height = height;
-      });
+      document.body.removeChild(wrap);
 
       const link = document.createElement('a');
       const date = new Date().toISOString().split('T')[0];
@@ -394,7 +447,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       link.click();
     } catch (error) {
       console.error('Error exporting players & rankings:', error);
-      setIsExporting(false);
     } finally {
       setIsExporting(false);
     }
