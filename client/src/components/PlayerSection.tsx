@@ -332,22 +332,36 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(exportRef.current, {
+      const el = exportRef.current;
+
+      // Temporarily expand overflow so html2canvas sees the full height
+      const originalOverflow = el.style.overflow;
+      el.style.overflow = 'visible';
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const canvas = await html2canvas(el, {
         backgroundColor: '#1e1e1e',
         scale: 2,
         useCORS: true,
         allowTaint: false,
-        onclone: (_doc: Document, el: HTMLElement) => {
+        height: el.scrollHeight,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        onclone: (_doc: Document, clone: HTMLElement) => {
           // Strip Material Icons spans (unrenderable without the CDN font)
-          el.querySelectorAll('.material-icons, .material-icons-outlined').forEach(icon => icon.remove());
-          // Strip Lucide SVG icons (decorative only — they render as broken glyphs)
-          el.querySelectorAll('svg').forEach(svg => {
+          clone.querySelectorAll('.material-icons, .material-icons-outlined').forEach(icon => icon.remove());
+          // Strip decorative Lucide SVGs
+          clone.querySelectorAll('svg').forEach(svg => {
             if (!svg.closest('button') && !svg.closest('[role="img"]')) svg.remove();
           });
-          // Strip action buttons so they don't appear in the exported image
-          el.querySelectorAll('button').forEach(btn => btn.remove());
+          // Strip action buttons (KO, Re-buy, Re-enter, Seat, Remove)
+          clone.querySelectorAll('button').forEach(btn => btn.remove());
+          // Strip rebuy / re-entry / add-on action panels (results-only export)
+          clone.querySelectorAll('[data-export-hide]').forEach(panel => panel.remove());
         }
       } as any);
+
+      el.style.overflow = originalOverflow;
 
       const link = document.createElement('a');
       const tournamentName = 'tournament';
@@ -400,7 +414,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
       <div className="pt-4 space-y-4" ref={exportRef}>
         {/* Add Player Section - Mobile Optimized */}
-        <div className="space-y-3">
+        <div data-export-hide className="space-y-3">
           <div className="flex gap-2">
             <div className="flex-1 relative" ref={autocompleteRef}>
               <Input
@@ -550,7 +564,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Seat Players — centred above player list, visible while unseated players exist */}
         {activePlayers.length > 0 && (
-          <div className="flex justify-center">
+          <div data-export-hide className="flex justify-center">
             <Button
               variant="outline"
               size="sm"
@@ -843,7 +857,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Rebuy Section - Compact - Only show when rebuys are enabled */}
         {state.prizeStructure?.allowRebuys && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div data-export-hide className="mt-4 pt-3 border-t border-[#2a2a2a]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">refresh</span>
@@ -881,7 +895,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         {/* Re-entry Section - Compact - Only show when re-entries are enabled */}
         {state.prizeStructure?.allowReEntry && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div data-export-hide className="mt-4 pt-3 border-t border-[#2a2a2a]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">login</span>
@@ -921,7 +935,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         {state.prizeStructure?.allowAddons &&
           (state.currentLevel + 1) >= (state.prizeStructure?.addonAvailableLevel ?? 1) &&
           state.players.filter(p => p.isActive !== false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+          <div data-export-hide className="mt-4 pt-3 border-t border-[#2a2a2a]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">add_circle</span>

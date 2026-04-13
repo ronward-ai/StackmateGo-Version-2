@@ -553,7 +553,7 @@ function RealTimeLeagueTable({
                         <TableCell className="font-medium w-6 text-center px-0.5 text-xs border-r border-slate-700">
                           <div className="flex items-center justify-center gap-1">
                             <span>{currentRank}</span>
-                            {movement && leagueSettings?.displaySettings?.showMovementArrows && (
+                            {movement && (leagueSettings?.displaySettings?.showMovementArrows !== false) && (
                               <span title={
                                 movement.direction === 'same'
                                   ? `No movement - stayed at rank ${currentRank}`
