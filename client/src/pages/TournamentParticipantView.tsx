@@ -24,6 +24,7 @@ interface TournamentData {
   buyIn: number;
   blindLevels: any[];
   notes?: string;
+  ownerId?: string;
   settings: {
     enableSounds: boolean;
     enableVoice: boolean;
@@ -41,6 +42,7 @@ interface TournamentData {
       logoUrl?: string;
     };
     isSeasonTournament?: boolean;
+    leagueId?: string;
     notes?: string;
   };
   prizeStructure: {
@@ -58,6 +60,9 @@ interface TournamentData {
     addonChips?: number;
     addonAvailableLevel?: number;
     startingChips?: number;
+    allowReEntry?: boolean;
+    maxReEntries?: number;
+    reEntryPeriodLevels?: number;
   };
   state?: {
     notes?: string;

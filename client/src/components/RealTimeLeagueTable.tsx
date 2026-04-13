@@ -46,7 +46,8 @@ function RealTimeLeagueTable({
 
   // Safely destructure with fallbacks
   const {
-    leaguePlayers = []
+    leaguePlayers = [],
+    isLoading: leagueDataLoading = false
   } = leagueData || {};
 
   const {
@@ -189,7 +190,7 @@ function RealTimeLeagueTable({
 
       // Hits calculation (players eliminated by this player)
       const hits = results.reduce((total, result) => {
-        const playersEliminated = result.knockouts || result.playersEliminatedCount || 0;
+        const playersEliminated = (result as any).knockouts || result.playersEliminatedCount || 0;
         return total + playersEliminated;
       }, 0);
 
@@ -444,7 +445,29 @@ function RealTimeLeagueTable({
     return <div style={{ display: 'none' }} />;
   }
 
+  // Show loading spinner while data is being fetched (especially important in participant view)
+  if (leagueDataLoading && !hasAnyLeagueData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="mr-3 h-5 w-5 text-orange-500" />
+            League Standings
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            <RefreshCw className="h-8 w-8 mx-auto mb-3 opacity-50 animate-spin" />
+            <p className="text-sm">Loading league standings...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!hasAnyLeagueData) {
+    // In participant view, don't show anything if there's no league data
+    if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
         <CardHeader>
@@ -467,6 +490,25 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyResults) {
+    // In participant view, show a minimal message
+    if (isParticipantView) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="mr-3 h-5 w-5 text-orange-500" />
+              League Standings - {currentSeasonName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-6 text-muted-foreground">
+              <Trophy className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">Season results will appear here once recorded.</p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <Card>
         <CardHeader>
@@ -498,15 +540,17 @@ function RealTimeLeagueTable({
               League Standings - {currentSeasonName}
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExportImage}
-                disabled={isExporting}
-                className="h-8 px-2"
-              >
-                <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
-              </Button>
+              {!isParticipantView && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportImage}
+                  disabled={isExporting}
+                  className="h-8 px-2"
+                >
+                  <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
+                </Button>
+              )}
               <div className="text-sm text-muted-foreground">
                 {displayPlayers.length} player(s)
               </div>
