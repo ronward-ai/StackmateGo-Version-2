@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, Download, Users } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import { Player } from '@/types';
 import { useLeague } from '@/hooks/useLeague';
@@ -18,14 +20,19 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy, calculatePrizePool } = tournament;
+  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, calculatePrizePool } = tournament;
   const { leaguePlayers } = useLeague();
   const [playerName, setPlayerName] = useState('');
 
   const isLeagueMode =
     state.details?.type === 'season' ||
     (state.settings as any)?.isSeasonTournament === true;
-  
+
+  // KO dialog state
+  const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
+  const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
+  const [hitmanId, setHitmanId] = useState<string | null>(null);
+
   const [recentPlayers, setRecentPlayers] = useState<RecentPlayer[]>([]);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
@@ -193,6 +200,15 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     if (e.key === 'Enter') {
       handleAddPlayer();
     }
+  };
+
+  const handleBustOut = () => {
+    if (!playerToBustOut || !hitmanId) return;
+    eliminatePlayer(playerToBustOut.id, hitmanId);
+    setTimeout(() => addKnockout(hitmanId), 100);
+    setBustOutDialogOpen(false);
+    setPlayerToBustOut(null);
+    setHitmanId(null);
   };
 
 
@@ -679,9 +695,14 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
                       {/* Eliminated By - more subtle */}
                       {player.isActive === false && player.eliminatedBy && (
-                        <span className="text-xs bg-red-600/50 text-red-200 px-2 py-1 rounded font-normal">
-                          💀 {state.players.find(p => p.id === player.eliminatedBy)?.name || 'Unknown'}
-                        </span>
+                        (() => {
+                          const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
+                          return killer ? (
+                            <span className="text-xs bg-red-600/50 text-red-200 px-2 py-1 rounded font-normal">
+                              💀 {killer.name}
+                            </span>
+                          ) : null;
+                        })()
                       )}
 
                       {/* Rebuys */}
@@ -718,6 +739,21 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                           >
                             Seat
                           </Button>
+                        )}
+
+                        {/* KO button for active players */}
+                        {player.isActive !== false && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPlayerToBustOut(player);
+                              setHitmanId(null);
+                              setBustOutDialogOpen(true);
+                            }}
+                            className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold flex-shrink-0 transition-colors"
+                          >
+                            KO
+                          </button>
                         )}
 
                         {/* Re-buy button for eliminated players (when rebuys are enabled) */}
@@ -910,6 +946,42 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           </div>
         )}
       </div>
+
+      {/* Bust Out Dialog */}
+      <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Bust Out — {playerToBustOut?.name}</DialogTitle>
+            <DialogDescription>Who knocked them out?</DialogDescription>
+          </DialogHeader>
+          <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
+            {state.players
+              .filter(p => p.isActive !== false && p.id !== playerToBustOut?.id)
+              .map(player => (
+                <div
+                  key={player.id}
+                  onClick={() => setHitmanId(player.id)}
+                  className={cn(
+                    "p-3 rounded-lg border cursor-pointer transition-colors flex items-center justify-between",
+                    hitmanId === player.id
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:bg-muted/30"
+                  )}
+                >
+                  <span className="font-medium">{player.name}</span>
+                  <span className="text-xs text-muted-foreground">{player.knockouts || 0} KOs</span>
+                </div>
+              ))}
+            {state.players.filter(p => p.isActive !== false && p.id !== playerToBustOut?.id).length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">No other active players</p>
+            )}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setBustOutDialogOpen(false)}>Cancel</Button>
+            <Button className="flex-1" disabled={!hitmanId} onClick={handleBustOut}>Confirm KO</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

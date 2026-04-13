@@ -40,6 +40,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   const {
     state, updateSettings, updatePlayers,
     addKnockout, eliminatePlayer, undoBustOut,
+    processRebuy, processReEntry,
     shouldPromptForFinalTable, goToFinalTable
   } = tournament;
 
@@ -474,17 +475,44 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                           </div>
 
                           {!moveMode && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPlayerToBustOut(player);
-                                setHitmanId(null);
-                                setBustOutDialogOpen(true);
-                              }}
-                              className="ml-2 h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold flex-shrink-0 transition-colors"
-                            >
-                              KO
-                            </button>
+                            <div className="ml-2 flex items-center gap-1 flex-shrink-0">
+                              {/* Rebuy button */}
+                              {state.prizeStructure?.allowRebuys &&
+                                player.isActive === false &&
+                                (player.rebuys || 0) < (state.prizeStructure?.maxRebuys || 3) && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); processRebuy(player.id); }}
+                                  className="h-7 px-1.5 bg-purple-500/80 hover:bg-purple-500 text-white rounded text-[10px] font-bold transition-colors"
+                                >
+                                  R
+                                </button>
+                              )}
+                              {/* Re-entry button */}
+                              {state.prizeStructure?.allowReEntry &&
+                                player.isActive === false &&
+                                (player.reEntries || 0) < (state.prizeStructure?.maxReEntries ?? 99) && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); processReEntry(player.id); }}
+                                  className="h-7 px-1.5 bg-blue-500/80 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-colors"
+                                >
+                                  RE
+                                </button>
+                              )}
+                              {/* KO button — only for active players */}
+                              {player.isActive !== false && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPlayerToBustOut(player);
+                                    setHitmanId(null);
+                                    setBustOutDialogOpen(true);
+                                  }}
+                                  className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold transition-colors"
+                                >
+                                  KO
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       );
