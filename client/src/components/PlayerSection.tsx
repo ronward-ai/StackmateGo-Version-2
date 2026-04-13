@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import { Player } from '@/types';
 import { useLeague } from '@/hooks/useLeague';
+import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 
 interface RecentPlayer {
   name: string;
@@ -22,6 +23,7 @@ interface PlayerSectionProps {
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, calculatePrizePool } = tournament;
   const { leaguePlayers } = useLeague();
+  const { calculatePoints } = useLeagueSettings((state.details as any)?.ownerId);
   const [playerName, setPlayerName] = useState('');
 
   const isLeagueMode =
@@ -423,6 +425,11 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           addBadge(`R x${player.rebuys}`, '#581c87', '#e9d5ff');
         if (winnings > 0)
           addBadge(`${sym}${winnings}`, '#14532d', '#86efac');
+        // League points
+        if (isLeagueMode && pos > 0) {
+          const pts = calculatePoints(pos, state.players.length, player.knockouts || 0, buyIn, 0, 0);
+          if (pts > 0) addBadge(`${pts} pts`, '#713f12', '#fde68a');
+        }
 
         row.append(left, right);
         wrap.appendChild(row);
@@ -804,6 +811,23 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                           ) : null;
                         })()
                       )}
+
+                      {/* League Points — only when position is known in a league game */}
+                      {isLeagueMode && player.position && player.position > 0 && (() => {
+                        const pts = calculatePoints(
+                          player.position,
+                          state.players.length,
+                          player.knockouts || 0,
+                          state.prizeStructure?.buyIn || 0,
+                          0,
+                          0
+                        );
+                        return pts > 0 ? (
+                          <span className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 px-2 py-1 rounded font-semibold">
+                            {pts} pts
+                          </span>
+                        ) : null;
+                      })()}
 
                       {/* Rebuys */}
                       {(player.rebuys || 0) > 0 && (
