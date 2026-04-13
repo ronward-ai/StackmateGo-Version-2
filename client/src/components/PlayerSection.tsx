@@ -197,6 +197,52 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
 
 
+  // Randomly assign seats to all currently unseated active players at once
+  const seatAllPlayers = () => {
+    const { updatePlayers } = tournament;
+    const currentPlayers = [...state.players];
+    const tables = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
+    const { numberOfTables, seatsPerTable } = tables;
+
+    // Build set of already-occupied seats
+    const occupiedSeats = new Set<string>();
+    currentPlayers.forEach(p => {
+      if (p.seated && p.tableAssignment) {
+        occupiedSeats.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
+      }
+    });
+
+    // Collect all available seats
+    const availableSeats: { tableIndex: number; seatIndex: number }[] = [];
+    for (let t = 0; t < numberOfTables; t++) {
+      for (let s = 0; s < seatsPerTable; s++) {
+        if (!occupiedSeats.has(`${t}-${s}`)) {
+          availableSeats.push({ tableIndex: t, seatIndex: s });
+        }
+      }
+    }
+
+    // Fisher-Yates shuffle of available seats
+    for (let i = availableSeats.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [availableSeats[i], availableSeats[j]] = [availableSeats[j], availableSeats[i]];
+    }
+
+    // Assign shuffled seats to unseated active players
+    const unseated = currentPlayers.filter(p => p.isActive !== false && !p.seated);
+    const assignments = new Map<string, { tableIndex: number; seatIndex: number }>();
+    unseated.forEach((player, i) => {
+      if (i < availableSeats.length) assignments.set(player.id, availableSeats[i]);
+    });
+
+    const updatedPlayers = currentPlayers.map(p => {
+      const seat = assignments.get(p.id);
+      return seat ? { ...p, seated: true, tableAssignment: seat } : p;
+    });
+
+    updatePlayers(updatedPlayers);
+  };
+
   // Function to seat a single player using the tournament's seating system
   const seatSinglePlayer = (player: Player) => {
     // Import the seating function from TablesSection or create a simplified version
@@ -310,6 +356,17 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           Players & Rankings ({activePlayers.length})
         </h2>
         <div className="flex items-center gap-2">
+          {/* Seat All — randomly assign seats to all unseated active players */}
+          {state.players.some(p => p.isActive !== false && !p.seated) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={seatAllPlayers}
+              className="h-8 px-2 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+            >
+              Seat Players
+            </Button>
+          )}
           {/* Export button - only show when tournament is finished */}
           {tournamentFinished && (
             <Button
@@ -741,14 +798,14 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <span className="material-icons text-sm">refresh</span>
-                <span>Re-entry ({state.players.filter(p => p.isActive === false).length})</span>
+                <span>Rebuys ({state.players.filter(p => p.isActive === false).length} out)</span>
               </h4>
               <span className="text-xs text-green-400">Available</span>
             </div>
 
             <div className="flex flex-wrap gap-2">
               {state.players.filter(p => p.isActive === false).map((player) => {
-                const canRebuy = state.prizeStructure?.allowRebuys && 
+                const canRebuy = state.prizeStructure?.allowRebuys &&
                   (player.rebuys || 0) < (state.prizeStructure?.maxRebuys || 3);
 
                 return (
@@ -757,15 +814,92 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     variant="outline"
                     size="sm"
                     disabled={!canRebuy}
-                    onClick={() => canRebuy && addKnockout(player.id)}
+                    onClick={() => canRebuy && processRebuy(player.id)}
                     className={`text-xs flex items-center gap-1 ${
-                      canRebuy 
-                        ? 'bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10' 
+                      canRebuy
+                        ? 'bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10'
                         : 'bg-gray-600 text-gray-300 cursor-not-allowed'
                     }`}
                   >
                     <span className="material-icons text-sm">refresh</span>
                     {player.name} ({player.rebuys || 0})
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Re-entry Section - Compact - Only show when re-entries are enabled */}
+        {state.prizeStructure?.allowReEntry && state.players.filter(p => p.isActive === false).length > 0 && (
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <span className="material-icons text-sm">login</span>
+                <span>Re-entries ({state.players.filter(p => p.isActive === false).length} out)</span>
+              </h4>
+              <span className="text-xs text-green-400">Available</span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {state.players.filter(p => p.isActive === false).map((player) => {
+                const maxReEntries = state.prizeStructure?.maxReEntries ?? 99;
+                const canReEnter = (player.reEntries || 0) < maxReEntries;
+
+                return (
+                  <Button
+                    key={player.id}
+                    variant="outline"
+                    size="sm"
+                    disabled={!canReEnter}
+                    onClick={() => canReEnter && tournament.processReEntry(player.id)}
+                    className={`text-xs flex items-center gap-1 ${
+                      canReEnter
+                        ? 'bg-card border border-blue-500 text-blue-400 hover:bg-blue-500/10'
+                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="material-icons text-sm">login</span>
+                    {player.name} ({player.reEntries || 0})
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Add-on Section - Compact - Only show when add-ons are enabled and level reached */}
+        {state.prizeStructure?.allowAddons &&
+          (state.currentLevel + 1) >= (state.prizeStructure?.addonAvailableLevel ?? 1) &&
+          state.players.filter(p => p.isActive !== false).length > 0 && (
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <span className="material-icons text-sm">add_circle</span>
+                <span>Add-ons (Level {state.currentLevel + 1}+)</span>
+              </h4>
+              <span className="text-xs text-green-400">Available</span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {state.players.filter(p => p.isActive !== false).map((player) => {
+                const hasAddon = (player.addons || 0) > 0;
+
+                return (
+                  <Button
+                    key={player.id}
+                    variant="outline"
+                    size="sm"
+                    disabled={hasAddon}
+                    onClick={() => !hasAddon && tournament.processAddon(player.id)}
+                    className={`text-xs flex items-center gap-1 ${
+                      !hasAddon
+                        ? 'bg-card border border-amber-500 text-amber-400 hover:bg-amber-500/10'
+                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="material-icons text-sm">add_circle</span>
+                    {player.name} {hasAddon ? '✓' : ''}
                   </Button>
                 );
               })}

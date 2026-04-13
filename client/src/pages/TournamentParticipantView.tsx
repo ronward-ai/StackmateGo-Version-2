@@ -393,16 +393,16 @@ function TournamentParticipantView() {
       grossPrizePool += actualAddons * (tournamentData.prizeStructure?.addonAmount || buyIn);
     }
 
-    // Calculate rake
+    // Rake is a per-player house fee on top of the buy-in — does NOT reduce the prize pool
     const rakePercentage = tournamentData.prizeStructure?.rakePercentage || 0;
     const rakeType = tournamentData.prizeStructure?.rakeType || 'percentage';
     const rakeAmountFixed = tournamentData.prizeStructure?.rakeAmount || 0;
-    
-    const rakeAmount = rakeType === 'percentage' 
-      ? Math.floor(grossPrizePool * (rakePercentage / 100))
-      : rakeAmountFixed;
-      
-    const totalPool = Math.max(0, grossPrizePool - rakeAmount);
+
+    const rakeAmount = rakeType === 'percentage'
+      ? Math.floor(buyIn * (rakePercentage / 100)) * totalPlayers
+      : rakeAmountFixed * totalPlayers;
+
+    const totalPool = grossPrizePool;
 
     return {
       totalPlayers,
@@ -674,28 +674,16 @@ function TournamentParticipantView() {
                     return null;
                   })()}
                   <div className="border-t border-muted pt-2 mt-2">
-                    {(() => {
-                      return (
-                        <>
-                          {prizePoolData.rakeAmount > 0 && (
-                            <>
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Total Collected:</span>
-                                <span>{currencySymbol}{prizePoolData.grossPrizePool}</span>
-                              </div>
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Tournament Fee / Rake {prizePoolData.rakeType === 'percentage' ? `(${prizePoolData.rakePercentage}%)` : ''}:</span>
-                                <span>-{currencySymbol}{prizePoolData.rakeAmount}</span>
-                              </div>
-                            </>
-                          )}
-                          <div className="flex justify-between font-medium mt-1">
-                            <span>Net Prize Pool:</span>
-                            <span>{currencySymbol}{prizePoolData.totalPool}</span>
-                          </div>
-                        </>
-                      );
-                    })()}
+                    {prizePoolData.rakeAmount > 0 && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>House Fee / Rake {prizePoolData.rakeType === 'percentage' ? `(${prizePoolData.rakePercentage}% per player)` : '(per player)'}:</span>
+                        <span>{currencySymbol}{prizePoolData.rakeAmount}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium mt-1">
+                      <span>Prize Pool:</span>
+                      <span>{currencySymbol}{prizePoolData.totalPool}</span>
+                    </div>
                   </div>
 
                   {tournament.prizeStructure?.manualPayouts && tournament.prizeStructure.manualPayouts.length > 0 && (
@@ -771,6 +759,44 @@ function TournamentParticipantView() {
                         <div className="flex justify-between">
                           <span>Add-ons Used:</span>
                           <span>{tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Re-entry Information - Show when enabled */}
+                  {tournament.prizeStructure?.allowReEntry && (
+                    <div className="border-t border-muted mt-3 pt-3">
+                      <div className="font-medium mb-2">
+                        Re-entry Information:
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Re-entry Period:</span>
+                          <span>First {tournament.prizeStructure.reEntryPeriodLevels || 3} levels</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Re-entry Cost:</span>
+                          <span>{currencySymbol}{tournament.prizeStructure.buyIn || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Re-entries Used:</span>
+                          <span>{tournament.players?.reduce((sum, player) => sum + (player.reEntries || 0), 0) || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bounty Information - Show when enabled */}
+                  {tournament.prizeStructure?.enableBounties && tournament.prizeStructure?.bountyAmount > 0 && (
+                    <div className="border-t border-muted mt-3 pt-3">
+                      <div className="font-medium mb-2">
+                        Bounty Information:
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Bounty per knockout:</span>
+                          <span>{currencySymbol}{tournament.prizeStructure.bountyAmount}</span>
                         </div>
                       </div>
                     </div>
