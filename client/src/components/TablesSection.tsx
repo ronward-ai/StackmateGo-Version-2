@@ -8,7 +8,7 @@ import {
   Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
-import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw } from "lucide-react";
+import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties } from "lucide-react";
 import { TableConfig, Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -73,6 +73,9 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   const [balanceOptions, setBalanceOptions] = useState<{
     overloadedTable: number; underloadedTable: number; playersToMove: Player[];
   } | null>(null);
+
+  const [breakTableDialogOpen, setBreakTableDialogOpen] = useState(false);
+  const [tableToBreak, setTableToBreak]                 = useState<number | null>(null);
 
   // Sync from state
   useEffect(() => {
@@ -218,19 +221,90 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const balanceRandomly = () => {
     if (!balanceOptions) return;
+    // Random player from the overloaded table
     const player = balanceOptions.playersToMove[Math.floor(Math.random() * balanceOptions.playersToMove.length)];
-    const underPlayers = state.players.filter(p => p.seated && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable);
+    // Collect all empty seats at the underloaded table, pick one at random
+    const occupiedAtTarget = new Set(
+      state.players
+        .filter(p => p.seated && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable)
+        .map(p => p.tableAssignment!.seatIndex)
+    );
+    const emptySeats: number[] = [];
     for (let s = 0; s < seatsPerTable; s++) {
-      if (!underPlayers.some(p => p.tableAssignment?.seatIndex === s)) {
-        updatePlayers(state.players.map(p => p.id === player.id
-          ? { ...p, tableAssignment: { tableIndex: balanceOptions.underloadedTable, seatIndex: s } }
-          : p
-        ));
-        break;
-      }
+      if (!occupiedAtTarget.has(s)) emptySeats.push(s);
+    }
+    if (emptySeats.length > 0) {
+      const seatIndex = emptySeats[Math.floor(Math.random() * emptySeats.length)];
+      updatePlayers(state.players.map(p => p.id === player.id
+        ? { ...p, tableAssignment: { tableIndex: balanceOptions.underloadedTable, seatIndex } }
+        : p
+      ));
     }
     setTableBalanceDialogOpen(false);
     setBalanceOptions(null);
+  };
+
+  // Break a table — distribute its active players to the emptiest remaining tables.
+  const breakTable = (breakIdx: number) => {
+    const current = [...state.players];
+    const { seatsPerTable: spt = 9 } = tables;
+
+    // Players to redistribute (active, seated at the broken table)
+    const toRedistribute = current
+      .filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === breakIdx)
+      .sort(() => Math.random() - 0.5); // shuffle so assignment order is random
+
+    // Remove their seat assignments
+    let updated = current.map(p =>
+      toRedistribute.some(r => r.id === p.id)
+        ? { ...p, seated: false, tableAssignment: undefined }
+        : p
+    );
+
+    // Assign each player to the emptiest table that still has a free seat
+    for (const player of toRedistribute) {
+      const occupied = new Set(
+        updated.filter(p => p.seated && p.tableAssignment)
+               .map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`)
+      );
+
+      // Count occupancy per table (skip the broken one)
+      const tableCount: Record<number, number> = {};
+      for (let t = 0; t < numberOfTables; t++) {
+        if (t !== breakIdx) tableCount[t] = 0;
+      }
+      updated.forEach(p => {
+        if (p.seated && p.isActive !== false && p.tableAssignment && p.tableAssignment.tableIndex !== breakIdx) {
+          tableCount[p.tableAssignment.tableIndex] = (tableCount[p.tableAssignment.tableIndex] || 0) + 1;
+        }
+      });
+
+      const sorted = Object.entries(tableCount)
+        .map(([t, count]) => ({ tableIndex: parseInt(t), count }))
+        .sort((a, b) => a.count - b.count);
+
+      let assignedSeat: { tableIndex: number; seatIndex: number } | null = null;
+      for (const { tableIndex } of sorted) {
+        const emptySeats: number[] = [];
+        for (let s = 0; s < spt; s++) {
+          if (!occupied.has(`${tableIndex}-${s}`)) emptySeats.push(s);
+        }
+        if (emptySeats.length > 0) {
+          const seatIndex = emptySeats[Math.floor(Math.random() * emptySeats.length)];
+          assignedSeat = { tableIndex, seatIndex };
+          break;
+        }
+      }
+
+      if (assignedSeat) {
+        const seat = assignedSeat;
+        updated = updated.map(p => p.id === player.id ? { ...p, seated: true, tableAssignment: seat } : p);
+      }
+    }
+
+    updatePlayers(updated);
+    setBreakTableDialogOpen(false);
+    setTableToBreak(null);
   };
 
   const movePlayerToSeat = (ti: number, si: number) => {
@@ -389,6 +463,25 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                         >
                           <Pencil size={11} />
                         </Button>
+                        {/* Break table — only when ≥2 tables have active players */}
+                        {(() => {
+                          const activeTables = new Set(
+                            state.players
+                              .filter(p => p.seated && p.isActive !== false && p.tableAssignment)
+                              .map(p => p.tableAssignment!.tableIndex)
+                          );
+                          const hasPlayersHere = activeTables.has(tableIndex);
+                          return activeTables.size >= 2 && hasPlayersHere ? (
+                            <Button
+                              size="sm" variant="ghost"
+                              onClick={() => { setTableToBreak(tableIndex); setBreakTableDialogOpen(true); }}
+                              className="h-6 w-6 p-0 text-red-400/50 hover:text-red-400 flex-shrink-0"
+                              title="Break this table"
+                            >
+                              <TableProperties size={11} />
+                            </Button>
+                          ) : null;
+                        })()}
                       </div>
                     )}
 
@@ -671,6 +764,33 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
         playerCount={state.players.filter(p => p.isActive !== false).length}
         onConfirm={goToFinalTable}
       />
+
+      {/* Break Table Dialog */}
+      <Dialog open={breakTableDialogOpen} onOpenChange={open => { setBreakTableDialogOpen(open); if (!open) setTableToBreak(null); }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Break {tableToBreak !== null ? (tableNames[tableToBreak] || `Table ${tableToBreak + 1}`) : ''}</DialogTitle>
+            <DialogDescription>
+              {tableToBreak !== null && (() => {
+                const count = state.players.filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === tableToBreak).length;
+                return `${count} player${count !== 1 ? 's' : ''} will be randomly distributed to the emptiest remaining tables.`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => { setBreakTableDialogOpen(false); setTableToBreak(null); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => tableToBreak !== null && breakTable(tableToBreak)}
+            >
+              Break Table
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

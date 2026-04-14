@@ -260,72 +260,51 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     updatePlayers(updatedPlayers);
   };
 
-  // Function to seat a single player using the tournament's seating system
+  // Seat a single late-entry player — emptiest table first, random seat within that table.
   const seatSinglePlayer = (player: Player) => {
-    // Import the seating function from TablesSection or create a simplified version
     const { updatePlayers } = tournament;
     const currentPlayers = [...state.players];
+    const { numberOfTables, seatsPerTable = 9 } = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
 
-    // Get table configuration
-    const tables = state.settings.tables || { numberOfTables: 2, seatsPerTable: 6 };
-    const { numberOfTables, seatsPerTable } = tables;
+    // Build set of occupied seat keys
+    const occupied = new Set(
+      currentPlayers
+        .filter(p => p.seated && p.tableAssignment)
+        .map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`)
+    );
 
-    // Find occupied seats
-    const occupiedSeats = new Set();
+    // Count active seated players per table
+    const tableCount: Record<number, number> = {};
+    for (let t = 0; t < numberOfTables; t++) tableCount[t] = 0;
     currentPlayers.forEach(p => {
-      if (p.seated && p.tableAssignment) {
-        occupiedSeats.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
+      if (p.seated && p.isActive !== false && p.tableAssignment) {
+        tableCount[p.tableAssignment.tableIndex] = (tableCount[p.tableAssignment.tableIndex] || 0) + 1;
       }
     });
 
-    // Find first available seat using optimized algorithm
-    let assignedSeat = null;
-    const seatedPlayers = currentPlayers.filter(p => p.seated);
+    // Sort tables by occupancy ascending, try each for an empty seat
+    const sorted = Object.entries(tableCount)
+      .map(([t, count]) => ({ tableIndex: parseInt(t), count }))
+      .sort((a, b) => a.count - b.count);
 
-    // Prefer Table 1 for smaller groups, distribute for larger groups
-    if (seatedPlayers.length < seatsPerTable) {
-      // Try Table 1 first for initial seating
-      for (let seatIndex = 0; seatIndex < seatsPerTable; seatIndex++) {
-        const seatKey = `0-${seatIndex}`;
-        if (!occupiedSeats.has(seatKey)) {
-          assignedSeat = { tableIndex: 0, seatIndex };
-          break;
-        }
+    let assignedSeat: { tableIndex: number; seatIndex: number } | null = null;
+    for (const { tableIndex } of sorted) {
+      const emptySeats: number[] = [];
+      for (let s = 0; s < seatsPerTable; s++) {
+        if (!occupied.has(`${tableIndex}-${s}`)) emptySeats.push(s);
       }
-    }
-
-    // If Table 1 is full or we need to distribute, find any available seat
-    if (!assignedSeat) {
-      for (let tableIndex = 0; tableIndex < numberOfTables; tableIndex++) {
-        for (let seatIndex = 0; seatIndex < seatsPerTable; seatIndex++) {
-          const seatKey = `${tableIndex}-${seatIndex}`;
-          if (!occupiedSeats.has(seatKey)) {
-            assignedSeat = { tableIndex, seatIndex };
-            break;
-          }
-        }
-        if (assignedSeat) break;
+      if (emptySeats.length > 0) {
+        const seatIndex = emptySeats[Math.floor(Math.random() * emptySeats.length)];
+        assignedSeat = { tableIndex, seatIndex };
+        break;
       }
     }
 
     if (assignedSeat) {
-      console.log(`Seating ${player.name} at Table ${assignedSeat.tableIndex + 1}, Seat ${assignedSeat.seatIndex + 1}`);
-
-      // Update the player with seating assignment
-      const updatedPlayers = currentPlayers.map(p => {
-        if (p.id === player.id) {
-          return {
-            ...p,
-            seated: true,
-            tableAssignment: assignedSeat
-          };
-        }
-        return p;
-      });
-
-      updatePlayers(updatedPlayers);
-    } else {
-      console.log('No available seats for player');
+      const seat = assignedSeat;
+      updatePlayers(currentPlayers.map(p =>
+        p.id === player.id ? { ...p, seated: true, tableAssignment: seat } : p
+      ));
     }
   };
 
