@@ -42,7 +42,7 @@ export interface LeaguePlayer {
 // Default league setup - ensures users always have a league to work with
 const DEFAULT_LEAGUE_NAME = 'Main League';
 
-export function useLeague(overrideOwnerId?: string) {
+export function useLeague(overrideOwnerId?: string, directLeagueId?: string | null) {
   const { user, isAnonymous, isAuthenticated: isUserAuthenticated } = useAuth();
   const { calculatePoints: calculatePointsFromSettings } = useLeagueSettings(overrideOwnerId);
   const queryClient = useQueryClient();
@@ -55,6 +55,7 @@ export function useLeague(overrideOwnerId?: string) {
 
   // Fetch user's leagues — wait for Firebase auth to complete before querying.
   // Anonymous participants must be signed in before Firestore rules allow reads.
+  // Skip entirely when a directLeagueId is provided (participant view shortcut).
   const { data: userLeagues = [], isLoading: leaguesLoading } = useQuery<any[]>({
     queryKey: ['leagues', targetOwnerId],
     queryFn: async () => {
@@ -64,11 +65,14 @@ export function useLeague(overrideOwnerId?: string) {
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
     staleTime: 30000, // Cache for 30 seconds
-    enabled: !!targetOwnerId && isUserAuthenticated
+    enabled: !!targetOwnerId && isUserAuthenticated && !directLeagueId
   });
 
-  // Get current league (first one or null)
-  const currentLeague = userLeagues[0] || null;
+  // When a direct league ID is given (participant view), skip the leagues lookup
+  // and use it immediately once the user is authenticated.
+  const currentLeague = directLeagueId
+    ? (isUserAuthenticated ? { id: directLeagueId, name: 'League' } : null)
+    : (userLeagues[0] || null);
   const currentLeagueId = currentLeague?.id ?? null;
 
   // Create league mutation

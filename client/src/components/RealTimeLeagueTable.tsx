@@ -35,16 +35,23 @@ function RealTimeLeagueTable({
   const exportRef = useRef<HTMLDivElement>(null);
   const { isAuthenticated: isUserAuthenticated, isLoading: authLoading } = useAuth();
   const settingsData = useLeagueSettings(tournament?.ownerId);
-  const leagueData = useLeague(tournament?.ownerId);
+  // For participant view pass the leagueId directly so useLeague can skip the
+  // ownerId → leagues lookup (faster, and works even if ownerId isn't in the snapshot yet)
+  const directLeagueId = tournament?.settings?.leagueId ?? null;
+  const leagueData = useLeague(tournament?.ownerId, directLeagueId);
   // 'pending' is a placeholder returned while loading — fall through to the stored leagueId in that case
   const _rawLeagueId = (leagueData as any)?.league?.id;
   const leagueId = (_rawLeagueId && _rawLeagueId !== 'pending')
     ? _rawLeagueId
-    : (tournament?.settings?.leagueId ?? null);
+    : directLeagueId;
   const { currentSeason } = useSeasons({ leagueId });
 
   // ALL hook calls complete - now safe to do any logic
-  const isSeasonTournament = tournament?.isSeasonTournament === true || tournament?.settings?.isSeasonTournament === true;
+  // leagueId present is the definitive signal — it's set when the director links a league,
+  // and isSeasonTournament may not yet be written to the Firestore doc at scan time.
+  const isSeasonTournament = tournament?.isSeasonTournament === true
+    || tournament?.settings?.isSeasonTournament === true
+    || !!directLeagueId;
 
   // Safely destructure with fallbacks
   const {
@@ -409,9 +416,14 @@ function RealTimeLeagueTable({
         onclone: (_doc: Document, el: HTMLElement) => {
           // Strip Material Icons spans (unrenderable without the CDN font)
           el.querySelectorAll('.material-icons, .material-icons-outlined').forEach(icon => icon.remove());
-          // Strip Lucide SVG icons (decorative only — they render as broken glyphs)
+          // For movement arrow cells: swap the SVG for the pre-built text fallback
+          el.querySelectorAll('.movement-arrow-cell').forEach(cell => {
+            cell.querySelector('.movement-arrow-svg')?.remove();
+            const text = cell.querySelector('.movement-arrow-text') as HTMLElement | null;
+            if (text) text.style.display = 'inline';
+          });
+          // Strip remaining Lucide SVG icons (decorative — they render as broken glyphs)
           el.querySelectorAll('svg').forEach(svg => {
-            // Only remove icons that are standalone decorative SVGs (no meaningful text sibling)
             if (!svg.closest('button') && !svg.closest('[role="img"]')) svg.remove();
           });
           // Strip export button itself so it doesn't appear in the image
@@ -605,21 +617,34 @@ function RealTimeLeagueTable({
                           <div className="flex items-center justify-center gap-1">
                             <span>{currentRank}</span>
                             {movement && (leagueSettings?.displaySettings?.showMovementArrows !== false) && (
-                              <span title={
-                                movement.direction === 'same'
-                                  ? `No movement - stayed at rank ${currentRank}`
-                                  : `Moved ${movement.direction} from rank ${previousRankings[player.id]} to ${currentRank}`
-                              }>
+                              <span
+                                className="movement-arrow-cell"
+                                data-direction={movement.direction}
+                                title={
+                                  movement.direction === 'same'
+                                    ? `No movement - stayed at rank ${currentRank}`
+                                    : `Moved ${movement.direction} from rank ${previousRankings[player.id]} to ${currentRank}`
+                                }
+                              >
+                                {/* SVG icon shown in UI, hidden during export */}
                                 <movement.icon
-                                  className={`h-3 w-3 ${movement.color} ${
-                                    movement.direction === 'same'
-                                      ? 'rotate-0'
-                                      : movement.direction === 'up'
-                                        ? 'rotate-0'
-                                        : 'rotate-0'
-                                  }`}
+                                  className={`h-3 w-3 ${movement.color} movement-arrow-svg`}
                                   strokeWidth={3}
                                 />
+                                {/* Text fallback shown only in PNG export (SVG fonts don't render in html2canvas) */}
+                                <span
+                                  className="movement-arrow-text"
+                                  style={{
+                                    display: 'none',
+                                    fontWeight: 'bold',
+                                    fontSize: '10px',
+                                    color: movement.direction === 'up' ? '#22c55e'
+                                      : movement.direction === 'down' ? '#ef4444'
+                                      : '#f97316'
+                                  }}
+                                >
+                                  {movement.direction === 'up' ? '↑' : movement.direction === 'down' ? '↓' : '→'}
+                                </span>
                               </span>
                             )}
                           </div>
