@@ -26,7 +26,8 @@ export interface TournamentResult {
   addons?: number;
   addonAmount?: number;
   tournamentId?: string | number;
-  seasonId?: string | null; // ← added
+  tournamentDate?: { seconds: number; nanoseconds: number } | number | null;
+  seasonId?: string | null;
 }
 
 // Legacy interface for backwards compatibility  
@@ -167,7 +168,8 @@ export function useLeague(overrideOwnerId?: string) {
       tournamentResults: playerResults.map((result: any) => ({
         id: result.id.toString(),
         tournamentId: result.tournamentId,
-        seasonId: result.seasonId || null, // ← include seasonId
+        tournamentDate: result.tournamentDate || null, // Firestore Timestamp — used by previousRankings for arrow logic
+        seasonId: result.seasonId || null,
         position: result.position,
         totalPlayers: result.totalPlayers,
         points: result.points,
