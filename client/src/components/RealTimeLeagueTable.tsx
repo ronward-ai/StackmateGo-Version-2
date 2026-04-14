@@ -78,7 +78,7 @@ function RealTimeLeagueTable({
     return leaguePlayers.map(player => ({
       ...player,
       tournamentResults: (player.tournamentResults || []).filter(
-        (r: any) => r.seasonId === seasonId
+        (r: any) => !r.seasonId || r.seasonId === seasonId
       )
     }));
   }, [leaguePlayers, seasonId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -472,6 +472,26 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyLeagueData) {
+    // Participant view: if anonymous sign-in hasn't completed yet, keep showing spinner
+    // (query is disabled until authenticated, so no data yet doesn't mean there IS no data)
+    if (isParticipantView && !isUserAuthenticated) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="mr-3 h-5 w-5 text-orange-500" />
+              League Standings
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-muted-foreground">
+              <RefreshCw className="h-8 w-8 mx-auto mb-3 opacity-50 animate-spin" />
+              <p className="text-sm">Loading league standings...</p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
     if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
