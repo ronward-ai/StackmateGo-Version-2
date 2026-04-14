@@ -224,43 +224,46 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     const { updatePlayers } = tournament;
     const currentPlayers = [...state.players];
     const tables = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
-    const { numberOfTables } = tables;
+    const { numberOfTables, seatsPerTable = 9 } = tables;
 
-    const activeUnseated = currentPlayers.filter(p => p.isActive !== false && !p.seated);
-    const activeSeated   = currentPlayers.filter(p => p.isActive !== false && p.seated);
+    const activePlayers = currentPlayers.filter(p => p.isActive !== false);
+    const activeUnseated = activePlayers.filter(p => !p.seated);
 
     if (activeUnseated.length === 0) return;
 
-    // Map a logical seat index (0-based) to a physical table+seat using round-robin
-    // so players are spread evenly: 0→T0S0, 1→T1S0, 2→T0S1, 3→T1S1, …
-    const toPhysical = (idx: number) => ({
-      tableIndex: idx % numberOfTables,
-      seatIndex:  Math.floor(idx / numberOfTables),
-    });
+    const totalActive = activePlayers.length;
 
-    const seatedCount = activeSeated.length;
-    const newCount    = activeUnseated.length;
+    // Only use as many tables as needed to seat everyone — no splitting players across
+    // empty tables. E.g. 6 players with 8-seat tables → 1 table, not 2.
+    const tablesNeeded = Math.min(Math.max(1, Math.ceil(totalActive / seatsPerTable)), numberOfTables);
 
-    let slots: { tableIndex: number; seatIndex: number }[];
-
-    if (seatedCount === 0) {
-      // Fresh: seats 0..N-1, shuffled
-      slots = Array.from({ length: newCount }, (_, i) => toPhysical(i));
-      for (let i = slots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slots[i], slots[j]] = [slots[j], slots[i]];
-      }
-    } else if (newCount === 1) {
-      // Single late joiner → next sequential seat
-      slots = [toPhysical(seatedCount)];
-    } else {
-      // Multiple late joiners → random order from next available positions
-      slots = Array.from({ length: newCount }, (_, i) => toPhysical(seatedCount + i));
-      for (let i = slots.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [slots[i], slots[j]] = [slots[j], slots[i]];
+    // Build every seat slot for the tables we'll use
+    const allSlots: { tableIndex: number; seatIndex: number }[] = [];
+    for (let t = 0; t < tablesNeeded; t++) {
+      for (let s = 0; s < seatsPerTable; s++) {
+        allSlots.push({ tableIndex: t, seatIndex: s });
       }
     }
+
+    // Find which slots are already occupied by seated active players
+    const occupiedSet = new Set(
+      activePlayers
+        .filter(p => p.seated && p.tableAssignment)
+        .map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`)
+    );
+
+    // Available slots = all slots minus occupied
+    const available = allSlots.filter(
+      s => !occupiedSet.has(`${s.tableIndex}-${s.seatIndex}`)
+    );
+
+    // Fisher-Yates shuffle on available slots
+    for (let i = available.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [available[i], available[j]] = [available[j], available[i]];
+    }
+
+    const slots = available.slice(0, activeUnseated.length);
 
     const updatedPlayers = currentPlayers.map(p => {
       const idx = activeUnseated.findIndex(u => u.id === p.id);

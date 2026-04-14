@@ -63,6 +63,9 @@ export interface Settings {
     isVisible?: boolean;
   };
   currency?: string; // Currency symbol (£, $, €, etc.)
+  isSeasonTournament?: boolean;
+  leagueId?: string;
+  notes?: string;
 }
 
 export interface BestLosingHand {

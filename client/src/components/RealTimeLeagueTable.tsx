@@ -15,6 +15,7 @@ import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, 
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useAuth } from '@/hooks/useAuth';
 import html2canvas from 'html2canvas';
 
 interface RealTimeLeagueTableProps {
@@ -32,6 +33,7 @@ function RealTimeLeagueTable({
   // previousRankings is derived from data (no component state needed)
   // computed below after seasonFilteredPlayers is defined
   const exportRef = useRef<HTMLDivElement>(null);
+  const { isAuthenticated: isUserAuthenticated, isLoading: authLoading } = useAuth();
   const settingsData = useLeagueSettings(tournament?.ownerId);
   const leagueData = useLeague(tournament?.ownerId);
   // 'pending' is a placeholder returned while loading — fall through to the stored leagueId in that case
@@ -445,8 +447,10 @@ function RealTimeLeagueTable({
     return <div style={{ display: 'none' }} />;
   }
 
-  // Show loading spinner while data is being fetched (especially important in participant view)
-  if (leagueDataLoading && !hasAnyLeagueData) {
+  // Show loading spinner while auth is pending or data is being fetched
+  const isEffectivelyLoading = authLoading || leagueDataLoading ||
+    (isSeasonTournament && isParticipantView && !isUserAuthenticated);
+  if (isEffectivelyLoading && !hasAnyLeagueData) {
     return (
       <Card>
         <CardHeader>
