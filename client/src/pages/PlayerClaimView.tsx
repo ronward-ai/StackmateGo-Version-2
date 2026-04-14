@@ -97,9 +97,9 @@ export default function PlayerClaimView() {
     return () => { unsubscribe?.(); };
   }, [tournamentId]);
 
-  // Load league roster once leagueId is known (anonymous auth is sufficient)
+  // Load league roster once leagueId is known and auth has completed
   useEffect(() => {
-    if (!leagueId) return;
+    if (!leagueId || !isAuthenticated) return;
 
     const load = async () => {
       try {
@@ -117,7 +117,7 @@ export default function PlayerClaimView() {
     };
 
     load();
-  }, [leagueId]);
+  }, [leagueId, isAuthenticated]);
 
   const handleClaim = async (player: TournamentPlayer) => {
     if (!tournamentId) return;
@@ -263,7 +263,7 @@ export default function PlayerClaimView() {
   const claimedPlayer = players.find(p => p.id === claimed);
   const uid = (user as any)?.uid;
 
-  if (!dataLoaded || isLoading) {
+  if (!dataLoaded) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-muted-foreground text-sm animate-pulse">Connecting…</div>
