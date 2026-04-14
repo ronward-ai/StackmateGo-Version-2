@@ -39,6 +39,8 @@ export default function PlayerClaimView() {
   const [isLeagueTournament, setIsLeagueTournament] = useState(false);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [leagueRoster, setLeagueRoster] = useState<LeaguePlayerRecord[]>([]);
+  // Start optimistically as true so "no players" message never flashes before the fetch
+  const [leagueRosterLoading, setLeagueRosterLoading] = useState(true);
 
   // Sign in anonymously if needed
   useEffect(() => {
@@ -74,8 +76,11 @@ export default function PlayerClaimView() {
               const data = snap.data();
               setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
               setTournamentName(data.details?.name || data.name || 'Tournament');
-              setIsLeagueTournament(data.settings?.isSeasonTournament ?? false);
+              const isLeague = data.settings?.isSeasonTournament ?? false;
+              setIsLeagueTournament(isLeague);
               setLeagueId(data.settings?.leagueId || null);
+              // If not a league tournament, nothing will ever load the roster — clear the loading flag now
+              if (!isLeague) setLeagueRosterLoading(false);
             } else {
               setError('Tournament not found. Check the QR code and try again.');
             }
@@ -102,6 +107,7 @@ export default function PlayerClaimView() {
     if (!leagueId || !isAuthenticated) return;
 
     const load = async () => {
+      setLeagueRosterLoading(true);
       try {
         const { collection, query, where, getDocs } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');
@@ -113,6 +119,8 @@ export default function PlayerClaimView() {
         setLeagueRoster(roster);
       } catch (e) {
         // silently ignore — fall back to "ask director" message
+      } finally {
+        setLeagueRosterLoading(false);
       }
     };
 
@@ -481,8 +489,8 @@ export default function PlayerClaimView() {
         </div>
       )}
 
-      {/* ── League with no roster yet (leagueId not stored or no players added yet) ── */}
-      {isLeagueTournament && !showLeagueRoster && (
+      {/* ── League with no roster yet — only show after loading completes ── */}
+      {isLeagueTournament && !leagueRosterLoading && !showLeagueRoster && (
         <Card className="p-4 mb-4 text-center text-sm text-muted-foreground space-y-1">
           <p className="font-medium text-foreground">League tournament</p>
           <p>No league players found. Ask your director to add players to the league first.</p>
