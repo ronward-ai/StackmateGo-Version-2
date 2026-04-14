@@ -68,10 +68,10 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     enabled: !!targetOwnerId && isUserAuthenticated && !directLeagueId
   });
 
-  // When a direct league ID is given (participant view), skip the leagues lookup
-  // and use it immediately once the user is authenticated.
+  // When a direct league ID is given (participant view), use it immediately —
+  // no auth check needed since leaguePlayers and tournamentResults are publicly readable.
   const currentLeague = directLeagueId
-    ? (isUserAuthenticated ? { id: directLeagueId, name: 'League' } : null)
+    ? { id: directLeagueId, name: 'League' }
     : (userLeagues[0] || null);
   const currentLeagueId = currentLeague?.id ?? null;
 

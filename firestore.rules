@@ -146,27 +146,28 @@ service cloud.firestore {
       allow delete: if isRegistered();
     }
 
-    // Seasons — any authenticated user can read (participants need to resolve current season)
+    // Seasons — publicly readable so participants can resolve the current season
+    // without requiring Firebase authentication (anonymous auth may be disabled)
     match /seasons/{seasonId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered();
       allow update: if isRegistered();
       allow delete: if isRegistered();
     }
 
-    // League Players
-    // Authenticated (incl. anonymous QR-scan users) can read so the participant
-    // view can display the league roster for self-check-in.
+    // League Players — publicly readable so the participant view can display
+    // league standings without requiring Firebase authentication
     match /leaguePlayers/{playerId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered();
       allow update: if isRegistered();
       allow delete: if isRegistered();
     }
 
-    // Tournament Results — any authenticated user can read (participants see live standings)
+    // Tournament Results — publicly readable so participants can see live standings
+    // without requiring Firebase authentication (anonymous auth may be disabled)
     match /tournamentResults/{resultId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered();
       allow update: if isRegistered();
       allow delete: if isRegistered();

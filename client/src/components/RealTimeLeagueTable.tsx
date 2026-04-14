@@ -33,7 +33,7 @@ function RealTimeLeagueTable({
   // previousRankings is derived from data (no component state needed)
   // computed below after seasonFilteredPlayers is defined
   const exportRef = useRef<HTMLDivElement>(null);
-  const { isAuthenticated: isUserAuthenticated, isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading } = useAuth();
   const settingsData = useLeagueSettings(tournament?.ownerId);
   // For participant view pass the leagueId directly so useLeague can skip the
   // ownerId → leagues lookup (faster, and works even if ownerId isn't in the snapshot yet)
@@ -486,26 +486,6 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyLeagueData) {
-    // Participant view: if anonymous sign-in hasn't completed yet, keep showing spinner
-    // (query is disabled until authenticated, so no data yet doesn't mean there IS no data)
-    if (isParticipantView && !isUserAuthenticated) {
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="mr-3 h-5 w-5 text-orange-500" />
-              League Standings
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <RefreshCw className="h-8 w-8 mx-auto mb-3 opacity-50 animate-spin" />
-              <p className="text-sm">Loading league standings...</p>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
     if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
