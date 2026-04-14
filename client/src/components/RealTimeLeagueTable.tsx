@@ -88,14 +88,17 @@ function RealTimeLeagueTable({
   const previousRankings = useMemo(() => {
     if (!Array.isArray(seasonFilteredPlayers) || seasonFilteredPlayers.length === 0) return {};
 
-    // Find the most recent tournament identifier across all players
+    // Find the most recent tournament identifier across all players.
+    // tournamentDate is a Firestore Timestamp (has .seconds); fall back to the
+    // ISO date string if tournamentDate was not mapped (legacy data).
     let latestDate = 0;
     let latestId: string | null = null;
     seasonFilteredPlayers.forEach(player => {
       (player.tournamentResults || []).forEach((r: any) => {
         const ts = r.tournamentDate?.seconds
-          ? r.tournamentDate.seconds
-          : (typeof r.tournamentDate === 'number' ? r.tournamentDate : 0);
+          ? r.tournamentDate.seconds * 1000
+          : (typeof r.tournamentDate === 'number' ? r.tournamentDate : 0)
+          || (r.date ? new Date(r.date).getTime() : 0);
         if (ts > latestDate) {
           latestDate = ts;
           latestId = r.tournamentId ? String(r.tournamentId) : (r.id ? String(r.id) : null);

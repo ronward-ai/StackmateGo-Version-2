@@ -891,7 +891,8 @@ function TournamentParticipantView() {
           <TablesSectionReadOnly tournament={tournamentForComponents} />
         </div>
 
-        {/* Real-Time League Table */}
+        {/* Real-Time League Table — always mounted for season tournaments;
+            the component handles auth-pending state and loading internally */}
         <div className="mb-6">
           <RealTimeLeagueTable tournament={tournament} isParticipantView={true} />
         </div>
