@@ -451,8 +451,7 @@ function RealTimeLeagueTable({
   }
 
   // Show loading spinner while auth is pending or data is being fetched
-  const isEffectivelyLoading = authLoading || leagueDataLoading ||
-    (isSeasonTournament && isParticipantView && !isUserAuthenticated);
+  const isEffectivelyLoading = authLoading || leagueDataLoading;
   if (isEffectivelyLoading && !hasAnyLeagueData) {
     return (
       <Card>
@@ -473,7 +472,6 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyLeagueData) {
-    // In participant view, don't show anything if there's no league data
     if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
@@ -497,25 +495,7 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyResults) {
-    // In participant view, show a minimal message
-    if (isParticipantView) {
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="mr-3 h-5 w-5 text-orange-500" />
-              League Standings - {currentSeasonName}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-6 text-muted-foreground">
-              <Trophy className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm font-medium">Season results will appear here once recorded.</p>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
+    if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
         <CardHeader>
