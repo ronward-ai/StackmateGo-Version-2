@@ -453,8 +453,7 @@ function RealTimeLeagueTable({
   }
 
   // Show loading spinner while auth is pending or data is being fetched
-  const isEffectivelyLoading = authLoading || leagueDataLoading ||
-    (isSeasonTournament && isParticipantView && !isUserAuthenticated);
+  const isEffectivelyLoading = authLoading || leagueDataLoading;
   if (isEffectivelyLoading && !hasAnyLeagueData) {
     return (
       <Card>
@@ -475,6 +474,7 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyLeagueData) {
+    if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
         <CardHeader>
@@ -497,6 +497,7 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyResults) {
+    if (isParticipantView) return <div style={{ display: 'none' }} />;
     return (
       <Card>
         <CardHeader>
