@@ -959,14 +959,15 @@ export function useTournament(tournamentId?: string) {
           
           const totalRebuys = prev.players.reduce((sum, p) => sum + (p.rebuys || 0), 0);
           const totalAddons = prev.players.reduce((sum, p) => sum + (p.addons || 0), 0);
-          const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
-          
-          const rakeAmount = rakeType === 'percentage' 
+          const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
+          const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
+
+          const rakeAmount = rakeType === 'percentage'
             ? Math.floor(grossPrizePool * (rakePercentage / 100))
             : rakeAmountFixed;
-            
+
           const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
-          
+
           prizeMoney = Math.floor((totalPrizePool * payout.percentage) / 100);
         }
       }
@@ -1034,14 +1035,15 @@ export function useTournament(tournamentId?: string) {
             
             const totalRebuys = prev.players.reduce((sum, p) => sum + (p.rebuys || 0), 0);
             const totalAddons = prev.players.reduce((sum, p) => sum + (p.addons || 0), 0);
-            const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
-            
-            const rakeAmount = rakeType === 'percentage' 
+            const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
+            const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
+
+            const rakeAmount = rakeType === 'percentage'
               ? Math.floor(grossPrizePool * (rakePercentage / 100))
               : rakeAmountFixed;
-              
+
             const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
-            
+
             firstPlacePrize = Math.floor((totalPrizePool * firstPlacePayout.percentage) / 100);
           }
         }
@@ -1802,12 +1804,13 @@ export function useTournament(tournamentId?: string) {
       
       const totalRebuys = prev.players.reduce((sum, p) => sum + (p.rebuys || 0), 0);
       const totalAddons = prev.players.reduce((sum, p) => sum + (p.addons || 0), 0);
-      const grossPrizePool = (buyInAmount * totalPlayers) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons);
-      
-      const rakeAmount = rakeType === 'percentage' 
+      const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
+      const grossPrizePool = (buyInAmount * totalPlayers) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
+
+      const rakeAmount = rakeType === 'percentage'
         ? Math.floor(grossPrizePool * (rakePercentage / 100))
         : rakeAmountFixed;
-        
+
       const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
 
       let firstPlacePrize = 0;

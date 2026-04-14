@@ -5,6 +5,7 @@ export interface PrizePoolInputs {
   rebuyAmount?: number;
   totalAddons?: number;
   addonAmount?: number;
+  totalReEntries?: number;
   rakeType?: 'percentage' | 'fixed';
   rakePercentage?: number;
   rakeAmount?: number;
@@ -20,7 +21,8 @@ export function calculatePrizePool(inputs: PrizePoolInputs): PrizePoolResult {
   const gross =
     (inputs.buyIn * inputs.playerCount) +
     ((inputs.rebuyAmount ?? 0) * (inputs.totalRebuys ?? 0)) +
-    ((inputs.addonAmount ?? 0) * (inputs.totalAddons ?? 0));
+    ((inputs.addonAmount ?? 0) * (inputs.totalAddons ?? 0)) +
+    (inputs.buyIn * (inputs.totalReEntries ?? 0));
 
   // Rake is a per-player house fee charged on top of the buy-in — does NOT reduce the prize pool.
   // Percentage rake = % of the buy-in per player × number of players.

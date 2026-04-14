@@ -155,11 +155,13 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   // Live prize pool preview
   const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
   const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
+  const totalReEntries = state.players.reduce((s, p) => s + (p.reEntries || 0), 0);
   const { gross, rake, net: netPool } = calculatePrizePool({
     buyIn: buyInAmount,
     playerCount: state.players.length,
     totalRebuys, rebuyAmount,
     totalAddons, addonAmount,
+    totalReEntries,
     rakeType, rakePercentage, rakeAmount,
   });
 
