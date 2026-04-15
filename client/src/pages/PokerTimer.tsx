@@ -487,10 +487,11 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             <div className="relative">
               <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none">
                 <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
+                <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
                 <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
                 <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
-                <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
                 <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
+                <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
                 <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">
                   <span className="flex items-center gap-1.5">
                     <span className="relative flex items-center justify-center h-3.5 w-3.5 flex-shrink-0">
@@ -502,7 +503,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                     Live
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
               </TabsList>
               <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
             </div>
