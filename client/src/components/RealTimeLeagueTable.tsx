@@ -30,6 +30,9 @@ function RealTimeLeagueTable({
   // ALWAYS call ALL hooks first - never conditionally
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  // Safety timeout — if data doesn't arrive within 6s, stop showing the spinner
+  // so participants don't see it permanently when Firestore reads are silently failing
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   // previousRankings is derived from data (no component state needed)
   // computed below after seasonFilteredPlayers is defined
   const exportRef = useRef<HTMLDivElement>(null);
@@ -63,6 +66,29 @@ function RealTimeLeagueTable({
     settings: leagueSettings = null,
     calculatePoints = () => 0
   } = settingsData || {};
+
+  // Arm the safety timeout after the component first renders in a loading state
+  useEffect(() => {
+    if (!isSeasonTournament) return;
+    const t = setTimeout(() => setLoadingTimedOut(true), 6000);
+    return () => clearTimeout(t);
+  }, [isSeasonTournament]);
+
+  // Diagnostic logging for participant view — helps debug stuck loading state in production
+  useEffect(() => {
+    if (!isParticipantView) return;
+    console.log('🔍 RealTimeLeagueTable (participant)', {
+      hasTournament: !!tournament,
+      ownerId: tournament?.ownerId,
+      directLeagueId,
+      leagueId,
+      isSeasonTournament,
+      authLoading,
+      leagueDataLoading,
+      leaguePlayersCount: leaguePlayers?.length ?? 0,
+      loadingTimedOut
+    });
+  }, [isParticipantView, tournament, directLeagueId, leagueId, isSeasonTournament, authLoading, leagueDataLoading, leaguePlayers?.length, loadingTimedOut]);
 
   // Force refresh when settings change
   useEffect(() => {
@@ -464,8 +490,10 @@ function RealTimeLeagueTable({
     return <div style={{ display: 'none' }} />;
   }
 
-  // Show loading spinner while auth is pending or data is being fetched
-  const isEffectivelyLoading = authLoading || leagueDataLoading;
+  // Show loading spinner while auth is pending or data is being fetched.
+  // Safety timeout breaks out of the spinner after 6s so participants don't see it
+  // permanently when the Firestore listener never fires (e.g., rules issue).
+  const isEffectivelyLoading = (authLoading || leagueDataLoading) && !loadingTimedOut;
   if (isEffectivelyLoading && !hasAnyLeagueData) {
     return (
       <Card>
