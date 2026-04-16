@@ -62,6 +62,17 @@ export interface LeagueStatsDisplay {
   roi: boolean; // Return on Investment (profit / total buy-ins)
   rebuys: boolean; // Total rebuy count across all games
   reEntries: boolean; // Total re-entry count across all games
+  itmPercentage: boolean; // % of games finishing in the money
+  addOns: boolean; // Total add-on count across all games
+  totalInvested: boolean; // Sum of buy-ins + rebuys + add-ons
+  bountiesWon: boolean; // Total bounties collected
+  attendancePercent: boolean; // Games attended as % of total season games
+  currentStreak: boolean; // Consecutive in-the-money finishes (most recent)
+  biggestWin: boolean; // Highest single-tournament cash amount
+  worstFinish: boolean; // Lowest finishing position recorded
+  winRate: boolean; // % of games won (1st place finishes)
+  bestFinish: boolean; // Best finishing position recorded
+  earlyExits: boolean; // Finishes in bottom 20% of field
 }
 
 export interface LeagueSettings {
@@ -175,7 +186,18 @@ export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
     profit: false,
     roi: false,
     rebuys: false,
-    reEntries: false
+    reEntries: false,
+    itmPercentage: false,
+    addOns: false,
+    totalInvested: false,
+    bountiesWon: false,
+    attendancePercent: false,
+    currentStreak: false,
+    biggestWin: false,
+    worstFinish: false,
+    winRate: false,
+    bestFinish: false,
+    earlyExits: false
   },
   displaySettings: {
     showPosition: true,
