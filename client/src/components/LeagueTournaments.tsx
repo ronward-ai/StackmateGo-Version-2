@@ -15,20 +15,37 @@ export default function LeagueTournaments() {
         allResults.push({ ...result, playerName: player.name });
       });
     });
-    
-    // Group by tournament and date
-    const tournaments = new Map<string, { date: string; players: typeof allResults }>();
+
+    // Resolve canonical date from result — Firestore Timestamp takes priority over ISO string
+    const resolveDate = (result: TournamentResult): Date => {
+      if (result.tournamentDate) {
+        if (typeof result.tournamentDate === 'object' && 'seconds' in result.tournamentDate) {
+          return new Date(result.tournamentDate.seconds * 1000);
+        }
+        if (typeof result.tournamentDate === 'number') {
+          return new Date(result.tournamentDate);
+        }
+      }
+      if (result.date) return new Date(result.date);
+      return new Date(0);
+    };
+
+    // Group by tournament — use tournamentId when available, fall back to calendar day
+    const tournaments = new Map<string, { date: Date; players: typeof allResults }>();
     allResults.forEach(result => {
-      const key = `${result.tournamentId || result.id}-${result.date?.split('T')[0] ?? ''}`;
+      const date = resolveDate(result);
+      const key = result.tournamentId
+        ? String(result.tournamentId)
+        : date.toISOString().split('T')[0];
       if (!tournaments.has(key)) {
-        tournaments.set(key, { date: result.date, players: [] });
+        tournaments.set(key, { date, players: [] });
       }
       tournaments.get(key)!.players.push(result);
     });
 
     return Array.from(tournaments.values())
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 10); // Last 10 tournaments
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 10);
   }, [leaguePlayers]);
 
   return (
@@ -46,7 +63,7 @@ export default function LeagueTournaments() {
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <h4 className="font-medium" data-testid={`tournament-date-${index}`}>
-                    {new Date(tournament.date).toLocaleDateString('en-US', { 
+                    {tournament.date.toLocaleDateString('en-GB', {
                       weekday: 'short',
                       year: 'numeric',
                       month: 'short',
