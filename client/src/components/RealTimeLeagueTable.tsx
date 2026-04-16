@@ -204,9 +204,6 @@ function RealTimeLeagueTable({
     currentStreak: 'Streak',
     biggestWin: 'Biggest Win',
     worstFinish: 'Worst',
-    winRate: 'Win %',
-    bestFinish: 'Best',
-    earlyExits: 'Early Out'
   };
 
   // Get enabled stats from settings with proper fallback
