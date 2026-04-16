@@ -27,7 +27,6 @@ export function useLeagueSettings(overrideOwnerId?: string) {
   const [settings, setSettings] = useState<LeagueSettings>(() => {
     try {
       if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-        console.warn('localStorage not available, using default settings');
         return DEFAULT_LEAGUE_SETTINGS;
       }
       const saved = localStorage.getItem('leagueSettings');
@@ -36,15 +35,11 @@ export function useLeagueSettings(overrideOwnerId?: string) {
       }
       const parsed = JSON.parse(saved);
 
-      // Validate the parsed settings have required fields
       if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) {
-        console.warn('Invalid league settings found, using defaults');
         return DEFAULT_LEAGUE_SETTINGS;
       }
 
-      // Ensure pointsSystem has proper structure
       if (!parsed.pointsSystem.formula) {
-        console.warn('Invalid points system structure, using defaults');
         return DEFAULT_LEAGUE_SETTINGS;
       }
 
@@ -337,18 +332,13 @@ export function useLeagueSettings(overrideOwnerId?: string) {
     return () => unsubscribe();
   }, [targetOwnerId]);
 
-  // Keep loadSavedSettings for manual refresh if needed, but it's mostly handled by the listener now
   const loadSavedSettings = useCallback(async () => {
-    // This is now a no-op since the listener handles it, but we keep it for API compatibility
-    console.log('loadSavedSettings called manually, but settings are now real-time');
+    // no-op: settings are kept in sync by the real-time Firestore listener above
   }, []);
 
   // Save settings to database
   const saveSettingsToDatabase = useCallback(async (name: string, isDefault: boolean = false) => {
-    if (!user?.id) {
-      console.warn('User not authenticated, cannot save to database');
-      return;
-    }
+    if (!user?.id) return;
 
     try {
       const newSetting = sanitizeForFirestore({
@@ -395,10 +385,7 @@ export function useLeagueSettings(overrideOwnerId?: string) {
 
   // Save custom formula as a template
   const saveCustomFormulaTemplate = useCallback(async (formulaName: string, formula: string) => {
-    if (!user?.id) {
-      console.warn('User not authenticated, cannot save custom formula');
-      return;
-    }
+    if (!user?.id) return;
 
     const templateSettings = {
       ...DEFAULT_LEAGUE_SETTINGS,

@@ -31,36 +31,21 @@ function TournamentDirector() {
           return;
         }
 
-        // Force comprehensive data sync when director access authenticates
         try {
-          console.log('🎯 Director authenticated - fetching tournament state from server');
           if (typeof window !== 'undefined') {
             const { doc, getDoc } = await import('firebase/firestore');
             const { db } = await import('@/lib/firebase');
             const docRef = doc(db, 'activeTournaments', id.toString());
             const docSnap = await getDoc(docRef);
-            
-            if (docSnap.exists()) {
-              const tournamentData = docSnap.data();
-              
-              if (tournamentData.ownerId !== user.id) {
-                setError('You do not have permission to access this tournament as a director.');
-                setTimeout(() => {
-                  window.location.href = `/tournament/${id}`;
-                }, 3000);
-                return;
-              }
 
-              console.log('📊 Director access - received tournament state from server:', {
-                currentLevel: tournamentData.currentLevel,
-                isRunning: tournamentData.isRunning,
-                players: tournamentData.players?.length || 0,
-                isSeasonTournament: tournamentData.settings?.isSeasonTournament
-              });
+            if (docSnap.exists() && docSnap.data().ownerId !== user.id) {
+              setError('You do not have permission to access this tournament as a director.');
+              setTimeout(() => { window.location.href = `/tournament/${id}`; }, 3000);
+              return;
             }
           }
         } catch (error) {
-          console.error('❌ Error during comprehensive director data sync:', error);
+          console.error('Error during director data sync:', error);
         }
 
         setIsAuthenticated(true);

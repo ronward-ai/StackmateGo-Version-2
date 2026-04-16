@@ -74,32 +74,6 @@ function RealTimeLeagueTable({
     return () => clearTimeout(t);
   }, [isSeasonTournament]);
 
-  // Diagnostic logging for participant view — helps debug stuck loading state in production
-  useEffect(() => {
-    if (!isParticipantView) return;
-    console.log('🔍 RealTimeLeagueTable (participant)', {
-      hasTournament: !!tournament,
-      ownerId: tournament?.ownerId,
-      directLeagueId,
-      leagueId,
-      isSeasonTournament,
-      authLoading,
-      leagueDataLoading,
-      leaguePlayersCount: leaguePlayers?.length ?? 0,
-      loadingTimedOut
-    });
-  }, [isParticipantView, tournament, directLeagueId, leagueId, isSeasonTournament, authLoading, leagueDataLoading, leaguePlayers?.length, loadingTimedOut]);
-
-  // Force refresh when settings change
-  useEffect(() => {
-    if (leagueSettings) {
-      console.log('🎯 League table detected settings update:', {
-        pointsSystem: leagueSettings.pointsSystem?.formula?.type,
-        customFormula: leagueSettings.pointsSystem?.formula?.customFormula,
-        statsToDisplay: leagueSettings.statsToDisplay
-      });
-    }
-  }, [leagueSettings]);
 
   // Get current season name from league settings, or fallback to tournament data, or default
   const currentSeasonName = leagueSettings?.seasonSettings?.seasonName || currentSeason?.name || tournament?.season?.name || 'Current Season';
@@ -219,7 +193,6 @@ function RealTimeLeagueTable({
       .filter(([_, enabled]) => enabled)
       .map(([stat, _]) => stat);
 
-    console.log('🎯 Enabled stats from settings:', enabledFromSettings);
     return enabledFromSettings;
   }, [leagueSettings?.statsToDisplay]);
 
@@ -432,11 +405,6 @@ function RealTimeLeagueTable({
   const hasAnyLeagueData = leaguePlayers && leaguePlayers.length > 0;
   // Use season-filtered results so "no results yet" message is accurate for the current season
   const hasAnyResults = hasAnyLeagueData && seasonFilteredPlayers.some(p => p.tournamentResults && p.tournamentResults.length > 0);
-
-  // Simple logging for debugging
-  if (isParticipantView) {
-    console.log('🔍 Participant View League Table - Players:', leaguePlayers?.length || 0, 'Has Results:', hasAnyResults);
-  }
 
   // Function to get ranking movement indicator
   const getRankingMovement = (playerId: string, currentRank: number) => {

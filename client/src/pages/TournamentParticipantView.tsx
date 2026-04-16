@@ -105,14 +105,11 @@ function TournamentParticipantView() {
         const { doc, onSnapshot } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');
         
-        console.log('Connecting to Firebase for tournament updates:', id);
-        
         const docRef = doc(db, 'activeTournaments', id.toString());
         
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            console.log('Fetched tournament data from Firebase:', data);
             
             // Ensure blind levels have proper duration in seconds
             if (data.blindLevels) {
@@ -168,7 +165,6 @@ function TournamentParticipantView() {
 
     // Listen for tournament sync events (from director actions)
     const handleTournamentSync = (event: CustomEvent) => {
-      console.log('Participant view received tournament sync:', event.detail);
       if (event.detail?.tournament) {
         const syncedTournament = event.detail.tournament;
 
@@ -218,29 +214,20 @@ function TournamentParticipantView() {
 
     // Only run timer if tournament is explicitly running
     if (tournament?.isRunning) {
-      console.log('Participant view timer starting');
       interval = setInterval(() => {
         setTimeLeft(prev => {
           if (tournament.targetEndTime) {
             const newTime = Math.max(0, Math.ceil((tournament.targetEndTime - Date.now()) / 1000));
-            if (newTime <= 0) {
-              console.log('Participant view timer reached zero');
-              return 0;
-            }
+            if (newTime <= 0) return 0;
             return newTime;
           }
           return prev;
         });
       }, 1000);
-    } else {
-      console.log('Participant view timer stopped - isRunning:', tournament?.isRunning);
     }
 
     return () => {
-      if (interval) {
-        console.log('Clearing participant view timer interval');
-        clearInterval(interval);
-      }
+      if (interval) clearInterval(interval);
     };
   }, [tournament?.isRunning, tournament?.targetEndTime]);
 

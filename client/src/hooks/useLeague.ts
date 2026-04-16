@@ -103,7 +103,6 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   // Auto-create league when none exists
   useEffect(() => {
     if (user && !isAnonymous && !overrideOwnerId && !leaguesLoading && userLeagues.length === 0 && !createLeagueMutation.isPending && !hasAttemptedCreate) {
-      console.log('📝 Creating default league...');
       setHasAttemptedCreate(true);
       createLeagueMutation.mutate();
     }
@@ -282,15 +281,9 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   const addLeaguePlayer = useCallback(async (name: string) => {
     try {
       const leagueId = await waitForLeague();
-      if (!leagueId) {
-        console.error('❌ No active league available');
-        return;
-      }
+      if (!leagueId) return;
 
-      if (!name || typeof name !== 'string' || name.trim().length === 0) {
-        console.warn('⚠️ Invalid player name:', name);
-        return;
-      }
+      if (!name || typeof name !== 'string' || name.trim().length === 0) return;
 
       const existingPlayer = leaguePlayers.find((p: any) =>
         p.name.toLowerCase() === name.toLowerCase()
@@ -305,10 +298,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   const recordResult = useCallback(async (playerId: string, position: number, totalPlayers: number) => {
     try {
-      if (!currentLeagueId) {
-        console.warn('⚠️ No active league');
-        return;
-      }
+      if (!currentLeagueId) return;
       if (!playerId || typeof position !== 'number' || typeof totalPlayers !== 'number') return;
       if (position < 1 || totalPlayers < 1 || position > totalPlayers) return;
 
@@ -377,12 +367,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   ) => {
     try {
       const leagueId = await waitForLeague();
-      if (!leagueId) {
-        console.error('❌ No active league available');
-        return;
-      }
-
-      console.log(`🎯 Recording result for ${playerName}: position ${position}/${totalPlayers}`);
+      if (!leagueId) return;
 
       // Find or create the player
       let targetPlayer = leaguePlayers.find((p: any) =>
@@ -390,7 +375,6 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       );
 
       if (!targetPlayer) {
-        console.log(`Creating new league player: ${playerName}`);
         const newPlayer = await createPlayerMutation.mutateAsync({
           name: playerName
         });
@@ -402,10 +386,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         const alreadyRecorded = cloudResults.some(r =>
           r.leaguePlayerId === String(targetPlayer.id) && r.tournamentId === tournamentId
         );
-        if (alreadyRecorded) {
-          console.log(`Result already recorded for ${playerName} in tournament ${tournamentId}, skipping`);
-          return;
-        }
+        if (alreadyRecorded) return;
       }
 
       // Calculate points

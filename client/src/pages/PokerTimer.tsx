@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -99,6 +100,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, league } = useLeague();
   const { currentSeason } = useSeasons({ leagueId: league?.id });
   const { user, isAnonymous } = useAuth();
+  const { toast } = useToast();
   const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
   const [activeTab, setActiveTab] = useState('players'); // State to manage active tab
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
@@ -171,6 +173,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       } catch (error) {
         console.error('Failed to create database tournament:', error);
         isCreatingTournament.current = false;
+        toast({ title: 'Failed to go live', description: 'Could not create tournament. Please try again.', variant: 'destructive' });
       }
     };
 
@@ -270,7 +273,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     return () => {
       window.removeEventListener('tournament-sync', handleTournamentSync as EventListener);
     };
-  }, [tournament]);
+  }, []);
 
   // Auto-record eliminated players to league when season mode is enabled
   useEffect(() => {
@@ -309,7 +312,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
           try {
             // Validate player data before processing
             if (!player.name || !player.position || !tournament?.state?.players?.length) {
-              console.warn('Invalid player data, skipping:', player);
               return;
             }
 
@@ -376,7 +378,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       }
     } catch (effectError) {
       console.error('Critical error in league recording effect:', effectError);
-      // Don't let this crash the app - continue running
+      toast({ title: 'League recording error', description: 'Some results may not have been saved to the league. Please check Tournament History.', variant: 'destructive' });
     }
   }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, processedEliminations]);
 
