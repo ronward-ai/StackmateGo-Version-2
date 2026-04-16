@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calculator, BarChart3, CalendarRange, Save, AlertTriangle } from 'lucide-react';
+import { Calculator, BarChart3, CalendarRange, Check } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { POINTS_SYSTEMS, LeagueSettings, DEFAULT_LEAGUE_SETTINGS } from '@/types/leagueSettings';
 import {
@@ -39,6 +39,7 @@ export function LeagueSettingsContent() {
 
   const [localSettings, setLocalSettings] = useState<LeagueSettings>(settings);
   const [isDirty, setIsDirty] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [previewPoints, setPreviewPoints] = useState({ position: 1, totalPlayers: 10 });
   const [error, setError] = useState<string | null>(null);
   const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]);
@@ -60,18 +61,9 @@ export function LeagueSettingsContent() {
   const handleSave = useCallback(() => {
     updateSettings(localSettings);
     setIsDirty(false);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
   }, [localSettings, updateSettings]);
-
-  // Debounced save as a fallback
-  useEffect(() => {
-    if (!isDirty) return;
-
-    const timer = setTimeout(() => {
-      handleSave();
-    }, 3000); // Auto-save after 3 seconds of inactivity
-
-    return () => clearTimeout(timer);
-  }, [isDirty, localSettings, handleSave]);
 
   const handleResetToDefaults = () => {
     setLocalSettings(DEFAULT_LEAGUE_SETTINGS);
@@ -236,25 +228,7 @@ export function LeagueSettingsContent() {
   };
 
   return (
-    <div className="space-y-6 relative pb-20">
-      {/* Sticky Save Bar */}
-      {isDirty && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t z-50 flex justify-between items-center shadow-lg animate-in slide-in-from-bottom-2">
-          <div className="flex items-center gap-2 text-amber-500 font-medium">
-            <AlertTriangle className="h-5 w-5" />
-            <span>You have unsaved changes</span>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setLocalSettings(settings)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} className="gap-2">
-              <Save className="h-4 w-4" />
-              Save Changes
-            </Button>
-          </div>
-        </div>
-      )}
+    <div className="space-y-6">
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -606,10 +580,14 @@ export function LeagueSettingsContent() {
               </div>
             </CardContent>
           </Card>
+
+          <Button className="w-full h-10" onClick={handleSave} disabled={!isDirty}>
+            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : 'Save Points Settings'}
+          </Button>
         </TabsContent>
 
         {/* Stats Tab */}
-        <TabsContent value="stats" className="space-y-6">
+        <TabsContent value="stats" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Statistics Display</CardTitle>
@@ -634,7 +612,7 @@ export function LeagueSettingsContent() {
                     </div>
                   ))}
                 </div>
-                
+
                 {/* Display Settings grouped together */}
                 <div className="pt-6 border-t">
                   <h4 className="text-sm font-medium mb-4">Display Options</h4>
@@ -655,10 +633,14 @@ export function LeagueSettingsContent() {
               </div>
             </CardContent>
           </Card>
+
+          <Button className="w-full h-10" onClick={handleSave} disabled={!isDirty}>
+            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : 'Save Stats Settings'}
+          </Button>
         </TabsContent>
 
         {/* Seasons Tab */}
-        <TabsContent value="seasons" className="space-y-6">
+        <TabsContent value="seasons" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>League Season Settings</CardTitle>
@@ -703,10 +685,14 @@ export function LeagueSettingsContent() {
               </div>
             </CardContent>
           </Card>
+
+          <Button className="w-full h-10" onClick={handleSave} disabled={!isDirty}>
+            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : 'Save Season Settings'}
+          </Button>
         </TabsContent>
       </Tabs>
 
-      <div className="flex justify-end pt-4">
+      <div className="flex justify-end">
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" className="text-red-500 hover:text-red-600 hover:bg-red-50">
