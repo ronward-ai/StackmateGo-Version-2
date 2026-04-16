@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Image, X, Volume2, Mic, Eye, Layers, Users, RefreshCw, Settings2, Palette, FileText } from "lucide-react";
+import { Image, X, Volume2, Mic, Eye, Layers, Users, RefreshCw, Settings2, Palette, FileText, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SettingsSectionProps {
@@ -70,6 +70,23 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
   const [justApplied, setJustApplied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Local (staged) copy of general settings — only written to tournament on Apply
+  const [localSettings, setLocalSettings] = useState(() => ({ ...state.settings }));
+  const [generalDirty, setGeneralDirty] = useState(false);
+  const [generalJustApplied, setGeneralJustApplied] = useState(false);
+
+  const setLocal = (patch: Partial<typeof state.settings>) => {
+    setLocalSettings(prev => ({ ...prev, ...patch }));
+    setGeneralDirty(true);
+  };
+
+  const applyGeneralSettings = () => {
+    updateSettings(localSettings);
+    setGeneralDirty(false);
+    setGeneralJustApplied(true);
+    setTimeout(() => setGeneralJustApplied(false), 2000);
+  };
+
   const saveNotes = (v: string) => {
     setNotes(v);
     updateNotes(v);
@@ -125,20 +142,20 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                   id="enableSounds"
                   label="Sound Alerts"
                   hint="30-second warning & level complete sounds"
-                  checked={state.settings.enableSounds}
-                  onCheckedChange={(v) => updateSettings({ enableSounds: v })}
+                  checked={localSettings.enableSounds}
+                  onCheckedChange={(v) => setLocal({ enableSounds: v })}
                 />
                 <SettingRow
                   id="enableVoice"
                   label="Voice Announcements"
                   hint="Blind level changes & countdown warnings"
-                  checked={state.settings.enableVoice}
+                  checked={localSettings.enableVoice}
                   onCheckedChange={(v) => {
-                    updateSettings({ enableVoice: v });
+                    setLocal({ enableVoice: v });
                     if (v) setTimeout(() => testVoice('Voice announcements enabled'), 100);
                   }}
                 >
-                  {state.settings.enableVoice && (
+                  {localSettings.enableVoice && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -157,8 +174,8 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                   id="showNextLevel"
                   label="Next Level Preview"
                   hint="Show upcoming blinds in the timer"
-                  checked={state.settings.showNextLevel}
-                  onCheckedChange={(v) => updateSettings({ showNextLevel: v })}
+                  checked={localSettings.showNextLevel}
+                  onCheckedChange={(v) => setLocal({ showNextLevel: v })}
                 />
               </SettingsGroup>
 
@@ -167,15 +184,15 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                   id="applyDurationToAll"
                   label="Sync Level Durations"
                   hint="Editing one level duration updates all levels"
-                  checked={state.settings.applyDurationToAll || false}
-                  onCheckedChange={(v) => updateSettings({ applyDurationToAll: v })}
+                  checked={localSettings.applyDurationToAll || false}
+                  onCheckedChange={(v) => setLocal({ applyDurationToAll: v })}
                 />
                 <SettingRow
                   id="bigBlindAnte"
                   label="Big Blind Ante"
                   hint="BB posts the ante on behalf of the whole table"
-                  checked={state.settings.bigBlindAnte || false}
-                  onCheckedChange={(v) => updateSettings({ bigBlindAnte: v })}
+                  checked={localSettings.bigBlindAnte || false}
+                  onCheckedChange={(v) => setLocal({ bigBlindAnte: v })}
                 />
               </SettingsGroup>
 
@@ -184,10 +201,20 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                   id="enableRecentPlayers"
                   label="Recent Players"
                   hint="Autocomplete & quick-add from past tournaments"
-                  checked={state.settings.enableRecentPlayers || false}
-                  onCheckedChange={(v) => updateSettings({ enableRecentPlayers: v })}
+                  checked={localSettings.enableRecentPlayers || false}
+                  onCheckedChange={(v) => setLocal({ enableRecentPlayers: v })}
                 />
               </SettingsGroup>
+
+              <Button
+                className="w-full h-10"
+                onClick={applyGeneralSettings}
+                disabled={!generalDirty}
+              >
+                {generalJustApplied
+                  ? <><Check className="h-3.5 w-3.5 mr-1.5" />Applied!</>
+                  : 'Apply Settings'}
+              </Button>
             </TabsContent>
 
             {/* ── Branding Tab ─────────────────────────────── */}
