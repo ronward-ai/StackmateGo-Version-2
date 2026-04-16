@@ -194,7 +194,8 @@ function RealTimeLeagueTable({
     earlyExits: 'Early Out',
     profit: 'Profit',
     roi: 'ROI (%)',
-    rebuys: 'Rebuys'
+    rebuys: 'Rebuys',
+    reEntries: 'Re-entries'
   };
 
   // Get enabled stats from settings with proper fallback
@@ -277,6 +278,7 @@ function RealTimeLeagueTable({
       const winRate = games > 0 ? Math.round((firstPlaces / games) * 100) : 0;
       const earlyExits = results.filter(r => (r.position || 0) > ((r.totalPlayers || 0) * 0.8)).length;
       const totalRebuys = results.reduce((sum, result) => sum + ((result as any).rebuys || 0), 0);
+      const totalReEntries = results.reduce((sum, result) => sum + ((result as any).reEntries || 0), 0);
 
       return {
         ...player,
@@ -295,6 +297,7 @@ function RealTimeLeagueTable({
         winRate,
         earlyExits,
         totalRebuys,
+        totalReEntries,
         // Keep original totalPoints for display
         displayPoints: player.totalPoints || totalPoints
       };
@@ -336,6 +339,8 @@ function RealTimeLeagueTable({
         return player.earlyExits?.toString() || '0';
       case 'rebuys':
         return player.totalRebuys?.toString() || '0';
+      case 'reEntries':
+        return player.totalReEntries?.toString() || '0';
       case 'profit':
         return `£${(player.profit || 0) >= 0 ? '+' : ''}${(player.profit || 0).toLocaleString()}`;
       case 'roi':
