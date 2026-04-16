@@ -87,9 +87,14 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
     setTimeout(() => setGeneralJustApplied(false), 2000);
   };
 
-  const saveNotes = (v: string) => {
-    setNotes(v);
-    updateNotes(v);
+  const [notesDirty, setNotesDirty] = useState(false);
+  const [notesJustSaved, setNotesJustSaved] = useState(false);
+
+  const saveNotes = () => {
+    updateNotes(notes);
+    setNotesDirty(false);
+    setNotesJustSaved(true);
+    setTimeout(() => setNotesJustSaved(false), 2000);
   };
 
   const testVoice = (msg = 'This is a test voice announcement') => {
@@ -305,17 +310,23 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
             {/* ── Notes Tab ─────────────────────────────── */}
             <TabsContent value="notes" className="mt-0">
               <Card className="card-glass rounded-xl">
-                <CardContent className="p-4 space-y-2">
+                <CardContent className="p-4 space-y-3">
                   <Textarea
                     placeholder="Add tournament notes, house rules, or announcements..."
                     value={notes}
-                    onChange={(e) => saveNotes(e.target.value)}
+                    onChange={(e) => { setNotes(e.target.value); setNotesDirty(true); }}
                     className="min-h-[140px] text-sm resize-none border-border/30"
                     rows={6}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Notes auto-save as you type and are shown to players in the participant view.
-                  </p>
+                  <Button
+                    className="w-full h-10"
+                    onClick={saveNotes}
+                    disabled={!notesDirty}
+                  >
+                    {notesJustSaved
+                      ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</>
+                      : 'Save Notes'}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
