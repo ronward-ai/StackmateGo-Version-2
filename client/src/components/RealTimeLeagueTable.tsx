@@ -193,7 +193,8 @@ function RealTimeLeagueTable({
     headsUpRecord: 'H2H',
     earlyExits: 'Early Out',
     profit: 'Profit',
-    roi: 'ROI (%)'
+    roi: 'ROI (%)',
+    rebuys: 'Rebuys'
   };
 
   // Get enabled stats from settings with proper fallback
@@ -275,6 +276,7 @@ function RealTimeLeagueTable({
       const bestFinish = games > 0 ? Math.min(...results.map(r => r.position || 999)) : 999;
       const winRate = games > 0 ? Math.round((firstPlaces / games) * 100) : 0;
       const earlyExits = results.filter(r => (r.position || 0) > ((r.totalPlayers || 0) * 0.8)).length;
+      const totalRebuys = results.reduce((sum, result) => sum + ((result as any).rebuys || 0), 0);
 
       return {
         ...player,
@@ -292,6 +294,7 @@ function RealTimeLeagueTable({
         bestFinish,
         winRate,
         earlyExits,
+        totalRebuys,
         // Keep original totalPoints for display
         displayPoints: player.totalPoints || totalPoints
       };
@@ -331,6 +334,8 @@ function RealTimeLeagueTable({
         return headsUpWins + headsUpLosses > 0 ? `${headsUpWins}-${headsUpLosses}` : '0-0';
       case 'earlyExits':
         return player.earlyExits?.toString() || '0';
+      case 'rebuys':
+        return player.totalRebuys?.toString() || '0';
       case 'profit':
         return `£${(player.profit || 0) >= 0 ? '+' : ''}${(player.profit || 0).toLocaleString()}`;
       case 'roi':
