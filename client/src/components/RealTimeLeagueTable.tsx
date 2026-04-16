@@ -197,7 +197,15 @@ function RealTimeLeagueTable({
     profit: 'Profit',
     roi: 'ROI (%)',
     rebuys: 'Rebuys',
-    reEntries: 'Re-entries'
+    reEntries: 'Re-entries',
+    itmPercentage: 'ITM %',
+    addOns: 'Add-ons',
+    totalInvested: 'Invested',
+    bountiesWon: 'Bounties',
+    attendancePercent: 'Attendance',
+    currentStreak: 'Streak',
+    biggestWin: 'Biggest Win',
+    worstFinish: 'Worst',
   };
 
   // Get enabled stats from settings with proper fallback
@@ -282,6 +290,50 @@ function RealTimeLeagueTable({
       const totalRebuys = results.reduce((sum, result) => sum + ((result as any).rebuys || 0), 0);
       const totalReEntries = results.reduce((sum, result) => sum + ((result as any).reEntries || 0), 0);
 
+      // ITM %
+      const itmCount = results.filter(r => {
+        const cash = (r as any).prizeMoney || (r as any).cashWon || (r as any).winnings || (r as any).prizeAmount || (r as any).totalWinnings || 0;
+        return cash > 0;
+      }).length;
+      const itmPercentage = games > 0 ? Math.round((itmCount / games) * 100) : 0;
+
+      // Add-ons
+      const totalAddOns = results.reduce((sum, r) => sum + ((r as any).addons || 0), 0);
+
+      // Total invested (buyInsSpent already computed above)
+      const totalInvested = buyInsSpent;
+
+      // Bounties won
+      const bountiesWon = results.reduce((sum, r) => sum + ((r as any).bountyWon || (r as any).bountiesWon || 0), 0);
+
+      // Attendance %
+      const attendancePercent = totalTournaments > 0 ? Math.round((games / totalTournaments) * 100) : 0;
+
+      // Current streak — consecutive ITM finishes from most recent game
+      const sortedForStreak = [...results].sort((a: any, b: any) => {
+        const aTs = a.tournamentDate?.seconds ? a.tournamentDate.seconds * 1000
+          : (typeof a.tournamentDate === 'number' ? a.tournamentDate : 0)
+          || (a.date ? new Date(a.date).getTime() : 0);
+        const bTs = b.tournamentDate?.seconds ? b.tournamentDate.seconds * 1000
+          : (typeof b.tournamentDate === 'number' ? b.tournamentDate : 0)
+          || (b.date ? new Date(b.date).getTime() : 0);
+        return bTs - aTs;
+      });
+      let currentStreak = 0;
+      for (const r of sortedForStreak) {
+        const cash = (r as any).prizeMoney || (r as any).cashWon || (r as any).winnings || (r as any).prizeAmount || (r as any).totalWinnings || 0;
+        if (cash > 0) currentStreak++;
+        else break;
+      }
+
+      // Biggest win
+      const biggestWin = results.length > 0
+        ? Math.max(...results.map((r: any) => r.prizeMoney || r.cashWon || r.winnings || r.prizeAmount || r.totalWinnings || 0))
+        : 0;
+
+      // Worst finish
+      const worstFinish = games > 0 ? Math.max(...results.map(r => r.position || 0)) : 0;
+
       return {
         ...player,
         games,
@@ -300,11 +352,19 @@ function RealTimeLeagueTable({
         earlyExits,
         totalRebuys,
         totalReEntries,
+        itmPercentage,
+        totalAddOns,
+        totalInvested,
+        bountiesWon,
+        attendancePercent,
+        currentStreak,
+        biggestWin,
+        worstFinish,
         // Keep original totalPoints for display
         displayPoints: player.totalPoints || totalPoints
       };
     });
-  }, [seasonFilteredPlayers]);
+  }, [seasonFilteredPlayers, totalTournaments]);
 
   // Calculate stats for a player
   const getPlayerStat = (player: any, stat: string) => {
@@ -343,6 +403,22 @@ function RealTimeLeagueTable({
         return player.totalRebuys?.toString() || '0';
       case 'reEntries':
         return player.totalReEntries?.toString() || '0';
+      case 'itmPercentage':
+        return `${player.itmPercentage || 0}%`;
+      case 'addOns':
+        return player.totalAddOns?.toString() || '0';
+      case 'totalInvested':
+        return `£${(player.totalInvested || 0).toLocaleString()}`;
+      case 'bountiesWon':
+        return player.bountiesWon?.toString() || '0';
+      case 'attendancePercent':
+        return `${player.attendancePercent || 0}%`;
+      case 'currentStreak':
+        return player.currentStreak?.toString() || '0';
+      case 'biggestWin':
+        return `£${(player.biggestWin || 0).toLocaleString()}`;
+      case 'worstFinish':
+        return player.worstFinish?.toString() || '0';
       case 'profit':
         return `£${(player.profit || 0) >= 0 ? '+' : ''}${(player.profit || 0).toLocaleString()}`;
       case 'roi':
