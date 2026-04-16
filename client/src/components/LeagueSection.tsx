@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ChevronDown, LayoutDashboard, Target, Calendar, CalendarIcon, Plus, Save } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, Target, Calendar, CalendarIcon, Plus } from 'lucide-react';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import SeasonDashboard from '@/components/SeasonDashboard';
 import LeagueTournaments from '@/components/LeagueTournaments';
@@ -243,29 +243,6 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         <span className="text-xs text-muted-foreground hidden sm:block">
                           {gamesPlayed}/{totalGames} games
                         </span>
-                      )}
-                      {currentSeason && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
-                          title="Save current blind levels & prize structure to this season so future games auto-load them"
-                          onClick={async () => {
-                            const levels = tournament?.state?.levels;
-                            const prizeStructure = tournament?.state?.prizeStructure;
-                            if (!levels || !prizeStructure) return;
-                            await updateSeason(currentSeason.id, {
-                              settings: {
-                                ...(currentSeason as any).settings,
-                                blindLevels: levels,
-                                prizeStructure,
-                              },
-                            });
-                          }}
-                        >
-                          <Save className="h-3 w-3 mr-1" />
-                          Save structure
-                        </Button>
                       )}
                       <Button
                         size="sm"
