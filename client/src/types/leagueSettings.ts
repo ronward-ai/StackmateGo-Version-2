@@ -61,6 +61,7 @@ export interface LeagueStatsDisplay {
   profit: boolean; // Earnings minus buy-ins spent
   roi: boolean; // Return on Investment (profit / total buy-ins)
   rebuys: boolean; // Total rebuy count across all games
+  reEntries: boolean; // Total re-entry count across all games
 }
 
 export interface LeagueSettings {
@@ -173,7 +174,8 @@ export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
     finalTableAppearances: false,
     profit: false,
     roi: false,
-    rebuys: false
+    rebuys: false,
+    reEntries: false
   },
   displaySettings: {
     showPosition: true,
