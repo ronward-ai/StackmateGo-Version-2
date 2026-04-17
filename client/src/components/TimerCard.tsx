@@ -368,7 +368,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
                   target.style.display = 'none';
                 }}
               />
-              <span className="text-[10px] mt-1">Scan for live updates</span>
+              <span className="text-xs mt-1 font-semibold">Scan for live updates</span>
             </div>
           )}
         </div>
