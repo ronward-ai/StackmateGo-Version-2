@@ -154,9 +154,14 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             </button>
           </div>
           {isLeagueMode && gameNumber !== null && (
-            <span className="text-xs font-medium text-orange-400">
-              Game {gameNumber} of {totalGames}
-            </span>
+            <div className="flex flex-col items-end gap-0.5">
+              {currentSeason?.name && (
+                <span className="text-[10px] text-muted-foreground">{currentSeason.name}</span>
+              )}
+              <span className="text-xs font-medium text-orange-400">
+                Game {gameNumber} of {totalGames}
+              </span>
+            </div>
           )}
         </div>
 
