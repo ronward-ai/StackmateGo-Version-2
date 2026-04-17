@@ -263,7 +263,7 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     }
   }, [leagueId, updateSeasonMutation]);
 
-  // Delete a season
+  // Delete a season and all its tournament results
   const deleteSeason = useCallback(async (seasonId: string | number) => {
     if (!leagueId) {
       console.warn('Cannot delete season without league ID');
@@ -271,11 +271,20 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     }
 
     try {
+      // Cascade: remove all tournament results tied to this season
+      const sid = String(seasonId);
+      const resultsSnap = await getDocs(query(collections.tournamentResults, where('seasonId', '==', sid)));
+      await Promise.all(resultsSnap.docs.map(d => deleteDoc(doc(db, 'tournamentResults', d.id))));
+
       await deleteSeasonMutation.mutateAsync(seasonId);
+
+      queryClient.invalidateQueries({ queryKey: ['leaguePlayers', leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['leagueResults', leagueId] });
     } catch (error) {
       console.error('Failed to delete season:', error);
+      throw error;
     }
-  }, [leagueId, deleteSeasonMutation]);
+  }, [leagueId, deleteSeasonMutation, queryClient]);
 
   // Reset a season (clear all data but keep the season)
   const resetSeason = useCallback(async (seasonId: string | number) => {

@@ -5,10 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ChevronDown, LayoutDashboard, Target, Calendar, CalendarIcon, Plus, Trophy } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, Target, Calendar, CalendarIcon, Plus, Trophy, Trash2 } from 'lucide-react';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import SeasonDashboard from '@/components/SeasonDashboard';
 import LeagueTournaments from '@/components/LeagueTournaments';
@@ -42,9 +43,14 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   });
   const [rangeOpen, setRangeOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [showDeleteSeason, setShowDeleteSeason] = useState(false);
+  const [showDeleteLeague, setShowDeleteLeague] = useState(false);
+  const [isDeletingSeason, setIsDeletingSeason] = useState(false);
+  const [isDeletingLeague, setIsDeletingLeague] = useState(false);
+  const [deleteLeagueConfirm, setDeleteLeagueConfirm] = useState('');
 
-  const { league, userLeagues, switchLeague, createLeague, setActiveSeasonId } = useLeague();
-  const { seasons, currentSeason, addSeason, updateSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
+  const { league, userLeagues, switchLeague, createLeague, deleteLeague, setActiveSeasonId } = useLeague();
+  const { seasons, currentSeason, addSeason, updateSeason, deleteSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
 
   useEffect(() => {
     if (currentSeason?.id) {
@@ -126,6 +132,29 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
       setNewLeagueName('');
     } finally {
       setIsCreatingLeague(false);
+    }
+  };
+
+  const handleDeleteSeason = async () => {
+    if (!currentSeason?.id) return;
+    setIsDeletingSeason(true);
+    try {
+      await deleteSeason(currentSeason.id);
+      setShowDeleteSeason(false);
+    } finally {
+      setIsDeletingSeason(false);
+    }
+  };
+
+  const handleDeleteLeague = async () => {
+    if (!league?.id || league.id === 'pending') return;
+    setIsDeletingLeague(true);
+    try {
+      await deleteLeague(league.id);
+      setShowDeleteLeague(false);
+      setDeleteLeagueConfirm('');
+    } finally {
+      setIsDeletingLeague(false);
     }
   };
 
@@ -254,6 +283,59 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Season confirmation */}
+      <AlertDialog open={showDeleteSeason} onOpenChange={setShowDeleteSeason}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete season?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{currentSeason?.name}</strong> and all its tournament results will be permanently deleted. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteSeason}
+              disabled={isDeletingSeason}
+            >
+              {isDeletingSeason ? 'Deleting...' : 'Delete Season'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete League confirmation */}
+      <Dialog open={showDeleteLeague} onOpenChange={(open) => { setShowDeleteLeague(open); if (!open) setDeleteLeagueConfirm(''); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete league?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete <strong>{league?.name}</strong> including all seasons, players, and tournament results. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <p className="text-sm text-muted-foreground">Type <span className="font-mono font-semibold text-foreground">{league?.name}</span> to confirm:</p>
+            <Input
+              value={deleteLeagueConfirm}
+              onChange={e => setDeleteLeagueConfirm(e.target.value)}
+              placeholder={league?.name}
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setShowDeleteLeague(false); setDeleteLeagueConfirm(''); }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteLeagueConfirm !== league?.name || isDeletingLeague}
+              onClick={handleDeleteLeague}
+            >
+              {isDeletingLeague ? 'Deleting...' : 'Delete League'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Tabs value={leagueView} onValueChange={(v) => setLeagueView(v as 'overview' | 'settings')}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview" variant="league">Overview</TabsTrigger>
@@ -299,15 +381,26 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         </span>
                       )}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs flex-shrink-0"
-                      onClick={() => setShowNewLeague(true)}
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      New League
-                    </Button>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setShowNewLeague(true)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        New League
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => setShowDeleteLeague(true)}
+                        title="Delete league"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -350,9 +443,9 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       {currentSeason && (
-                        <span className="text-xs text-muted-foreground hidden sm:block">
+                        <span className="text-xs text-muted-foreground hidden sm:block mr-1">
                           {gamesPlayed}/{totalGames} games
                         </span>
                       )}
@@ -364,6 +457,15 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                       >
                         <Plus className="h-3 w-3 mr-1" />
                         New Season
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => setShowDeleteSeason(true)}
+                        title="Delete season"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>

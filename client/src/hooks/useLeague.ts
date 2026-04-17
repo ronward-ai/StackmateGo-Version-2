@@ -495,6 +495,44 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     }
   }, []);
 
+  // Delete the currently active league and all its associated data
+  const deleteLeague = useCallback(async (leagueId: string) => {
+    if (!user?.id) return;
+    try {
+      const lid = String(leagueId);
+
+      // 1. Delete all tournament results for this league
+      const resultsSnap = await getDocs(query(collections.tournamentResults, where('leagueId', '==', lid)));
+      await Promise.all(resultsSnap.docs.map(d => deleteDoc(doc(db, 'tournamentResults', d.id))));
+
+      // 2. Delete all league players
+      const playersSnap = await getDocs(query(collections.leaguePlayers, where('leagueId', '==', lid)));
+      await Promise.all(playersSnap.docs.map(d => deleteDoc(doc(db, 'leaguePlayers', d.id))));
+
+      // 3. Delete all seasons
+      const seasonsSnap = await getDocs(query(collections.seasons, where('leagueId', '==', lid)));
+      await Promise.all(seasonsSnap.docs.map(d => deleteDoc(doc(db, 'seasons', d.id))));
+
+      // 4. Delete league settings docs
+      const settingsSnap = await getDocs(query(collections.leagueSettings, where('userId', '==', user.id), where('leagueId', '==', lid)));
+      await Promise.all(settingsSnap.docs.map(d => deleteDoc(doc(db, 'leagueSettings', d.id))));
+
+      // 5. Delete the league doc itself
+      await deleteDoc(doc(db, 'leagues', lid));
+
+      queryClient.invalidateQueries({ queryKey: ['leagues', user.id] });
+
+      // Switch to another league if one exists
+      const remaining = userLeagues.filter((l: any) => String(l.id) !== lid);
+      if (remaining.length > 0) {
+        switchLeague(String(remaining[0].id));
+      }
+    } catch (error) {
+      console.error('Error deleting league:', error);
+      throw error;
+    }
+  }, [user?.id, userLeagues, switchLeague, queryClient]);
+
   const league = currentLeague ? {
     id: currentLeague.id.toString(),
     name: currentLeague.name,
@@ -514,6 +552,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     userLeagues,
     switchLeague,
     createLeague,
+    deleteLeague,
     leaguePlayers,
     addLeaguePlayer,
     recordResult,
