@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calculator, BarChart3, CalendarRange, Check } from 'lucide-react';
+import { Calculator, BarChart3, Check } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { POINTS_SYSTEMS, LeagueSettings, DEFAULT_LEAGUE_SETTINGS } from '@/types/leagueSettings';
 import {
@@ -253,10 +253,6 @@ export function LeagueSettingsContent() {
           <TabsTrigger value="stats" variant="players" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
             <BarChart3 className="h-4 w-4" />
             Stats
-          </TabsTrigger>
-          <TabsTrigger value="seasons" variant="league" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
-            <CalendarRange className="h-4 w-4" />
-            Seasons
           </TabsTrigger>
         </TabsList>
 
@@ -639,57 +635,6 @@ export function LeagueSettingsContent() {
           </Button>
         </TabsContent>
 
-        {/* Seasons Tab */}
-        <TabsContent value="seasons" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>League Season Settings</CardTitle>
-              <CardDescription>Configure season names and game counts</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>League Season Name</Label>
-                <Input
-                  type="text"
-                  value={localSettings.seasonSettings.seasonName}
-                  onChange={(e) => setLocalSettings(prev => ({
-                    ...prev,
-                    seasonSettings: { ...prev.seasonSettings, seasonName: e.target.value }
-                  }))}
-                  placeholder="e.g., Summer 2026"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Number of Games this Season</Label>
-                <Input
-                  type="number"
-                  value={localSettings.seasonSettings.numberOfGames}
-                  onChange={(e) => setLocalSettings(prev => ({
-                    ...prev,
-                    seasonSettings: { ...prev.seasonSettings, numberOfGames: parseInt(e.target.value) || 12 }
-                  }))}
-                  min={1}
-                  max={100}
-                />
-              </div>
-              <div className="flex items-center space-x-2 pt-2">
-                <Checkbox
-                  id="autoReset"
-                  checked={localSettings.seasonSettings.autoReset}
-                  onCheckedChange={(checked) => setLocalSettings(prev => ({
-                    ...prev,
-                    seasonSettings: { ...prev.seasonSettings, autoReset: !!checked }
-                  }))}
-                />
-                <Label htmlFor="autoReset">Auto-reset at season end</Label>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Button className="w-full h-10" onClick={handleSave} disabled={!isDirty}>
-            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : 'Save Season Settings'}
-          </Button>
-        </TabsContent>
       </Tabs>
 
       <div className="flex justify-end">
