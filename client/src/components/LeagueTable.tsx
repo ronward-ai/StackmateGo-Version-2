@@ -36,7 +36,7 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
   } = useLeague();
   const { currentSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
 
-  const { settings, calculatePoints } = useLeagueSettings();
+  const { settings, calculatePoints } = useLeagueSettings(undefined, league?.id && league.id !== 'pending' ? String(league.id) : null);
   const standings = getLeagueStandings();
 
   // Check if we're in a league tournament context

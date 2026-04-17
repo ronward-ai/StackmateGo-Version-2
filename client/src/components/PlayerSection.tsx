@@ -23,7 +23,13 @@ interface PlayerSectionProps {
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, calculatePrizePool } = tournament;
   const { leaguePlayers } = useLeague();
-  const { calculatePoints } = useLeagueSettings((state.details as any)?.ownerId);
+  const tournamentLeagueId = (state.settings as any)?.leagueId
+    ?? (state.details as any)?.leagueId
+    ?? null;
+  const { calculatePoints } = useLeagueSettings(
+    (state.details as any)?.ownerId,
+    tournamentLeagueId ? String(tournamentLeagueId) : null
+  );
   const [playerName, setPlayerName] = useState('');
 
   const isLeagueMode =

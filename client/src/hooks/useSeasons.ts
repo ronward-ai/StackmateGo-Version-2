@@ -39,7 +39,7 @@ interface UseSeasonsOptions {
 
 export function useSeasons(options: UseSeasonsOptions = {}) {
   const { leagueId } = options;
-  const { settings } = useLeagueSettings();
+  const { settings } = useLeagueSettings(undefined, leagueId ? String(leagueId) : null);
   const queryClient = useQueryClient();
 
   const [dbSeasons, setDbSeasons] = useState<Season[]>([]);

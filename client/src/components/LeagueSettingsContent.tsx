@@ -27,7 +27,11 @@ interface SavedFormula {
   settings: LeagueSettings;
 }
 
-export function LeagueSettingsContent() {
+interface LeagueSettingsContentProps {
+  leagueId?: string | null;
+}
+
+export function LeagueSettingsContent({ leagueId = null }: LeagueSettingsContentProps = {}) {
   const {
     settings,
     updateSettings,
@@ -35,7 +39,7 @@ export function LeagueSettingsContent() {
     saveCustomFormulaTemplate,
     deleteSettingsFromDatabase,
     getSavedCustomFormulas
-  } = useLeagueSettings();
+  } = useLeagueSettings(undefined, leagueId);
 
   const [localSettings, setLocalSettings] = useState<LeagueSettings>(settings);
   const [isDirty, setIsDirty] = useState(false);

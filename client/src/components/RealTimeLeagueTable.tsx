@@ -37,7 +37,6 @@ function RealTimeLeagueTable({
   // computed below after seasonFilteredPlayers is defined
   const exportRef = useRef<HTMLDivElement>(null);
   const { isLoading: authLoading } = useAuth();
-  const settingsData = useLeagueSettings(tournament?.ownerId);
   // For participant view pass the leagueId directly so useLeague can skip the
   // ownerId → leagues lookup (faster, and works even if ownerId isn't in the snapshot yet)
   const directLeagueId = tournament?.settings?.leagueId ?? null;
@@ -47,6 +46,7 @@ function RealTimeLeagueTable({
   const leagueId = (_rawLeagueId && _rawLeagueId !== 'pending')
     ? _rawLeagueId
     : directLeagueId;
+  const settingsData = useLeagueSettings(tournament?.ownerId, leagueId ? String(leagueId) : null);
   const { currentSeason } = useSeasons({ leagueId });
 
   // ALL hook calls complete - now safe to do any logic

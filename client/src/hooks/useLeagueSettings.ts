@@ -11,10 +11,42 @@ import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 
-export function useLeagueSettings(overrideOwnerId?: string) {
+function loadFromStorage(storageKey: string): LeagueSettings {
+  try {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return DEFAULT_LEAGUE_SETTINGS;
+    }
+    const saved = localStorage.getItem(storageKey);
+    if (!saved) return DEFAULT_LEAGUE_SETTINGS;
+
+    const parsed = JSON.parse(saved);
+    if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) return DEFAULT_LEAGUE_SETTINGS;
+    if (!parsed.pointsSystem.formula) return DEFAULT_LEAGUE_SETTINGS;
+
+    return {
+      ...DEFAULT_LEAGUE_SETTINGS,
+      ...parsed,
+      statsToDisplay: {
+        ...DEFAULT_LEAGUE_SETTINGS.statsToDisplay,
+        ...parsed.statsToDisplay
+      },
+      pointsSystem: {
+        ...DEFAULT_LEAGUE_SETTINGS.pointsSystem,
+        ...parsed.pointsSystem,
+        formula: { ...parsed.pointsSystem.formula }
+      }
+    };
+  } catch (error) {
+    console.error('Failed to load league settings:', error);
+    return DEFAULT_LEAGUE_SETTINGS;
+  }
+}
+
+export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | null) {
   const { user, isAnonymous } = useAuth();
 
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
+  const storageKey = leagueId ? `leagueSettings:${leagueId}` : 'leagueSettings';
 
   // Store saved settings from database
   const [savedSettings, setSavedSettings] = useState<Array<{
@@ -22,104 +54,38 @@ export function useLeagueSettings(overrideOwnerId?: string) {
     name: string;
     settings: LeagueSettings;
     isDefault: boolean;
+    leagueId?: string;
   }>>([]);
 
-  const [settings, setSettings] = useState<LeagueSettings>(() => {
-    try {
-      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-        return DEFAULT_LEAGUE_SETTINGS;
-      }
-      const saved = localStorage.getItem('leagueSettings');
-      if (!saved) {
-        return DEFAULT_LEAGUE_SETTINGS;
-      }
-      const parsed = JSON.parse(saved);
+  const [settings, setSettings] = useState<LeagueSettings>(() => loadFromStorage(storageKey));
 
-      if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) {
-        return DEFAULT_LEAGUE_SETTINGS;
-      }
+  // When the league context changes, reload settings from the scoped storage key
+  useEffect(() => {
+    setSettings(loadFromStorage(storageKey));
+  }, [storageKey]);
 
-      if (!parsed.pointsSystem.formula) {
-        return DEFAULT_LEAGUE_SETTINGS;
-      }
-
-      // Ensure statsToDisplay has all possible stats
-      const completeStatsToDisplay = {
-        ...DEFAULT_LEAGUE_SETTINGS.statsToDisplay,
-        ...parsed.statsToDisplay
-      };
-
-      const loadedSettings = {
-        ...DEFAULT_LEAGUE_SETTINGS,
-        ...parsed,
-        statsToDisplay: completeStatsToDisplay,
-        pointsSystem: {
-          ...DEFAULT_LEAGUE_SETTINGS.pointsSystem,
-          ...parsed.pointsSystem,
-          formula: {
-            ...parsed.pointsSystem.formula
-          }
-        }
-      };
-
-      return loadedSettings;
-    } catch (error) {
-      console.error('Failed to load league settings:', error);
-      return DEFAULT_LEAGUE_SETTINGS;
-    }
-  });
-
-  // Save settings to localStorage
+  // Save settings to localStorage under the scoped key
   useEffect(() => {
     try {
       if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && settings) {
-        localStorage.setItem('leagueSettings', JSON.stringify(settings));
+        localStorage.setItem(storageKey, JSON.stringify(settings));
       }
     } catch (error) {
       console.error('Failed to save league settings:', error);
     }
-  }, [settings]);
+  }, [settings, storageKey]);
 
   // Listen for settings reload events
   useEffect(() => {
     const handleSettingsChange = () => {
       try {
         if (typeof window === 'undefined') return;
-
-        const saved = localStorage.getItem('leagueSettings');
+        const saved = localStorage.getItem(storageKey);
         if (!saved) return;
-
         const parsed = JSON.parse(saved);
-
-        // Validate the parsed settings have required fields
-        if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) {
-          return;
-        }
-
-        // Ensure pointsSystem has proper structure
-        if (!parsed.pointsSystem.formula) {
-          return;
-        }
-
-        // Ensure statsToDisplay has all possible stats
-        const completeStatsToDisplay = {
-          ...DEFAULT_LEAGUE_SETTINGS.statsToDisplay,
-          ...parsed.statsToDisplay
-        };
-
-        const reloadedSettings = {
-          ...DEFAULT_LEAGUE_SETTINGS,
-          ...parsed,
-          statsToDisplay: completeStatsToDisplay,
-          pointsSystem: {
-            ...parsed.pointsSystem,
-            formula: {
-              ...parsed.pointsSystem.formula
-            }
-          }
-        };
-
-        setSettings(reloadedSettings);
+        if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) return;
+        if (!parsed.pointsSystem.formula) return;
+        setSettings(loadFromStorage(storageKey));
       } catch (error) {
         console.error('Failed to reload league settings:', error);
       }
@@ -129,7 +95,7 @@ export function useLeagueSettings(overrideOwnerId?: string) {
       window.addEventListener('leagueSettingsChanged', handleSettingsChange);
       return () => window.removeEventListener('leagueSettingsChanged', handleSettingsChange);
     }
-  }, []);
+  }, [storageKey]);
 
   // Calculate points based on current points system
   const calculatePoints = useCallback((
@@ -303,7 +269,8 @@ export function useLeagueSettings(overrideOwnerId?: string) {
     });
   }, [savedSettings]);
 
-  // Load saved settings from database
+  // Load saved settings from database — scoped to this league when leagueId is provided.
+  // Legacy docs with no leagueId are only used as a fallback when no league-scoped docs exist.
   useEffect(() => {
     if (!targetOwnerId) return;
 
@@ -315,12 +282,22 @@ export function useLeagueSettings(overrideOwnerId?: string) {
           ...doc.data()
         })) as any[];
 
-        setSavedSettings(data);
+        if (leagueId) {
+          const forThisLeague = data.filter(s => s.leagueId === leagueId);
+          const legacy = data.filter(s => !s.leagueId);
+          const scoped = forThisLeague.length > 0 ? forThisLeague : legacy;
+          setSavedSettings(scoped);
 
-        // Load default settings if available
-        const defaultSettings = data.find((s: any) => s.isDefault);
-        if (defaultSettings) {
-          setSettings(defaultSettings.settings);
+          const defaultSettings = scoped.find((s: any) => s.isDefault);
+          if (defaultSettings) {
+            setSettings(defaultSettings.settings);
+          }
+        } else {
+          setSavedSettings(data);
+          const defaultSettings = data.find((s: any) => s.isDefault);
+          if (defaultSettings) {
+            setSettings(defaultSettings.settings);
+          }
         }
       } catch (error) {
         console.error('Error processing settings snapshot:', error);
@@ -330,7 +307,7 @@ export function useLeagueSettings(overrideOwnerId?: string) {
     });
 
     return () => unsubscribe();
-  }, [targetOwnerId]);
+  }, [targetOwnerId, leagueId]);
 
   const loadSavedSettings = useCallback(async () => {
     // no-op: settings are kept in sync by the real-time Firestore listener above
@@ -343,25 +320,26 @@ export function useLeagueSettings(overrideOwnerId?: string) {
     try {
       const newSetting = sanitizeForFirestore({
         userId: user.id,
+        leagueId: leagueId ?? null,
         name,
         settings,
         isDefault,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      
+
       const docRef = await addDoc(collections.leagueSettings, newSetting);
-      
+
       const savedSetting = {
         id: docRef.id,
         ...newSetting
       };
-      
+
       setSavedSettings(prev => [...prev, savedSetting as any]);
     } catch (error) {
       console.error('Error saving settings to database:', error);
     }
-  }, [settings, user?.id]);
+  }, [settings, user?.id, leagueId]);
 
   // Load settings from database by ID
   const loadSettingsFromDatabase = useCallback((settingId: string | number) => {
@@ -402,26 +380,27 @@ export function useLeagueSettings(overrideOwnerId?: string) {
     try {
       const newSetting = sanitizeForFirestore({
         userId: user.id,
+        leagueId: leagueId ?? null,
         name: `Custom Formula: ${formulaName}`,
         settings: templateSettings,
         isDefault: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      
+
       const docRef = await addDoc(collections.leagueSettings, newSetting);
-      
+
       const savedTemplate = {
         id: docRef.id,
         ...newSetting
       };
-      
+
       setSavedSettings(prev => [...prev, savedTemplate as any]);
       return savedTemplate;
     } catch (error) {
       console.error('Error saving custom formula template:', error);
     }
-  }, [user?.id]);
+  }, [user?.id, leagueId]);
 
   // Get saved custom formulas
   const getSavedCustomFormulas = useCallback(() => {

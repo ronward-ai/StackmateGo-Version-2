@@ -44,7 +44,6 @@ const DEFAULT_LEAGUE_NAME = 'Main League';
 
 export function useLeague(overrideOwnerId?: string, directLeagueId?: string | null) {
   const { user, isAnonymous, isAuthenticated: isUserAuthenticated } = useAuth();
-  const { calculatePoints: calculatePointsFromSettings } = useLeagueSettings(overrideOwnerId);
   const queryClient = useQueryClient();
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
 
@@ -84,6 +83,12 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     ? { id: directLeagueId, name: 'League' }
     : (userLeagues.find((l: any) => l.id === selectedLeagueId) || userLeagues[0] || null);
   const currentLeagueId = currentLeague?.id ?? null;
+
+  // Points calculation uses per-league settings
+  const { calculatePoints: calculatePointsFromSettings } = useLeagueSettings(
+    overrideOwnerId,
+    currentLeagueId ? String(currentLeagueId) : null
+  );
 
   // When leagues load, ensure selectedLeagueId points to a real league
   useEffect(() => {
