@@ -528,7 +528,10 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
         {/* ── Settings tab ── */}
         <TabsContent value="settings" className="mt-4">
-          <LeagueSettingsContent leagueId={league?.id && league.id !== 'pending' ? String(league.id) : null} />
+          <LeagueSettingsContent
+            leagueId={league?.id && league.id !== 'pending' ? String(league.id) : null}
+            leagueName={league?.id && league.id !== 'pending' ? league.name : null}
+          />
         </TabsContent>
       </Tabs>
 

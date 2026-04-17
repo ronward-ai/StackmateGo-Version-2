@@ -29,9 +29,10 @@ interface SavedFormula {
 
 interface LeagueSettingsContentProps {
   leagueId?: string | null;
+  leagueName?: string | null;
 }
 
-export function LeagueSettingsContent({ leagueId = null }: LeagueSettingsContentProps = {}) {
+export function LeagueSettingsContent({ leagueId = null, leagueName = null }: LeagueSettingsContentProps = {}) {
   const {
     settings,
     updateSettings,
@@ -582,7 +583,7 @@ export function LeagueSettingsContent({ leagueId = null }: LeagueSettingsContent
           </Card>
 
           <Button className="w-full h-10" onClick={handleSave} disabled={!isDirty}>
-            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : 'Save Points Settings'}
+            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : leagueName ? `Save points settings for ${leagueName}` : 'Save Points Settings'}
           </Button>
         </TabsContent>
 
@@ -635,7 +636,7 @@ export function LeagueSettingsContent({ leagueId = null }: LeagueSettingsContent
           </Card>
 
           <Button className="w-full h-10" onClick={handleSave} disabled={!isDirty}>
-            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : 'Save Stats Settings'}
+            {justSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved!</> : leagueName ? `Save stats settings for ${leagueName}` : 'Save Stats Settings'}
           </Button>
         </TabsContent>
 
