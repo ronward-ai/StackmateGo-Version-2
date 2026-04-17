@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ChevronDown, LayoutDashboard, Target, Calendar, CalendarIcon, Plus } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, Target, Calendar, CalendarIcon, Plus, Trophy } from 'lucide-react';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import SeasonDashboard from '@/components/SeasonDashboard';
 import LeagueTournaments from '@/components/LeagueTournaments';
@@ -30,6 +30,9 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [leagueView, setLeagueView] = useState<'overview' | 'settings'>('overview');
   const [showNewSeason, setShowNewSeason] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
+  const [showNewLeague, setShowNewLeague] = useState(false);
+  const [newLeagueName, setNewLeagueName] = useState('');
+  const [isCreatingLeague, setIsCreatingLeague] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const from = new Date();
     const to = new Date();
@@ -39,7 +42,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [rangeOpen, setRangeOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
-  const { league, setActiveSeasonId } = useLeague();
+  const { league, userLeagues, switchLeague, createLeague, setActiveSeasonId } = useLeague();
   const { seasons, currentSeason, addSeason, updateSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
 
   useEffect(() => {
@@ -100,6 +103,18 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
       setDateRange({ from, to });
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleCreateLeague = async () => {
+    if (!newLeagueName.trim()) return;
+    setIsCreatingLeague(true);
+    try {
+      await createLeague(newLeagueName.trim());
+      setShowNewLeague(false);
+      setNewLeagueName('');
+    } finally {
+      setIsCreatingLeague(false);
     }
   };
 
@@ -188,6 +203,36 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
         </DialogContent>
       </Dialog>
 
+      {/* New League dialog */}
+      <Dialog open={showNewLeague} onOpenChange={setShowNewLeague}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New League</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>League Name</Label>
+              <Input
+                value={newLeagueName}
+                onChange={e => setNewLeagueName(e.target.value)}
+                placeholder="e.g. Thursday Night Pub League"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateLeague(); }}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowNewLeague(false)}>Cancel</Button>
+              <Button
+                onClick={handleCreateLeague}
+                disabled={!newLeagueName.trim() || isCreatingLeague}
+              >
+                {isCreatingLeague ? 'Creating...' : 'Create League'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Tabs value={leagueView} onValueChange={(v) => setLeagueView(v as 'overview' | 'settings')}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview" variant="league">Overview</TabsTrigger>
@@ -205,6 +250,47 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
           {isSeasonTournament && (
             <>
+              {/* League header */}
+              <Card className="rounded-xl border border-border/40">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Trophy className="h-4 w-4 text-yellow-400 flex-shrink-0" />
+                      {userLeagues.length > 1 ? (
+                        <Select
+                          value={league?.id}
+                          onValueChange={switchLeague}
+                        >
+                          <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
+                            <SelectValue placeholder="Select league" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {userLeagues.map((l: any) => (
+                              <SelectItem key={l.id} value={l.id}>
+                                {l.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="font-semibold text-foreground truncate">
+                          {league?.name || 'My League'}
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs flex-shrink-0"
+                      onClick={() => setShowNewLeague(true)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      New League
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Season header */}
               <Card className="rounded-xl border border-border/40">
                 <CardContent className="p-4">

@@ -53,6 +53,16 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
 
+  // Persist the user's chosen league across sessions
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(() => {
+    try { return localStorage.getItem('activeLeagueId'); } catch { return null; }
+  });
+
+  const switchLeague = useCallback((id: string) => {
+    setSelectedLeagueId(id);
+    try { localStorage.setItem('activeLeagueId', id); } catch {}
+  }, []);
+
   // Fetch user's leagues — wait for Firebase auth to complete before querying.
   // Anonymous participants must be signed in before Firestore rules allow reads.
   // Skip entirely when a directLeagueId is provided (participant view shortcut).
@@ -72,16 +82,23 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   // no auth check needed since leaguePlayers and tournamentResults are publicly readable.
   const currentLeague = directLeagueId
     ? { id: directLeagueId, name: 'League' }
-    : (userLeagues[0] || null);
+    : (userLeagues.find((l: any) => l.id === selectedLeagueId) || userLeagues[0] || null);
   const currentLeagueId = currentLeague?.id ?? null;
+
+  // When leagues load, ensure selectedLeagueId points to a real league
+  useEffect(() => {
+    if (userLeagues.length === 0) return;
+    const valid = userLeagues.some((l: any) => l.id === selectedLeagueId);
+    if (!valid) switchLeague(String(userLeagues[0].id));
+  }, [userLeagues, selectedLeagueId, switchLeague]);
 
   // Create league mutation
   const createLeagueMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (name?: string) => {
       if (!user || isAnonymous) throw new Error('Not authenticated');
       const newLeague = {
-        name: DEFAULT_LEAGUE_NAME,
-        description: 'Default poker league',
+        name: name || DEFAULT_LEAGUE_NAME,
+        description: '',
         isPublic: false,
         currentSeasonName: 'Season 1',
         ownerId: user.id,
@@ -91,12 +108,14 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       const docRef = await addDoc(collections.leagues, newLeague);
       return { id: docRef.id, ...newLeague };
     },
-    onSuccess: () => {
+    onSuccess: (newLeague) => {
       queryClient.invalidateQueries({ queryKey: ['leagues', user?.id] });
+      // Auto-switch to the newly created league
+      if (newLeague?.id) switchLeague(String(newLeague.id));
     },
     onError: (error) => {
-      console.error('❌ Failed to create default league:', error);
-      setHasAttemptedCreate(false); // Allow retry on error
+      console.error('❌ Failed to create league:', error);
+      setHasAttemptedCreate(false);
     }
   });
 
@@ -104,9 +123,13 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   useEffect(() => {
     if (user && !isAnonymous && !overrideOwnerId && !leaguesLoading && userLeagues.length === 0 && !createLeagueMutation.isPending && !hasAttemptedCreate) {
       setHasAttemptedCreate(true);
-      createLeagueMutation.mutate();
+      createLeagueMutation.mutate(undefined);
     }
   }, [user, isAnonymous, overrideOwnerId, leaguesLoading, userLeagues.length, hasAttemptedCreate]);
+
+  const createLeague = useCallback(async (name: string) => {
+    await createLeagueMutation.mutateAsync(name);
+  }, [createLeagueMutation]);
 
   const [cloudPlayers, setCloudPlayers] = useState<any[]>([]);
   const [cloudResults, setCloudResults] = useState<any[]>([]);
@@ -467,6 +490,9 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   return {
     league,
+    userLeagues,
+    switchLeague,
+    createLeague,
     leaguePlayers,
     addLeaguePlayer,
     recordResult,
