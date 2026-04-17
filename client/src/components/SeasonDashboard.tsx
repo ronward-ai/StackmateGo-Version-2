@@ -1,20 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Calendar as CalendarPicker } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,33 +21,15 @@ import {
   Target,
   TrendingUp,
   Calendar,
-  CalendarIcon,
   DollarSign,
   Award,
-  Plus,
-  CheckCircle,
   Archive,
   BarChart2
 } from 'lucide-react';
-import { format } from 'date-fns';
-import type { DateRange } from 'react-day-picker';
-import { cn } from '@/lib/utils';
 
 export default function SeasonDashboard() {
   const { league, leaguePlayers } = useLeague();
-  const { currentSeason, seasons, formatSeasonDateRange, addSeason, updateSeason, deleteSeason } = useSeasons({ leagueId: league?.id });
-
-  const [showNewSeasonDialog, setShowNewSeasonDialog] = useState(false);
-  const [newSeasonName, setNewSeasonName] = useState('');
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    const from = new Date();
-    const to = new Date();
-    to.setMonth(to.getMonth() + 3);
-    return { from, to };
-  });
-  const [rangeOpen, setRangeOpen] = useState(false);
-  const [newSeasonGames, setNewSeasonGames] = useState(12);
-  const [isCreating, setIsCreating] = useState(false);
+  const { currentSeason, seasons, formatSeasonDateRange, updateSeason } = useSeasons({ leagueId: league?.id });
 
   // ✅ FIXED: Filter results by seasonId, not players by seasonId
   const currentSeasonPlayers = useMemo(() => {
@@ -116,25 +87,6 @@ export default function SeasonDashboard() {
       });
   }, [currentSeasonPlayers]);
 
-  const handleCreateSeason = async () => {
-    if (!newSeasonName.trim() || !dateRange?.from || !dateRange?.to) return;
-    setIsCreating(true);
-    try {
-      await addSeason({
-        name: newSeasonName.trim(),
-        startDate: dateRange.from.toISOString(),
-        endDate: dateRange.to.toISOString(),
-        numberOfGames: newSeasonGames
-      });
-      setShowNewSeasonDialog(false);
-      setNewSeasonName('');
-    } catch (e) {
-      console.error('Failed to create season:', e);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   const handleEndSeason = async () => {
     if (!currentSeason) return;
     await updateSeason(currentSeason.id, { status: 'completed' });
@@ -143,13 +95,10 @@ export default function SeasonDashboard() {
   if (!currentSeason) {
     return (
       <Card className="p-8" data-testid="season-dashboard-empty">
-        <div className="text-center text-muted-foreground space-y-4">
+        <div className="text-center text-muted-foreground space-y-2">
           <Calendar className="h-12 w-12 mx-auto opacity-30" />
-          <p>No active season. Create one to start tracking.</p>
-          <Button onClick={() => setShowNewSeasonDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create First Season
-          </Button>
+          <p>No active season.</p>
+          <p className="text-sm">Use the <span className="text-foreground font-medium">New Season</span> button above to get started.</p>
         </div>
       </Card>
     );
@@ -191,93 +140,6 @@ export default function SeasonDashboard() {
 
           {/* Season actions */}
           <div className="flex gap-2 flex-shrink-0 flex-wrap">
-            <Dialog open={showNewSeasonDialog} onOpenChange={setShowNewSeasonDialog}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  New Season
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Season</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-2">
-                    <Label>Season Name</Label>
-                    <Input
-                      value={newSeasonName}
-                      onChange={e => setNewSeasonName(e.target.value)}
-                      placeholder="e.g. Summer 2026"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Date Range</Label>
-                    <Popover open={rangeOpen} onOpenChange={setRangeOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !dateRange?.from && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange?.from ? (
-                            dateRange.to ? (
-                              <>
-                                {format(dateRange.from, "d MMM yyyy")}
-                                {" → "}
-                                {format(dateRange.to, "d MMM yyyy")}
-                              </>
-                            ) : (
-                              format(dateRange.from, "d MMM yyyy")
-                            )
-                          ) : (
-                            <span>Pick start → end</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarPicker
-                          mode="range"
-                          selected={dateRange}
-                          onSelect={(range) => {
-                            setDateRange(range);
-                            if (range?.from && range?.to) setRangeOpen(false);
-                          }}
-                          numberOfMonths={2}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Number of Games</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={newSeasonGames}
-                      onChange={e => setNewSeasonGames(parseInt(e.target.value) || 12)}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setShowNewSeasonDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleCreateSeason}
-                      disabled={!newSeasonName.trim() || !dateRange?.from || !dateRange?.to || isCreating}
-                    >
-                      {isCreating ? 'Creating...' : 'Create Season'}
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
             {!isCompleted && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>

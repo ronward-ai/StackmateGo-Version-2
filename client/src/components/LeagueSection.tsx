@@ -30,6 +30,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [leagueView, setLeagueView] = useState<'overview' | 'settings'>('overview');
   const [showNewSeason, setShowNewSeason] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
+  const [newSeasonGames, setNewSeasonGames] = useState(12);
   const [showNewLeague, setShowNewLeague] = useState(false);
   const [newLeagueName, setNewLeagueName] = useState('');
   const [isCreatingLeague, setIsCreatingLeague] = useState(false);
@@ -94,7 +95,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
         name: newSeasonName.trim(),
         startDate: dateRange.from.toISOString(),
         endDate: dateRange.to.toISOString(),
-        numberOfGames: 12,
+        numberOfGames: newSeasonGames,
       });
       // Auto-activate the new season and demote all others
       if (newSeason?.id && newSeason.id !== 'default-season') {
@@ -106,6 +107,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
       }
       setShowNewSeason(false);
       setNewSeasonName('');
+      setNewSeasonGames(12);
       const from = new Date();
       const to = new Date();
       to.setMonth(to.getMonth() + 3);
@@ -198,6 +200,16 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label>Number of Games</Label>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                value={newSeasonGames}
+                onChange={e => setNewSeasonGames(parseInt(e.target.value) || 12)}
+              />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowNewSeason(false)}>Cancel</Button>
