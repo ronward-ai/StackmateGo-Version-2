@@ -65,6 +65,7 @@ export interface Settings {
   currency?: string; // Currency symbol (£, $, €, etc.)
   isSeasonTournament?: boolean;
   leagueId?: string;
+  seasonId?: string;
   notes?: string;
 }
 

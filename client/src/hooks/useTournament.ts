@@ -266,6 +266,11 @@ export function useTournament(tournamentId?: string) {
               settings: {
                 ...mergedSettings,
                 ...tournamentData.settings,
+                // Promote top-level league fields into settings so the handover
+                // restore effect in PokerTimer always finds leagueId/seasonId.
+                leagueId: tournamentData.leagueId || tournamentData.settings?.leagueId || mergedSettings.leagueId,
+                seasonId: tournamentData.seasonId || tournamentData.settings?.seasonId || mergedSettings.seasonId,
+                isSeasonTournament: tournamentData.isSeasonTournament ?? tournamentData.settings?.isSeasonTournament ?? mergedSettings.isSeasonTournament,
                 tables: {
                   ...mergedSettings.tables,
                   ...tournamentData.settings?.tables

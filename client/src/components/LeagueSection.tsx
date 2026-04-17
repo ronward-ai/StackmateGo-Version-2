@@ -48,6 +48,10 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   useEffect(() => {
     if (currentSeason?.id) {
       setActiveSeasonId(String(currentSeason.id));
+      // Keep seasonId in tournament settings so handover restores the right season
+      if (tournament?.updateSettings) {
+        tournament.updateSettings({ seasonId: String(currentSeason.id) });
+      }
     }
   }, [currentSeason?.id, setActiveSeasonId]);
 
@@ -57,6 +61,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
   const handleSeasonChange = async (seasonId: string) => {
     setActiveSeasonId(seasonId);
+    tournament?.updateSettings?.({ seasonId });
     await updateSeason(seasonId, { status: 'active' });
     for (const season of seasons) {
       if (String(season.id) !== seasonId) {
@@ -70,10 +75,14 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
       ...tournament?.state?.details,
       type: 'season',
     });
-    // Persist leagueId + flag into tournament settings so the QR scan view
-    // can load the league player roster without knowing who the director is.
+    // Persist leagueId, seasonId + flag into tournament settings so any director
+    // on any device can restore the full league/season context via handover.
     if (league?.id) {
-      tournament?.updateSettings?.({ isSeasonTournament: true, leagueId: String(league.id) });
+      tournament?.updateSettings?.({
+        isSeasonTournament: true,
+        leagueId: String(league.id),
+        seasonId: currentSeason?.id ? String(currentSeason.id) : undefined,
+      });
     }
   };
 

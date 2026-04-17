@@ -97,7 +97,7 @@ function UserMenu() {
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
   const tournament = useTournament(tournamentId); // Pass tournamentId here
-  const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, league } = useLeague();
+  const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, league, switchLeague } = useLeague();
   const { currentSeason } = useSeasons({ leagueId: league?.id });
   const { user, isAnonymous } = useAuth();
   const { toast } = useToast();
@@ -153,6 +153,9 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
           players: t.state.players,
           participantCode,
           directorCode,
+          leagueId: (t.state.settings as any)?.leagueId || null,
+          seasonId: (t.state.settings as any)?.seasonId || null,
+          isSeasonTournament: (t.state.settings as any)?.isSeasonTournament || false,
           createdAt: new Date().toISOString(),
           createdBy: user.id,
           ownerId: user.id,
@@ -247,6 +250,10 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
           sanitizeForFirestore({
             prizeStructure: tournament.state.prizeStructure,
             settings: tournament.state.settings,
+            // Keep top-level league fields in sync so handover always works
+            leagueId: (tournament.state.settings as any)?.leagueId || null,
+            seasonId: (tournament.state.settings as any)?.seasonId || null,
+            isSeasonTournament: (tournament.state.settings as any)?.isSeasonTournament || false,
           })
         );
       } catch (e) {
@@ -392,6 +399,16 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       setProcessedEliminations(new Set());
     }
   }, [tournament?.state?.players]);
+
+  // Restore league context when a tournament is loaded via director handover.
+  // The leagueId is stored in tournament settings and synced to Firestore, so the
+  // receiving director's device always gets the right league regardless of localStorage.
+  useEffect(() => {
+    const leagueId = (tournament.state.settings as any)?.leagueId;
+    if (leagueId && tournament.state.details?.type === 'database') {
+      switchLeague(String(leagueId));
+    }
+  }, [(tournament.state.settings as any)?.leagueId, tournament.state.details?.type, switchLeague]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear any old test data flag
   useEffect(() => {
