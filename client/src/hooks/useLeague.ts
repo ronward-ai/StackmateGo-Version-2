@@ -52,14 +52,30 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
 
-  // Persist the user's chosen league across sessions
+  // Persist the user's chosen league across sessions. All useLeague instances
+  // stay in sync via a same-tab custom event — without this, switching leagues
+  // in one component (e.g. the header dropdown) wouldn't update tables mounted
+  // elsewhere that hold their own useState copy.
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(() => {
     try { return localStorage.getItem('activeLeagueId'); } catch { return null; }
   });
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail ?? null;
+      setSelectedLeagueId(id);
+    };
+    window.addEventListener('leagueSwitched', handler);
+    return () => window.removeEventListener('leagueSwitched', handler);
+  }, []);
+
   const switchLeague = useCallback((id: string) => {
     setSelectedLeagueId(id);
     try { localStorage.setItem('activeLeagueId', id); } catch {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('leagueSwitched', { detail: id }));
+    }
   }, []);
 
   // Fetch user's leagues — wait for Firebase auth to complete before querying.
