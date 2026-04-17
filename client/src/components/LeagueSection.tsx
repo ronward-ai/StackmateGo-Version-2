@@ -53,14 +53,11 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
     (tournament?.state?.settings as any)?.isSeasonTournament === true;
 
   const handleSeasonChange = async (seasonId: string) => {
-    const numericId = parseInt(seasonId);
-    if (!isNaN(numericId)) {
-      setActiveSeasonId(seasonId);
-      await updateSeason(numericId, { status: 'active' });
-      for (const season of seasons) {
-        if (typeof season.id === 'number' && season.id !== numericId) {
-          await updateSeason(season.id, { status: 'draft' });
-        }
+    setActiveSeasonId(seasonId);
+    await updateSeason(seasonId, { status: 'active' });
+    for (const season of seasons) {
+      if (String(season.id) !== seasonId) {
+        await updateSeason(season.id, { status: 'draft' });
       }
     }
   };
@@ -81,12 +78,20 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
     if (!newSeasonName.trim() || !dateRange?.from || !dateRange?.to) return;
     setIsCreating(true);
     try {
-      await addSeason({
+      const newSeason = await addSeason({
         name: newSeasonName.trim(),
         startDate: dateRange.from.toISOString(),
         endDate: dateRange.to.toISOString(),
         numberOfGames: 12,
       });
+      // Auto-activate the new season and demote all others
+      if (newSeason?.id && newSeason.id !== 'default-season') {
+        for (const season of seasons) {
+          await updateSeason(season.id, { status: 'draft' });
+        }
+        await updateSeason(newSeason.id, { status: 'active' });
+        setActiveSeasonId(String(newSeason.id));
+      }
       setShowNewSeason(false);
       setNewSeasonName('');
       const from = new Date();

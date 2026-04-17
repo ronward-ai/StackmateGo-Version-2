@@ -27,6 +27,7 @@ interface MinimalSeason {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  status?: 'draft' | 'active' | 'completed' | 'archived';
   numberOfGames?: number;
   settings?: any;
 }
@@ -173,15 +174,11 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     if (dbSeasons.length > 0) {
       const seen = new Set<string>();
       const unique: MinimalSeason[] = [];
-      // Prefer the deterministic ID doc (e.g. "<leagueId>-season-1") by sorting it first
+      // Active season first, then newest by startDate
       const sorted = [...dbSeasons].sort((a, b) => {
-        const aId = String(a.id);
-        const bId = String(b.id);
-        const aIsDeterministic = leagueId && aId === `${leagueId}-season-1`;
-        const bIsDeterministic = leagueId && bId === `${leagueId}-season-1`;
-        if (aIsDeterministic) return -1;
-        if (bIsDeterministic) return 1;
-        return aId.localeCompare(bId);
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (b.status === 'active' && a.status !== 'active') return 1;
+        return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
       });
       for (const season of sorted) {
         const key = season.name.trim().toLowerCase();
@@ -193,6 +190,7 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
           startDate: season.startDate,
           endDate: season.endDate,
           isActive: season.status === 'active',
+          status: season.status,
           numberOfGames: season.numberOfGames,
           settings: season.settings,
         });
