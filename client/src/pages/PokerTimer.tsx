@@ -31,40 +31,6 @@ import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import DirectorCoordinationPanel from '@/components/DirectorCoordinationPanel';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import { LiveBanner } from '@/components/LiveBanner';
-import { ChevronDown as ChevronDownIcon } from 'lucide-react';
-
-function GettingStartedCard() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mb-4 rounded-xl border border-border/40 bg-muted/20 overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/30 transition-colors"
-      >
-        <span>How it works</span>
-        <ChevronDownIcon className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="px-4 pb-4 space-y-2.5 border-t border-border/30 pt-3">
-          {[
-            ['Add players', 'Open the Players tab and add everyone at the table'],
-            ['Set your structure', 'Configure buy-ins and blind levels in Structure & Levels'],
-            ['Share live', 'Tap Share — players scan the QR and follow blinds, standings & seats on their phones in real time, no app needed'],
-          ].map(([title, desc], i) => (
-            <div key={i} className="flex items-start gap-2.5 text-sm">
-              <span className="flex-shrink-0 h-5 w-5 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-semibold mt-0.5">
-                {i + 1}
-              </span>
-              <span className="text-muted-foreground">
-                <span className="text-foreground font-medium">{title}</span> — {desc}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function UserMenu() {
   const { user, isAuthenticated, isAnonymous, logout } = useAuth();
@@ -473,11 +439,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         <div className="mb-6">
           <TournamentInfoCard tournament={tournament} />
         </div>
-
-        {/* Getting started — collapsible, visible until first player is added */}
-        {tournament.state.players.length === 0 && (
-          <GettingStartedCard />
-        )}
 
         {/* Live banner — shown when players exist but haven't gone live yet */}
         {tournament.state.players.length > 0 && !dbTournamentId && (
