@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { Toaster } from '@/components/ui/toaster';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import ComingSoonGate from '@/components/ComingSoonGate';
 
 // Import components directly without lazy loading
 import PokerTimer from './pages/PokerTimer';
@@ -36,8 +37,14 @@ function App() {
       <div className="min-h-screen bg-background">
         <ErrorBoundary>
           <Switch>
-            <Route path="/" component={PokerTimer} />
-            <Route path="/tournament" component={PokerTimer} />
+            {/* Director routes — gated */}
+            <Route path="/">
+              <ComingSoonGate><PokerTimer /></ComingSoonGate>
+            </Route>
+            <Route path="/tournament">
+              <ComingSoonGate><PokerTimer /></ComingSoonGate>
+            </Route>
+            {/* Participant/handover routes — always accessible via QR/link */}
             <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
             <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
             <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
