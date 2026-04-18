@@ -435,16 +435,19 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         <header className="mb-3 sm:mb-5">
           {/* Row 1: logo left, user menu right */}
           <div className="flex items-center justify-between mb-2">
-            <img
-              src="/stackmatelogo.svg"
-              alt="StackMate Go"
-              className="h-8 sm:h-11 w-auto object-contain"
-              style={{ filter: 'brightness(1.1)' }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }}
-            />
+            <div className="flex flex-col">
+              <img
+                src="/stackmatelogo.svg"
+                alt="StackMate Go"
+                className="h-8 sm:h-11 w-auto object-contain"
+                style={{ filter: 'brightness(1.1)' }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-0.5 pl-0.5">Your poker night, sorted.</p>
+            </div>
             <UserMenu />
           </div>
 
@@ -499,6 +502,32 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         <div className="mb-6">
           <TournamentInfoCard tournament={tournament} />
         </div>
+
+        {/* Getting started — visible until first player is added */}
+        {tournament.state.players.length === 0 && (
+          <div className="mb-6 rounded-xl border border-border/40 bg-muted/20 p-5 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Getting started</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Run a one-off game or a full league season — here's how:</p>
+            </div>
+            <ol className="space-y-2.5">
+              {[
+                ['Add players', 'Open the Players tab and add everyone at the table'],
+                ['Set your structure', 'Configure buy-ins and blind levels in Structure & Levels'],
+                ['Start the clock', 'Hit play, then share the Live QR so players can follow along on their phones'],
+              ].map(([title, desc], i) => (
+                <li key={i} className="flex items-start gap-2.5 text-sm">
+                  <span className="flex-shrink-0 h-5 w-5 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-semibold mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-muted-foreground">
+                    <span className="text-foreground font-medium">{title}</span> — {desc}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
 
         {/* Tabbed Management Sections */}
         <div className="mb-6 rounded-xl border border-border/40 overflow-hidden">
