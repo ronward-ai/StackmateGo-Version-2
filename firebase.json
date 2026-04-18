@@ -8,10 +8,7 @@
     "rewrites": [
       {
         "source": "**",
-        "run": {
-          "serviceId": "stackmatego",
-          "region": "us-central1"
-        }
+        "destination": "/index.html"
       }
     ]
   }
