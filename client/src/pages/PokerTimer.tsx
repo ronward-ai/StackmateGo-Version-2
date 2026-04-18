@@ -446,7 +446,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                   target.style.display = 'none';
                 }}
               />
-              <p className="text-base text-muted-foreground mt-1 pl-0.5">Your poker night, sorted.</p>
+              <p className="text-lg font-semibold text-orange-600 mt-1 pl-0.5">Your poker night, sorted.</p>
             </div>
             <UserMenu />
           </div>
