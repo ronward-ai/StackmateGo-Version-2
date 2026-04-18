@@ -541,7 +541,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     isActive: true
   } : {
     id: 'pending',
-    name: 'Loading...',
+    name: '',
     currentWeek: 1,
     totalWeeks: 52,
     isActive: false
