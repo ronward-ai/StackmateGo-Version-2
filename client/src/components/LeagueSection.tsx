@@ -384,7 +384,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         </Select>
                       ) : (
                         <span className="font-semibold text-foreground truncate">
-                          {league?.name || 'My League'}
+                          {league?.name || 'No league yet'}
                         </span>
                       )}
                     </div>
