@@ -1671,12 +1671,8 @@ export function useTournament(tournamentId?: string) {
       return "Break Time";
     }
 
-    const { small, big, ante } = currentLevel;
-    let blindText = `Blinds: ${small}/${big}`;
-    if (ante && ante > 0) {
-      blindText += ` (Ante: ${ante})`;
-    }
-    return blindText;
+    const { small, big } = currentLevel;
+    return `${small} / ${big}`;
   }, [state.currentLevel, state.levels, state.players]);
 
   // Get next level info
