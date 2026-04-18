@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
@@ -30,6 +30,41 @@ import LeagueSection from '@/components/LeagueSection';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import DirectorCoordinationPanel from '@/components/DirectorCoordinationPanel';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
+import { LiveBanner } from '@/components/LiveBanner';
+import { ChevronDown as ChevronDownIcon } from 'lucide-react';
+
+function GettingStartedCard() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-4 rounded-xl border border-border/40 bg-muted/20 overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/30 transition-colors"
+      >
+        <span>How it works</span>
+        <ChevronDownIcon className={`h-4 w-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-2.5 border-t border-border/30 pt-3">
+          {[
+            ['Add players', 'Open the Players tab and add everyone at the table'],
+            ['Set your structure', 'Configure buy-ins and blind levels in Structure & Levels'],
+            ['Share live', 'Tap Share — players scan the QR and follow blinds, standings & seats on their phones in real time, no app needed'],
+          ].map(([title, desc], i) => (
+            <div key={i} className="flex items-start gap-2.5 text-sm">
+              <span className="flex-shrink-0 h-5 w-5 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-semibold mt-0.5">
+                {i + 1}
+              </span>
+              <span className="text-muted-foreground">
+                <span className="text-foreground font-medium">{title}</span> — {desc}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function UserMenu() {
   const { user, isAuthenticated, isAnonymous, logout } = useAuth();
@@ -104,9 +139,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
   const [activeTab, setActiveTab] = useState('players'); // State to manage active tab
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
-  const isCreatingTournament = useRef(false);
-  const tournamentRef = useRef(tournament);
-  tournamentRef.current = tournament;
 
   // Add safety check for tournament hook
   if (!tournament) {
@@ -119,69 +151,8 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     );
   }
 
-  // Create database tournament when logged in (for director handoff feature).
-  // Deps intentionally exclude tournament.state — we only want this to run on
-  // login/logout, not on every timer tick. tournamentRef gives us current values
-  // without adding state to the dependency array.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!user || isAnonymous || dbTournamentId || isCreatingTournament.current) return;
-    const createDatabaseTournament = async () => {
-      isCreatingTournament.current = true;
-      try {
-        const t = tournamentRef.current;
-        const tournamentName = t.state.details?.type === 'season'
-          ? `League Game - ${new Date().toLocaleDateString()}`
-          : t.state.details?.name || `Tournament - ${new Date().toLocaleDateString()}`;
-        
-        const { collection, addDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        const { sanitizeForFirestore } = await import('@/lib/utils');
-        
-        const participantCode = Math.random().toString(36).substr(2, 6).toUpperCase();
-        const directorCode = Math.random().toString(36).substr(2, 6).toUpperCase();
-
-        const docRef = await addDoc(collection(db, 'activeTournaments'), sanitizeForFirestore({
-          name: tournamentName,
-          currentLevel: t.state.currentLevel,
-          secondsLeft: t.state.secondsLeft,
-          isRunning: t.state.isRunning,
-          buyIn: t.state.prizeStructure?.buyIn || 10,
-          blindLevels: t.state.levels,
-          settings: t.state.settings,
-          prizeStructure: t.state.prizeStructure,
-          players: t.state.players,
-          participantCode,
-          directorCode,
-          leagueId: (t.state.settings as any)?.leagueId || null,
-          seasonId: (t.state.settings as any)?.seasonId || null,
-          isSeasonTournament: (t.state.settings as any)?.isSeasonTournament || false,
-          createdAt: new Date().toISOString(),
-          createdBy: user.id,
-          ownerId: user.id,
-          status: 'active'
-        }));
-
-        setDbTournamentId(docRef.id);
-        
-        // Update tournament details to use database mode
-        t.updateTournamentDetails({
-          type: 'database',
-          id: docRef.id,
-          name: tournamentName,
-          participantCode,
-          directorCode,
-          ownerId: user.id,
-        });
-      } catch (error) {
-        console.error('Failed to create database tournament:', error);
-        isCreatingTournament.current = false;
-        toast({ title: 'Failed to go live', description: 'Could not create tournament. Please try again.', variant: 'destructive' });
-      }
-    };
-
-    createDatabaseTournament();
-  }, [user, isAnonymous, dbTournamentId]);
+  // Tournament creation is now explicit — triggered by "Go Live" in QRCodeSection (Pro feature).
+  // The sync effects below are already guarded on dbTournamentId so they naturally no-op until live.
 
   // Directly sync players to Firestore whenever they change.
   // This is a reliable belt-and-suspenders sync that bypasses the broadcast chain.
@@ -503,35 +474,19 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
           <TournamentInfoCard tournament={tournament} />
         </div>
 
-        {/* Getting started — visible until first player is added */}
+        {/* Getting started — collapsible, visible until first player is added */}
         {tournament.state.players.length === 0 && (
-          <div className="mb-6 rounded-xl border border-border/40 bg-muted/20 p-5 space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Getting started</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Run a one-off game or a full league season — here's how:</p>
-            </div>
-            <ol className="space-y-2.5">
-              {[
-                ['Add players', 'Open the Players tab and add everyone at the table'],
-                ['Set your structure', 'Configure buy-ins and blind levels in Structure & Levels'],
-                ['Start the clock', 'Hit play, then share the Live QR so players can follow along on their phones'],
-              ].map(([title, desc], i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm">
-                  <span className="flex-shrink-0 h-5 w-5 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-semibold mt-0.5">
-                    {i + 1}
-                  </span>
-                  <span className="text-muted-foreground">
-                    <span className="text-foreground font-medium">{title}</span> — {desc}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
+          <GettingStartedCard />
+        )}
+
+        {/* Live banner — shown when players exist but haven't gone live yet */}
+        {tournament.state.players.length > 0 && !dbTournamentId && (
+          <LiveBanner onGoLive={() => setActiveTab('qr')} />
         )}
 
         {/* Tabbed Management Sections */}
         <div className="mb-6 rounded-xl border border-border/40 overflow-hidden">
-          <Tabs defaultValue="players" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="relative">
               <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none">
                 <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
@@ -548,7 +503,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
                       <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '2s' }} />
                       <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
                     </span>
-                    Live
+                    Share
                   </span>
                 </TabsTrigger>
               </TabsList>
@@ -586,7 +541,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             </TabsContent>
 
             <TabsContent value="qr" className="mt-0 p-4 pt-5">
-              <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} />
+              <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} />
             </TabsContent>
 
             <TabsContent value="settings" className="mt-0 p-4 pt-5">
