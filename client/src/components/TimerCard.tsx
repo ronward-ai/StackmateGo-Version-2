@@ -264,7 +264,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
       {/* Ante — smaller, underneath blinds */}
       {!currentBreak && currentLevelAnte > 0 && (
         <div className="text-xs sm:text-sm font-medium mb-3 sm:mb-5 text-amber-400/80 tracking-wide">
-          Ante: {currentLevelAnte}{state.settings.bigBlindAnte ? <span className="ml-1 text-amber-300 font-semibold text-xs">BB</span> : null}
+          {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}: {currentLevelAnte}
         </div>
       )}
 
