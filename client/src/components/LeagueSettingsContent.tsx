@@ -250,12 +250,12 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
       )}
 
       <Tabs defaultValue="points" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12">
+        <TabsList className="grid w-full grid-cols-2 h-12">
           <TabsTrigger value="points" variant="settings" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
             <Calculator className="h-4 w-4" />
             Points
           </TabsTrigger>
-          <TabsTrigger value="stats" variant="players" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
+          <TabsTrigger value="stats" variant="settings" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
             <BarChart3 className="h-4 w-4" />
             Stats
           </TabsTrigger>
