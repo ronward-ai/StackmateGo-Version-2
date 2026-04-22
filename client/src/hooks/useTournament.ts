@@ -1179,13 +1179,17 @@ export function useTournament(tournamentId?: string) {
         p.id === playerId
           ? {
               ...p,
-              isActive: true, // Reactivate the player
-              position: undefined, // Clear elimination position
-              eliminatedBy: undefined, // Clear elimination data
-              prizeMoney: 0, // Reset prize money
-              rebuys: (p.rebuys || 0) + 1, // Increment rebuy count
-              seated: false, // They need to be reseated
-              tableAssignment: undefined // Clear table assignment
+              isActive: true,
+              position: undefined,
+              eliminatedBy: undefined,
+              prizeMoney: 0,
+              rebuys: (p.rebuys || 0) + 1,
+              seated: false,
+              tableAssignment: undefined,
+              // Reset bounty to initial amount on rebuy (same as re-entry)
+              currentBounty: (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive')
+                ? (prev.prizeStructure?.bountyAmount || 0)
+                : p.currentBounty
             }
           : p
       );
