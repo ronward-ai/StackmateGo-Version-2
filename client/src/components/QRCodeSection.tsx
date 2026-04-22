@@ -89,6 +89,9 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         type: 'database'
       });
 
+      // Persist so a page refresh can redirect back to the live director view
+      try { localStorage.setItem('activeDirectorTournamentId', docRef.id); } catch {}
+
       onGoLive?.(docRef.id);
       toast({ title: "You're live!", description: "Share the QR code so players and spectators can join." });
     } catch (error: any) {

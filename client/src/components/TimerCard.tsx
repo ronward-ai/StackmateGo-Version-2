@@ -320,7 +320,10 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={resetTournament}>
+                <AlertDialogAction onClick={() => {
+                  try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
+                  resetTournament();
+                }}>
                   Start New Tournament
                 </AlertDialogAction>
               </AlertDialogFooter>

@@ -4,6 +4,7 @@ import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useAuth } from '@/hooks/useAuth';
+import { useLocation } from 'wouter';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -97,13 +98,25 @@ function UserMenu() {
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
-  const tournament = useTournament(tournamentId); // Pass tournamentId here
+  const [, setLocation] = useLocation();
+
+  // If returning to the home page after previously going live, redirect back to the
+  // live director view so Firestore state is fully restored from the database.
+  useEffect(() => {
+    if (tournamentId) return; // already on a specific tournament URL
+    try {
+      const saved = localStorage.getItem('activeDirectorTournamentId');
+      if (saved) setLocation(`/tournament/${saved}/director`);
+    } catch {}
+  }, []);
+
+  const tournament = useTournament(tournamentId);
   const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, league, switchLeague } = useLeague();
   const { currentSeason } = useSeasons({ leagueId: league?.id });
   const { user, isAnonymous } = useAuth();
   const { toast } = useToast();
   const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
-  const [activeTab, setActiveTab] = useState('players'); // State to manage active tab
+  const [activeTab, setActiveTab] = useState('players');
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
 
   // Add safety check for tournament hook
