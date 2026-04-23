@@ -51,6 +51,15 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const [isExporting, setIsExporting] = useState(false);
 
   const autocompleteRef = useRef<HTMLDivElement>(null);
+
+  // Cost helpers for confirmation dialogs
+  const sym = state.settings.currency || '£';
+  const ps = state.prizeStructure;
+  const perEntryRake = (ps?.rakeType || 'percentage') === 'percentage'
+    ? Math.floor((ps?.buyIn || 0) * ((ps?.rakePercentage || 0) / 100))
+    : (ps?.rakeAmount || 0);
+  const rebuyRakeAmt = ps?.rebuyRake ? (ps?.rebuyRakeAmount || perEntryRake) : 0;
+  const reEntryRakeAmt = (ps?.reEntryRake ?? true) ? (ps?.reEntryRakeAmount || perEntryRake) : 0;
   const exportRef = useRef<HTMLDivElement>(null);
 
   // Load recent players from localStorage when feature is enabled
@@ -881,37 +890,69 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
                         {/* Re-buy button for eliminated players (when rebuys are enabled) */}
                         {!player.isActive && state.prizeStructure?.allowRebuys && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log('💰 Re-buy button clicked for:', player.name);
-                              processRebuy(player.id);
-                            }}
-                            disabled={!state.prizeStructure?.allowRebuys || (player.rebuys || 0) >= (state.prizeStructure?.maxRebuys || 3)}
-                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium mr-2"
-                          >
-                            Re-buy
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={(player.rebuys || 0) >= (state.prizeStructure?.maxRebuys || 3)}
+                                className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium mr-2"
+                              >
+                                Re-buy
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Re-buy for {player.name}?</AlertDialogTitle>
+                                <AlertDialogDescription asChild>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between"><span>Rebuy cost</span><span>{sym}{ps?.rebuyAmount || 0}</span></div>
+                                    {rebuyRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{rebuyRakeAmt}</span></div>}
+                                    <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
+                                      <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt}</span>
+                                    </div>
+                                  </div>
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => processRebuy(player.id)}>Confirm Re-buy</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
 
                         {/* Re-entry button for eliminated players (when re-entries are enabled) */}
                         {!player.isActive && state.prizeStructure?.allowReEntry && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log('🔄 Re-entry button clicked for:', player.name);
-                              tournament.processReEntry(player.id);
-                            }}
-                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium"
-                          >
-                            Re-enter
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium"
+                              >
+                                Re-enter
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Re-entry for {player.name}?</AlertDialogTitle>
+                                <AlertDialogDescription asChild>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between"><span>Re-entry cost</span><span>{sym}{ps?.buyIn || 0}</span></div>
+                                    {reEntryRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{reEntryRakeAmt}</span></div>}
+                                    <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
+                                      <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt}</span>
+                                    </div>
+                                  </div>
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => tournament.processReEntry(player.id)}>Confirm Re-entry</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
 
                         {/* Only show remove button for active players to prevent accidental deletion */}
@@ -1047,22 +1088,49 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               {state.players.filter(p => p.isActive !== false).map((player) => {
                 const hasAddon = (player.addons || 0) > 0;
 
+                if (hasAddon) {
+                  return (
+                    <Button
+                      key={player.id}
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="text-xs flex items-center gap-1 bg-gray-600 text-gray-300 cursor-not-allowed"
+                    >
+                      <span className="material-icons text-sm">add_circle</span>
+                      {player.name} ✓
+                    </Button>
+                  );
+                }
+
                 return (
-                  <Button
-                    key={player.id}
-                    variant="outline"
-                    size="sm"
-                    disabled={hasAddon}
-                    onClick={() => !hasAddon && tournament.processAddon(player.id)}
-                    className={`text-xs flex items-center gap-1 ${
-                      !hasAddon
-                        ? 'bg-card border border-amber-500 text-amber-400 hover:bg-amber-500/10'
-                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                    }`}
-                  >
-                    <span className="material-icons text-sm">add_circle</span>
-                    {player.name} {hasAddon ? '✓' : ''}
-                  </Button>
+                  <AlertDialog key={player.id}>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs flex items-center gap-1 bg-card border border-amber-500 text-amber-400 hover:bg-amber-500/10"
+                      >
+                        <span className="material-icons text-sm">add_circle</span>
+                        {player.name}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Add-on for {player.name}?</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between"><span>Add-on cost</span><span>{sym}{ps?.addonAmount || 0}</span></div>
+                            <div className="flex justify-between text-muted-foreground"><span>Chips received</span><span>{(ps?.addonChips || ps?.startingChips || 10000).toLocaleString()}</span></div>
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => tournament.processAddon(player.id)}>Confirm Add-on</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 );
               })}
             </div>

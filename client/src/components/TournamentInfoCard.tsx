@@ -89,6 +89,11 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
     buyIn, playerCount: state.players.length,
     totalRebuys, rebuyAmount: rebuyAmt,
     totalAddons, addonAmount: addonAmt,
+    totalReEntries,
+    reEntryRake: p?.reEntryRake ?? true,
+    reEntryRakeAmount: p?.reEntryRakeAmount,
+    rebuyRake: p?.rebuyRake || false,
+    rebuyRakeAmount: p?.rebuyRakeAmount,
     rakeType, rakePercentage: rakePct,
     rakeAmount: p?.rakeAmount || 0,
   });
