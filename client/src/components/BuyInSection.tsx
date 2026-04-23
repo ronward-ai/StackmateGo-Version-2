@@ -162,6 +162,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     totalRebuys, rebuyAmount,
     totalAddons, addonAmount,
     totalReEntries,
+    isReEntry: allowReEntry,
     rakeType, rakePercentage, rakeAmount,
   });
 
