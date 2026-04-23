@@ -123,7 +123,12 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
 
-  // Sync from tournament state
+  // Sync from tournament state.
+  // Use JSON.stringify so the effect only re-runs when the actual content changes —
+  // the Firestore onSnapshot in useTournament creates a new prizeStructure object
+  // reference on every tick even when nothing changed, which would otherwise reset
+  // every form field while the user is still editing.
+  const prizeStructureKey = JSON.stringify(state.prizeStructure);
   useEffect(() => {
     const p = state.prizeStructure;
     if (!p) return;
@@ -152,7 +157,8 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setAddonChips(p.addonChips || 10000);
     setAddonAvailableLevel(p.addonAvailableLevel || 6);
     if (p.manualPayouts?.length) setManualPayouts(p.manualPayouts);
-  }, [state.prizeStructure]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prizeStructureKey]);
 
   useEffect(() => {
     if (state.settings.currency) setCurrencySymbol(state.settings.currency);
