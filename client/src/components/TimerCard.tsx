@@ -251,8 +251,9 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
         {formatTime()}
       </div>
 
+      {!currentBreak && <div className="text-xs text-muted-foreground tracking-widest uppercase mb-1">Blinds</div>}
       <div className={cn(
-        "text-2xl sm:text-4xl md:text-6xl font-bold mb-3 sm:mb-7", 
+        "text-2xl sm:text-4xl md:text-6xl font-bold mb-3 sm:mb-7",
         recentLevelChange && "level-change",
         currentBreak && "text-secondary",
         isTournamentFinished && "animate-pulse text-yellow-400"
@@ -260,9 +261,9 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
         {currentBreak ? "BREAK TIME" : getCurrentBlinds()}
       </div>
 
-      {/* Show ante if present and not on break */}
+      {/* Ante — smaller, underneath blinds */}
       {!currentBreak && currentLevelAnte > 0 && (
-        <div className="text-sm sm:text-md font-medium mb-3 sm:mb-7 text-amber-500">
+        <div className="text-xs sm:text-sm font-medium mb-3 sm:mb-5 text-amber-400/80 tracking-wide">
           {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}: {currentLevelAnte}
         </div>
       )}
@@ -344,7 +345,10 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={resetTournament}>
+                <AlertDialogAction onClick={() => {
+                  try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
+                  resetTournament();
+                }}>
                   Start New Tournament
                 </AlertDialogAction>
               </AlertDialogFooter>

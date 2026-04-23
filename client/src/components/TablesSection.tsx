@@ -8,6 +8,10 @@ import {
   Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties } from "lucide-react";
 import { TableConfig, Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
@@ -45,6 +49,14 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   } = tournament;
 
   const tables = state.settings.tables || { numberOfTables: 3, seatsPerTable: 6, tableNames: ['Table 1','Table 2','Table 3'] };
+
+  const sym = state.settings.currency || '£';
+  const ps = state.prizeStructure;
+  const perEntryRake = (ps?.rakeType || 'percentage') === 'percentage'
+    ? Math.floor((ps?.buyIn || 0) * ((ps?.rakePercentage || 0) / 100))
+    : (ps?.rakeAmount || 0);
+  const rebuyRakeAmt = ps?.rebuyRake ? (ps?.rebuyRakeAmount || perEntryRake) : 0;
+  const reEntryRakeAmt = (ps?.reEntryRake ?? true) ? (ps?.reEntryRakeAmount || perEntryRake) : 0;
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
   const [seatsPerTable, setSeatsPerTable]   = useState(tables.seatsPerTable);
@@ -573,23 +585,67 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                               {state.prizeStructure?.allowRebuys &&
                                 player.isActive === false &&
                                 (player.rebuys || 0) < (state.prizeStructure?.maxRebuys || 3) && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); processRebuy(player.id); }}
-                                  className="h-7 px-1.5 bg-purple-500/80 hover:bg-purple-500 text-white rounded text-[10px] font-bold transition-colors"
-                                >
-                                  R
-                                </button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <button
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-7 px-1.5 bg-purple-500/80 hover:bg-purple-500 text-white rounded text-[10px] font-bold transition-colors"
+                                    >
+                                      R
+                                    </button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Re-buy for {player.name}?</AlertDialogTitle>
+                                      <AlertDialogDescription asChild>
+                                        <div className="space-y-1 text-sm">
+                                          <div className="flex justify-between"><span>Rebuy cost</span><span>{sym}{ps?.rebuyAmount || 0}</span></div>
+                                          {rebuyRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{rebuyRakeAmt}</span></div>}
+                                          <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
+                                            <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt}</span>
+                                          </div>
+                                        </div>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => processRebuy(player.id)}>Confirm Re-buy</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               )}
                               {/* Re-entry button */}
                               {state.prizeStructure?.allowReEntry &&
                                 player.isActive === false &&
                                 (player.reEntries || 0) < (state.prizeStructure?.maxReEntries ?? 99) && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); processReEntry(player.id); }}
-                                  className="h-7 px-1.5 bg-blue-500/80 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-colors"
-                                >
-                                  RE
-                                </button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <button
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-7 px-1.5 bg-blue-500/80 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-colors"
+                                    >
+                                      RE
+                                    </button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Re-entry for {player.name}?</AlertDialogTitle>
+                                      <AlertDialogDescription asChild>
+                                        <div className="space-y-1 text-sm">
+                                          <div className="flex justify-between"><span>Re-entry cost</span><span>{sym}{ps?.buyIn || 0}</span></div>
+                                          {reEntryRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{reEntryRakeAmt}</span></div>}
+                                          <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
+                                            <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt}</span>
+                                          </div>
+                                        </div>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => processReEntry(player.id)}>Confirm Re-entry</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               )}
                               {/* KO button — only for active players */}
                               {player.isActive !== false && (

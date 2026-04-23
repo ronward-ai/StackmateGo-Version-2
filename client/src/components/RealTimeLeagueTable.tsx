@@ -61,6 +61,7 @@ function RealTimeLeagueTable({
     leaguePlayers = [],
     isLoading: leagueDataLoading = false
   } = leagueData || {};
+  const leagueName = (leagueData as any)?.league?.name || '';
 
   const {
     settings: leagueSettings = null,
@@ -554,7 +555,7 @@ function RealTimeLeagueTable({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="mr-3 h-5 w-5 text-orange-500" />
-            League Standings
+            {leagueName || 'League'} Standings
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -574,7 +575,7 @@ function RealTimeLeagueTable({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="mr-3 h-5 w-5 text-orange-500" />
-            League Standings - {currentSeasonName}
+            {leagueName || 'League'} Standings - {currentSeasonName}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -597,7 +598,7 @@ function RealTimeLeagueTable({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="mr-3 h-5 w-5 text-orange-500" />
-            League Standings - {currentSeasonName}
+            {leagueName || 'League'} Standings - {currentSeasonName}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -620,7 +621,7 @@ function RealTimeLeagueTable({
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Trophy className="mr-3 h-5 w-5 text-orange-500" />
-              League Standings - {currentSeasonName}
+              {leagueName || 'League'} Standings - {currentSeasonName}
             </div>
             <div className="flex items-center gap-3">
               {!isParticipantView && (

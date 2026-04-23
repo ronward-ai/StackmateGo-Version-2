@@ -2,25 +2,30 @@ import { useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Shield, Copy, Key, Radio, Smartphone } from 'lucide-react';
+import { Loader2, Shield, Copy, Radio, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { db, collections } from '@/lib/firebase';
 import { addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
+import { useSubscription } from '@/hooks/useSubscription';
+import { UpgradeModal } from '@/components/UpgradeModal';
 
 interface QRCodeSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   dbTournamentId?: string | null;
+  onGoLive?: (id: string) => void;
 }
 
-export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSectionProps) {
+export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: QRCodeSectionProps) {
   const { state, updateTournamentDetails } = tournament;
   const { toast } = useToast();
   const { user, isAnonymous } = useAuth();
+  const { isPro } = useSubscription();
   const [, setLocation] = useLocation();
 
   const [isCreating, setIsCreating] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [transferCode, setTransferCode] = useState<string | null>(null);
   const [showTransferCode, setShowTransferCode] = useState(false);
   const [inputCode, setInputCode] = useState('');
@@ -31,6 +36,7 @@ export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSect
       toast({ title: "Login required", description: "You must be logged in to go live.", variant: "destructive" });
       return;
     }
+    if (!isPro) { setShowUpgrade(true); return; }
 
     setIsCreating(true);
     try {
@@ -83,6 +89,10 @@ export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSect
         type: 'database'
       });
 
+      // Persist so a page refresh can redirect back to the live director view
+      try { localStorage.setItem('activeDirectorTournamentId', docRef.id); } catch {}
+
+      onGoLive?.(docRef.id);
       toast({ title: "You're live!", description: "Share the QR code so players and spectators can join." });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -207,6 +217,8 @@ export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSect
     : null;
 
   return (
+    <>
+    <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} featureHint="Live QR sharing" />
     <Card className="p-4 bg-gradient-to-br from-blue-950/60 to-indigo-950/60 border border-blue-500/25">
       {/* Header */}
       <div className="flex items-center gap-2 mb-5">
@@ -366,5 +378,6 @@ export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSect
         )}
       </div>
     </Card>
+    </>
   );
 }

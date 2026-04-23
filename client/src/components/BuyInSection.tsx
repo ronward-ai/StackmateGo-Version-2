@@ -7,7 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDollarSign } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeForFirestore } from "@/lib/utils";
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface BuyInSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -96,12 +98,16 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [bountyType, setBountyType] = useState<'standard' | 'progressive'>('standard');
 
   const [allowRebuys, setAllowRebuys] = useState(false);
+  const [rebuyRake, setRebuyRake] = useState(false);
+  const [rebuyRakeAmount, setRebuyRakeAmount] = useState(0);
   const [rebuyAmount, setRebuyAmount] = useState(10);
   const [rebuyChips, setRebuyChips] = useState(10000);
   const [maxRebuys, setMaxRebuys] = useState(0);
   const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(3);
 
   const [allowReEntry, setAllowReEntry] = useState(false);
+  const [reEntryRake, setReEntryRake] = useState(true);
+  const [reEntryRakeAmount, setReEntryRakeAmount] = useState(0);
   const [maxReEntries, setMaxReEntries] = useState(0);
   const [reEntryPeriodLevels, setReEntryPeriodLevels] = useState(4);
 
@@ -119,7 +125,12 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
 
-  // Sync from tournament state
+  // Sync from tournament state.
+  // Use JSON.stringify so the effect only re-runs when the actual content changes —
+  // the Firestore onSnapshot in useTournament creates a new prizeStructure object
+  // reference on every tick even when nothing changed, which would otherwise reset
+  // every form field while the user is still editing.
+  const prizeStructureKey = JSON.stringify(state.prizeStructure);
   useEffect(() => {
     const p = state.prizeStructure;
     if (!p) return;
@@ -132,11 +143,15 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setBountyAmount(p.bountyAmount || 0);
     setBountyType(p.bountyType || 'standard');
     setAllowRebuys(p.allowRebuys || false);
+    setRebuyRake(p.rebuyRake || false);
+    setRebuyRakeAmount(p.rebuyRakeAmount ?? 0);
     setRebuyAmount(p.rebuyAmount || 10);
     setRebuyChips(p.rebuyChips || 10000);
     setMaxRebuys(p.maxRebuys || 0);
     setRebuyPeriodLevels(p.rebuyPeriodLevels || 3);
     setAllowReEntry(p.allowReEntry || false);
+    setReEntryRake(p.reEntryRake ?? true);
+    setReEntryRakeAmount(p.reEntryRakeAmount ?? 0);
     setMaxReEntries(p.maxReEntries || 0);
     setReEntryPeriodLevels(p.reEntryPeriodLevels || 4);
     setAllowAddons(p.allowAddons || false);
@@ -144,7 +159,8 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setAddonChips(p.addonChips || 10000);
     setAddonAvailableLevel(p.addonAvailableLevel || 6);
     if (p.manualPayouts?.length) setManualPayouts(p.manualPayouts);
-  }, [state.prizeStructure]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prizeStructureKey]);
 
   useEffect(() => {
     if (state.settings.currency) setCurrencySymbol(state.settings.currency);
@@ -156,52 +172,51 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
   const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
   const totalReEntries = state.players.reduce((s, p) => s + (p.reEntries || 0), 0);
+
+  const perEntryRake = rakeType === 'percentage'
+    ? Math.floor(buyInAmount * (rakePercentage / 100))
+    : rakeAmount;
+
   const { gross, rake, net: netPool } = calculatePrizePool({
     buyIn: buyInAmount,
     playerCount: state.players.length,
     totalRebuys, rebuyAmount,
     totalAddons, addonAmount,
     totalReEntries,
+    reEntryRake,
+    reEntryRakeAmount: reEntryRake ? (reEntryRakeAmount || perEntryRake) : 0,
+    rebuyRake,
+    rebuyRakeAmount: rebuyRake ? (rebuyRakeAmount || perEntryRake) : 0,
     rakeType, rakePercentage, rakeAmount,
   });
 
-  const applyChanges = async () => {
+  const applyChanges = () => {
+    const newPrizeStructure = {
+      buyIn: buyInAmount, startingChips,
+      rakeType, rakePercentage, rakeAmount,
+      enableBounties, bountyAmount, bountyType,
+      allowRebuys, rebuyRake, rebuyRakeAmount, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+      allowReEntry, reEntryRake, reEntryRakeAmount, maxReEntries, reEntryPeriodLevels,
+      allowAddons, addonAmount, addonChips, addonAvailableLevel,
+      manualPayouts
+    };
+
     setIsApplying(true);
-    try {
-      updatePrizeStructure({
-        buyIn: buyInAmount, startingChips,
-        rakeType, rakePercentage, rakeAmount,
-        enableBounties, bountyAmount, bountyType,
-        allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-        allowReEntry, maxReEntries, reEntryPeriodLevels,
-        allowAddons, addonAmount, addonChips, addonAvailableLevel,
-        manualPayouts
-      });
-      updateSettings({ currency: currencySymbol });
+    updatePrizeStructure(newPrizeStructure);
+    updateSettings({ currency: currencySymbol });
 
-      if (state.details?.type === 'database' && state.details?.id) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        const { sanitizeForFirestore } = await import('@/lib/utils');
-        await updateDoc(doc(db, 'activeTournaments', state.details.id.toString()), sanitizeForFirestore({
-          settings: { ...state.settings, currency: currencySymbol },
-          prizeStructure: {
-            buyIn: buyInAmount, startingChips,
-            rakeType, rakePercentage, rakeAmount,
-            enableBounties, bountyAmount, bountyType,
-            allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-            allowReEntry, maxReEntries, reEntryPeriodLevels,
-            allowAddons, addonAmount, addonChips, addonAvailableLevel,
-            manualPayouts
-          }
-        }));
-      }
-
-      setJustApplied(true);
-      setTimeout(() => setJustApplied(false), 2000);
-    } finally {
-      setIsApplying(false);
+    // Persist to Firestore — fire and forget so a slow/flaky network never
+    // freezes the UI. Local state is already updated synchronously above.
+    if (state.details?.type === 'database' && state.details?.id) {
+      updateDoc(
+        doc(db, 'activeTournaments', state.details.id.toString()),
+        sanitizeForFirestore({ settings: { ...state.settings, currency: currencySymbol }, prizeStructure: newPrizeStructure })
+      ).catch(err => console.error('Failed to persist prize structure:', err));
     }
+
+    setIsApplying(false);
+    setJustApplied(true);
+    setTimeout(() => setJustApplied(false), 2000);
   };
 
   return (
@@ -358,6 +373,27 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               <p className="text-xs text-muted-foreground">
                 Available during first {rebuyPeriodLevels} levels · Max: {maxRebuys || 'unlimited'}
               </p>
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="rebuyRake"
+                  checked={rebuyRake}
+                  onCheckedChange={(c) => {
+                    setRebuyRake(!!c);
+                    if (c && !rebuyRakeAmount) setRebuyRakeAmount(perEntryRake);
+                  }}
+                />
+                <Label htmlFor="rebuyRake" className="text-sm cursor-pointer flex-1">
+                  Charge rake on rebuys
+                </Label>
+                {rebuyRake && (
+                  <NumberInput
+                    value={rebuyRakeAmount || perEntryRake}
+                    onChange={setRebuyRakeAmount}
+                    prefix={currencySymbol}
+                    min={0}
+                  />
+                )}
+              </div>
             </SubSection>
           )}
         </CardContent>
@@ -397,6 +433,27 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               <p className="text-xs text-muted-foreground">
                 Full buy-in cost, fresh starting stack. Max 0 = unlimited.
               </p>
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="reEntryRake"
+                  checked={reEntryRake}
+                  onCheckedChange={(c) => {
+                    setReEntryRake(!!c);
+                    if (c && !reEntryRakeAmount) setReEntryRakeAmount(perEntryRake);
+                  }}
+                />
+                <Label htmlFor="reEntryRake" className="text-sm cursor-pointer flex-1">
+                  Charge rake on re-entries
+                </Label>
+                {reEntryRake && (
+                  <NumberInput
+                    value={reEntryRakeAmount || perEntryRake}
+                    onChange={setReEntryRakeAmount}
+                    prefix={currencySymbol}
+                    min={0}
+                  />
+                )}
+              </div>
             </SubSection>
           )}
         </CardContent>

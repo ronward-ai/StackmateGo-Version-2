@@ -16,6 +16,8 @@ import LeagueTournaments from '@/components/LeagueTournaments';
 import { LeagueSettingsContent } from '@/components/LeagueSettingsContent';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useSubscription } from '@/hooks/useSubscription';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -51,6 +53,9 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
   const { league, userLeagues, switchLeague, createLeague, deleteLeague, setActiveSeasonId } = useLeague();
   const { seasons, currentSeason, addSeason, updateSeason, deleteSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
+  const { isPro } = useSubscription();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeHint, setUpgradeHint] = useState('');
 
   useEffect(() => {
     if (currentSeason?.id) {
@@ -172,6 +177,8 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
   return (
     <div className="space-y-4" data-testid="league-section">
+
+      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} featureHint={upgradeHint} />
 
       {/* New Season dialog */}
       <Dialog open={showNewSeason} onOpenChange={setShowNewSeason}>
@@ -377,7 +384,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         </Select>
                       ) : (
                         <span className="font-semibold text-foreground truncate">
-                          {league?.name || 'My League'}
+                          {league?.name || 'No league yet'}
                         </span>
                       )}
                     </div>
@@ -386,7 +393,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         size="sm"
                         variant="outline"
                         className="h-7 px-2 text-xs"
-                        onClick={() => setShowNewLeague(true)}
+                        onClick={() => { if (!isPro) { setUpgradeHint('Creating leagues'); setShowUpgrade(true); } else setShowNewLeague(true); }}
                       >
                         <Plus className="h-3 w-3 mr-1" />
                         New League
@@ -453,7 +460,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         size="sm"
                         variant="outline"
                         className="h-7 px-2 text-xs"
-                        onClick={() => setShowNewSeason(true)}
+                        onClick={() => { if (!isPro) { setUpgradeHint('Creating seasons'); setShowUpgrade(true); } else setShowNewSeason(true); }}
                       >
                         <Plus className="h-3 w-3 mr-1" />
                         New Season
