@@ -103,6 +103,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(3);
 
   const [allowReEntry, setAllowReEntry] = useState(false);
+  const [reEntryRake, setReEntryRake] = useState(true);
   const [maxReEntries, setMaxReEntries] = useState(0);
   const [reEntryPeriodLevels, setReEntryPeriodLevels] = useState(4);
 
@@ -139,6 +140,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setMaxRebuys(p.maxRebuys || 0);
     setRebuyPeriodLevels(p.rebuyPeriodLevels || 3);
     setAllowReEntry(p.allowReEntry || false);
+    setReEntryRake(p.reEntryRake ?? true);
     setMaxReEntries(p.maxReEntries || 0);
     setReEntryPeriodLevels(p.reEntryPeriodLevels || 4);
     setAllowAddons(p.allowAddons || false);
@@ -164,7 +166,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     totalRebuys, rebuyAmount,
     totalAddons, addonAmount,
     totalReEntries,
-    isReEntry: allowReEntry,
+    reEntryRake,
     rebuyRake,
     rakeType, rakePercentage, rakeAmount,
   });
@@ -177,7 +179,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         rakeType, rakePercentage, rakeAmount,
         enableBounties, bountyAmount, bountyType,
         allowRebuys, rebuyRake, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-        allowReEntry, maxReEntries, reEntryPeriodLevels,
+        allowReEntry, reEntryRake, maxReEntries, reEntryPeriodLevels,
         allowAddons, addonAmount, addonChips, addonAvailableLevel,
         manualPayouts
       });
@@ -194,7 +196,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
             rakeType, rakePercentage, rakeAmount,
             enableBounties, bountyAmount, bountyType,
             allowRebuys, rebuyRake, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-            allowReEntry, maxReEntries, reEntryPeriodLevels,
+            allowReEntry, reEntryRake, maxReEntries, reEntryPeriodLevels,
             allowAddons, addonAmount, addonChips, addonAvailableLevel,
             manualPayouts
           }
@@ -411,6 +413,16 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               <p className="text-xs text-muted-foreground">
                 Full buy-in cost, fresh starting stack. Max 0 = unlimited.
               </p>
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="reEntryRake"
+                  checked={reEntryRake}
+                  onCheckedChange={(c) => setReEntryRake(!!c)}
+                />
+                <Label htmlFor="reEntryRake" className="text-sm cursor-pointer">
+                  Charge rake on re-entries
+                </Label>
+              </div>
             </SubSection>
           )}
         </CardContent>

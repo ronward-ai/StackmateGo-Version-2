@@ -967,10 +967,10 @@ export function useTournament(tournamentId?: string) {
           const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
           const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
 
-          const allowReEntry = prev.prizeStructure?.allowReEntry || false;
+          const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
           const rebuyRake = prev.prizeStructure?.rebuyRake || false;
           const rakeableEntries = prev.players.length
-            + (allowReEntry ? totalReEntries : 0)
+            + (reEntryRake ? totalReEntries : 0)
             + (rebuyRake ? totalRebuys : 0);
           const rakeAmount = rakeType === 'percentage'
             ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries
@@ -1048,10 +1048,10 @@ export function useTournament(tournamentId?: string) {
             const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
             const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
 
-            const allowReEntry = prev.prizeStructure?.allowReEntry || false;
+            const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
             const rebuyRake = prev.prizeStructure?.rebuyRake || false;
             const rakeableEntries = prev.players.length
-              + (allowReEntry ? totalReEntries : 0)
+              + (reEntryRake ? totalReEntries : 0)
               + (rebuyRake ? totalRebuys : 0);
             const rakeAmount = rakeType === 'percentage'
               ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries
@@ -1822,10 +1822,10 @@ export function useTournament(tournamentId?: string) {
       const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
       const grossPrizePool = (buyInAmount * totalPlayers) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
 
-      const allowReEntry = prev.prizeStructure?.allowReEntry || false;
+      const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
       const rebuyRake = prev.prizeStructure?.rebuyRake || false;
       const rakeableEntries = totalPlayers
-        + (allowReEntry ? totalReEntries : 0)
+        + (reEntryRake ? totalReEntries : 0)
         + (rebuyRake ? totalRebuys : 0);
       const rakeAmount = rakeType === 'percentage'
         ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries

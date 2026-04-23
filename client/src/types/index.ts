@@ -101,6 +101,7 @@ export interface PrizeStructure {
   enableBounties?: boolean;
   bountyType?: 'standard' | 'progressive';
   allowReEntry?: boolean;
+  reEntryRake?: boolean;
   maxReEntries?: number;
   reEntryPeriodLevels?: number;
   startingChips?: number;

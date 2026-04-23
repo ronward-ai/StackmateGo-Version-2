@@ -6,7 +6,7 @@ export interface PrizePoolInputs {
   totalAddons?: number;
   addonAmount?: number;
   totalReEntries?: number;
-  isReEntry?: boolean;
+  reEntryRake?: boolean;
   rebuyRake?: boolean;
   rakeType?: 'percentage' | 'fixed';
   rakePercentage?: number;
@@ -26,9 +26,9 @@ export function calculatePrizePool(inputs: PrizePoolInputs): PrizePoolResult {
     ((inputs.addonAmount ?? 0) * (inputs.totalAddons ?? 0)) +
     (inputs.buyIn * (inputs.totalReEntries ?? 0));
 
-  // Re-entry: rake charged on every bullet. Rebuy: rake charged per rebuy only if rebuyRake is set.
+  // Re-entry/rebuy rake flags control whether those additional entries incur the house fee.
   const rakeableEntries = inputs.playerCount
-    + (inputs.isReEntry ? (inputs.totalReEntries ?? 0) : 0)
+    + (inputs.reEntryRake ? (inputs.totalReEntries ?? 0) : 0)
     + (inputs.rebuyRake ? (inputs.totalRebuys ?? 0) : 0);
   const rake = (inputs.rakeType ?? 'percentage') === 'percentage'
     ? Math.floor(inputs.buyIn * ((inputs.rakePercentage ?? 0) / 100)) * rakeableEntries
