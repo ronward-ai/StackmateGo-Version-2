@@ -10,6 +10,12 @@ import {
   DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from "@/components/ui/select";
@@ -66,6 +72,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
   const [breakDialogOpen, setBreakDialogOpen] = useState(false);
   const [breakDuration, setBreakDuration] = useState(10);
   const [selectedLevel, setSelectedLevel] = useState<string | undefined>();
+  const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
 
   const [antesVisible, setAntesVisible] = useState(false);
   const hasAntes = state.levels.some(l => !l.isBreak && (l.ante || 0) > 0);
@@ -108,7 +115,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
             <div className="flex items-center gap-2">
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">~{totalMinutes} min total</span>
-              <Select onValueChange={applyTemplate}>
+              <Select onValueChange={setPendingTemplate}>
                 <SelectTrigger className="h-8 w-36 text-xs">
                   <SelectValue placeholder="Templates" />
                 </SelectTrigger>
@@ -118,6 +125,24 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Template confirmation dialog — triggered by dropdown selection */}
+              <AlertDialog open={pendingTemplate !== null} onOpenChange={(open) => { if (!open) setPendingTemplate(null); }}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Replace blind structure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will overwrite all current blind levels with the selected template. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setPendingTemplate(null)}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => { if (pendingTemplate) applyTemplate(pendingTemplate); setPendingTemplate(null); }}>
+                      Apply Template
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
 
@@ -132,10 +157,24 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               Add Break
             </Button>
             {showAnteCol ? (
-              <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs opacity-60 hover:opacity-100" onClick={handleClearAntes}>
-                <Coins className="h-3.5 w-3.5" />
-                No Antes
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs opacity-60 hover:opacity-100">
+                    <Coins className="h-3.5 w-3.5" />
+                    No Antes
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear all antes?</AlertDialogTitle>
+                    <AlertDialogDescription>This will set every level's ante to zero.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearAntes}>Clear Antes</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : (
               <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs" onClick={() => setAntesVisible(true)}>
                 <Coins className="h-3.5 w-3.5" />
@@ -199,14 +238,27 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                       </div>
                       <div className="flex justify-center">
                         {state.levels.length > 2 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeLevel(index)}
-                          >
-                            ×
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                              >
+                                ×
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove this break?</AlertDialogTitle>
+                                <AlertDialogDescription>This break will be permanently deleted.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => removeLevel(index)}>Remove</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
                       </div>
                     </div>
@@ -293,14 +345,27 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                     {/* Remove */}
                     <div className="flex justify-center">
                       {state.levels.length > 2 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeLevel(index)}
-                        >
-                          ×
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            >
+                              ×
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove this level?</AlertDialogTitle>
+                              <AlertDialogDescription>Level {blindLevelNum} will be permanently deleted.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => removeLevel(index)}>Remove</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </div>

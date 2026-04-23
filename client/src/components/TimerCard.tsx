@@ -270,16 +270,41 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
       {/* Timer Controls with Previous/Next positioned at edges */}
       <div className="flex justify-between items-center w-full px-4 sm:px-8 mb-4 sm:mb-6">
         {/* Previous Button - Left side */}
-        <Button 
-          variant="ghost"
-          size="sm"
-          className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
-          onClick={() => skipToPreviousLevel()}
-          disabled={state.currentLevel <= 0 || isTournamentFinished}
-        >
-          <span className="material-icons text-sm">skip_previous</span>
-          <span>Previous</span>
-        </Button>
+        {state.isRunning && !isTournamentFinished && state.currentLevel > 0 ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
+              >
+                <span className="material-icons text-sm">skip_previous</span>
+                <span>Previous</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Go back a level?</AlertDialogTitle>
+                <AlertDialogDescription>The timer is running. Going back mid-hand may cause confusion at the table.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => skipToPreviousLevel()}>Go Back</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
+            onClick={() => skipToPreviousLevel()}
+            disabled={state.currentLevel <= 0 || isTournamentFinished}
+          >
+            <span className="material-icons text-sm">skip_previous</span>
+            <span>Previous</span>
+          </Button>
+        )}
 
         {/* Main Control Button - Center */}
         {!isTournamentFinished ? (
@@ -328,16 +353,41 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
         )}
 
         {/* Next Button - Right side */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
-          onClick={() => skipToNextLevel()}
-          disabled={state.currentLevel >= state.levels.length - 1 || isTournamentFinished}
-        >
-          <span className="material-icons text-sm">skip_next</span>
-          <span>Next</span>
-        </Button>
+        {state.isRunning && !isTournamentFinished && state.currentLevel < state.levels.length - 1 ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
+              >
+                <span className="material-icons text-sm">skip_next</span>
+                <span>Next</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Advance to next level?</AlertDialogTitle>
+                <AlertDialogDescription>The timer is running. Moving to the next level mid-hand may catch players off-guard.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleNextLevel}>Advance</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
+            onClick={() => skipToNextLevel()}
+            disabled={state.currentLevel >= state.levels.length - 1 || isTournamentFinished}
+          >
+            <span className="material-icons text-sm">skip_next</span>
+            <span>Next</span>
+          </Button>
+        )}
       </div>
 
       {/* Level Progress Indicator */}
