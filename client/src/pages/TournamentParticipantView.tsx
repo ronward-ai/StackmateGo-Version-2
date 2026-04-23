@@ -100,111 +100,80 @@ function TournamentParticipantView() {
   useEffect(() => {
     if (!id) return;
 
-    const initializeConnection = async () => {
+    let unsubscribeFirestore: (() => void) | undefined;
+    let mounted = true;
+
+    const applySnapshot = (data: any) => {
+      if (!mounted) return;
+      if (data.blindLevels) {
+        data.blindLevels = data.blindLevels.map((level: any) => ({
+          ...level,
+          duration: typeof level.duration === 'number' ?
+            (level.duration < 100 ? level.duration * 60 : level.duration) : 900
+        }));
+      }
+      setTournament(data as any);
+      if (data.targetEndTime && data.isRunning) {
+        setTimeLeft(Math.max(0, Math.ceil((data.targetEndTime - Date.now()) / 1000)));
+      } else {
+        setTimeLeft(data.secondsLeft || 0);
+      }
+      setError(null);
+      setIsConnected(true);
+      if (data.settings?.isSeasonTournament) {
+        window.dispatchEvent(new CustomEvent('leagueDataChanged', {
+          detail: { source: 'participant-firebase-update', forceUpdate: true }
+        }));
+      }
+    };
+
+    const setup = async () => {
       try {
         const { doc, onSnapshot } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');
-        
+        if (!mounted) return;
         const docRef = doc(db, 'activeTournaments', id.toString());
-        
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            
-            // Ensure blind levels have proper duration in seconds
-            if (data.blindLevels) {
-              data.blindLevels = data.blindLevels.map((level: any) => ({
-                ...level,
-                duration: typeof level.duration === 'number' ?
-                  (level.duration < 100 ? level.duration * 60 : level.duration) : 900
-              }));
-            }
-            
-            setTournament(data as any);
-            if (data.targetEndTime && data.isRunning) {
-              const newTime = Math.max(0, Math.ceil((data.targetEndTime - Date.now()) / 1000));
-              setTimeLeft(newTime);
+        unsubscribeFirestore = onSnapshot(
+          docRef,
+          (docSnap) => {
+            if (docSnap.exists()) {
+              applySnapshot(docSnap.data());
             } else {
-              setTimeLeft(data.secondsLeft || 0);
+              setError('Tournament not found');
             }
-            setError(null);
-            setIsConnected(true);
-            
-            // Dispatch events for league data if needed
-            if (data.settings?.isSeasonTournament) {
-              window.dispatchEvent(new CustomEvent('leagueDataChanged', {
-                detail: {
-                  source: 'participant-firebase-update',
-                  forceUpdate: true
-                }
-              }));
-            }
-          } else {
-            console.error('Tournament not found in Firebase');
-            setError('Tournament not found');
+          },
+          (err) => {
+            console.error('Firebase listener error:', err);
+            setError(`Network error while loading tournament: ${err.message}`);
           }
-        }, (error) => {
-          console.error('Firebase listener error:', error);
-          setError(`Network error while loading tournament: ${error.message}`);
-        });
-        
-        return unsubscribe;
-        
-      } catch (error: any) {
-        console.error('Failed to initialize Firebase connection:', error);
-        setError(`Failed to initialize connection: ${error.message}`);
-        return () => {};
+        );
+      } catch (err: any) {
+        console.error('Failed to initialize Firebase connection:', err);
+        setError(`Failed to initialize connection: ${err.message}`);
       }
     };
 
-    let cleanup: (() => void) | undefined;
+    setup();
 
-    initializeConnection().then(unsubscribe => {
-      cleanup = unsubscribe;
-    });
-
-    // Listen for tournament sync events (from director actions)
-    const handleTournamentSync = (event: CustomEvent) => {
-      if (event.detail?.tournament) {
-        const syncedTournament = event.detail.tournament;
-
-        // Update tournament state
-        setTournament(prev => {
-          if (!prev) return syncedTournament;
-
-          return {
-            ...prev,
-            ...syncedTournament,
-            // Ensure settings are properly merged
-            settings: {
-              ...prev.settings,
-              ...syncedTournament.settings,
-              tables: {
-                ...prev.settings?.tables,
-                ...syncedTournament.settings?.tables
-              },
-              tableBackgrounds: syncedTournament.settings?.tableBackgrounds || prev.settings?.tableBackgrounds || []
-            }
-          };
-        });
-
-        // Update timer if present
-        if (syncedTournament.targetEndTime && syncedTournament.isRunning) {
-          const newTime = Math.max(0, Math.ceil((syncedTournament.targetEndTime - Date.now()) / 1000));
-          setTimeLeft(newTime);
-        } else if (syncedTournament.secondsLeft !== undefined) {
-          setTimeLeft(syncedTournament.secondsLeft);
-        }
-      }
+    // When the tab becomes visible again (e.g. iOS returning from background),
+    // do a one-shot read to resync the level and timer immediately rather than
+    // waiting for the next Firestore push.
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible' || !mounted) return;
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const snap = await getDoc(doc(db, 'activeTournaments', id.toString()));
+        if (snap.exists()) applySnapshot(snap.data());
+      } catch { /* silently ignore — onSnapshot will recover */ }
     };
 
-    window.addEventListener('tournament-sync', handleTournamentSync as EventListener);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      if (cleanup) {
-        cleanup();
-      }
-      window.removeEventListener('tournament-sync', handleTournamentSync as EventListener);
+      mounted = false;
+      unsubscribeFirestore?.();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [id]);
 

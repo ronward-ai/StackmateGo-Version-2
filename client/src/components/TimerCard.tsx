@@ -363,7 +363,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
           {state.details?.id && (
             <div className="flex flex-col items-center opacity-70 hover:opacity-100 transition-opacity">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`${window.location.protocol}//${window.location.host}/tournament/${state.details.id}`)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`${window.location.protocol}//${window.location.host}/tournament/${state.details.id}/join`)}`}
                 alt="Viewer QR Code"
                 className="w-16 h-16 sm:w-20 sm:h-20 rounded-md bg-white p-1"
                 crossOrigin="anonymous"
@@ -372,7 +372,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
                   target.style.display = 'none';
                 }}
               />
-              <span className="text-xs mt-1 font-semibold">Scan for live updates</span>
+              <span className="text-xs mt-1 font-semibold">Scan to check in</span>
             </div>
           )}
         </div>
