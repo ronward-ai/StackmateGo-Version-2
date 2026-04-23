@@ -91,33 +91,35 @@ export default function QRCodeSection({ tournament, dbTournamentId }: QRCodeSect
     }
   };
 
-  const generateTransferCode = async () => {
+  const generateTransferCode = () => {
     const tournamentId = state.details?.id || dbTournamentId;
     if (!tournamentId) {
       toast({ title: "Error", description: "Tournament must be saved first", variant: "destructive" });
       return;
     }
 
-    try {
-      const code = Math.random().toString(36).substr(2, 6).toUpperCase();
-      const docRef = doc(db, 'activeTournaments', String(tournamentId));
+    const code = Math.random().toString(36).substr(2, 6).toUpperCase();
+    const expiresAt = new Date(Date.now() + 300000).toISOString();
 
-      await updateDoc(docRef, {
-        transferCode: code,
-        transferCodeExpiresAt: new Date(Date.now() + 300000).toISOString() // 5 minutes
-      });
+    // Show the code immediately — don't block on the Firestore write
+    setTransferCode(code);
+    setShowTransferCode(true);
+    toast({ title: "Code generated", description: "Share this code with the new director" });
 
-      setTransferCode(code);
-      setShowTransferCode(true);
-      toast({ title: "Code generated", description: "Share this code with the new director" });
+    const timer = setTimeout(() => {
+      setTransferCode(null);
+      setShowTransferCode(false);
+    }, 300000);
 
-      setTimeout(() => {
-        setTransferCode(null);
-        setShowTransferCode(false);
-      }, 300000);
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to generate transfer code", variant: "destructive" });
-    }
+    // Write to Firestore in the background so a slow network doesn't block the UI
+    const docRef = doc(db, 'activeTournaments', String(tournamentId));
+    updateDoc(docRef, { transferCode: code, transferCodeExpiresAt: expiresAt }).catch(() => {
+      // Write failed — revoke the code so it can't be used, clear the display
+      clearTimeout(timer);
+      setTransferCode(null);
+      setShowTransferCode(false);
+      toast({ title: "Error", description: "Could not save transfer code — please try again.", variant: "destructive" });
+    });
   };
 
   const copyTransferCode = () => {
