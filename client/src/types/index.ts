@@ -84,6 +84,7 @@ export interface PrizeStructure {
   maxRebuys?: number;
   rebuyPeriodLevels?: number;
   allowRebuys?: boolean;
+  rebuyRake?: boolean;
   allowAddons?: boolean;
   rakePercentage?: number;
   rakeAmount?: number;

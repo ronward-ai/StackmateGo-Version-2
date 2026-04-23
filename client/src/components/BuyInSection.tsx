@@ -96,6 +96,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [bountyType, setBountyType] = useState<'standard' | 'progressive'>('standard');
 
   const [allowRebuys, setAllowRebuys] = useState(false);
+  const [rebuyRake, setRebuyRake] = useState(false);
   const [rebuyAmount, setRebuyAmount] = useState(10);
   const [rebuyChips, setRebuyChips] = useState(10000);
   const [maxRebuys, setMaxRebuys] = useState(0);
@@ -132,6 +133,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setBountyAmount(p.bountyAmount || 0);
     setBountyType(p.bountyType || 'standard');
     setAllowRebuys(p.allowRebuys || false);
+    setRebuyRake(p.rebuyRake || false);
     setRebuyAmount(p.rebuyAmount || 10);
     setRebuyChips(p.rebuyChips || 10000);
     setMaxRebuys(p.maxRebuys || 0);
@@ -163,6 +165,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     totalAddons, addonAmount,
     totalReEntries,
     isReEntry: allowReEntry,
+    rebuyRake,
     rakeType, rakePercentage, rakeAmount,
   });
 
@@ -173,7 +176,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         buyIn: buyInAmount, startingChips,
         rakeType, rakePercentage, rakeAmount,
         enableBounties, bountyAmount, bountyType,
-        allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+        allowRebuys, rebuyRake, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
         allowReEntry, maxReEntries, reEntryPeriodLevels,
         allowAddons, addonAmount, addonChips, addonAvailableLevel,
         manualPayouts
@@ -190,7 +193,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
             buyIn: buyInAmount, startingChips,
             rakeType, rakePercentage, rakeAmount,
             enableBounties, bountyAmount, bountyType,
-            allowRebuys, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+            allowRebuys, rebuyRake, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
             allowReEntry, maxReEntries, reEntryPeriodLevels,
             allowAddons, addonAmount, addonChips, addonAvailableLevel,
             manualPayouts
@@ -359,6 +362,16 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               <p className="text-xs text-muted-foreground">
                 Available during first {rebuyPeriodLevels} levels · Max: {maxRebuys || 'unlimited'}
               </p>
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="rebuyRake"
+                  checked={rebuyRake}
+                  onCheckedChange={(c) => setRebuyRake(!!c)}
+                />
+                <Label htmlFor="rebuyRake" className="text-sm cursor-pointer">
+                  Charge rake on rebuys
+                </Label>
+              </div>
             </SubSection>
           )}
         </CardContent>

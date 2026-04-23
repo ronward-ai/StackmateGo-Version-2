@@ -329,7 +329,9 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         + ((ps?.rebuyAmount || 0) * totalRebuys)
         + ((ps?.addonAmount || 0) * totalAddons)
         + (buyIn * totalReEntries);
-      const rakeableEntries = state.players.length + (ps?.allowReEntry ? totalReEntries : 0);
+      const rakeableEntries = state.players.length
+        + (ps?.allowReEntry ? totalReEntries : 0)
+        + (ps?.rebuyRake ? totalRebuys : 0);
       const rake = (ps?.rakeType || 'percentage') === 'percentage'
         ? Math.floor(buyIn * ((ps?.rakePercentage || 0) / 100)) * rakeableEntries
         : (ps?.rakeAmount || 0) * rakeableEntries;
@@ -669,7 +671,10 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             const grossPrizePool = (buyInAmount * state.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
 
             const allowReEntry = state.prizeStructure?.allowReEntry || false;
-            const rakeableEntries = state.players.length + (allowReEntry ? totalReEntries : 0);
+            const rebuyRake = state.prizeStructure?.rebuyRake || false;
+            const rakeableEntries = state.players.length
+              + (allowReEntry ? totalReEntries : 0)
+              + (rebuyRake ? totalRebuys : 0);
             const rakeAmount = rakeType === 'percentage'
               ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries
               : rakeAmountFixed * rakeableEntries;
