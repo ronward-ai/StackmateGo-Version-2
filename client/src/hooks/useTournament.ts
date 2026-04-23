@@ -969,12 +969,12 @@ export function useTournament(tournamentId?: string) {
 
           const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
           const rebuyRake = prev.prizeStructure?.rebuyRake || false;
-          const rakeableEntries = prev.players.length
-            + (reEntryRake ? totalReEntries : 0)
-            + (rebuyRake ? totalRebuys : 0);
-          const rakeAmount = rakeType === 'percentage'
-            ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries
-            : rakeAmountFixed * rakeableEntries;
+          const perEntryRake = rakeType === 'percentage'
+            ? Math.floor(buyInAmount * (rakePercentage / 100))
+            : rakeAmountFixed;
+          const rakeAmount = perEntryRake * prev.players.length
+            + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
+            + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
 
           const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
 
@@ -1050,12 +1050,12 @@ export function useTournament(tournamentId?: string) {
 
             const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
             const rebuyRake = prev.prizeStructure?.rebuyRake || false;
-            const rakeableEntries = prev.players.length
-              + (reEntryRake ? totalReEntries : 0)
-              + (rebuyRake ? totalRebuys : 0);
-            const rakeAmount = rakeType === 'percentage'
-              ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries
-              : rakeAmountFixed * rakeableEntries;
+            const perEntryRake = rakeType === 'percentage'
+              ? Math.floor(buyInAmount * (rakePercentage / 100))
+              : rakeAmountFixed;
+            const rakeAmount = perEntryRake * prev.players.length
+              + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
+              + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
 
             const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
 
@@ -1824,12 +1824,12 @@ export function useTournament(tournamentId?: string) {
 
       const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
       const rebuyRake = prev.prizeStructure?.rebuyRake || false;
-      const rakeableEntries = totalPlayers
-        + (reEntryRake ? totalReEntries : 0)
-        + (rebuyRake ? totalRebuys : 0);
-      const rakeAmount = rakeType === 'percentage'
-        ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries
-        : rakeAmountFixed * rakeableEntries;
+      const perEntryRake = rakeType === 'percentage'
+        ? Math.floor(buyInAmount * (rakePercentage / 100))
+        : rakeAmountFixed;
+      const rakeAmount = perEntryRake * totalPlayers
+        + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
+        + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
 
       const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
 

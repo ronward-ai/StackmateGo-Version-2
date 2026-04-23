@@ -97,6 +97,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
 
   const [allowRebuys, setAllowRebuys] = useState(false);
   const [rebuyRake, setRebuyRake] = useState(false);
+  const [rebuyRakeAmount, setRebuyRakeAmount] = useState(0);
   const [rebuyAmount, setRebuyAmount] = useState(10);
   const [rebuyChips, setRebuyChips] = useState(10000);
   const [maxRebuys, setMaxRebuys] = useState(0);
@@ -104,6 +105,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
 
   const [allowReEntry, setAllowReEntry] = useState(false);
   const [reEntryRake, setReEntryRake] = useState(true);
+  const [reEntryRakeAmount, setReEntryRakeAmount] = useState(0);
   const [maxReEntries, setMaxReEntries] = useState(0);
   const [reEntryPeriodLevels, setReEntryPeriodLevels] = useState(4);
 
@@ -135,12 +137,14 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setBountyType(p.bountyType || 'standard');
     setAllowRebuys(p.allowRebuys || false);
     setRebuyRake(p.rebuyRake || false);
+    setRebuyRakeAmount(p.rebuyRakeAmount ?? 0);
     setRebuyAmount(p.rebuyAmount || 10);
     setRebuyChips(p.rebuyChips || 10000);
     setMaxRebuys(p.maxRebuys || 0);
     setRebuyPeriodLevels(p.rebuyPeriodLevels || 3);
     setAllowReEntry(p.allowReEntry || false);
     setReEntryRake(p.reEntryRake ?? true);
+    setReEntryRakeAmount(p.reEntryRakeAmount ?? 0);
     setMaxReEntries(p.maxReEntries || 0);
     setReEntryPeriodLevels(p.reEntryPeriodLevels || 4);
     setAllowAddons(p.allowAddons || false);
@@ -160,6 +164,11 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
   const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
   const totalReEntries = state.players.reduce((s, p) => s + (p.reEntries || 0), 0);
+
+  const perEntryRake = rakeType === 'percentage'
+    ? Math.floor(buyInAmount * (rakePercentage / 100))
+    : rakeAmount;
+
   const { gross, rake, net: netPool } = calculatePrizePool({
     buyIn: buyInAmount,
     playerCount: state.players.length,
@@ -167,7 +176,9 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     totalAddons, addonAmount,
     totalReEntries,
     reEntryRake,
+    reEntryRakeAmount: reEntryRake ? (reEntryRakeAmount || perEntryRake) : 0,
     rebuyRake,
+    rebuyRakeAmount: rebuyRake ? (rebuyRakeAmount || perEntryRake) : 0,
     rakeType, rakePercentage, rakeAmount,
   });
 
@@ -178,8 +189,8 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         buyIn: buyInAmount, startingChips,
         rakeType, rakePercentage, rakeAmount,
         enableBounties, bountyAmount, bountyType,
-        allowRebuys, rebuyRake, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-        allowReEntry, reEntryRake, maxReEntries, reEntryPeriodLevels,
+        allowRebuys, rebuyRake, rebuyRakeAmount, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+        allowReEntry, reEntryRake, reEntryRakeAmount, maxReEntries, reEntryPeriodLevels,
         allowAddons, addonAmount, addonChips, addonAvailableLevel,
         manualPayouts
       });
@@ -195,8 +206,8 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
             buyIn: buyInAmount, startingChips,
             rakeType, rakePercentage, rakeAmount,
             enableBounties, bountyAmount, bountyType,
-            allowRebuys, rebuyRake, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-            allowReEntry, reEntryRake, maxReEntries, reEntryPeriodLevels,
+            allowRebuys, rebuyRake, rebuyRakeAmount, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+            allowReEntry, reEntryRake, reEntryRakeAmount, maxReEntries, reEntryPeriodLevels,
             allowAddons, addonAmount, addonChips, addonAvailableLevel,
             manualPayouts
           }
@@ -368,11 +379,22 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
                 <Checkbox
                   id="rebuyRake"
                   checked={rebuyRake}
-                  onCheckedChange={(c) => setRebuyRake(!!c)}
+                  onCheckedChange={(c) => {
+                    setRebuyRake(!!c);
+                    if (c && !rebuyRakeAmount) setRebuyRakeAmount(perEntryRake);
+                  }}
                 />
-                <Label htmlFor="rebuyRake" className="text-sm cursor-pointer">
+                <Label htmlFor="rebuyRake" className="text-sm cursor-pointer flex-1">
                   Charge rake on rebuys
                 </Label>
+                {rebuyRake && (
+                  <NumberInput
+                    value={rebuyRakeAmount || perEntryRake}
+                    onChange={setRebuyRakeAmount}
+                    prefix={currencySymbol}
+                    min={0}
+                  />
+                )}
               </div>
             </SubSection>
           )}
@@ -417,11 +439,22 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
                 <Checkbox
                   id="reEntryRake"
                   checked={reEntryRake}
-                  onCheckedChange={(c) => setReEntryRake(!!c)}
+                  onCheckedChange={(c) => {
+                    setReEntryRake(!!c);
+                    if (c && !reEntryRakeAmount) setReEntryRakeAmount(perEntryRake);
+                  }}
                 />
-                <Label htmlFor="reEntryRake" className="text-sm cursor-pointer">
+                <Label htmlFor="reEntryRake" className="text-sm cursor-pointer flex-1">
                   Charge rake on re-entries
                 </Label>
+                {reEntryRake && (
+                  <NumberInput
+                    value={reEntryRakeAmount || perEntryRake}
+                    onChange={setReEntryRakeAmount}
+                    prefix={currencySymbol}
+                    min={0}
+                  />
+                )}
               </div>
             </SubSection>
           )}

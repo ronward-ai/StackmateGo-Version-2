@@ -329,12 +329,14 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         + ((ps?.rebuyAmount || 0) * totalRebuys)
         + ((ps?.addonAmount || 0) * totalAddons)
         + (buyIn * totalReEntries);
-      const rakeableEntries = state.players.length
-        + ((ps?.reEntryRake ?? true) ? totalReEntries : 0)
-        + (ps?.rebuyRake ? totalRebuys : 0);
-      const rake = (ps?.rakeType || 'percentage') === 'percentage'
-        ? Math.floor(buyIn * ((ps?.rakePercentage || 0) / 100)) * rakeableEntries
-        : (ps?.rakeAmount || 0) * rakeableEntries;
+      const reEntryRake = ps?.reEntryRake ?? true;
+      const rebuyRake = ps?.rebuyRake || false;
+      const perEntryRake = (ps?.rakeType || 'percentage') === 'percentage'
+        ? Math.floor(buyIn * ((ps?.rakePercentage || 0) / 100))
+        : (ps?.rakeAmount || 0);
+      const rake = perEntryRake * state.players.length
+        + (reEntryRake ? totalReEntries * (ps?.reEntryRakeAmount || perEntryRake) : 0)
+        + (rebuyRake ? totalRebuys * (ps?.rebuyRakeAmount || perEntryRake) : 0);
       const prizePool = Math.max(0, gross - rake);
 
       const sorted = [...state.players].sort((a, b) => {
@@ -672,12 +674,12 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
             const reEntryRake = state.prizeStructure?.reEntryRake ?? true;
             const rebuyRake = state.prizeStructure?.rebuyRake || false;
-            const rakeableEntries = state.players.length
-              + (reEntryRake ? totalReEntries : 0)
-              + (rebuyRake ? totalRebuys : 0);
-            const rakeAmount = rakeType === 'percentage'
-              ? Math.floor(buyInAmount * (rakePercentage / 100)) * rakeableEntries
-              : rakeAmountFixed * rakeableEntries;
+            const perEntryRake = rakeType === 'percentage'
+              ? Math.floor(buyInAmount * (rakePercentage / 100))
+              : rakeAmountFixed;
+            const rakeAmount = perEntryRake * state.players.length
+              + (reEntryRake ? totalReEntries * (state.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
+              + (rebuyRake ? totalRebuys * (state.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
 
             const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
 

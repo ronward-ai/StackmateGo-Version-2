@@ -85,6 +85,7 @@ export interface PrizeStructure {
   rebuyPeriodLevels?: number;
   allowRebuys?: boolean;
   rebuyRake?: boolean;
+  rebuyRakeAmount?: number;
   allowAddons?: boolean;
   rakePercentage?: number;
   rakeAmount?: number;
@@ -102,6 +103,7 @@ export interface PrizeStructure {
   bountyType?: 'standard' | 'progressive';
   allowReEntry?: boolean;
   reEntryRake?: boolean;
+  reEntryRakeAmount?: number;
   maxReEntries?: number;
   reEntryPeriodLevels?: number;
   startingChips?: number;

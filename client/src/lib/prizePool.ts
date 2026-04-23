@@ -7,7 +7,9 @@ export interface PrizePoolInputs {
   addonAmount?: number;
   totalReEntries?: number;
   reEntryRake?: boolean;
+  reEntryRakeAmount?: number;
   rebuyRake?: boolean;
+  rebuyRakeAmount?: number;
   rakeType?: 'percentage' | 'fixed';
   rakePercentage?: number;
   rakeAmount?: number;
@@ -26,13 +28,14 @@ export function calculatePrizePool(inputs: PrizePoolInputs): PrizePoolResult {
     ((inputs.addonAmount ?? 0) * (inputs.totalAddons ?? 0)) +
     (inputs.buyIn * (inputs.totalReEntries ?? 0));
 
-  // Re-entry/rebuy rake flags control whether those additional entries incur the house fee.
-  const rakeableEntries = inputs.playerCount
-    + (inputs.reEntryRake ? (inputs.totalReEntries ?? 0) : 0)
-    + (inputs.rebuyRake ? (inputs.totalRebuys ?? 0) : 0);
-  const rake = (inputs.rakeType ?? 'percentage') === 'percentage'
-    ? Math.floor(inputs.buyIn * ((inputs.rakePercentage ?? 0) / 100)) * rakeableEntries
-    : (inputs.rakeAmount ?? 0) * rakeableEntries;
+  const perEntryRake = (inputs.rakeType ?? 'percentage') === 'percentage'
+    ? Math.floor(inputs.buyIn * ((inputs.rakePercentage ?? 0) / 100))
+    : (inputs.rakeAmount ?? 0);
+
+  const rake =
+    perEntryRake * inputs.playerCount +
+    (inputs.reEntryRake ? (inputs.totalReEntries ?? 0) * (inputs.reEntryRakeAmount ?? perEntryRake) : 0) +
+    (inputs.rebuyRake ? (inputs.totalRebuys ?? 0) * (inputs.rebuyRakeAmount ?? perEntryRake) : 0);
 
   return { gross, rake, net: gross };
 }
