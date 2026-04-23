@@ -7,7 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDollarSign } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeForFirestore } from "@/lib/utils";
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface BuyInSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -188,43 +190,33 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     rakeType, rakePercentage, rakeAmount,
   });
 
-  const applyChanges = async () => {
+  const applyChanges = () => {
+    const newPrizeStructure = {
+      buyIn: buyInAmount, startingChips,
+      rakeType, rakePercentage, rakeAmount,
+      enableBounties, bountyAmount, bountyType,
+      allowRebuys, rebuyRake, rebuyRakeAmount, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+      allowReEntry, reEntryRake, reEntryRakeAmount, maxReEntries, reEntryPeriodLevels,
+      allowAddons, addonAmount, addonChips, addonAvailableLevel,
+      manualPayouts
+    };
+
     setIsApplying(true);
-    try {
-      updatePrizeStructure({
-        buyIn: buyInAmount, startingChips,
-        rakeType, rakePercentage, rakeAmount,
-        enableBounties, bountyAmount, bountyType,
-        allowRebuys, rebuyRake, rebuyRakeAmount, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-        allowReEntry, reEntryRake, reEntryRakeAmount, maxReEntries, reEntryPeriodLevels,
-        allowAddons, addonAmount, addonChips, addonAvailableLevel,
-        manualPayouts
-      });
-      updateSettings({ currency: currencySymbol });
+    updatePrizeStructure(newPrizeStructure);
+    updateSettings({ currency: currencySymbol });
 
-      if (state.details?.type === 'database' && state.details?.id) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        const { sanitizeForFirestore } = await import('@/lib/utils');
-        await updateDoc(doc(db, 'activeTournaments', state.details.id.toString()), sanitizeForFirestore({
-          settings: { ...state.settings, currency: currencySymbol },
-          prizeStructure: {
-            buyIn: buyInAmount, startingChips,
-            rakeType, rakePercentage, rakeAmount,
-            enableBounties, bountyAmount, bountyType,
-            allowRebuys, rebuyRake, rebuyRakeAmount, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-            allowReEntry, reEntryRake, reEntryRakeAmount, maxReEntries, reEntryPeriodLevels,
-            allowAddons, addonAmount, addonChips, addonAvailableLevel,
-            manualPayouts
-          }
-        }));
-      }
-
-      setJustApplied(true);
-      setTimeout(() => setJustApplied(false), 2000);
-    } finally {
-      setIsApplying(false);
+    // Persist to Firestore — fire and forget so a slow/flaky network never
+    // freezes the UI. Local state is already updated synchronously above.
+    if (state.details?.type === 'database' && state.details?.id) {
+      updateDoc(
+        doc(db, 'activeTournaments', state.details.id.toString()),
+        sanitizeForFirestore({ settings: { ...state.settings, currency: currencySymbol }, prizeStructure: newPrizeStructure })
+      ).catch(err => console.error('Failed to persist prize structure:', err));
     }
+
+    setIsApplying(false);
+    setJustApplied(true);
+    setTimeout(() => setJustApplied(false), 2000);
   };
 
   return (
