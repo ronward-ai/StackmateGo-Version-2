@@ -692,7 +692,7 @@
     border-color: transparent !important;
     border-bottom-color: #F97316 !important;
     border-bottom-width: 2px !important;
-    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.15) !important;
+    box-shadow: none !important;
   }
 
   /* Hover states */
