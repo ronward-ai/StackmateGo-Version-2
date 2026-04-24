@@ -636,7 +636,6 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
       {/* ── Apply Button ─────────────────────────────────── */}
       <Button
         className="btn-apply-changes h-11 w-full text-sm font-semibold transition-all duration-200"
-        variant="outline"
         disabled={isApplying || totalPercentage !== 100}
         onClick={applyChanges}
       >

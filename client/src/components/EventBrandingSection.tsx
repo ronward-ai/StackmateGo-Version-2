@@ -171,9 +171,9 @@ export default function EventBrandingSection({ tournament }: EventBrandingSectio
             )}
           </div>
           
-          <Button 
-            onClick={applyChanges} 
-            className="mt-2" 
+          <Button
+            onClick={applyChanges}
+            className="btn-apply-changes mt-2 w-full h-10 text-sm font-semibold transition-all duration-200"
             disabled={isApplying}
           >
             {isApplying ? (

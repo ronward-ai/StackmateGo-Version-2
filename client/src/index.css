@@ -810,15 +810,22 @@
   }
 
   .btn-apply-changes {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%) !important;
-    color: rgb(52, 211, 153) !important;
-    border-color: rgba(34, 197, 94, 0.3) !important;
-    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15) !important;
+    background: #f97316 !important;
+    color: #ffffff !important;
+    border-color: #f97316 !important;
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35) !important;
   }
 
-  .btn-apply-changes:hover {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.10) 100%) !important;
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2) !important;
+  .btn-apply-changes:hover:not(:disabled) {
+    background: #ea6c0a !important;
+    border-color: #ea6c0a !important;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.45) !important;
+  }
+
+  .btn-apply-changes:disabled {
+    background: rgba(249, 115, 22, 0.35) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
   }
 
   /* Create viewer access button styling to match main navigation tabs */

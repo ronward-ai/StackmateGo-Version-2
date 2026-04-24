@@ -154,8 +154,7 @@ export default function BrandingSection({ tournament }: BrandingSectionProps) {
           <Button
             onClick={applyChanges}
             disabled={isApplying || justApplied}
-            size="sm"
-            className="w-full text-xs"
+            className="btn-apply-changes w-full h-10 text-sm font-semibold transition-all duration-200"
           >
             {isApplying ? (
               <>
