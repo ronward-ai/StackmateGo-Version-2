@@ -1399,11 +1399,17 @@ export function useTournament(tournamentId?: string) {
       const newLevels = prev.levels.map((level, i) =>
         i === index ? { ...level, ...updates } : level
       );
-      // Auto-save blind levels
       saveBlindLevels(newLevels);
+      // If the current level's duration changed, reset secondsLeft to the new duration
+      // so the timer reflects the edit immediately without needing a skip-away/back.
+      const secondsLeft =
+        index === prev.currentLevel && typeof updates.duration === 'number'
+          ? updates.duration
+          : prev.secondsLeft;
       return {
         ...prev,
-        levels: newLevels
+        levels: newLevels,
+        secondsLeft,
       };
     });
   }, []);
