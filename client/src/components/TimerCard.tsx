@@ -247,7 +247,14 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
     <Card className="relative bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20 rounded-xl shadow-lg p-4 sm:p-8 flex flex-col items-center">
       <FullscreenButton />
 
-      <div className="font-mono text-8xl sm:text-[10rem] md:text-[16rem] lg:text-[20rem] font-bold tracking-tight my-4 sm:my-8 flex-shrink-0 timer-responsive" style={{ lineHeight: '0.85' }}>
+      <div
+        className="font-mono text-8xl sm:text-[10rem] md:text-[16rem] lg:text-[20rem] font-bold tracking-tight my-4 sm:my-8 flex-shrink-0 timer-responsive"
+        style={{
+          lineHeight: '0.85',
+          color: state.secondsLeft <= 30 ? '#EF4444' : state.secondsLeft <= 60 ? '#F59E0B' : 'white',
+          transition: 'color 0.8s ease',
+        }}
+      >
         {formatTime()}
       </div>
 
