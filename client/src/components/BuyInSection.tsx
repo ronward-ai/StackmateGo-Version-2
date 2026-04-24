@@ -342,7 +342,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <RefreshCw className={cn('h-4 w-4', allowRebuys ? 'text-purple-400' : 'text-muted-foreground')} />
+              <RefreshCw className={cn('h-4 w-4', allowRebuys ? 'text-orange-400' : 'text-muted-foreground')} />
               <div>
                 <Label htmlFor="allowRebuys" className="text-sm font-semibold cursor-pointer">Rebuys</Label>
                 <p className="text-xs text-muted-foreground">Top up chips after busting</p>
@@ -420,7 +420,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Plus className={cn('h-4 w-4', allowReEntry ? 'text-blue-400' : 'text-muted-foreground')} />
+              <Plus className={cn('h-4 w-4', allowReEntry ? 'text-orange-400' : 'text-muted-foreground')} />
               <div>
                 <Label htmlFor="allowReEntry" className="text-sm font-semibold cursor-pointer">Re-entry</Label>
                 <p className="text-xs text-muted-foreground">Full buy-in, fresh starting stack</p>
@@ -492,7 +492,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Coins className={cn('h-4 w-4', allowAddons ? 'text-green-400' : 'text-muted-foreground')} />
+              <Coins className={cn('h-4 w-4', allowAddons ? 'text-orange-400' : 'text-muted-foreground')} />
               <div>
                 <Label htmlFor="allowAddons" className="text-sm font-semibold cursor-pointer">Add-ons</Label>
                 <p className="text-xs text-muted-foreground">Optional chip purchase at set level</p>

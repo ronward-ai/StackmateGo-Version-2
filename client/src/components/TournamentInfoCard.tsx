@@ -120,7 +120,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-purple-400" />
+            <Trophy className="h-4 w-4 text-orange-400" />
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Info</span>
           </div>
           <div className="flex items-center gap-2">
@@ -183,14 +183,14 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             {/* Stat tiles */}
             <div className="flex gap-2">
               <div className="flex-1 bg-background/30 rounded-lg px-3 py-2.5 text-center">
-                <div className="font-bold font-mono text-lg text-blue-400">{active.length}</div>
+                <div className="font-bold font-mono text-lg text-teal-400">{active.length}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {eliminated.length > 0 ? `of ${state.players.length} active` : 'players'}
                 </div>
               </div>
               {pool > 0 && (
                 <div className="flex-1 bg-background/30 rounded-lg px-3 py-2.5 text-center">
-                  <div className="font-bold font-mono text-lg text-green-400">{sym}{pool.toLocaleString()}</div>
+                  <div className="font-bold font-mono text-lg text-orange-400">{sym}{pool.toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">prize pool</div>
                 </div>
               )}
@@ -243,10 +243,10 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               <div className="grid grid-cols-2 gap-2">
 
                 {/* Players */}
-                <div className="rounded-lg border border-blue-400/20 bg-blue-400/5 p-3">
+                <div className="rounded-lg border border-teal-400/20 bg-teal-400/5 p-3">
                   <div className="flex items-center gap-1.5 mb-2">
-                    <Users className="h-3.5 w-3.5 text-blue-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Players</span>
+                    <Users className="h-3.5 w-3.5 text-teal-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-teal-400">Players</span>
                   </div>
                   <DetailRow label="Registered" value={state.players.length} compact />
                   <DetailRow label="Active" value={active.length} compact />
@@ -254,10 +254,10 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                 </div>
 
                 {/* Prize Pool */}
-                <div className="rounded-lg border border-green-400/20 bg-green-400/5 p-3">
+                <div className="rounded-lg border border-orange-400/20 bg-orange-400/5 p-3">
                   <div className="flex items-center gap-1.5 mb-2">
-                    <Coins className="h-3.5 w-3.5 text-green-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-green-400">Prize Pool</span>
+                    <Coins className="h-3.5 w-3.5 text-orange-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Prize Pool</span>
                   </div>
                   <DetailRow label={`Buy-in ×${state.players.length}`} value={`${sym}${(buyIn * state.players.length).toLocaleString()}`} compact />
                   {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys}×)`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} compact />}
@@ -281,10 +281,10 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
 
                 {/* Rebuys */}
                 {p?.allowRebuys && (
-                  <div className="rounded-lg border border-purple-400/20 bg-purple-400/5 p-3">
+                  <div className="rounded-lg border border-orange-400/20 bg-orange-400/5 p-3">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <RefreshCw className="h-3.5 w-3.5 text-purple-400" />
-                      <span className="text-xs font-semibold uppercase tracking-wide text-purple-400">Rebuys</span>
+                      <RefreshCw className="h-3.5 w-3.5 text-orange-400" />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Rebuys</span>
                     </div>
                     <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || 0}`} compact />
                     <DetailRow label="Chips" value={(p?.rebuyChips || 10000).toLocaleString()} compact />
@@ -297,10 +297,10 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               {(p?.allowReEntry || p?.allowAddons || p?.enableBounties) && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {p?.allowReEntry && (
-                    <div className="rounded-lg border border-blue-400/20 bg-blue-400/5 p-3">
+                    <div className="rounded-lg border border-orange-400/20 bg-orange-400/5 p-3">
                       <div className="flex items-center gap-1.5 mb-2">
-                        <LogIn className="h-3.5 w-3.5 text-blue-400" />
-                        <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Re-entries</span>
+                        <LogIn className="h-3.5 w-3.5 text-orange-400" />
+                        <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Re-entries</span>
                       </div>
                       <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || buyIn}`} compact />
                       {(p?.maxReEntries ?? 0) > 0 && <DetailRow label="Max / player" value={p!.maxReEntries!} compact />}
@@ -308,10 +308,10 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                     </div>
                   )}
                   {p?.allowAddons && (
-                    <div className="rounded-lg border border-teal-400/20 bg-teal-400/5 p-3">
+                    <div className="rounded-lg border border-orange-400/20 bg-orange-400/5 p-3">
                       <div className="flex items-center gap-1.5 mb-2">
-                        <Coins className="h-3.5 w-3.5 text-teal-400" />
-                        <span className="text-xs font-semibold uppercase tracking-wide text-teal-400">Add-ons</span>
+                        <Coins className="h-3.5 w-3.5 text-orange-400" />
+                        <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Add-ons</span>
                       </div>
                       <DetailRow label="Cost" value={`${sym}${p?.addonAmount || 0}`} compact />
                       <DetailRow label="Chips" value={(p?.addonChips || 10000).toLocaleString()} compact />

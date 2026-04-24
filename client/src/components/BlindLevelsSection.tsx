@@ -104,11 +104,11 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
           {/* Header */}
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2">
-              <ListOrdered className="h-4 w-4 text-purple-400" />
+              <ListOrdered className="h-4 w-4 text-orange-400" />
               <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
                 Blind Levels
               </span>
-              <Badge variant="outline" className="text-xs border-purple-500/30 text-purple-300">
+              <Badge variant="outline" className="text-xs border-orange-500/30 text-orange-300">
                 {nonBreakLevels.length} levels
               </Badge>
             </div>

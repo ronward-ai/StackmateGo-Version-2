@@ -184,7 +184,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                 />
               </SettingsGroup>
 
-              <SettingsGroup icon={Layers} title="Blind Levels" color="text-purple-400">
+              <SettingsGroup icon={Layers} title="Blind Levels" color="text-orange-400">
                 <SettingRow
                   id="applyDurationToAll"
                   label="Sync Level Durations"
@@ -201,7 +201,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                 />
               </SettingsGroup>
 
-              <SettingsGroup icon={Users} title="Players" color="text-green-400">
+              <SettingsGroup icon={Users} title="Players" color="text-teal-400">
                 <SettingRow
                   id="enableRecentPlayers"
                   label="Recent Players"
