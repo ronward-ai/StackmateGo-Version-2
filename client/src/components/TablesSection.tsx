@@ -546,10 +546,10 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                             key={`empty-${seatIndex}`}
                             onClick={() => { if (canMoveHere) movePlayerToSeat(tableIndex, seatIndex); }}
                             className={cn(
-                              "flex items-center gap-2.5 p-2.5 rounded-lg border border-dashed transition-all",
+                              "flex items-center gap-2.5 p-3 rounded-lg border transition-all",
                               canMoveHere
                                 ? "border-green-400/70 bg-green-500/15 cursor-pointer hover:bg-green-500/25"
-                                : "border-white/15 bg-black/15"
+                                : "border-white/20 bg-black/15 hover:bg-white/5"
                             )}
                           >
                             <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/40 text-[10px] font-bold flex-shrink-0">
@@ -567,17 +567,17 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                           key={player.id}
                           onClick={() => { if (canSelectPlayer) setSelectedPlayerToMove(isSelected ? null : player); }}
                           className={cn(
-                            "flex items-center justify-between p-2.5 rounded-lg border transition-all",
+                            "flex items-center justify-between p-3 rounded-lg border transition-all",
                             isSelected ? "border-primary bg-primary/20" :
-                            canSelectPlayer ? "border-dashed border-primary/50 bg-black/20 hover:bg-primary/10 cursor-pointer" :
-                            "border-white/20 bg-black/25 hover:bg-black/35"
+                            canSelectPlayer ? "border-primary/50 bg-black/20 hover:bg-primary/10 cursor-pointer" :
+                            "border-white/25 bg-black/25 hover:bg-white/8"
                           )}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                               {seatIndex + 1}
                             </div>
-                            <span className="font-medium text-white text-sm truncate">{player.name}</span>
+                            <span className="font-semibold text-white text-sm truncate">{player.name}</span>
                             {isSelected && <span className="text-primary text-xs ml-auto">✓</span>}
                           </div>
 
