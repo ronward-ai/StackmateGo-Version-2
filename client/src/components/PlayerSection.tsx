@@ -11,6 +11,17 @@ import { Player } from '@/types';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 
+/** Deterministic muted avatar colour from a player's name. */
+function nameToAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 40%, 42%)`;
+}
+
 interface RecentPlayer {
   name: string;
   lastUsed: number;
@@ -788,6 +799,15 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                       <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${rankBadgeClass}`}>
                         {displayRank}
                       </span>
+
+                      {/* Avatar chip */}
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white"
+                        style={{ background: nameToAvatarColor(player.name) }}
+                        aria-hidden="true"
+                      >
+                        {player.name.charAt(0).toUpperCase()}
+                      </div>
 
                       {/* Player Name - more prominent */}
                       <span className="font-bold text-white text-lg truncate" title={player.name}>{player.name}</span>
