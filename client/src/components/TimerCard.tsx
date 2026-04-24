@@ -402,12 +402,12 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
       </div>
 
       {/* Level Progress Indicator */}
-      <Progress 
-        value={calculateProgress()} 
+      <Progress
+        value={calculateProgress()}
         className={cn(
-          "w-full h-2.5 mb-3 sm:mb-6",
-          currentBreak ? "bg-neutral-800 [&>div]:bg-secondary" : "bg-neutral-800"
-        )} 
+          "w-full h-2 mb-3 sm:mb-6 bg-neutral-800",
+          currentBreak ? "[&>div]:bg-secondary" : "timer-progress-gradient"
+        )}
       />
 
       {/* Level Info */}

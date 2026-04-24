@@ -1088,6 +1088,14 @@
     stroke-width: 2.5 !important;
     transition: all 0.2s ease !important;
   }
+
+  /* Timer progress bar — teal→orange gradient on the indicator.
+     Radix clips from the left via translateX, so as the bar depletes
+     the teal (left) disappears first, leaving orange when nearly empty. */
+  .timer-progress-gradient > div {
+    background: linear-gradient(to right, #14b8a6, #f97316) !important;
+    transition: transform 0.3s linear !important;
+  }
 }
 
 /* ==============================
