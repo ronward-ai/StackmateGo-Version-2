@@ -1151,7 +1151,9 @@ export function useTournament(tournamentId?: string) {
               reEntries: (p.reEntries || 0) + 1, // Increment re-entry count
               seated: false, // They need to be reseated
               tableAssignment: undefined, // Clear table assignment
-              currentBounty: (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive') ? (prev.prizeStructure?.bountyAmount || 0) : undefined // Reset bounty for PKO
+              currentBounty: prev.prizeStructure?.enableBounties
+                ? ((prev.prizeStructure?.reEntryBounty !== false) ? (prev.prizeStructure?.bountyAmount || 0) : 0)
+                : undefined
             }
           : p
       );
@@ -1196,10 +1198,9 @@ export function useTournament(tournamentId?: string) {
               rebuys: (p.rebuys || 0) + 1,
               seated: false,
               tableAssignment: undefined,
-              // Reset bounty to initial amount on rebuy (same as re-entry)
-              currentBounty: (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive')
-                ? (prev.prizeStructure?.bountyAmount || 0)
-                : p.currentBounty
+              currentBounty: prev.prizeStructure?.enableBounties
+                ? (prev.prizeStructure?.rebuyBounty ? (prev.prizeStructure?.bountyAmount || 0) : 0)
+                : undefined
             }
           : p
       );

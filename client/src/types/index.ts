@@ -104,6 +104,8 @@ export interface PrizeStructure {
   allowReEntry?: boolean;
   reEntryRake?: boolean;
   reEntryRakeAmount?: number;
+  rebuyBounty?: boolean;
+  reEntryBounty?: boolean;
   maxReEntries?: number;
   reEntryPeriodLevels?: number;
   startingChips?: number;

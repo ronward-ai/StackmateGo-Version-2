@@ -100,6 +100,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [allowRebuys, setAllowRebuys] = useState(false);
   const [rebuyRake, setRebuyRake] = useState(false);
   const [rebuyRakeAmount, setRebuyRakeAmount] = useState(0);
+  const [rebuyBounty, setRebuyBounty] = useState(false);
   const [rebuyAmount, setRebuyAmount] = useState(10);
   const [rebuyChips, setRebuyChips] = useState(10000);
   const [maxRebuys, setMaxRebuys] = useState(0);
@@ -108,6 +109,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
   const [allowReEntry, setAllowReEntry] = useState(false);
   const [reEntryRake, setReEntryRake] = useState(true);
   const [reEntryRakeAmount, setReEntryRakeAmount] = useState(0);
+  const [reEntryBounty, setReEntryBounty] = useState(true);
   const [maxReEntries, setMaxReEntries] = useState(0);
   const [reEntryPeriodLevels, setReEntryPeriodLevels] = useState(4);
 
@@ -145,6 +147,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setAllowRebuys(p.allowRebuys || false);
     setRebuyRake(p.rebuyRake || false);
     setRebuyRakeAmount(p.rebuyRakeAmount ?? 0);
+    setRebuyBounty(p.rebuyBounty ?? false);
     setRebuyAmount(p.rebuyAmount || 10);
     setRebuyChips(p.rebuyChips || 10000);
     setMaxRebuys(p.maxRebuys || 0);
@@ -152,6 +155,7 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
     setAllowReEntry(p.allowReEntry || false);
     setReEntryRake(p.reEntryRake ?? true);
     setReEntryRakeAmount(p.reEntryRakeAmount ?? 0);
+    setReEntryBounty(p.reEntryBounty ?? true);
     setMaxReEntries(p.maxReEntries || 0);
     setReEntryPeriodLevels(p.reEntryPeriodLevels || 4);
     setAllowAddons(p.allowAddons || false);
@@ -195,8 +199,8 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
       buyIn: buyInAmount, startingChips,
       rakeType, rakePercentage, rakeAmount,
       enableBounties, bountyAmount, bountyType,
-      allowRebuys, rebuyRake, rebuyRakeAmount, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
-      allowReEntry, reEntryRake, reEntryRakeAmount, maxReEntries, reEntryPeriodLevels,
+      allowRebuys, rebuyRake, rebuyRakeAmount, rebuyBounty, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
+      allowReEntry, reEntryRake, reEntryRakeAmount, reEntryBounty, maxReEntries, reEntryPeriodLevels,
       allowAddons, addonAmount, addonChips, addonAvailableLevel,
       manualPayouts
     };
@@ -394,6 +398,18 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
                   />
                 )}
               </div>
+              {enableBounties && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="rebuyBounty"
+                    checked={rebuyBounty}
+                    onCheckedChange={(c) => setRebuyBounty(!!c)}
+                  />
+                  <Label htmlFor="rebuyBounty" className="text-sm cursor-pointer">
+                    Rebuy includes fresh bounty ({currencySymbol}{bountyAmount})
+                  </Label>
+                </div>
+              )}
             </SubSection>
           )}
         </CardContent>
@@ -454,6 +470,18 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
                   />
                 )}
               </div>
+              {enableBounties && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="reEntryBounty"
+                    checked={reEntryBounty}
+                    onCheckedChange={(c) => setReEntryBounty(!!c)}
+                  />
+                  <Label htmlFor="reEntryBounty" className="text-sm cursor-pointer">
+                    Re-entry includes fresh bounty ({currencySymbol}{bountyAmount})
+                  </Label>
+                </div>
+              )}
             </SubSection>
           )}
         </CardContent>

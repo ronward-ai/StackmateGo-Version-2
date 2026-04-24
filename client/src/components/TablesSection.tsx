@@ -57,6 +57,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     : (ps?.rakeAmount || 0);
   const rebuyRakeAmt = ps?.rebuyRake ? (ps?.rebuyRakeAmount || perEntryRake) : 0;
   const reEntryRakeAmt = (ps?.reEntryRake ?? true) ? (ps?.reEntryRakeAmount || perEntryRake) : 0;
+  const rebuyBountyAmt = (ps?.enableBounties && ps?.rebuyBounty) ? (ps?.bountyAmount || 0) : 0;
+  const reEntryBountyAmt = (ps?.enableBounties && ps?.reEntryBounty !== false) ? (ps?.bountyAmount || 0) : 0;
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
   const [seatsPerTable, setSeatsPerTable]   = useState(tables.seatsPerTable);
@@ -601,8 +603,9 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                         <div className="space-y-1 text-sm">
                                           <div className="flex justify-between"><span>Rebuy cost</span><span>{sym}{ps?.rebuyAmount || 0}</span></div>
                                           {rebuyRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{rebuyRakeAmt}</span></div>}
+                                          {rebuyBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{rebuyBountyAmt}</span></div>}
                                           <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                            <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt}</span>
+                                            <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt + rebuyBountyAmt}</span>
                                           </div>
                                         </div>
                                       </AlertDialogDescription>
@@ -634,8 +637,9 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                         <div className="space-y-1 text-sm">
                                           <div className="flex justify-between"><span>Re-entry cost</span><span>{sym}{ps?.buyIn || 0}</span></div>
                                           {reEntryRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{reEntryRakeAmt}</span></div>}
+                                          {reEntryBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{reEntryBountyAmt}</span></div>}
                                           <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                            <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt}</span>
+                                            <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt + reEntryBountyAmt}</span>
                                           </div>
                                         </div>
                                       </AlertDialogDescription>
