@@ -360,57 +360,59 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
           {isSeasonTournament && (
             <>
-              {/* League header */}
-              <Card className="rounded-xl border border-border/40">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Trophy className="h-4 w-4 text-yellow-400 flex-shrink-0" />
-                      {userLeagues.length > 1 ? (
-                        <Select
-                          value={league?.id}
-                          onValueChange={switchLeague}
+              {/* League header — only when a real league exists */}
+              {league.id !== 'pending' && (
+                <Card className="rounded-xl border border-border/40">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Trophy className="h-4 w-4 text-yellow-400 flex-shrink-0" />
+                        {userLeagues.length > 1 ? (
+                          <Select
+                            value={league?.id}
+                            onValueChange={switchLeague}
+                          >
+                            <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
+                              <SelectValue placeholder="Select league" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {userLeagues.map((l: any) => (
+                                <SelectItem key={l.id} value={l.id}>
+                                  {l.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="font-semibold text-foreground truncate">
+                            {league.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => { if (!isPro) { setUpgradeHint('Creating leagues'); setShowUpgrade(true); } else setShowNewLeague(true); }}
                         >
-                          <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
-                            <SelectValue placeholder="Select league" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {userLeagues.map((l: any) => (
-                              <SelectItem key={l.id} value={l.id}>
-                                {l.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="font-semibold text-foreground truncate">
-                          {league?.name || 'No league yet'}
-                        </span>
-                      )}
+                          <Plus className="h-3 w-3 mr-1" />
+                          New League
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => setShowDeleteLeague(true)}
+                          title="Delete league"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => { if (!isPro) { setUpgradeHint('Creating leagues'); setShowUpgrade(true); } else setShowNewLeague(true); }}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        New League
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => setShowDeleteLeague(true)}
-                        title="Delete league"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Season header */}
               <Card className="rounded-xl border border-border/40">
@@ -479,9 +481,8 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                   {currentSeason && (
                     <p className="text-xs text-muted-foreground mt-2 ml-7">
                       {formatSeasonDateRange(currentSeason)}
-                      {gamesPlayed > 0 && (
-                        <span className="ml-2 text-orange-400">· {gamesPlayed} of {totalGames} games played</span>
-                      )}
+                      {' · '}
+                      {gamesPlayed} of {totalGames} games played
                     </p>
                   )}
                 </CardContent>
