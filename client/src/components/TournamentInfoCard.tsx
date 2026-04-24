@@ -13,11 +13,15 @@ interface TournamentInfoCardProps {
 
 const ordinal = (n: number) => ['1st','2nd','3rd'][n-1] ?? `${n}th`;
 
-function DetailRow({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
+function DetailRow({ label, value, highlight, compact }: { label: string; value: string | number; highlight?: boolean; compact?: boolean }) {
   return (
-    <div className={cn("flex items-center justify-between py-1 text-sm", highlight && "font-semibold")}>
-      <span className={highlight ? "text-foreground" : "text-muted-foreground"}>{label}</span>
-      <span className={cn("font-mono", highlight ? "text-primary" : "")}>{value}</span>
+    <div className={cn(
+      "flex items-center justify-between font-mono",
+      compact ? "py-0.5 text-xs" : "py-1 text-sm",
+      highlight && "font-semibold"
+    )}>
+      <span className={cn("font-sans", highlight ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+      <span className={highlight ? "text-primary" : ""}>{value}</span>
     </div>
   );
 }
@@ -234,78 +238,97 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               </div>
             )}
 
-            {/* Detail rows */}
-            <div className="border-t border-border/20 pt-3 space-y-0.5 text-sm">
-              <div className="flex items-center gap-2 pb-1 mb-1">
-                <Users className="h-3.5 w-3.5 text-blue-400" />
-                <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Players</span>
+            {/* 2×2 stat grid */}
+            <div className="border-t border-border/20 pt-3">
+              <div className="grid grid-cols-2 gap-2">
+
+                {/* Players */}
+                <div className="rounded-lg border border-blue-400/20 bg-blue-400/5 p-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Users className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Players</span>
+                  </div>
+                  <DetailRow label="Registered" value={state.players.length} compact />
+                  <DetailRow label="Active" value={active.length} compact />
+                  {eliminated.length > 0 && <DetailRow label="Eliminated" value={eliminated.length} compact />}
+                </div>
+
+                {/* Prize Pool */}
+                <div className="rounded-lg border border-green-400/20 bg-green-400/5 p-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Coins className="h-3.5 w-3.5 text-green-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-green-400">Prize Pool</span>
+                  </div>
+                  <DetailRow label={`Buy-in ×${state.players.length}`} value={`${sym}${(buyIn * state.players.length).toLocaleString()}`} compact />
+                  {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys}×)`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} compact />}
+                  {totalAddons > 0 && <DetailRow label={`Add-ons (${totalAddons}×)`} value={`${sym}${(addonAmt * totalAddons).toLocaleString()}`} compact />}
+                  {rake > 0 && <DetailRow label={`Rake${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`-${sym}${rake.toLocaleString()}`} compact />}
+                  <DetailRow label="Total" value={`${sym}${pool.toLocaleString()}`} highlight compact />
+                </div>
+
+                {/* Chips */}
+                <div className={cn(
+                  "rounded-lg border border-orange-400/20 bg-orange-400/5 p-3",
+                  !p?.allowRebuys && "col-span-2"
+                )}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Zap className="h-3.5 w-3.5 text-orange-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Chips</span>
+                  </div>
+                  <DetailRow label="Starting Stack" value={startChips.toLocaleString()} compact />
+                  {avg > 0 && <DetailRow label="Average Stack" value={avg.toLocaleString()} highlight compact />}
+                </div>
+
+                {/* Rebuys */}
+                {p?.allowRebuys && (
+                  <div className="rounded-lg border border-purple-400/20 bg-purple-400/5 p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <RefreshCw className="h-3.5 w-3.5 text-purple-400" />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-purple-400">Rebuys</span>
+                    </div>
+                    <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || 0}`} compact />
+                    <DetailRow label="Chips" value={(p?.rebuyChips || 10000).toLocaleString()} compact />
+                    <DetailRow label="Used" value={totalRebuys} compact />
+                  </div>
+                )}
               </div>
-              <DetailRow label="Registered" value={state.players.length} />
-              <DetailRow label="Active" value={active.length} />
-              {eliminated.length > 0 && <DetailRow label="Eliminated" value={eliminated.length} />}
 
-              <div className="flex items-center gap-2 pt-3 pb-1">
-                <Coins className="h-3.5 w-3.5 text-green-400" />
-                <span className="text-xs font-semibold uppercase tracking-wide text-green-400">Prize Pool</span>
-              </div>
-              <DetailRow label={`Buy-in × ${state.players.length}`} value={`${sym}${(buyIn * state.players.length).toLocaleString()}`} />
-              {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys} × ${sym}${rebuyAmt})`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} />}
-              {totalAddons > 0 && <DetailRow label={`Add-ons (${totalAddons} × ${sym}${addonAmt})`} value={`${sym}${(addonAmt * totalAddons).toLocaleString()}`} />}
-              {rake > 0 && <DetailRow label={`House Fee / Rake ${rakeType === 'percentage' ? `(${rakePct}% per player)` : '(per player)'}`} value={`${sym}${rake.toLocaleString()}`} />}
-              <DetailRow label="Prize Pool" value={`${sym}${pool.toLocaleString()}`} highlight />
-
-              <div className="flex items-center gap-2 pt-3 pb-1">
-                <Zap className="h-3.5 w-3.5 text-orange-400" />
-                <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Chips</span>
-              </div>
-              <DetailRow label="Starting Stack" value={startChips.toLocaleString()} />
-              {avg > 0 && <DetailRow label="Average Stack" value={avg.toLocaleString()} highlight />}
-
-              {p?.allowRebuys && (
-                <>
-                  <div className="flex items-center gap-2 pt-3 pb-1">
-                    <RefreshCw className="h-3.5 w-3.5 text-purple-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-purple-400">Rebuys</span>
-                  </div>
-                  <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || 0}`} />
-                  <DetailRow label="Chips" value={(p?.rebuyChips || 10000).toLocaleString()} />
-                  <DetailRow label="Used" value={totalRebuys} />
-                </>
-              )}
-
-              {p?.allowReEntry && (
-                <>
-                  <div className="flex items-center gap-2 pt-3 pb-1">
-                    <LogIn className="h-3.5 w-3.5 text-blue-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Re-entries</span>
-                  </div>
-                  <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || buyIn}`} />
-                  {(p?.maxReEntries ?? 0) > 0 && <DetailRow label="Max per player" value={p!.maxReEntries!} />}
-                  <DetailRow label="Used" value={totalReEntries} />
-                </>
-              )}
-
-              {p?.allowAddons && (
-                <>
-                  <div className="flex items-center gap-2 pt-3 pb-1">
-                    <Coins className="h-3.5 w-3.5 text-teal-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-teal-400">Add-ons</span>
-                  </div>
-                  <DetailRow label="Cost" value={`${sym}${p?.addonAmount || 0}`} />
-                  <DetailRow label="Chips" value={(p?.addonChips || 10000).toLocaleString()} />
-                  <DetailRow label="Used" value={totalAddons} />
-                </>
-              )}
-
-              {p?.enableBounties && (
-                <>
-                  <div className="flex items-center gap-2 pt-3 pb-1">
-                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-yellow-400">Bounties</span>
-                  </div>
-                  <DetailRow label="Type" value={p.bountyType === 'progressive' ? 'Progressive (PKO)' : 'Standard'} />
-                  <DetailRow label="Bounty" value={`${sym}${p.bountyAmount || 0}`} />
-                </>
+              {/* Optional sections */}
+              {(p?.allowReEntry || p?.allowAddons || p?.enableBounties) && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {p?.allowReEntry && (
+                    <div className="rounded-lg border border-blue-400/20 bg-blue-400/5 p-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <LogIn className="h-3.5 w-3.5 text-blue-400" />
+                        <span className="text-xs font-semibold uppercase tracking-wide text-blue-400">Re-entries</span>
+                      </div>
+                      <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || buyIn}`} compact />
+                      {(p?.maxReEntries ?? 0) > 0 && <DetailRow label="Max / player" value={p!.maxReEntries!} compact />}
+                      <DetailRow label="Used" value={totalReEntries} compact />
+                    </div>
+                  )}
+                  {p?.allowAddons && (
+                    <div className="rounded-lg border border-teal-400/20 bg-teal-400/5 p-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Coins className="h-3.5 w-3.5 text-teal-400" />
+                        <span className="text-xs font-semibold uppercase tracking-wide text-teal-400">Add-ons</span>
+                      </div>
+                      <DetailRow label="Cost" value={`${sym}${p?.addonAmount || 0}`} compact />
+                      <DetailRow label="Chips" value={(p?.addonChips || 10000).toLocaleString()} compact />
+                      <DetailRow label="Used" value={totalAddons} compact />
+                    </div>
+                  )}
+                  {p?.enableBounties && (
+                    <div className="rounded-lg border border-yellow-400/20 bg-yellow-400/5 p-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Trophy className="h-3.5 w-3.5 text-yellow-400" />
+                        <span className="text-xs font-semibold uppercase tracking-wide text-yellow-400">Bounties</span>
+                      </div>
+                      <DetailRow label="Type" value={p.bountyType === 'progressive' ? 'Progressive (PKO)' : 'Standard'} compact />
+                      <DetailRow label="Bounty" value={`${sym}${p.bountyAmount || 0}`} compact />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
