@@ -272,14 +272,17 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                       "grid gap-1 px-2 py-2 items-center min-w-[200px]",
                       showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
                       "hover:bg-muted/20 transition-colors",
-                      isCurrentLevel && "bg-primary/5 border-l-2 border-primary"
+                      isCurrentLevel && "border-l-[3px] border-[#14B8A6] bg-[rgba(20,184,166,0.08)]"
                     )}
                   >
                     {/* Level number */}
                     <div className="flex justify-center">
                       {isCurrentLevel ? (
-                        <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
-                          <span className="text-[10px] font-bold text-primary">{blindLevelNum}</span>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <div className="w-5 h-5 rounded-full bg-[rgba(20,184,166,0.25)] flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-[#14B8A6]">{blindLevelNum}</span>
+                          </div>
+                          <span className="text-[8px] font-bold text-[#14B8A6] tracking-wider leading-none">NOW</span>
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground text-center">{blindLevelNum}</span>
