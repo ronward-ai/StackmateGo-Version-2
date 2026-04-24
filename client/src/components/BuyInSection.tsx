@@ -575,7 +575,15 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
               const amount = netPool > 0 ? Math.floor(netPool * payout.percentage / 100) : null;
               return (
                 <div key={i} className="flex items-center gap-3">
-                  <span className="text-sm font-medium w-10 text-muted-foreground">{label}</span>
+                  {i === 0 ? (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full w-10 text-center shrink-0" style={{ background: 'rgba(255,215,0,0.15)', color: '#FFD700', border: '1px solid rgba(255,215,0,0.4)' }}>{label}</span>
+                  ) : i === 1 ? (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full w-10 text-center shrink-0" style={{ background: 'rgba(192,192,192,0.15)', color: '#C0C0C0', border: '1px solid rgba(192,192,192,0.4)' }}>{label}</span>
+                  ) : i === 2 ? (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full w-10 text-center shrink-0" style={{ background: 'rgba(205,127,50,0.15)', color: '#CD7F32', border: '1px solid rgba(205,127,50,0.4)' }}>{label}</span>
+                  ) : (
+                    <span className="text-sm font-medium w-10 text-muted-foreground shrink-0">{label}</span>
+                  )}
                   <div className="flex items-center gap-1.5 flex-1">
                     <Input
                       type="number"
