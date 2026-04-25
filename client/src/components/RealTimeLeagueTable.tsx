@@ -579,12 +579,10 @@ function RealTimeLeagueTable({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-medium mb-2">No League Players Yet</p>
-            <p className="text-sm">
-              The league table will appear once players have competed in league tournaments.
-            </p>
+          <div className="text-center py-10 text-muted-foreground">
+            <Trophy className="h-12 w-12 mx-auto mb-4 opacity-20" />
+            <p className="text-base font-medium mb-1">No players registered yet</p>
+            <p className="text-sm">Add players to the league to get started.</p>
           </div>
         </CardContent>
       </Card>
@@ -592,7 +590,7 @@ function RealTimeLeagueTable({
   }
 
   if (!hasAnyResults) {
-    if (isParticipantView) return <div style={{ display: 'none' }} />;
+    const totalGames = currentSeason?.numberOfGames;
     return (
       <Card>
         <CardHeader>
@@ -602,12 +600,31 @@ function RealTimeLeagueTable({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-medium mb-2">League Players Ready</p>
-            <p className="text-sm">
-              {leaguePlayers.length} player(s) registered. Complete tournaments to see results.
+          <div className="text-center py-10">
+            <div className="relative inline-block mb-5">
+              <Trophy className="h-14 w-14 text-orange-500 opacity-20" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-2.5 w-2.5 rounded-full bg-orange-500 animate-pulse" />
+              </div>
+            </div>
+            <p className="text-lg font-semibold text-foreground mb-1">
+              The race for the championship starts tonight!
             </p>
+            <p className="text-sm text-muted-foreground mb-4">
+              {leaguePlayers.length} player{leaguePlayers.length !== 1 ? 's' : ''} registered
+              {totalGames ? ` · ${totalGames}-game season` : ''}.
+              Points will update as soon as the first player hits the rail.
+            </p>
+            {!isParticipantView && (
+              <p className="text-xs text-muted-foreground opacity-60">
+                Record results from the League tab after tonight's game.
+              </p>
+            )}
+            {isParticipantView && (
+              <p className="text-xs text-muted-foreground opacity-60">
+                Keep your eyes on the felt — standings update live once the game concludes.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
