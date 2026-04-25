@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Users, Shield, Trophy, Eye, Key } from 'lucide-react';
+import { Loader2, Users, Shield, Trophy, Eye, Key, LogIn } from 'lucide-react';
 import { AuthModal } from '@/components/AuthModal';
 
 interface Tournament {
@@ -127,9 +127,13 @@ export default function TournamentAccess() {
     return /^[A-Z0-9]{6}$/.test(trimmedCode);
   };
 
+  // A registered account is required to receive director handover — anonymous
+  // Firebase sessions (auto-created on page load) cannot own a tournament.
+  const isRegisteredUser = !!user && 'email' in user && !!user.email;
+
   const handleTransferCodeSubmit = () => {
     const trimmedCode = transferCode.trim();
-    
+
     if (!trimmedCode) {
       toast({
         title: "Code Required",
@@ -148,12 +152,7 @@ export default function TournamentAccess() {
       return;
     }
 
-    if (!user) {
-      toast({
-        title: "Login Required",
-        description: "You must be logged in to use a transfer code",
-        variant: "destructive",
-      });
+    if (!isRegisteredUser) {
       setShowAuthModal(true);
       return;
     }
@@ -221,6 +220,17 @@ export default function TournamentAccess() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!isRegisteredUser && (
+              <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                <LogIn className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-300">Account required</p>
+                  <p className="text-xs text-amber-400/80 mt-0.5">
+                    You need a StackMate Go account to take over director control. Enter your code below then log in when prompted.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="transfer-code" className="text-gray-300">Transfer Code</Label>
               <Input
@@ -245,6 +255,11 @@ export default function TournamentAccess() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Verifying...
                 </>
+              ) : !isRegisteredUser ? (
+                <>
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Log in &amp; Use Transfer Code
+                </>
               ) : (
                 <>
                   <Key className="mr-2 h-4 w-4" />
@@ -252,11 +267,6 @@ export default function TournamentAccess() {
                 </>
               )}
             </Button>
-            {!user && (
-              <p className="text-xs text-gray-400 text-center">
-                You must be logged in to use a transfer code
-              </p>
-            )}
           </CardContent>
         </Card>
 
