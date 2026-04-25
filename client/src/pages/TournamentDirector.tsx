@@ -31,8 +31,7 @@ function TournamentDirector() {
           return;
         }
 
-        try {
-          if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined') {
             const { doc, getDoc } = await import('firebase/firestore');
             const { db } = await import('@/lib/firebase');
             const docRef = doc(db, 'activeTournaments', id.toString());
@@ -44,15 +43,12 @@ function TournamentDirector() {
               return;
             }
           }
-        } catch (error) {
-          console.error('Error during director data sync:', error);
-        }
 
         setIsAuthenticated(true);
         setError(null);
       } catch (error) {
         console.error('Director authentication failed:', error);
-        setError('Invalid director code. Redirecting to participant view...');
+        setError('Could not verify tournament access. Redirecting to participant view...');
         
         // Redirect back to participant view after 3 seconds
         setTimeout(() => {

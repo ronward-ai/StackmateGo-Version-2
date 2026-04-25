@@ -20,7 +20,7 @@ export default defineConfig(async (): Promise<any> => {
     },
     server: {
       host: '0.0.0.0',
-      allowedHosts: true,
+      allowedHosts: ['localhost', '127.0.0.1'],
       hmr: process.env.DISABLE_HMR !== 'true',
     },
   };

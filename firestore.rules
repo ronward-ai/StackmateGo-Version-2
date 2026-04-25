@@ -1,79 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: leagues
-    // Fields:
-    //   - name: string
-    //   - description: string
-    //   - ownerId: string
-    //
-    // Collection: seasons
-    // Fields:
-    //   - leagueId: string
-    //   - name: string
-    //   - startDate: timestamp
-    //   - endDate: timestamp
-    //
-    // Collection: leaguePlayers
-    // Fields:
-    //   - leagueId: string
-    //   - seasonId: string
-    //   - name: string
-    //   - totalPoints: number
-    //   - gamesPlayed: number
-    //   - knockouts: number
-    //   - firstPlaces: number
-    //   - secondPlaces: number
-    //   - thirdPlaces: number
-    //   - finalTableAppearances: number
-    //   - totalWinnings: number
-    //   - totalBuyIns: number
-    //
-    // Collection: tournamentResults
-    // Fields:
-    //   - leagueId: string
-    //   - seasonId: string
-    //   - leaguePlayerId: string
-    //   - tournamentDate: timestamp
-    //   - tournamentName: string
-    //   - position: number
-    //   - totalPlayers: number
-    //   - points: number
-    //   - knockouts: number
-    //   - prizeMoney: number
-    //   - buyIn: number
-    //
-    // Collection: activeTournaments
-    // Fields:
-    //   - name: string
-    //   - ownerId: string
-    //   - transferCode: string
-    //   - transferCodeExpiresAt: number
-    //   - transferCodeGeneratedBy: string
-    //   - status: string
-    //   - currentLevel: number
-    //   - secondsLeft: number
-    //   - isRunning: boolean
-    //   - players: list
-    //   - blindLevels: list
-    //   - settings: map
-    //   - prizeStructure: map
-    //
-    // Collection: leagueSettings
-    // Fields:
-    //   - leagueId: string
-    //   - userId: string
-    //   - settings: map
-    //
-    // ===============================================================
 
     // Helper Functions
-    // Note: anonymous Firebase auth users count as authenticated (request.auth != null)
-    // This is intentional — players scan QR codes and get anonymous auth to view/interact
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -106,6 +35,12 @@ service cloud.firestore {
       return isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
+    // Cross-document league ownership check (used for season/player/result scoping)
+    function ownsLeague(leagueId) {
+      return isRegistered() &&
+        get(/databases/$(database)/documents/leagues/$(leagueId)).data.ownerId == request.auth.uid;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
@@ -123,7 +58,7 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Leagues — any authenticated user can read (incl. anonymous QR-scan participants)
+    // Leagues
     match /leagues/{leagueId} {
       allow read: if isAuthenticated();
       allow create: if isRegistered() && isDocOwner()
@@ -138,63 +73,49 @@ service cloud.firestore {
       allow delete: if isRegistered() && isExistingDocOwner();
     }
 
-    // League Members
-    match /leagueMembers/{memberId} {
-      allow read: if isRegistered();
-      allow create: if isRegistered();
-      allow update: if isRegistered();
-      allow delete: if isRegistered();
-    }
-
-    // Seasons — publicly readable so participants can resolve the current season
-    // without requiring Firebase authentication (anonymous auth may be disabled)
+    // Seasons — readable by any authenticated user (includes anonymous QR participants)
     match /seasons/{seasonId} {
-      allow read: if true;
-      allow create: if isRegistered();
-      allow update: if isRegistered();
-      allow delete: if isRegistered();
+      allow read: if isAuthenticated();
+      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow update: if ownsLeague(resource.data.leagueId);
+      allow delete: if ownsLeague(resource.data.leagueId);
     }
 
-    // League Players — publicly readable so the participant view can display
-    // league standings without requiring Firebase authentication
+    // League Players — readable by any authenticated user
     match /leaguePlayers/{playerId} {
-      allow read: if true;
-      allow create: if isRegistered();
-      allow update: if isRegistered();
-      allow delete: if isRegistered();
+      allow read: if isAuthenticated();
+      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow update: if ownsLeague(resource.data.leagueId);
+      allow delete: if ownsLeague(resource.data.leagueId);
     }
 
-    // Tournament Results — publicly readable so participants can see live standings
-    // without requiring Firebase authentication (anonymous auth may be disabled)
+    // Tournament Results — readable by any authenticated user
     match /tournamentResults/{resultId} {
-      allow read: if true;
-      allow create: if isRegistered();
-      allow update: if isRegistered();
-      allow delete: if isRegistered();
+      allow read: if isAuthenticated();
+      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow update: if ownsLeague(resource.data.leagueId);
+      allow delete: if ownsLeague(resource.data.leagueId);
     }
 
     // Active Tournaments
-    // - Anyone can read — players scan a QR code; no login required to view
-    // - Only registered owner can create
-    // - Owner can update anything
-    // - Any authenticated user can claim a seat (players array only) — QR check-in
-    // - Transfer code update allowed only for the recipient becoming the new owner
+    // - Any authenticated user can read (anonymous QR participants included)
+    // - Only a registered owner can create
+    // - Owner can change anything
+    // - Authenticated non-owners can update a restricted set of fields (timer/players/transfer)
+    //   but cannot change ownerId — that would allow privilege escalation
     match /activeTournaments/{tournamentId} {
-      allow read: if true;
+      allow read: if isAuthenticated();
       allow create: if isRegistered() && isDocOwner();
       allow update: if (
         // Owner can change anything
         isAuthenticated() && isExistingDocOwner()
       ) || (
-        // Authenticated participants can update timer/player/transfer fields
+        // Authenticated participants can update timer/player/transfer fields only.
+        // ownerId is intentionally excluded to prevent privilege escalation.
         isAuthenticated() &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
-                    'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy', 'ownerId'])
-      ) || (
-        // Unauthenticated players can claim a seat (players array only) — QR check-in
-        // when Firebase Auth domain is not whitelisted on this deployment
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players'])
+                    'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy'])
       );
       allow delete: if isRegistered() && isExistingDocOwner();
     }

@@ -134,7 +134,7 @@ export function useAuth() {
   return {
     user: effectiveUser,
     isLoading,
-    isAuthenticated: !!effectiveUser,
+    isAuthenticated: !!firebaseUser,
     isAnonymous: !!anonymousUser && !user,
     login,
     loginWithEmail,

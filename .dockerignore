@@ -3,3 +3,8 @@ dist
 .git
 *.md
 backup-files
+.env
+.env.*
+firebase-applet-config.json
+test-*.ts
+drizzle.config.json
