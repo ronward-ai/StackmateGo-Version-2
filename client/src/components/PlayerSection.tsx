@@ -779,220 +779,179 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               return (
                 <div
                   key={player.id}
-                  className="flex flex-col sm:flex-row sm:items-center p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] hover:bg-[#1e1e1e] transition-colors gap-3"
+                  className="flex items-center p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] hover:bg-[#1e1e1e] transition-colors gap-2"
                 >
-                  <div className="flex items-center justify-between w-full sm:w-auto flex-1 gap-3 min-w-0">
-                    {/* Left section: Rank + Name (most prominent) */}
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {/* Rank Badge - smaller and more subtle */}
-                      <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${rankBadgeClass}`}>
-                        {displayRank}
+                  {/* Left: rank + name + status badges (wraps on narrow screens) */}
+                  <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap flex-shrink-0 ${rankBadgeClass}`}>
+                      {displayRank}
+                    </span>
+                    <span className="font-bold text-white text-base truncate" title={player.name}>{player.name}</span>
+
+                    {player.seated && player.tableAssignment && (
+                      <span className="text-xs bg-blue-600/70 text-blue-100 px-2 py-0.5 rounded font-normal flex-shrink-0">
+                        T{player.tableAssignment.tableIndex + 1}S{player.tableAssignment.seatIndex + 1}
                       </span>
-
-                      {/* Player Name - more prominent */}
-                      <span className="font-bold text-white text-lg truncate" title={player.name}>{player.name}</span>
-                    </div>
-
-                    {/* Right section on mobile, Center section on desktop: Status badges */}
-                    <div className="flex items-center gap-2 flex-wrap justify-end sm:justify-start">
-                      {/* Table Assignment */}
-                      {player.seated && player.tableAssignment && (
-                        <span className="text-xs bg-blue-600/70 text-blue-100 px-2 py-1 rounded font-normal">
-                          T{player.tableAssignment.tableIndex + 1}S{player.tableAssignment.seatIndex + 1}
+                    )}
+                    {player.knockouts > 0 && (
+                      <span className="flex items-center gap-0.5 text-xs bg-orange-600/70 text-orange-100 px-2 py-0.5 rounded font-normal flex-shrink-0">
+                        🎯 {player.knockouts}
+                      </span>
+                    )}
+                    {player.isActive === false && player.eliminatedBy && (() => {
+                      const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
+                      return killer ? (
+                        <span className="text-xs bg-red-600/50 text-red-200 px-2 py-0.5 rounded font-normal flex-shrink-0">
+                          💀 {killer.name}
                         </span>
-                      )}
-
-                      {/* Knockouts */}
-                      {player.knockouts > 0 && (
-                        <div className="flex items-center gap-1 text-xs bg-orange-600/70 text-orange-100 px-2 py-1 rounded font-normal">
-                          <span className="text-sm">🎯</span>
-                          {player.knockouts}
-                        </div>
-                      )}
-
-                      {/* Eliminated By - more subtle */}
-                      {player.isActive === false && player.eliminatedBy && (
-                        (() => {
-                          const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
-                          return killer ? (
-                            <span className="text-xs bg-red-600/50 text-red-200 px-2 py-1 rounded font-normal">
-                              💀 {killer.name}
-                            </span>
-                          ) : null;
-                        })()
-                      )}
-
-                      {/* League Points — only when position is known in a league game */}
-                      {isLeagueMode && player.position && player.position > 0 && (() => {
-                        const pts = calculatePoints(
-                          player.position,
-                          state.players.length,
-                          player.knockouts || 0,
-                          state.prizeStructure?.buyIn || 0,
-                          0,
-                          0
-                        );
-                        return pts > 0 ? (
-                          <span className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 px-2 py-1 rounded font-semibold">
-                            {pts} pts
-                          </span>
-                        ) : null;
-                      })()}
-
-                      {/* Rebuys */}
-                      {(player.rebuys || 0) > 0 && (
-                        <span className="text-xs bg-purple-600/70 text-purple-100 px-2 py-1 rounded font-normal">
-                          R{player.rebuys}
+                      ) : null;
+                    })()}
+                    {isLeagueMode && player.position && player.position > 0 && (() => {
+                      const pts = calculatePoints(player.position, state.players.length, player.knockouts || 0, state.prizeStructure?.buyIn || 0, 0, 0);
+                      return pts > 0 ? (
+                        <span className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 px-2 py-0.5 rounded font-semibold flex-shrink-0">
+                          {pts} pts
                         </span>
-                      )}
-                    </div>
+                      ) : null;
+                    })()}
+                    {(player.rebuys || 0) > 0 && (
+                      <span className="text-xs bg-purple-600/70 text-purple-100 px-2 py-0.5 rounded font-normal flex-shrink-0">
+                        R{player.rebuys}
+                      </span>
+                    )}
+                    {winnings > 0 && (
+                      <span className="text-xs font-mono font-bold text-green-300 bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded flex-shrink-0">
+                        {currencySymbol}{winnings.toFixed(0)}
+                      </span>
+                    )}
                   </div>
 
-                  {/* Bottom section on mobile, Right section on desktop: Winnings + Actions */}
-                  <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0 pt-2 sm:pt-0 border-t border-[#2a2a2a] sm:border-0">
-                    {/* Winnings Display */}
-                    {winnings > 0 ? (
-                      <div className="bg-green-600/20 border border-green-500/30 px-3 py-1 rounded-lg">
-                        <div className="text-sm font-mono text-green-300 whitespace-nowrap font-bold">
-                          {currencySymbol}{winnings.toFixed(0)}
-                        </div>
-                      </div>
-                    ) : (
-                      <div></div> /* Empty div to maintain flex-between alignment if no winnings */
+                  {/* Right: action buttons — always on the same row */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {player.isActive && !player.seated && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => seatSinglePlayer(player)}
+                        className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
+                      >
+                        Seat
+                      </Button>
                     )}
 
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-1">
-                        {/* Seat Player button for unseated active players */}
-                        {player.isActive && !player.seated && (
+                    {player.isActive !== false && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPlayerToBustOut(player);
+                          setHitmanId(null);
+                          setBustOutDialogOpen(true);
+                        }}
+                        className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold flex-shrink-0 transition-colors"
+                      >
+                        KO
+                      </button>
+                    )}
+
+                    {!player.isActive && state.prizeStructure?.allowRebuys && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => seatSinglePlayer(player)}
-                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium"
+                            disabled={(player.rebuys || 0) >= (state.prizeStructure?.maxRebuys || 3)}
+                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
                           >
-                            Seat
+                            Re-buy
                           </Button>
-                        )}
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Re-buy for {player.name}?</AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="space-y-1 text-sm">
+                                <div className="flex justify-between"><span>Rebuy cost</span><span>{sym}{ps?.rebuyAmount || 0}</span></div>
+                                {rebuyRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{rebuyRakeAmt}</span></div>}
+                                {rebuyBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{rebuyBountyAmt}</span></div>}
+                                <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
+                                  <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt + rebuyBountyAmt}</span>
+                                </div>
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => processRebuy(player.id)}>Confirm Re-buy</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
 
-                        {/* KO button for active players */}
-                        {player.isActive !== false && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPlayerToBustOut(player);
-                              setHitmanId(null);
-                              setBustOutDialogOpen(true);
-                            }}
-                            className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold flex-shrink-0 transition-colors"
+                    {!player.isActive && state.prizeStructure?.allowReEntry && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
                           >
-                            KO
-                          </button>
-                        )}
+                            Re-enter
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Re-entry for {player.name}?</AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="space-y-1 text-sm">
+                                <div className="flex justify-between"><span>Re-entry cost</span><span>{sym}{ps?.buyIn || 0}</span></div>
+                                {reEntryRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{reEntryRakeAmt}</span></div>}
+                                {reEntryBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{reEntryBountyAmt}</span></div>}
+                                <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
+                                  <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt + reEntryBountyAmt}</span>
+                                </div>
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => tournament.processReEntry(player.id)}>Confirm Re-entry</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
 
-                        {/* Re-buy button for eliminated players (when rebuys are enabled) */}
-                        {!player.isActive && state.prizeStructure?.allowRebuys && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={(player.rebuys || 0) >= (state.prizeStructure?.maxRebuys || 3)}
-                                className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium mr-2"
-                              >
-                                Re-buy
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Re-buy for {player.name}?</AlertDialogTitle>
-                                <AlertDialogDescription asChild>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between"><span>Rebuy cost</span><span>{sym}{ps?.rebuyAmount || 0}</span></div>
-                                    {rebuyRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{rebuyRakeAmt}</span></div>}
-                                    {rebuyBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{rebuyBountyAmt}</span></div>}
-                                    <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                      <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt + rebuyBountyAmt}</span>
-                                    </div>
-                                  </div>
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => processRebuy(player.id)}>Confirm Re-buy</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
-
-                        {/* Re-entry button for eliminated players (when re-entries are enabled) */}
-                        {!player.isActive && state.prizeStructure?.allowReEntry && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium"
-                              >
-                                Re-enter
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Re-entry for {player.name}?</AlertDialogTitle>
-                                <AlertDialogDescription asChild>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between"><span>Re-entry cost</span><span>{sym}{ps?.buyIn || 0}</span></div>
-                                    {reEntryRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{reEntryRakeAmt}</span></div>}
-                                    {reEntryBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{reEntryBountyAmt}</span></div>}
-                                    <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                      <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt + reEntryBountyAmt}</span>
-                                    </div>
-                                  </div>
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => tournament.processReEntry(player.id)}>Confirm Re-entry</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
-
-                        {/* Only show remove button for active players to prevent accidental deletion */}
-                        {player.isActive && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-400 hover:text-red-300 hover:bg-red-900/20 w-8 h-8 p-0"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to remove <strong>{player.name}</strong> from the tournament? 
-                                  This action cannot be undone and will permanently delete their tournament data.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => removePlayer(player.id)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Remove Player
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
-                      </div>
-                    </div>
+                    {player.isActive && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-400 hover:text-red-300 hover:bg-red-900/20 w-8 h-8 p-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to remove <strong>{player.name}</strong> from the tournament?
+                              This action cannot be undone and will permanently delete their tournament data.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => removePlayer(player.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Remove Player
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </div>
               );
             });

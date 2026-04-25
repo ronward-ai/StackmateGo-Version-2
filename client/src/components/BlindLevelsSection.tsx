@@ -102,7 +102,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
         <CardContent className="p-5">
 
           {/* Header */}
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-y-2 mb-5">
             <div className="flex items-center gap-2">
               <ListOrdered className="h-4 w-4 text-orange-400" />
               <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
@@ -114,7 +114,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">~{totalMinutes} min total</span>
+              <span className="text-xs text-muted-foreground hidden sm:inline">~{totalMinutes} min total</span>
               <Select onValueChange={setPendingTemplate}>
                 <SelectTrigger className="h-8 w-36 text-xs">
                   <SelectValue placeholder="Templates" />
