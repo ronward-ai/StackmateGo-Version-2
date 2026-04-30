@@ -8,7 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { db, collections } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
-import { addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
+import { addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp, getDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
 
@@ -82,13 +83,46 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         ownerId: user?.id || null,
       });
 
+      // Step 1: verify Firebase Auth has a valid token
+      const firebaseAuth = getAuth();
+      const currentUser = firebaseAuth.currentUser;
+      console.log('[GoLive] currentUser:', currentUser?.uid, '| ownerId:', newTournamentData.ownerId);
+      if (!currentUser) {
+        throw new Error('Firebase Auth has no current user — please log out and log back in.');
+      }
+      try {
+        await Promise.race([
+          currentUser.getIdToken(true),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth token refresh timed out — check your internet connection.')), 8000))
+        ]);
+        console.log('[GoLive] auth token refreshed ok');
+      } catch (authErr: any) {
+        throw new Error(authErr.message || 'Could not refresh auth token.');
+      }
+
+      // Step 2: verify Firestore read connectivity
+      try {
+        await Promise.race([
+          getDoc(doc(db, 'activeTournaments', '_connectivity_test_')),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Firestore read timed out — check your internet connection.')), 8000))
+        ]);
+        console.log('[GoLive] Firestore read connectivity ok');
+      } catch (readErr: any) {
+        if (readErr.code !== 'permission-denied' && readErr.code !== 'not-found') {
+          throw new Error(readErr.message || 'Cannot reach Firestore.');
+        }
+        console.log('[GoLive] Firestore read returned:', readErr.code, '(expected) — connectivity ok');
+      }
+
+      // Step 3: write the tournament
       const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection timed out — check your internet and try again.')), 15000)
+        setTimeout(() => reject(new Error('Firestore write timed out — check your internet connection.')), 15000)
       );
       const docRef = await Promise.race([
         addDoc(collections.activeTournaments, { ...newTournamentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }),
         timeout,
       ]);
+      console.log('[GoLive] tournament created:', docRef.id);
 
       updateTournamentDetails({
         id: docRef.id,
