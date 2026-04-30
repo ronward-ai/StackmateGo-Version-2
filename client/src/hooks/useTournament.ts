@@ -783,10 +783,10 @@ export function useTournament(tournamentId?: string) {
     }
 
     // Always dispatch a generic action event immediately for components that listen to all tournament types
-    window.dispatchEvent(new CustomEvent('tournamentActionBroadcast', { 
-      detail: { action: actionName, state: newState, type: newState.details?.type } 
+    window.dispatchEvent(new CustomEvent('tournamentActionBroadcast', {
+      detail: { action: actionName, state: newState, type: newState.details?.type }
     }));
-  }, []);
+  }, [user]);
 
   // Start the timer
   const startTimer = useCallback(() => {

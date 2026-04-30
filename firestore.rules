@@ -115,6 +115,7 @@ service cloud.firestore {
         isAuthenticated() &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
+                    'targetEndTime', 'smallBlind', 'bigBlind', 'ante', 'blindLevels',
                     'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy'])
       );
       allow delete: if isRegistered() && isExistingDocOwner();
