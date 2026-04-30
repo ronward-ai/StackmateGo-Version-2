@@ -44,7 +44,8 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       const participantCode = Math.random().toString(36).substr(2, 6).toUpperCase();
       const directorCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
-      const newTournament = {
+      // sanitizeForFirestore first, then re-add FieldValues so they bypass the sanitizer
+      const newTournamentData = sanitizeForFirestore({
         name: state.details?.name || `Tournament ${new Date().toLocaleDateString()}`,
         currentLevel: state.currentLevel,
         secondsLeft: state.secondsLeft,
@@ -65,7 +66,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
             tableNames: ['Table 1']
           },
           branding: {
-            leagueName: state.settings.branding?.leagueName || "",
+            leagueName: state.settings.branding?.leagueName || '',
             logoUrl: state.settings.branding?.logoUrl || null,
             isVisible: state.settings.branding?.isVisible ?? true
           }
@@ -79,11 +80,15 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         participantCode,
         directorCode,
         ownerId: user?.id || null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
+      });
 
-      const docRef = await addDoc(collections.activeTournaments, sanitizeForFirestore(newTournament));
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timed out — check your internet and try again.')), 15000)
+      );
+      const docRef = await Promise.race([
+        addDoc(collections.activeTournaments, { ...newTournamentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }),
+        timeout,
+      ]);
 
       updateTournamentDetails({
         id: docRef.id,
