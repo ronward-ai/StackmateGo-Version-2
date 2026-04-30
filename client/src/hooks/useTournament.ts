@@ -1229,35 +1229,33 @@ export function useTournament(tournamentId?: string) {
   }, [broadcastTournamentAction]);
 
   // Reset entire tournament to initial state
-  const resetTournament = useCallback(() => {
+  const resetTournament = useCallback((options?: { keepStructure?: boolean }) => {
+    const keepStructure = options?.keepStructure ?? true;
+
     // Clear any running timer
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
 
-    // Preserve current settings instead of resetting to defaults
-    const currentSettings = state.settings;
-    const currentPrizeStructure = state.prizeStructure;
-    // Preserve league/standalone mode — only clear the per-tournament IDs
-    const preservedType = state.details?.type === 'season' ? 'season' : 'standalone';
+    const levels = keepStructure ? state.levels : DEFAULT_LEVELS;
+    const prizeStructure = keepStructure ? (state.prizeStructure || loadSavedPrizeStructure()) : { buyIn: 0 };
+    const settings = keepStructure ? state.settings : DEFAULT_SETTINGS;
+    const preservedType = keepStructure && state.details?.type === 'season' ? 'season' : 'standalone';
 
-    // Reset to initial state but preserve settings and tournament mode
     setState({
-      levels: loadSavedBlindLevels(),
+      levels,
       players: [],
       currentLevel: 0,
-      secondsLeft: loadSavedBlindLevels()[0].duration,
+      secondsLeft: levels[0].duration,
       isRunning: false,
-      settings: currentSettings,
+      settings,
       bestLosingHand: undefined,
-      prizeStructure: currentPrizeStructure || loadSavedPrizeStructure(),
+      prizeStructure,
       isFinalTable: false,
-      details: {
-        type: preservedType,
-      }
+      details: { type: preservedType },
     });
-  }, [state.settings, state.prizeStructure, state.details]);
+  }, [state.settings, state.prizeStructure, state.details, state.levels]);
 
   // Update players with comprehensive validation and immediate broadcasting
   const updatePlayers = (newPlayers: Player[]) => {
