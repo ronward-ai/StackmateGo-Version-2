@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { db, collections } from '@/lib/firebase';
+import { sanitizeForFirestore } from '@/lib/utils';
 import { addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
@@ -82,7 +83,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         updatedAt: serverTimestamp()
       };
 
-      const docRef = await addDoc(collections.activeTournaments, newTournament);
+      const docRef = await addDoc(collections.activeTournaments, sanitizeForFirestore(newTournament));
 
       updateTournamentDetails({
         id: docRef.id,
