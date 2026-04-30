@@ -148,6 +148,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         );
       } catch (e) {
         console.error('Player sync to Firestore failed:', e);
+        toast({ title: 'Sync issue', description: 'Live updates may be delayed.', variant: 'destructive' });
       }
     };
     sync();
@@ -171,10 +172,13 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             smallBlind: tournament.state.levels[tournament.state.currentLevel]?.small || 0,
             bigBlind: tournament.state.levels[tournament.state.currentLevel]?.big || 0,
             ante: tournament.state.levels[tournament.state.currentLevel]?.ante || 0,
+            blindLevels: tournament.state.levels,
+            notes: tournament.state.notes || '',
           })
         );
       } catch (e) {
         console.error('Timer sync to Firestore failed:', e);
+        toast({ title: 'Sync issue', description: 'Live updates may be delayed.', variant: 'destructive' });
       }
     };
     sync();
@@ -182,6 +186,8 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     tournament.state.isRunning,       // start / pause
     tournament.state.currentLevel,    // level skip
     tournament.state.targetEndTime,   // set on start, cleared on pause
+    tournament.state.levels,
+    tournament.state.notes,
     dbTournamentId,
     user,
     isAnonymous,
@@ -208,6 +214,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         );
       } catch (e) {
         console.error('PrizeStructure sync to Firestore failed:', e);
+        toast({ title: 'Sync issue', description: 'Live updates may be delayed.', variant: 'destructive' });
       }
     };
     sync();

@@ -5,7 +5,7 @@ const STORAGE_KEY = 'smgo_unlocked';
 
 function isUnlocked() {
   if (!PASSWORD) return true; // no password set = open
-  try { return localStorage.getItem(STORAGE_KEY) === PASSWORD; } catch { return false; }
+  try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }
 }
 
 export default function ComingSoonGate({ children }: { children: React.ReactNode }) {
@@ -17,7 +17,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
 
   const attempt = () => {
     if (input === PASSWORD) {
-      try { localStorage.setItem(STORAGE_KEY, PASSWORD); } catch {}
+      try { localStorage.setItem(STORAGE_KEY, '1'); } catch {}
       setUnlocked(true);
     } else {
       setShake(true);

@@ -37,5 +37,5 @@ export function calculatePrizePool(inputs: PrizePoolInputs): PrizePoolResult {
     (inputs.reEntryRake ? (inputs.totalReEntries ?? 0) * (inputs.reEntryRakeAmount ?? perEntryRake) : 0) +
     (inputs.rebuyRake ? (inputs.totalRebuys ?? 0) * (inputs.rebuyRakeAmount ?? perEntryRake) : 0);
 
-  return { gross, rake, net: gross };
+  return { gross, rake, net: Math.max(0, gross - rake) };
 }

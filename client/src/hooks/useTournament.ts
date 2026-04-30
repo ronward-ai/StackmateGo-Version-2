@@ -220,6 +220,7 @@ export function useTournament(tournamentId?: string) {
 
   // Timer interval reference
   const timerIntervalRef = useRef<any>(null);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -410,9 +411,8 @@ export function useTournament(tournamentId?: string) {
 
   // Listen for tournament sync events (from director actions) with debouncing
   const handleTournamentSync = (event: CustomEvent) => {
-    // Debounce rapid sync events to prevent infinite loops
-    let syncTimeout: NodeJS.Timeout;
-    syncTimeout = setTimeout(() => {
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
       if (event.detail?.tournament) {
         const syncedTournament = event.detail.tournament;
         setState(currentState => {
@@ -469,12 +469,8 @@ export function useTournament(tournamentId?: string) {
     window.addEventListener('tournament-sync', handleTournamentSync as EventListener);
 
     return () => {
-      // Need to properly clear the timeout on cleanup
-      // The syncTimeout variable is scoped within handleTournamentSync,
-      // so clearing it here directly isn't feasible without refactoring.
-      // However, the effect cleanup will prevent new timeouts from being added
-      // after the component unmounts.
       window.removeEventListener('tournament-sync', handleTournamentSync as EventListener);
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
   }, [state.details?.id, state.details?.type]); // Add type to dependency to prevent unnecessary re-runs
 
@@ -787,10 +783,10 @@ export function useTournament(tournamentId?: string) {
     }
 
     // Always dispatch a generic action event immediately for components that listen to all tournament types
-    window.dispatchEvent(new CustomEvent('tournamentActionBroadcast', { 
-      detail: { action: actionName, state: newState, type: newState.details?.type } 
+    window.dispatchEvent(new CustomEvent('tournamentActionBroadcast', {
+      detail: { action: actionName, state: newState, type: newState.details?.type }
     }));
-  }, []);
+  }, [user]);
 
   // Start the timer
   const startTimer = useCallback(() => {
@@ -1205,12 +1201,11 @@ export function useTournament(tournamentId?: string) {
           : p
       );
 
-      return {
-        ...prev,
-        players: updatedPlayers
-      };
+      const newState = { ...prev, players: updatedPlayers };
+      broadcastTournamentAction('player_rebuy', newState);
+      return newState;
     });
-  }, []);
+  }, [broadcastTournamentAction]);
 
   // Process addon
   const processAddon = useCallback((playerId: string) => {
@@ -1227,43 +1222,40 @@ export function useTournament(tournamentId?: string) {
           : p
       );
 
-      return {
-        ...prev,
-        players: updatedPlayers
-      };
+      const newState = { ...prev, players: updatedPlayers };
+      broadcastTournamentAction('player_addon', newState);
+      return newState;
     });
-  }, []);
+  }, [broadcastTournamentAction]);
 
   // Reset entire tournament to initial state
-  const resetTournament = useCallback(() => {
+  const resetTournament = useCallback((options?: { keepStructure?: boolean }) => {
+    const keepStructure = options?.keepStructure ?? true;
+
     // Clear any running timer
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
 
-    // Preserve current settings instead of resetting to defaults
-    const currentSettings = state.settings;
-    const currentPrizeStructure = state.prizeStructure;
-    // Preserve league/standalone mode — only clear the per-tournament IDs
-    const preservedType = state.details?.type === 'season' ? 'season' : 'standalone';
+    const levels = keepStructure ? state.levels : DEFAULT_LEVELS;
+    const prizeStructure = keepStructure ? (state.prizeStructure || loadSavedPrizeStructure()) : { buyIn: 0 };
+    const settings = keepStructure ? state.settings : DEFAULT_SETTINGS;
+    const preservedType = keepStructure && state.details?.type === 'season' ? 'season' : 'standalone';
 
-    // Reset to initial state but preserve settings and tournament mode
     setState({
-      levels: loadSavedBlindLevels(),
+      levels,
       players: [],
       currentLevel: 0,
-      secondsLeft: loadSavedBlindLevels()[0].duration,
+      secondsLeft: levels[0].duration,
       isRunning: false,
-      settings: currentSettings,
+      settings,
       bestLosingHand: undefined,
-      prizeStructure: currentPrizeStructure || loadSavedPrizeStructure(),
+      prizeStructure,
       isFinalTable: false,
-      details: {
-        type: preservedType,
-      }
+      details: { type: preservedType },
     });
-  }, [state.settings, state.prizeStructure, state.details]);
+  }, [state.settings, state.prizeStructure, state.details, state.levels]);
 
   // Update players with comprehensive validation and immediate broadcasting
   const updatePlayers = (newPlayers: Player[]) => {
@@ -1428,16 +1420,13 @@ export function useTournament(tournamentId?: string) {
 
       // Dispatch event for real-time sync
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('settingsUpdated', { 
-          detail: { settings: newSettings } 
+        window.dispatchEvent(new CustomEvent('settingsUpdated', {
+          detail: { settings: newSettings }
         }));
-        
-        // Broadcast settings update to all connected clients
         broadcastTournamentAction('settings_updated', newState);
-        
-        // Also broadcast via HTTP for database tournaments
         if (prev.details?.type === 'database' && prev.details?.id) {
-          broadcastTournamentState(prev.details.id, newState, prev.details.ownerId, user?.id);
+          broadcastTournamentState(prev.details.id, newState, prev.details.ownerId, user?.id)
+            .catch(err => console.error('Settings broadcast failed:', err));
         }
       }, 50);
 
@@ -1460,10 +1449,9 @@ export function useTournament(tournamentId?: string) {
       // Broadcast details update to all connected clients (including league/standalone mode changes)
       setTimeout(() => {
         broadcastTournamentAction('tournament_details_updated', newState);
-        
-        // Also broadcast via HTTP for database tournaments
         if (newState.details?.type === 'database' && newState.details?.id) {
-          broadcastTournamentState(newState.details.id, newState, newState.details.ownerId, user?.id);
+          broadcastTournamentState(newState.details.id, newState, newState.details.ownerId, user?.id)
+            .catch(err => console.error('Details broadcast failed:', err));
         }
       }, 100);
 
@@ -2077,33 +2065,6 @@ export function useTournament(tournamentId?: string) {
     });
   }, [broadcastTournamentAction]);
 
-  // Dummy functions to satisfy the structure, assuming they exist in the original code
-  const addCompletedTournament = (tournamentData: TournamentState) => {
-    // Placeholder for tournament completion
-  };
-  const broadcastTournamentUpdate = (tournamentData: TournamentState) => {
-    // Placeholder for tournament updates
-  };
-  const calculatePlayerPoints = (position: number, totalPlayers: number) => {
-    return (totalPlayers - position + 1) * 10; // Example points calculation
-  };
-
-  // Helper function to dispatch events for state changes
-  const dispatchStateChangeEvent = (eventType: string) => {
-    window.dispatchEvent(new CustomEvent(eventType));
-  };
-
-  // Wrapper for setState to dispatch events
-  const setStateWithEvent = (updater: (prevState: TournamentState) => TournamentState, eventType: string) => {
-    setState(prevState => {
-      const newState = updater(prevState);
-      // Dispatch event if state has actually changed
-      if (JSON.stringify(newState) !== JSON.stringify(prevState)) {
-        dispatchStateChangeEvent(eventType);
-      }
-      return newState;
-    });
-  };
 
   // Helper function for timer updates with event dispatch
   const updateTimer = useCallback((updates: Partial<TournamentState>) => {

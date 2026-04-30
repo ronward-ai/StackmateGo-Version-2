@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { useTournamentTemplates } from "@/hooks/useTournamentTemplates";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle
@@ -19,7 +22,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from "@/components/ui/select";
-import { ListOrdered, Coffee, Coins, Plus, Clock } from "lucide-react";
+import { ListOrdered, Coffee, Coins, Plus, Clock, Save, BookmarkPlus } from "lucide-react";
 
 interface BlindLevelsSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -68,8 +71,15 @@ function LevelInput({
 
 export default function BlindLevelsSection({ tournament }: BlindLevelsSectionProps) {
   const { state, updateBlindLevel, addBlindLevel, removeLevel, addBreak, setBlindLevels } = tournament;
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const { saveTemplate } = useTournamentTemplates();
+  const isRegisteredUser = !!user && 'email' in user && !!(user as any).email;
 
   const [breakDialogOpen, setBreakDialogOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [breakDuration, setBreakDuration] = useState(10);
   const [selectedLevel, setSelectedLevel] = useState<string | undefined>();
   const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
@@ -383,8 +393,83 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
             </p>
           )}
 
+          <div className="mt-4 flex justify-end gap-2">
+            {isRegisteredUser && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setSaveTemplateOpen(true)}
+              >
+                <BookmarkPlus className="h-3.5 w-3.5" />
+                Save as Template
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                setBlindLevels([...state.levels]);
+                toast({ title: 'Blind levels saved', description: 'Your structure has been applied.' });
+              }}
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save Changes
+            </Button>
+          </div>
+
         </CardContent>
       </Card>
+
+      {/* Save as Template Dialog */}
+      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookmarkPlus className="h-4 w-4 text-purple-400" />
+              Save as Template
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              placeholder="Template name (e.g. Friday Night 15min)"
+              value={templateName}
+              onChange={e => setTemplateName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !isSavingTemplate && templateName.trim() && (async () => {
+                setIsSavingTemplate(true);
+                try {
+                  await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 } });
+                  toast({ title: 'Template saved', description: `"${templateName.trim()}" saved to your templates.` });
+                  setTemplateName('');
+                  setSaveTemplateOpen(false);
+                } catch {
+                  toast({ title: 'Save failed', description: 'Could not save template. Please try again.', variant: 'destructive' });
+                } finally { setIsSavingTemplate(false); }
+              })()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveTemplateOpen(false)}>Cancel</Button>
+            <Button
+              disabled={!templateName.trim() || isSavingTemplate}
+              onClick={async () => {
+                setIsSavingTemplate(true);
+                try {
+                  await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 } });
+                  toast({ title: 'Template saved', description: `"${templateName.trim()}" saved to your templates.` });
+                  setTemplateName('');
+                  setSaveTemplateOpen(false);
+                } catch {
+                  toast({ title: 'Save failed', description: 'Could not save template. Please try again.', variant: 'destructive' });
+                } finally { setIsSavingTemplate(false); }
+              }}
+            >
+              {isSavingTemplate ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Break Dialog */}
       <Dialog open={breakDialogOpen} onOpenChange={setBreakDialogOpen}>

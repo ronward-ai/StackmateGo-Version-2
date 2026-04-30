@@ -23,7 +23,6 @@ export const auth = getAuth(app);
 
 // Collections
 export const collections = {
-  blindLevels: collection(db, 'blindLevels'),
   leagues: collection(db, 'leagues'),
   seasons: collection(db, 'seasons'),
   leaguePlayers: collection(db, 'leaguePlayers'),

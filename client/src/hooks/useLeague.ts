@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { db, collections } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 
 // Legacy interface for backwards compatibility

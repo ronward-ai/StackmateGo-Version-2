@@ -24,6 +24,51 @@ interface TimerCardProps {
   recentLevelChange: boolean;
 }
 
+function NewTournamentDialog({ resetTournament }: { resetTournament: (opts?: { keepStructure?: boolean }) => void }) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
+        >
+          <span className="material-icons text-sm">add_circle</span>
+          <span>New Tournament</span>
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Start a new tournament?</AlertDialogTitle>
+          <AlertDialogDescription>
+            All players and results will be cleared. Choose whether to keep your current blind structure and buy-in settings.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-muted text-foreground hover:bg-muted/80"
+            onClick={() => {
+              try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
+              resetTournament({ keepStructure: true });
+            }}
+          >
+            Keep structure
+          </AlertDialogAction>
+          <AlertDialogAction
+            onClick={() => {
+              try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
+              resetTournament({ keepStructure: false });
+            }}
+          >
+            Full reset
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function FullscreenButton() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [supported, setSupported] = useState(false);
@@ -316,7 +361,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
 
         {/* Main Control Button - Center */}
         {!isTournamentFinished ? (
-          <Button 
+          <Button
             variant="ghost"
             size="sm"
             className={`flex items-center justify-center gap-1 font-medium py-2 px-4 sm:py-2 sm:px-4 rounded-md cursor-pointer text-sm border transition-all ${
@@ -331,36 +376,11 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
             </span>
             <span>{state.isRunning ? "Pause" : "Start"}</span>
           </Button>
-        ) : (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="default" 
-                size="sm"
-                className="flex items-center justify-center gap-1 font-medium py-2 px-4 rounded-md text-sm opacity-90 hover:opacity-100"
-              >
-                <span className="material-icons text-sm">add_circle</span>
-                <span>New Tournament</span>
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Start New Tournament?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will clear all current tournament data including players, settings, and results. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {
-                  try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
-                  resetTournament();
-                }}>
-                  Start New Tournament
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        ) : null}
+
+        {/* New Tournament button — visible when timer is stopped (either finished or not yet started with players) */}
+        {(isTournamentFinished || (!state.isRunning && state.players.length > 0)) && (
+          <NewTournamentDialog resetTournament={resetTournament} />
         )}
 
         {/* Next Button - Right side */}

@@ -10,6 +10,7 @@ import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Button } from '@/components/ui/button'; // Assuming Button component is available
 import { useAuth } from '@/hooks/useAuth';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
+import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
 
 interface TournamentData {
   id: string;
@@ -569,7 +570,9 @@ function TournamentParticipantView() {
 
         {/* Tournament Info Card */}
         <div className="mb-6">
-          <Card className="p-4 bg-gradient-to-r from-purple-600/10 to-pink-600/10 border border-purple-500/20">
+          <ParticipantTournamentInfoCard tournament={tournament} />
+        </div>
+        {false && <Card className="p-4 bg-gradient-to-r from-purple-600/10 to-pink-600/10 border border-purple-500/20">
             <div className="flex items-center justify-between cursor-pointer">
               <h2 className="text-xl font-semibold flex items-center">
                 <span className="material-icons mr-2 text-secondary">info</span>
@@ -832,8 +835,7 @@ function TournamentParticipantView() {
               </div>
               </div>
             </div>
-          </Card>
-        </div>
+          </Card>}
 
         {/* Director Controls removed */}
 
