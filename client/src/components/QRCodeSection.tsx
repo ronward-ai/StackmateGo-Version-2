@@ -9,6 +9,7 @@ import { useLocation } from 'wouter';
 import { db, collections } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
 
@@ -82,10 +83,24 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         ownerId: user?.id || null,
       });
 
-      const docRef = await addDoc(
-        collections.activeTournaments,
-        { ...newTournamentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
-      );
+      // Force-refresh the Firebase Auth token before writing — fixes cross-tab auth sync issues
+      const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+        throw new Error('Not signed in to Firebase. Please log out and log back in, then try again.');
+      }
+      await currentUser.getIdToken(true).catch(() => {
+        // Token refresh failed — proceed anyway, Firestore will use the cached token
+      });
+
+      const docRef = await Promise.race([
+        addDoc(
+          collections.activeTournaments,
+          { ...newTournamentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Could not reach the server. Please check your connection and try again.')), 15000)
+        ),
+      ]);
 
       updateTournamentDetails({
         id: docRef.id,
