@@ -24,51 +24,6 @@ interface TimerCardProps {
   recentLevelChange: boolean;
 }
 
-function NewTournamentDialog({ resetTournament }: { resetTournament: (opts?: { keepStructure?: boolean }) => void }) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
-        >
-          <span className="material-icons text-sm">add_circle</span>
-          <span>New Tournament</span>
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Start a new tournament?</AlertDialogTitle>
-          <AlertDialogDescription>
-            All players and results will be cleared. Choose whether to keep your current blind structure and buy-in settings.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-muted text-foreground hover:bg-muted/80"
-            onClick={() => {
-              try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
-              resetTournament({ keepStructure: true });
-            }}
-          >
-            Keep structure
-          </AlertDialogAction>
-          <AlertDialogAction
-            onClick={() => {
-              try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
-              resetTournament({ keepStructure: false });
-            }}
-          >
-            Full reset
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
 function FullscreenButton() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [supported, setSupported] = useState(false);
@@ -110,10 +65,9 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   const { 
     state, 
     startTimer, 
-    pauseTimer, 
-    resetTimer, 
-    resetTournament,
-    formatTime, 
+    pauseTimer,
+    resetTimer,
+    formatTime,
     calculateProgress,
     getCurrentBlinds,
     getCurrentLevelText,
@@ -377,11 +331,6 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
             <span>{state.isRunning ? "Pause" : "Start"}</span>
           </Button>
         ) : null}
-
-        {/* New Tournament button — visible when timer is stopped (either finished or not yet started with players) */}
-        {(isTournamentFinished || (!state.isRunning && state.players.length > 0)) && (
-          <NewTournamentDialog resetTournament={resetTournament} />
-        )}
 
         {/* Next Button - Right side */}
         {state.isRunning && !isTournamentFinished && state.currentLevel < state.levels.length - 1 ? (

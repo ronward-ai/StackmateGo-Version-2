@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { calculatePrizePool } from "@/lib/prizePool";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -35,7 +41,7 @@ const activeStyle = {
 const inactiveStyle = { borderColor: 'transparent', color: 'var(--muted-foreground)' };
 
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
-  const { state, updateTournamentDetails, updateSettings } = tournament;
+  const { state, updateTournamentDetails, updateSettings, resetTournament } = tournament;
   const { league, leaguePlayers } = useLeague();
   const { currentSeason } = useSeasons({ leagueId: league?.id });
   const [isExpanded, setIsExpanded] = useState(true);
@@ -124,6 +130,36 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Info</span>
           </div>
           <div className="flex items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">New</span>
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Start a new tournament?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    All players and results will be cleared. Choose whether to keep your current blind structure and buy-in settings.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-muted text-foreground hover:bg-muted/80"
+                    onClick={() => { try { localStorage.removeItem('activeDirectorTournamentId'); } catch {} resetTournament({ keepStructure: true }); }}
+                  >
+                    Keep structure
+                  </AlertDialogAction>
+                  <AlertDialogAction
+                    onClick={() => { try { localStorage.removeItem('activeDirectorTournamentId'); } catch {} resetTournament({ keepStructure: false }); }}
+                  >
+                    Full reset
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             {active.length >= 2 && pool > 0 && (
               <button
                 onClick={() => setShowChipChop(true)}
