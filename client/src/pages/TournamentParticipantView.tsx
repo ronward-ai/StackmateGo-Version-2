@@ -130,27 +130,49 @@ function TournamentParticipantView() {
 
     const setup = async () => {
       try {
-        const { doc, onSnapshot } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
+        const { projectId, databaseId, db } = await import('@/lib/firebase');
+
+        // Initial load via REST API — bypasses SDK WebChannel/auth issues
+        const restUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents/activeTournaments/${id}`;
+        const restRes = await fetch(restUrl);
+        if (restRes.ok) {
+          const raw = await restRes.json();
+          // Convert Firestore REST field format to plain JS
+          const fromFirestoreValue = (v: any): any => {
+            if ('nullValue' in v) return null;
+            if ('booleanValue' in v) return v.booleanValue;
+            if ('integerValue' in v) return Number(v.integerValue);
+            if ('doubleValue' in v) return v.doubleValue;
+            if ('stringValue' in v) return v.stringValue;
+            if ('timestampValue' in v) return v.timestampValue;
+            if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromFirestoreValue);
+            if ('mapValue' in v) {
+              const o: any = {};
+              for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromFirestoreValue(fv);
+              return o;
+            }
+            return null;
+          };
+          const fields: any = {};
+          for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromFirestoreValue(fv as any);
+          if (mounted) applySnapshot(fields);
+        } else if (restRes.status === 404) {
+          if (mounted) setError('Tournament not found');
+          return;
+        }
+
+        // Real-time updates via SDK onSnapshot
         if (!mounted) return;
+        const { doc, onSnapshot } = await import('firebase/firestore');
         const docRef = doc(db, 'activeTournaments', id.toString());
         unsubscribeFirestore = onSnapshot(
           docRef,
-          (docSnap) => {
-            if (docSnap.exists()) {
-              applySnapshot(docSnap.data());
-            } else {
-              setError('Tournament not found');
-            }
-          },
-          (err) => {
-            console.error('Firebase listener error:', err);
-            setError(`Network error while loading tournament: ${err.message}`);
-          }
+          (docSnap) => { if (docSnap.exists()) applySnapshot(docSnap.data()); },
+          (err) => { console.error('Firebase listener error:', err); }
         );
       } catch (err: any) {
-        console.error('Failed to initialize Firebase connection:', err);
-        setError(`Failed to initialize connection: ${err.message}`);
+        console.error('Failed to initialize connection:', err);
+        setError(`Failed to load tournament data: ${err.message}`);
       }
     };
 
@@ -162,11 +184,26 @@ function TournamentParticipantView() {
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== 'visible' || !mounted) return;
       try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        const snap = await getDoc(doc(db, 'activeTournaments', id.toString()));
-        if (snap.exists()) applySnapshot(snap.data());
-      } catch { /* silently ignore — onSnapshot will recover */ }
+        const { projectId, databaseId } = await import('@/lib/firebase');
+        const restUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents/activeTournaments/${id}`;
+        const res = await fetch(restUrl);
+        if (res.ok) {
+          const raw = await res.json();
+          const fields: any = {};
+          const fromVal = (v: any): any => {
+            if ('nullValue' in v) return null;
+            if ('booleanValue' in v) return v.booleanValue;
+            if ('integerValue' in v) return Number(v.integerValue);
+            if ('doubleValue' in v) return v.doubleValue;
+            if ('stringValue' in v) return v.stringValue;
+            if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
+            if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
+            return null;
+          };
+          for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromVal(fv as any);
+          if (mounted) applySnapshot(fields);
+        }
+      } catch { /* silently ignore */ }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);

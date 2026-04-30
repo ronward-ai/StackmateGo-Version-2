@@ -48,30 +48,55 @@ export default function PlayerClaimView() {
 
     let unsubscribe: (() => void) | null = null;
 
+    const fromVal = (v: any): any => {
+      if ('nullValue' in v) return null;
+      if ('booleanValue' in v) return v.booleanValue;
+      if ('integerValue' in v) return Number(v.integerValue);
+      if ('doubleValue' in v) return v.doubleValue;
+      if ('stringValue' in v) return v.stringValue;
+      if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
+      if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
+      return null;
+    };
+
     const load = async () => {
       try {
+        const { projectId, databaseId, db } = await import('@/lib/firebase');
+
+        // Initial load via REST (no auth required — activeTournaments is public read)
+        const restUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents/activeTournaments/${tournamentId}`;
+        const restRes = await fetch(restUrl);
+        if (restRes.ok) {
+          const raw = await restRes.json();
+          const fields: any = {};
+          for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromVal(fv as any);
+          setPlayers((fields.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
+          setTournamentName(fields.details?.name || fields.name || 'Tournament');
+          setDataLoaded(true);
+        } else if (restRes.status === 404) {
+          setError('Tournament not found. Check the QR code and try again.');
+          setDataLoaded(true);
+          return;
+        } else {
+          setError('Could not load tournament data. Please try again.');
+          setDataLoaded(true);
+          return;
+        }
+
+        // Real-time updates via SDK
         const { doc, onSnapshot } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
         const docRef = doc(db, 'activeTournaments', tournamentId);
-        unsubscribe = onSnapshot(
-          docRef,
-          (snap) => {
-            if (snap.exists()) {
-              const data = snap.data();
-              setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
-              setTournamentName(data.details?.name || data.name || 'Tournament');
-            } else {
-              setError('Tournament not found. Check the QR code and try again.');
-            }
-            setDataLoaded(true);
-          },
-          (err) => {
-            console.error('Firestore read error:', err);
-            setError('Could not load tournament data. Please try again.');
-            setDataLoaded(true);
+        unsubscribe = onSnapshot(docRef, (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
+            setTournamentName(data.details?.name || data.name || 'Tournament');
           }
-        );
-      } catch {
+        }, (err) => {
+          console.error('Firestore listener error:', err);
+          // Don't show error — initial load already succeeded
+        });
+      } catch (e: any) {
         setError('Could not connect. Check your connection and try again.');
         setDataLoaded(true);
       }

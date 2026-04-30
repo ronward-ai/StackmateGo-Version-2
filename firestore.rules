@@ -104,7 +104,7 @@ service cloud.firestore {
     // - Authenticated non-owners can update a restricted set of fields (timer/players/transfer)
     //   but cannot change ownerId — that would allow privilege escalation
     match /activeTournaments/{tournamentId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered() && isDocOwner();
       allow update: if (
         // Owner can change anything
