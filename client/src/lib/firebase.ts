@@ -11,7 +11,10 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID             || '',
 };
 
-const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || '';
+const KNOWN_DATABASE_ID = 'ai-studio-127bb0ae-6c5c-42d1-a030-fd85760f05b1';
+
+export const projectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || '').trim();
+export const databaseId = (import.meta.env.VITE_FIREBASE_DATABASE_ID || '').trim() || KNOWN_DATABASE_ID;
 
 // Initialize Firebase SDK
 export const app = initializeApp(firebaseConfig);

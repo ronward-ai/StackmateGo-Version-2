@@ -6,7 +6,7 @@ import { Loader2, Shield, Copy, Radio, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
-import { db } from '@/lib/firebase';
+import { db, projectId, databaseId } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { doc, updateDoc, getDocs, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -134,9 +134,6 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         throw new Error('Not signed in. Please log out and log back in, then try again.');
       }
       const idToken = await currentUser.getIdToken(true);
-
-      const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID as string;
-      const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID as string;
 
       const docId = await Promise.race([
         createDocViaRest(projectId, databaseId, 'activeTournaments', {
