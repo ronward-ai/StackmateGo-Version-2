@@ -6,12 +6,58 @@ import { Loader2, Shield, Copy, Radio, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
-import { db, collections } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
-import { addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, getDocs, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
+
+// Convert a plain JS value to Firestore REST API field format
+function toFirestoreValue(val: any): any {
+  if (val === null || val === undefined) return { nullValue: null };
+  if (typeof val === 'boolean') return { booleanValue: val };
+  if (typeof val === 'number') {
+    return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
+  }
+  if (typeof val === 'string') return { stringValue: val };
+  if (val instanceof Date) return { timestampValue: val.toISOString() };
+  if (Array.isArray(val)) {
+    return { arrayValue: { values: val.map(toFirestoreValue) } };
+  }
+  // Plain object → mapValue
+  const fields: Record<string, any> = {};
+  for (const k of Object.keys(val)) fields[k] = toFirestoreValue(val[k]);
+  return { mapValue: { fields } };
+}
+
+// Write a document to Firestore via the REST API (bypasses SDK WebChannel issues)
+async function createDocViaRest(
+  projectId: string,
+  databaseId: string,
+  collection: string,
+  data: Record<string, any>,
+  idToken: string,
+): Promise<string> {
+  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
+  const fields: Record<string, any> = {};
+  for (const k of Object.keys(data)) fields[k] = toFirestoreValue(data[k]);
+
+  const res = await fetch(`${base}/${collection}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ fields }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Firestore error ${res.status}`);
+  }
+
+  const result = await res.json();
+  // result.name is "projects/.../databases/.../documents/collection/docId"
+  return result.name.split('/').pop() as string;
+}
 
 interface QRCodeSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -83,34 +129,35 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         ownerId: user?.id || null,
       });
 
-      // Force-refresh the Firebase Auth token before writing — fixes cross-tab auth sync issues
       const currentUser = getAuth().currentUser;
       if (!currentUser) {
-        throw new Error('Not signed in to Firebase. Please log out and log back in, then try again.');
+        throw new Error('Not signed in. Please log out and log back in, then try again.');
       }
-      await currentUser.getIdToken(true).catch(() => {
-        // Token refresh failed — proceed anyway, Firestore will use the cached token
-      });
+      const idToken = await currentUser.getIdToken(true);
 
-      const docRef = await Promise.race([
-        addDoc(
-          collections.activeTournaments,
-          { ...newTournamentData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
-        ),
+      const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID as string;
+      const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID as string;
+
+      const docId = await Promise.race([
+        createDocViaRest(projectId, databaseId, 'activeTournaments', {
+          ...newTournamentData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }, idToken),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Could not reach the server. Please check your connection and try again.')), 15000)
+          setTimeout(() => reject(new Error('Could not reach Firestore. Check your internet connection and try again.')), 15000)
         ),
       ]);
 
       updateTournamentDetails({
-        id: docRef.id,
+        id: docId,
         type: 'database'
       });
 
       // Persist so a page refresh can redirect back to the live director view
-      try { localStorage.setItem('activeDirectorTournamentId', docRef.id); } catch {}
+      try { localStorage.setItem('activeDirectorTournamentId', docId); } catch {}
 
-      onGoLive?.(docRef.id);
+      onGoLive?.(docId);
       toast({ title: "You're live!", description: "Share the QR code so players and spectators can join." });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
