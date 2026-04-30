@@ -109,22 +109,61 @@ export default function PlayerClaimView() {
   const handleClaim = async (player: TournamentPlayer) => {
     if (!tournamentId) return;
     setClaiming(player.id);
-
     try {
-      // Use the app's user id (consistent with the rest of the codebase)
-      const uid = (user as any)?.id || (user as any)?.uid || `device_${player.id}`;
+      const { projectId, databaseId } = await import('@/lib/firebase');
+      const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string;
+      const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
 
-      const { doc, updateDoc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      const docRef = doc(db, 'activeTournaments', tournamentId);
-      const snap = await getDoc(docRef);
-      if (!snap.exists()) throw new Error('Tournament not found');
+      // Sign in anonymously via REST to get a write token
+      const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnSecureToken: true }),
+      });
+      if (!authRes.ok) throw Object.assign(new Error('Could not claim seat. Please try again.'), { code: 'auth-failed' });
+      const { idToken, localId } = await authRes.json();
 
-      const data = snap.data();
-      const updatedPlayers = (data.players || []).map((p: TournamentPlayer) =>
-        p.id === player.id ? { ...p, claimedBy: uid } : p
+      // Read current players
+      const readRes = await fetch(`${base}/activeTournaments/${tournamentId}`);
+      if (!readRes.ok) throw new Error('Tournament not found');
+      const raw = await readRes.json();
+      const fromVal = (v: any): any => {
+        if ('nullValue' in v) return null;
+        if ('booleanValue' in v) return v.booleanValue;
+        if ('integerValue' in v) return Number(v.integerValue);
+        if ('doubleValue' in v) return v.doubleValue;
+        if ('stringValue' in v) return v.stringValue;
+        if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
+        if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
+        return null;
+      };
+      const currentPlayers: TournamentPlayer[] = fromVal({ arrayValue: { values: raw.fields?.players?.arrayValue?.values || [] } });
+
+      // Build updated players
+      const uid = localId;
+      const updatedPlayers = currentPlayers.map(p => p.id === player.id ? { ...p, claimedBy: uid } : p);
+
+      // Patch only the players field
+      const toVal = (v: any): any => {
+        if (v === null || v === undefined) return { nullValue: null };
+        if (typeof v === 'boolean') return { booleanValue: v };
+        if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+        if (typeof v === 'string') return { stringValue: v };
+        if (Array.isArray(v)) return { arrayValue: { values: v.map(toVal) } };
+        const fields: any = {}; for (const k of Object.keys(v)) fields[k] = toVal(v[k]); return { mapValue: { fields } };
+      };
+      const patchRes = await fetch(
+        `${base}/activeTournaments/${tournamentId}?updateMask.fieldPaths=players`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ fields: { players: toVal(updatedPlayers) } }),
+        }
       );
-      await updateDoc(docRef, { players: updatedPlayers });
+      if (!patchRes.ok) {
+        const err = await patchRes.json().catch(() => ({}));
+        throw Object.assign(new Error(err?.error?.message || 'Could not claim seat.'), { code: patchRes.status === 403 ? 'permission-denied' : 'unknown' });
+      }
 
       localStorage.setItem(`claimedPlayer_${tournamentId}`, player.id);
       setClaimed(player.id);
@@ -141,21 +180,47 @@ export default function PlayerClaimView() {
   const handleUnclaim = async () => {
     if (!tournamentId || !claimed) return;
     try {
-      const { doc, updateDoc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      const docRef = doc(db, 'activeTournaments', tournamentId);
-      const snap = await getDoc(docRef);
-      if (!snap.exists()) return;
-      const data = snap.data();
-      const updatedPlayers = (data.players || []).map((p: TournamentPlayer) =>
-        p.id === claimed ? { ...p, claimedBy: undefined } : p
-      );
-      await updateDoc(docRef, { players: updatedPlayers });
+      const { projectId, databaseId } = await import('@/lib/firebase');
+      const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string;
+      const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
+
+      const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnSecureToken: true }),
+      });
+      if (!authRes.ok) return;
+      const { idToken } = await authRes.json();
+
+      const readRes = await fetch(`${base}/activeTournaments/${tournamentId}`);
+      if (!readRes.ok) return;
+      const raw = await readRes.json();
+      const fromVal = (v: any): any => {
+        if ('nullValue' in v) return null; if ('booleanValue' in v) return v.booleanValue;
+        if ('integerValue' in v) return Number(v.integerValue); if ('doubleValue' in v) return v.doubleValue;
+        if ('stringValue' in v) return v.stringValue;
+        if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
+        if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
+        return null;
+      };
+      const currentPlayers: TournamentPlayer[] = fromVal({ arrayValue: { values: raw.fields?.players?.arrayValue?.values || [] } });
+      const updatedPlayers = currentPlayers.map(p => p.id === claimed ? { ...p, claimedBy: null } : p);
+
+      const toVal = (v: any): any => {
+        if (v === null || v === undefined) return { nullValue: null };
+        if (typeof v === 'boolean') return { booleanValue: v };
+        if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+        if (typeof v === 'string') return { stringValue: v };
+        if (Array.isArray(v)) return { arrayValue: { values: v.map(toVal) } };
+        const fields: any = {}; for (const k of Object.keys(v)) fields[k] = toVal(v[k]); return { mapValue: { fields } };
+      };
+      await fetch(`${base}/activeTournaments/${tournamentId}?updateMask.fieldPaths=players`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ fields: { players: toVal(updatedPlayers) } }),
+      });
       localStorage.removeItem(`claimedPlayer_${tournamentId}`);
       setClaimed(null);
-    } catch {
-      // silently ignore
-    }
+    } catch { /* silently ignore */ }
   };
 
   const claimedPlayer = players.find(p => p.id === claimed);
