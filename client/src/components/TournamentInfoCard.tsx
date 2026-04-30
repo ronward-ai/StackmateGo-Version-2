@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useLocation } from 'wouter';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -44,8 +45,15 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
   const { state, updateTournamentDetails, updateSettings, resetTournament } = tournament;
   const { league, leaguePlayers } = useLeague();
   const { currentSeason } = useSeasons({ leagueId: league?.id });
+  const [, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
+
+  const handleNewTournament = (keepStructure: boolean) => {
+    try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
+    resetTournament({ keepStructure });
+    setLocation('/');
+  };
 
   const isLeagueMode =
     state.details?.type === 'season' ||
@@ -148,12 +156,12 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-muted text-foreground hover:bg-muted/80"
-                    onClick={() => { try { localStorage.removeItem('activeDirectorTournamentId'); } catch {} resetTournament({ keepStructure: true }); }}
+                    onClick={() => handleNewTournament(true)}
                   >
                     Keep structure
                   </AlertDialogAction>
                   <AlertDialogAction
-                    onClick={() => { try { localStorage.removeItem('activeDirectorTournamentId'); } catch {} resetTournament({ keepStructure: false }); }}
+                    onClick={() => handleNewTournament(false)}
                   >
                     Full reset
                   </AlertDialogAction>

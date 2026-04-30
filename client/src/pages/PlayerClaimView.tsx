@@ -114,14 +114,25 @@ export default function PlayerClaimView() {
       const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string;
       const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
 
-      // Sign in anonymously via REST to get a write token
-      const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ returnSecureToken: true }),
-      });
-      if (!authRes.ok) throw Object.assign(new Error('Could not claim seat. Please try again.'), { code: 'auth-failed' });
-      const { idToken, localId } = await authRes.json();
+      // Get a write token — prefer existing auth session, fall back to REST anonymous sign-in
+      let idToken: string;
+      let uid: string;
+      const { getAuth } = await import('firebase/auth');
+      const currentUser = getAuth().currentUser;
+      if (currentUser) {
+        idToken = await currentUser.getIdToken();
+        uid = currentUser.uid;
+      } else {
+        const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ returnSecureToken: true }),
+        });
+        if (!authRes.ok) throw Object.assign(new Error('Could not claim seat. Please try again.'), { code: 'auth-failed' });
+        const data = await authRes.json();
+        idToken = data.idToken;
+        uid = data.localId;
+      }
 
       // Read current players
       const readRes = await fetch(`${base}/activeTournaments/${tournamentId}`);
@@ -139,8 +150,6 @@ export default function PlayerClaimView() {
       };
       const currentPlayers: TournamentPlayer[] = fromVal({ arrayValue: { values: raw.fields?.players?.arrayValue?.values || [] } });
 
-      // Build updated players
-      const uid = localId;
       const updatedPlayers = currentPlayers.map(p => p.id === player.id ? { ...p, claimedBy: uid } : p);
 
       // Patch only the players field
@@ -184,12 +193,20 @@ export default function PlayerClaimView() {
       const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string;
       const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
 
-      const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ returnSecureToken: true }),
-      });
-      if (!authRes.ok) return;
-      const { idToken } = await authRes.json();
+      let idToken: string;
+      const { getAuth } = await import('firebase/auth');
+      const currentUser = getAuth().currentUser;
+      if (currentUser) {
+        idToken = await currentUser.getIdToken();
+      } else {
+        const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ returnSecureToken: true }),
+        });
+        if (!authRes.ok) return;
+        const data = await authRes.json();
+        idToken = data.idToken;
+      }
 
       const readRes = await fetch(`${base}/activeTournaments/${tournamentId}`);
       if (!readRes.ok) return;
