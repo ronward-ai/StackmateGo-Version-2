@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle
@@ -19,7 +20,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from "@/components/ui/select";
-import { ListOrdered, Coffee, Coins, Plus, Clock } from "lucide-react";
+import { ListOrdered, Coffee, Coins, Plus, Clock, Save } from "lucide-react";
 
 interface BlindLevelsSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -68,6 +69,7 @@ function LevelInput({
 
 export default function BlindLevelsSection({ tournament }: BlindLevelsSectionProps) {
   const { state, updateBlindLevel, addBlindLevel, removeLevel, addBreak, setBlindLevels } = tournament;
+  const { toast } = useToast();
 
   const [breakDialogOpen, setBreakDialogOpen] = useState(false);
   const [breakDuration, setBreakDuration] = useState(10);
@@ -379,6 +381,20 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               ⚡ Editing any duration updates all levels
             </p>
           )}
+
+          <div className="mt-4 flex justify-end">
+            <Button
+              size="sm"
+              className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                setBlindLevels([...state.levels]);
+                toast({ title: 'Blind levels saved', description: 'Your structure has been applied.' });
+              }}
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save Changes
+            </Button>
+          </div>
 
         </CardContent>
       </Card>
