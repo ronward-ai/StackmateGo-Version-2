@@ -259,8 +259,14 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                     const finisher = state.players.find((pl: any) => pl.position === i + 1);
                     const bountyBonus = (() => {
                       if (!finisher || !p?.enableBounties || !p?.bountyAmount) return 0;
-                      if (p.bountyType === 'progressive') return finisher.bountyWinnings || 0;
-                      return (finisher.knockouts || 0) * p.bountyAmount;
+                      if (p.bountyType === 'progressive') {
+                        const winnings = finisher.bountyWinnings || 0;
+                        // Winner gets their own current bounty back (they never lost it)
+                        const ownBounty = i === 0 ? (finisher.currentBounty || p.bountyAmount) : 0;
+                        return winnings + ownBounty;
+                      }
+                      // Standard: winner also gets their own bounty back
+                      return ((finisher.knockouts || 0) + (i === 0 ? 1 : 0)) * p.bountyAmount;
                     })();
                     const total = amount + bountyBonus;
                     return (
