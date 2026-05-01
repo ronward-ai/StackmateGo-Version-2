@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserCheck, ChevronRight, CheckCircle2 } from 'lucide-react';
@@ -14,12 +13,52 @@ interface TournamentPlayer {
   seatInfo?: { tableIndex: number; seatIndex: number; totalSeatedPlayers: number };
 }
 
+function getDeviceId(): string {
+  try {
+    let id = localStorage.getItem('playerDeviceId');
+    if (!id) {
+      id = `d_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+      localStorage.setItem('playerDeviceId', id);
+    }
+    return id;
+  } catch {
+    return `d_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+  }
+}
+
+const fromVal = (v: any): any => {
+  if ('nullValue' in v) return null;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('stringValue' in v) return v.stringValue;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
+  if ('mapValue' in v) {
+    const o: any = {};
+    for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any);
+    return o;
+  }
+  return null;
+};
+
+const toVal = (v: any): any => {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === 'string') return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(toVal) } };
+  const fields: any = {};
+  for (const k of Object.keys(v)) fields[k] = toVal(v[k]);
+  return { mapValue: { fields } };
+};
+
 export default function PlayerClaimView() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = params.tournamentId;
   const [, setLocation] = useLocation();
 
-  const { user, isAuthenticated, isLoading, signInAnonymously } = useAuth();
+  const deviceId = getDeviceId();
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
   const [tournamentName, setTournamentName] = useState('');
   const [claiming, setClaiming] = useState<string | null>(null);
@@ -27,13 +66,6 @@ export default function PlayerClaimView() {
   const [error, setError] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
-
-  // Sign in anonymously if needed
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      signInAnonymously().catch(console.error);
-    }
-  }, [isAuthenticated, isLoading, signInAnonymously]);
 
   // Check if already claimed on this device
   useEffect(() => {
@@ -48,22 +80,11 @@ export default function PlayerClaimView() {
 
     let unsubscribe: (() => void) | null = null;
 
-    const fromVal = (v: any): any => {
-      if ('nullValue' in v) return null;
-      if ('booleanValue' in v) return v.booleanValue;
-      if ('integerValue' in v) return Number(v.integerValue);
-      if ('doubleValue' in v) return v.doubleValue;
-      if ('stringValue' in v) return v.stringValue;
-      if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
-      if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
-      return null;
-    };
-
     const load = async () => {
       try {
         const { projectId, databaseId, db } = await import('@/lib/firebase');
 
-        // Initial load via REST (no auth required — activeTournaments is public read)
+        // Initial load via REST (no auth required)
         const restUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents/activeTournaments/${tournamentId}`;
         const restRes = await fetch(restUrl);
         if (restRes.ok) {
@@ -94,7 +115,6 @@ export default function PlayerClaimView() {
           }
         }, (err) => {
           console.error('Firestore listener error:', err);
-          // Don't show error — initial load already succeeded
         });
       } catch (e: any) {
         setError('Could not connect. Check your connection and try again.');
@@ -106,81 +126,44 @@ export default function PlayerClaimView() {
     return () => { unsubscribe?.(); };
   }, [tournamentId]);
 
+  const patchPlayers = async (updatedPlayers: TournamentPlayer[]): Promise<void> => {
+    const { projectId, databaseId } = await import('@/lib/firebase');
+    const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
+    const res = await fetch(
+      `${base}/activeTournaments/${tournamentId}?updateMask.fieldPaths=players`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { players: toVal(updatedPlayers) } }),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+  };
+
+  const readCurrentPlayers = async (): Promise<TournamentPlayer[]> => {
+    const { projectId, databaseId } = await import('@/lib/firebase');
+    const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
+    const res = await fetch(`${base}/activeTournaments/${tournamentId}`);
+    if (!res.ok) throw new Error('Tournament not found');
+    const raw = await res.json();
+    return fromVal({ arrayValue: { values: raw.fields?.players?.arrayValue?.values || [] } });
+  };
+
   const handleClaim = async (player: TournamentPlayer) => {
     if (!tournamentId) return;
     setClaiming(player.id);
+    setClaimError(null);
     try {
-      const { projectId, databaseId } = await import('@/lib/firebase');
-      const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string;
-      const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
-
-      // Get a write token — prefer existing auth session, fall back to REST anonymous sign-in
-      let idToken: string;
-      let uid: string;
-      const { getAuth } = await import('firebase/auth');
-      const currentUser = getAuth().currentUser;
-      if (currentUser) {
-        idToken = await currentUser.getIdToken();
-        uid = currentUser.uid;
-      } else {
-        const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ returnSecureToken: true }),
-        });
-        if (!authRes.ok) throw Object.assign(new Error('Could not claim seat. Please try again.'), { code: 'auth-failed' });
-        const data = await authRes.json();
-        idToken = data.idToken;
-        uid = data.localId;
-      }
-
-      // Read current players
-      const readRes = await fetch(`${base}/activeTournaments/${tournamentId}`);
-      if (!readRes.ok) throw new Error('Tournament not found');
-      const raw = await readRes.json();
-      const fromVal = (v: any): any => {
-        if ('nullValue' in v) return null;
-        if ('booleanValue' in v) return v.booleanValue;
-        if ('integerValue' in v) return Number(v.integerValue);
-        if ('doubleValue' in v) return v.doubleValue;
-        if ('stringValue' in v) return v.stringValue;
-        if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
-        if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
-        return null;
-      };
-      const currentPlayers: TournamentPlayer[] = fromVal({ arrayValue: { values: raw.fields?.players?.arrayValue?.values || [] } });
-
-      const updatedPlayers = currentPlayers.map(p => p.id === player.id ? { ...p, claimedBy: uid } : p);
-
-      // Patch only the players field
-      const toVal = (v: any): any => {
-        if (v === null || v === undefined) return { nullValue: null };
-        if (typeof v === 'boolean') return { booleanValue: v };
-        if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-        if (typeof v === 'string') return { stringValue: v };
-        if (Array.isArray(v)) return { arrayValue: { values: v.map(toVal) } };
-        const fields: any = {}; for (const k of Object.keys(v)) fields[k] = toVal(v[k]); return { mapValue: { fields } };
-      };
-      const patchRes = await fetch(
-        `${base}/activeTournaments/${tournamentId}?updateMask.fieldPaths=players`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ fields: { players: toVal(updatedPlayers) } }),
-        }
-      );
-      if (!patchRes.ok) {
-        const err = await patchRes.json().catch(() => ({}));
-        throw Object.assign(new Error(err?.error?.message || 'Could not claim seat.'), { code: patchRes.status === 403 ? 'permission-denied' : 'unknown' });
-      }
-
+      const current = await readCurrentPlayers();
+      const updated = current.map(p => p.id === player.id ? { ...p, claimedBy: deviceId } : p);
+      await patchPlayers(updated);
       localStorage.setItem(`claimedPlayer_${tournamentId}`, player.id);
       setClaimed(player.id);
     } catch (e: any) {
-      const msg = e?.code === 'permission-denied'
-        ? 'Check-in requires a connection — try again or enter as spectator.'
-        : 'Could not claim seat. Please try again.';
-      setClaimError(msg);
+      setClaimError('Could not claim seat. Please try again.');
     } finally {
       setClaiming(null);
     }
@@ -189,61 +172,17 @@ export default function PlayerClaimView() {
   const handleUnclaim = async () => {
     if (!tournamentId || !claimed) return;
     try {
-      const { projectId, databaseId } = await import('@/lib/firebase');
-      const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string;
-      const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
-
-      let idToken: string;
-      const { getAuth } = await import('firebase/auth');
-      const currentUser = getAuth().currentUser;
-      if (currentUser) {
-        idToken = await currentUser.getIdToken();
-      } else {
-        const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ returnSecureToken: true }),
-        });
-        if (!authRes.ok) return;
-        const data = await authRes.json();
-        idToken = data.idToken;
-      }
-
-      const readRes = await fetch(`${base}/activeTournaments/${tournamentId}`);
-      if (!readRes.ok) return;
-      const raw = await readRes.json();
-      const fromVal = (v: any): any => {
-        if ('nullValue' in v) return null; if ('booleanValue' in v) return v.booleanValue;
-        if ('integerValue' in v) return Number(v.integerValue); if ('doubleValue' in v) return v.doubleValue;
-        if ('stringValue' in v) return v.stringValue;
-        if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
-        if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
-        return null;
-      };
-      const currentPlayers: TournamentPlayer[] = fromVal({ arrayValue: { values: raw.fields?.players?.arrayValue?.values || [] } });
-      const updatedPlayers = currentPlayers.map(p => p.id === claimed ? { ...p, claimedBy: null } : p);
-
-      const toVal = (v: any): any => {
-        if (v === null || v === undefined) return { nullValue: null };
-        if (typeof v === 'boolean') return { booleanValue: v };
-        if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-        if (typeof v === 'string') return { stringValue: v };
-        if (Array.isArray(v)) return { arrayValue: { values: v.map(toVal) } };
-        const fields: any = {}; for (const k of Object.keys(v)) fields[k] = toVal(v[k]); return { mapValue: { fields } };
-      };
-      await fetch(`${base}/activeTournaments/${tournamentId}?updateMask.fieldPaths=players`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ fields: { players: toVal(updatedPlayers) } }),
-      });
+      const current = await readCurrentPlayers();
+      const updated = current.map(p => p.id === claimed ? { ...p, claimedBy: null } : p);
+      await patchPlayers(updated);
       localStorage.removeItem(`claimedPlayer_${tournamentId}`);
       setClaimed(null);
     } catch { /* silently ignore */ }
   };
 
   const claimedPlayer = players.find(p => p.id === claimed);
-  const uid = (user as any)?.id || (user as any)?.uid;
   const unclaimed = players.filter(p => !p.claimedBy);
-  const alreadyClaimed = players.filter(p => p.claimedBy && p.claimedBy !== uid);
+  const alreadyClaimed = players.filter(p => p.claimedBy && p.claimedBy !== deviceId);
 
   if (!dataLoaded) {
     return (

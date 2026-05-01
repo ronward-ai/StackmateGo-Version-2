@@ -256,7 +256,13 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                 <div className="space-y-1.5">
                   {p.manualPayouts.map((po: any, i: number) => {
                     const amount = Math.floor(pool * po.percentage / 100);
-                    const finisher = state.players.find(pl => pl.position === i + 1);
+                    const finisher = state.players.find((pl: any) => pl.position === i + 1);
+                    const bountyBonus = (() => {
+                      if (!finisher || !p?.enableBounties || !p?.bountyAmount) return 0;
+                      if (p.bountyType === 'progressive') return finisher.bountyWinnings || 0;
+                      return (finisher.knockouts || 0) * p.bountyAmount;
+                    })();
+                    const total = amount + bountyBonus;
                     return (
                       <div key={i} className={cn(
                         "flex items-center justify-between rounded-lg px-3 py-2",
@@ -274,7 +280,12 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                             ? <span className="text-foreground font-medium">{finisher.name}</span>
                             : <span className="text-muted-foreground">{po.percentage}%</span>}
                         </div>
-                        <span className="font-mono font-bold text-green-400 text-sm">{sym}{amount.toLocaleString()}</span>
+                        <div className="text-right">
+                          <span className="font-mono font-bold text-green-400 text-sm">{sym}{total.toLocaleString()}</span>
+                          {bountyBonus > 0 && (
+                            <div className="text-xs text-muted-foreground">{sym}{amount} + {sym}{bountyBonus} bounty</div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

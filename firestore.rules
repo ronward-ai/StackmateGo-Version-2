@@ -117,6 +117,10 @@ service cloud.firestore {
           .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
                     'targetEndTime', 'smallBlind', 'bigBlind', 'ante', 'blindLevels',
                     'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy'])
+      ) || (
+        // Unauthenticated player claiming — only the players field may change.
+        // Allows QR check-in without requiring Firebase Auth on the player's device.
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players'])
       );
       allow delete: if isRegistered() && isExistingDocOwner();
     }
