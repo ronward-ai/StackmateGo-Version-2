@@ -210,28 +210,51 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     return () => unsubscribe();
   }, [currentLeagueId]);
 
-  // Convert cloud data to legacy format for compatibility
-  const leaguePlayers: LeaguePlayer[] = cloudPlayers.map((player: any) => {
-    const playerResults = cloudResults.filter((result: any) => result.leaguePlayerId === player.id);
-    return {
-      id: player.id.toString(),
-      name: player.name,
-      totalPoints: player.totalPoints || 0,
-      tournamentResults: playerResults.map((result: any) => ({
-        id: result.id.toString(),
-        tournamentId: result.tournamentId,
-        tournamentDate: result.tournamentDate || null, // Firestore Timestamp — used by previousRankings for arrow logic
-        seasonId: result.seasonId || null,
-        position: result.position,
-        totalPlayers: result.totalPlayers,
-        points: result.points,
-        playersEliminatedCount: result.knockouts,
-        cashWon: result.prizeMoney,
-        buyIn: result.buyIn,
-        date: result.createdAt?.toDate?.()?.toISOString() || result.createdAt || new Date().toISOString()
-      }))
-    };
-  });
+  // Convert cloud data to legacy format, deduplicating players with the same name.
+  // Duplicate player docs can arise from concurrent recording — merge them so the
+  // table always shows one row per player, with results deduplicated by tournamentId.
+  const leaguePlayers: LeaguePlayer[] = (() => {
+    const byName = new Map<string, { primaryPlayer: any; mergedResults: any[] }>();
+
+    cloudPlayers.forEach((player: any) => {
+      const key = (player.name || '').toLowerCase().trim();
+      const playerResults = cloudResults.filter((r: any) => r.leaguePlayerId === player.id);
+
+      if (byName.has(key)) {
+        const entry = byName.get(key)!;
+        playerResults.forEach(r => {
+          const alreadyPresent = r.tournamentId
+            ? entry.mergedResults.some(existing => existing.tournamentId === r.tournamentId)
+            : false;
+          if (!alreadyPresent) entry.mergedResults.push(r);
+        });
+      } else {
+        byName.set(key, { primaryPlayer: player, mergedResults: [...playerResults] });
+      }
+    });
+
+    return Array.from(byName.values()).map(({ primaryPlayer, mergedResults }) => {
+      const totalPoints = mergedResults.reduce((sum, r) => sum + (r.points || 0), 0);
+      return {
+        id: primaryPlayer.id.toString(),
+        name: primaryPlayer.name,
+        totalPoints,
+        tournamentResults: mergedResults.map((result: any) => ({
+          id: result.id.toString(),
+          tournamentId: result.tournamentId,
+          tournamentDate: result.tournamentDate || null,
+          seasonId: result.seasonId || null,
+          position: result.position,
+          totalPlayers: result.totalPlayers,
+          points: result.points,
+          playersEliminatedCount: result.knockouts,
+          cashWon: result.prizeMoney,
+          buyIn: result.buyIn,
+          date: result.createdAt?.toDate?.()?.toISOString() || result.createdAt || new Date().toISOString()
+        }))
+      };
+    });
+  })();
 
   const isLoading = leaguesLoading || playersLoading || resultsLoading || createLeagueMutation.isPending;
   const error = playersError || createLeagueMutation.error;
@@ -338,6 +361,15 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         p.name.toLowerCase() === name.toLowerCase()
       );
       if (existingPlayer) return;
+
+      // Fallback Firestore check in case leaguePlayers state is stale
+      const snap = await getDocs(
+        query(collections.leaguePlayers,
+          where('leagueId', '==', String(leagueId)),
+          where('name', '==', name.trim())
+        )
+      );
+      if (!snap.empty) return;
 
       await createPlayerMutation.mutateAsync({ name: name.trim() });
     } catch (error) {
