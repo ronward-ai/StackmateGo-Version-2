@@ -50,6 +50,11 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   // Active season ID - set externally via setActiveSeasonId
   const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
 
+  // Tracks in-flight player-creation promises keyed by lowercased name.
+  // Prevents duplicate Firestore docs when recordResultByName is called
+  // concurrently for multiple players before leaguePlayers state has updated.
+  const pendingPlayerCreations = useRef(new Map<string, Promise<any>>());
+
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
 
   // Persist the user's chosen league across sessions. All useLeague instances
@@ -413,16 +418,39 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       const leagueId = await waitForLeague();
       if (!leagueId) return;
 
-      // Find or create the player
+      // Find or create the player.
+      // leaguePlayers may be stale when multiple players are recorded concurrently
+      // (e.g. tournament end). Use a shared in-flight promise per name so only one
+      // Firestore creation fires even if all callers see an empty leaguePlayers.
       let targetPlayer = leaguePlayers.find((p: any) =>
         p.name.toLowerCase() === playerName.toLowerCase()
       );
 
       if (!targetPlayer) {
-        const newPlayer = await createPlayerMutation.mutateAsync({
-          name: playerName
-        });
-        targetPlayer = newPlayer;
+        const lowerName = playerName.toLowerCase().trim();
+        let inFlight = pendingPlayerCreations.current.get(lowerName);
+        if (!inFlight) {
+          // Create and store the promise synchronously before any await so
+          // concurrent calls can pick it up in the same microtask turn.
+          inFlight = (async () => {
+            const snap = await getDocs(
+              query(collections.leaguePlayers,
+                where('leagueId', '==', String(leagueId)),
+                where('name', '==', playerName.trim())
+              )
+            );
+            if (!snap.empty) {
+              return { id: snap.docs[0].id, ...snap.docs[0].data() };
+            }
+            return createPlayerMutation.mutateAsync({ name: playerName.trim() });
+          })();
+          pendingPlayerCreations.current.set(lowerName, inFlight);
+        }
+        try {
+          targetPlayer = await inFlight;
+        } finally {
+          pendingPlayerCreations.current.delete(lowerName);
+        }
       }
 
       // Deduplicate: skip if a result already exists for this player+tournament
