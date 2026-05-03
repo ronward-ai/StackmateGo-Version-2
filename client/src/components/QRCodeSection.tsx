@@ -119,7 +119,10 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
             leagueName: state.settings.branding?.leagueName || '',
             logoUrl: state.settings.branding?.logoUrl || null,
             isVisible: state.settings.branding?.isVisible ?? true
-          }
+          },
+          isSeasonTournament: state.settings.isSeasonTournament || false,
+          leagueId: state.settings.leagueId || null,
+          seasonId: state.settings.seasonId || null,
         },
         prizeStructure: state.prizeStructure || {
           buyIn: 10,
