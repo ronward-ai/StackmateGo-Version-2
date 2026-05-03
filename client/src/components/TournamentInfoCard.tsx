@@ -78,18 +78,22 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
     tournament.updatePrizeStructure(saved.prizeStructure);
   }, [isLeagueMode, currentSeason?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Count completed games in this season by counting unique tournamentIds across all league players
-  const completedGames = useMemo(() => {
-    if (!isLeagueMode || !currentSeason) return 0;
+  // Compute current game number for this season.
+  // Results are written to Firestore as soon as the first player is eliminated,
+  // so localGameId may already be in the recorded set mid-game. We count the
+  // current game as its recorded position rather than tacking +1 onto the total.
+  const gameNumber = useMemo(() => {
+    if (!isLeagueMode || !currentSeason) return null;
     const ids = new Set<string>();
     leaguePlayers.forEach((player: any) => {
       (player.tournamentResults || [])
         .filter((r: any) => r.seasonId === String(currentSeason.id))
         .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
     });
-    return ids.size;
-  }, [isLeagueMode, currentSeason?.id, leaguePlayers]); // eslint-disable-line react-hooks/exhaustive-deps
-  const gameNumber = isLeagueMode && currentSeason ? completedGames + 1 : null;
+    const localGameId = state.details?.localGameId;
+    if (localGameId && ids.has(localGameId)) return ids.size;
+    return ids.size + 1;
+  }, [isLeagueMode, currentSeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
   const totalGames = currentSeason?.numberOfGames || 12;
 
   const sym = state.settings.currency || '£';
