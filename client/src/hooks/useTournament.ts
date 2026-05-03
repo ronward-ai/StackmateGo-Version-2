@@ -210,6 +210,9 @@ export function useTournament(tournamentId?: string) {
     details: tournamentId ? {
       type: 'database',
       id: tournamentId
+    } : (mergedSettings as any)?.isSeasonTournament ? {
+      type: 'season',
+      localGameId: `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
     } : {
       type: 'standalone'
     }
@@ -1241,7 +1244,11 @@ export function useTournament(tournamentId?: string) {
     const levels = keepStructure ? state.levels : DEFAULT_LEVELS;
     const prizeStructure = keepStructure ? (state.prizeStructure || loadSavedPrizeStructure()) : { buyIn: 0 };
     const settings = keepStructure ? state.settings : DEFAULT_SETTINGS;
-    const preservedType = keepStructure && state.details?.type === 'season' ? 'season' : 'standalone';
+    const isLeagueReset = keepStructure && state.details?.type === 'season';
+    const preservedType = isLeagueReset ? 'season' : 'standalone';
+    const newLocalGameId = isLeagueReset
+      ? `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
+      : undefined;
 
     setState({
       levels,
@@ -1253,7 +1260,7 @@ export function useTournament(tournamentId?: string) {
       bestLosingHand: undefined,
       prizeStructure,
       isFinalTable: false,
-      details: { type: preservedType },
+      details: { type: preservedType, localGameId: newLocalGameId },
     });
   }, [state.settings, state.prizeStructure, state.details, state.levels]);
 

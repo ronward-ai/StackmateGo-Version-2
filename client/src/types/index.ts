@@ -137,6 +137,7 @@ export interface TournamentDetails {
   seasonName?: string; // Name of the season for display
   tournamentNumber?: number; // Which tournament in the season (e.g., Game 5)
   id?: number | string; // Database ID for database tournaments
+  localGameId?: string; // Stable per-game ID for result tracking, set before "Go Live"
   tables?: any[];
   status?: string;
   createdAt?: string;

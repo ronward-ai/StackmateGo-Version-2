@@ -31,19 +31,22 @@ function toFirestoreValue(val: any): any {
   return { mapValue: { fields } };
 }
 
-// Write a document to Firestore via the REST API (bypasses SDK WebChannel issues)
+// Write a document to Firestore via the REST API (bypasses SDK WebChannel issues).
+// If docId is provided, it is used as the document ID (?documentId= query param).
 async function createDocViaRest(
   projectId: string,
   databaseId: string,
   collection: string,
   data: Record<string, any>,
   idToken: string,
+  docId?: string,
 ): Promise<string> {
   const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
   const fields: Record<string, any> = {};
   for (const k of Object.keys(data)) fields[k] = toFirestoreValue(data[k]);
+  const url = docId ? `${base}/${collection}?documentId=${encodeURIComponent(docId)}` : `${base}/${collection}`;
 
-  const res = await fetch(`${base}/${collection}`, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
     body: JSON.stringify({ fields }),
@@ -135,12 +138,15 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       }
       const idToken = await currentUser.getIdToken(true);
 
+      // Reuse localGameId as the Firestore document ID so result tracking is
+      // consistent before and after going live.
+      const localGameId = state.details?.localGameId;
       const docId = await Promise.race([
         createDocViaRest(projectId, databaseId, 'activeTournaments', {
           ...newTournamentData,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        }, idToken),
+        }, idToken, localGameId),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Could not reach Firestore. Check your internet connection and try again.')), 15000)
         ),

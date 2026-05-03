@@ -289,6 +289,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             const prizeMoney = player.prizeMoney || 0;
 
             // Record tournament result for this player
+            const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
             recordResultByName(
               player.name,
               player.position,
@@ -296,7 +297,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
               eliminationsCount,
               prizeMoney,
               tournament.state.prizeStructure?.buyIn || 10,
-              tournament.state.details?.id,
+              gameId ? String(gameId) : undefined,
               currentSeason?.id ? String(currentSeason.id) : undefined
             );
 
