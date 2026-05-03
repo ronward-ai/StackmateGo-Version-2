@@ -76,8 +76,8 @@ function RealTimeLeagueTable({
   }, [isSeasonTournament]);
 
 
-  // Get current season name from league settings, or fallback to tournament data, or default
-  const currentSeasonName = leagueSettings?.seasonSettings?.seasonName || currentSeason?.name || tournament?.season?.name || 'Current Season';
+  // Use the actual season doc name first — leagueSettings.seasonSettings.seasonName is legacy/stale
+  const currentSeasonName = currentSeason?.name || tournament?.season?.name || leagueSettings?.seasonSettings?.seasonName || 'Current Season';
 
   // Filter each player's results to the active season — must be before any logic that uses it.
   // Results with no seasonId (null/undefined) are treated as belonging to the current season

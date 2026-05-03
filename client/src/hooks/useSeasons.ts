@@ -48,15 +48,11 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch seasons from database if leagueId is provided and valid.
-  // Guard on isUserAuthenticated so the listener only starts once auth is ready —
-  // on the participant view, anonymous sign-in is async and would otherwise cause
-  // a permission-denied error that never recovers.
+  // No auth guard needed — Firestore rules allow read: if true for seasons.
   useEffect(() => {
-    if (!leagueId || !isUserAuthenticated) {
-      if (!leagueId) {
-        setDbSeasons([]);
-        setIsLoading(false);
-      }
+    if (!leagueId) {
+      setDbSeasons([]);
+      setIsLoading(false);
       return;
     }
 
@@ -72,7 +68,7 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     });
 
     return () => unsubscribe();
-  }, [leagueId, isUserAuthenticated]);
+  }, [leagueId]);
 
   // Create mutation for creating a season
   const createSeasonMutation = useMutation({

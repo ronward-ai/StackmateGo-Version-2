@@ -73,25 +73,25 @@ service cloud.firestore {
       allow delete: if isRegistered() && isExistingDocOwner();
     }
 
-    // Seasons — readable by any authenticated user (includes anonymous QR participants)
+    // Seasons — public read so QR participants see live standings before anonymous auth completes
     match /seasons/{seasonId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered() && request.resource.data.leagueId is string;
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
-    // League Players — readable by any authenticated user
+    // League Players — public read for live standings in participant view
     match /leaguePlayers/{playerId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered() && request.resource.data.leagueId is string;
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
-    // Tournament Results — readable by any authenticated user
+    // Tournament Results — public read for live standings in participant view
     match /tournamentResults/{resultId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isRegistered() && request.resource.data.leagueId is string;
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);

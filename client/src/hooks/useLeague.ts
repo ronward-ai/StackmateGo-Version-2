@@ -164,13 +164,11 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   const [playersError, setPlayersError] = useState<Error | null>(null);
 
-  // Real-time listener for league players
+  // Real-time listener for league players — no auth required (rules: allow read: if true)
   useEffect(() => {
-    if (!currentLeagueId || !isUserAuthenticated) {
-      if (!currentLeagueId) {
-        setCloudPlayers([]);
-        setPlayersLoading(false);
-      }
+    if (!currentLeagueId) {
+      setCloudPlayers([]);
+      setPlayersLoading(false);
       return;
     }
 
@@ -188,15 +186,13 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     });
 
     return () => unsubscribe();
-  }, [currentLeagueId, isUserAuthenticated]);
+  }, [currentLeagueId]);
 
-  // Real-time listener for tournament results
+  // Real-time listener for tournament results — no auth required (rules: allow read: if true)
   useEffect(() => {
-    if (!currentLeagueId || !isUserAuthenticated) {
-      if (!currentLeagueId) {
-        setCloudResults([]);
-        setResultsLoading(false);
-      }
+    if (!currentLeagueId) {
+      setCloudResults([]);
+      setResultsLoading(false);
       return;
     }
 
@@ -212,7 +208,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     });
 
     return () => unsubscribe();
-  }, [currentLeagueId, isUserAuthenticated]);
+  }, [currentLeagueId]);
 
   // Convert cloud data to legacy format, deduplicating players with the same name.
   // Duplicate player docs can arise from concurrent recording — merge them so the
