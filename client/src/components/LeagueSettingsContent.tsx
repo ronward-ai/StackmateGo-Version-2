@@ -36,6 +36,7 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
   const {
     settings,
     updateSettings,
+    saveSettingsToDatabase,
     availablePointsSystems,
     saveCustomFormulaTemplate,
     deleteSettingsFromDatabase,
@@ -65,10 +66,13 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
 
   const handleSave = useCallback(() => {
     updateSettings(localSettings);
+    // Persist to Firestore so onSnapshot doesn't overwrite with stale data.
+    // Pass localSettings explicitly to avoid the stale closure on the hook's settings state.
+    saveSettingsToDatabase('League Settings', true, localSettings);
     setIsDirty(false);
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2000);
-  }, [localSettings, updateSettings]);
+  }, [localSettings, updateSettings, saveSettingsToDatabase]);
 
   const handleResetToDefaults = () => {
     setLocalSettings(DEFAULT_LEAGUE_SETTINGS);

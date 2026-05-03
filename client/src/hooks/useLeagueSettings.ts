@@ -8,7 +8,7 @@ import {
 } from '@/types/leagueSettings';
 import { useAuth } from './useAuth';
 import { db, collections } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 
 function loadFromStorage(storageKey: string): LeagueSettings {
@@ -313,16 +313,42 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     // no-op: settings are kept in sync by the real-time Firestore listener above
   }, []);
 
-  // Save settings to database
-  const saveSettingsToDatabase = useCallback(async (name: string, isDefault: boolean = false) => {
+  // Save settings to database — upserts the existing default doc when isDefault is true.
+  // Accepts an optional settingsToSave to avoid stale closure when called right after updateSettings().
+  const saveSettingsToDatabase = useCallback(async (name: string, isDefault: boolean = false, settingsToSave?: LeagueSettings) => {
     if (!user?.id) return;
 
+    const toSave = settingsToSave ?? settings;
+
     try {
+      if (isDefault) {
+        // Find existing default doc scoped to this league (or unscoped legacy) and update it
+        const existingDefault = savedSettings.find(s =>
+          s.isDefault && (leagueId ? s.leagueId === leagueId : !s.leagueId)
+        );
+        if (existingDefault) {
+          await setDoc(
+            doc(db, 'leagueSettings', String(existingDefault.id)),
+            sanitizeForFirestore({
+              userId: user.id,
+              leagueId: leagueId ?? null,
+              name: existingDefault.name,
+              settings: toSave,
+              isDefault: true,
+              updatedAt: serverTimestamp()
+            }),
+            { merge: true }
+          );
+          return;
+        }
+      }
+
+      // No existing doc — create a new one
       const newSetting = sanitizeForFirestore({
         userId: user.id,
         leagueId: leagueId ?? null,
         name,
-        settings,
+        settings: toSave,
         isDefault,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -339,7 +365,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     } catch (error) {
       console.error('Error saving settings to database:', error);
     }
-  }, [settings, user?.id, leagueId]);
+  }, [settings, user?.id, leagueId, savedSettings]);
 
   // Load settings from database by ID
   const loadSettingsFromDatabase = useCallback((settingId: string | number) => {
