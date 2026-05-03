@@ -18,7 +18,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [isDeletingLeague, setIsDeletingLeague] = useState(false);
   const [deleteLeagueConfirm, setDeleteLeagueConfirm] = useState('');
 
-  const { league, userLeagues, switchLeague, createLeague, deleteLeague, setActiveSeasonId } = useLeague();
+  const { league, userLeagues, switchLeague, createLeague, deleteLeague, setActiveSeasonId, leaguePlayers } = useLeague();
   const { seasons, currentSeason, addSeason, updateSeason, deleteSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
   const { isPro } = useSubscription();
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -163,9 +163,16 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
     }
   };
 
-  const gamesPlayed = currentSeason
-    ? (tournament?.state?.players?.[0]?.results?.length ?? 0)
-    : 0;
+  const gamesPlayed = useMemo(() => {
+    if (!currentSeason) return 0;
+    const ids = new Set<string>();
+    leaguePlayers.forEach((player: any) => {
+      (player.tournamentResults || [])
+        .filter((r: any) => r.seasonId === String(currentSeason.id))
+        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
+    });
+    return ids.size;
+  }, [currentSeason?.id, leaguePlayers]);
   const totalGames = currentSeason?.numberOfGames || 12;
 
   const statusColor: Record<string, string> = {
