@@ -166,9 +166,11 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   // Real-time listener for league players
   useEffect(() => {
-    if (!currentLeagueId) {
-      setCloudPlayers([]);
-      setPlayersLoading(false);
+    if (!currentLeagueId || !isUserAuthenticated) {
+      if (!currentLeagueId) {
+        setCloudPlayers([]);
+        setPlayersLoading(false);
+      }
       return;
     }
 
@@ -186,13 +188,15 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     });
 
     return () => unsubscribe();
-  }, [currentLeagueId]);
+  }, [currentLeagueId, isUserAuthenticated]);
 
   // Real-time listener for tournament results
   useEffect(() => {
-    if (!currentLeagueId) {
-      setCloudResults([]);
-      setResultsLoading(false);
+    if (!currentLeagueId || !isUserAuthenticated) {
+      if (!currentLeagueId) {
+        setCloudResults([]);
+        setResultsLoading(false);
+      }
       return;
     }
 
@@ -208,7 +212,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     });
 
     return () => unsubscribe();
-  }, [currentLeagueId]);
+  }, [currentLeagueId, isUserAuthenticated]);
 
   // Convert cloud data to legacy format, deduplicating players with the same name.
   // Duplicate player docs can arise from concurrent recording — merge them so the

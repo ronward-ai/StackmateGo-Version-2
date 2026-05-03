@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useEffect, useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from './useLeagueSettings';
+import { useAuth } from './useAuth';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
@@ -40,16 +41,22 @@ interface UseSeasonsOptions {
 export function useSeasons(options: UseSeasonsOptions = {}) {
   const { leagueId } = options;
   const { settings } = useLeagueSettings(undefined, leagueId ? String(leagueId) : null);
+  const { isAuthenticated: isUserAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
   const [dbSeasons, setDbSeasons] = useState<Season[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch seasons from database if leagueId is provided and valid
+  // Fetch seasons from database if leagueId is provided and valid.
+  // Guard on isUserAuthenticated so the listener only starts once auth is ready —
+  // on the participant view, anonymous sign-in is async and would otherwise cause
+  // a permission-denied error that never recovers.
   useEffect(() => {
-    if (!leagueId) {
-      setDbSeasons([]);
-      setIsLoading(false);
+    if (!leagueId || !isUserAuthenticated) {
+      if (!leagueId) {
+        setDbSeasons([]);
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -65,7 +72,7 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     });
 
     return () => unsubscribe();
-  }, [leagueId]);
+  }, [leagueId, isUserAuthenticated]);
 
   // Create mutation for creating a season
   const createSeasonMutation = useMutation({
