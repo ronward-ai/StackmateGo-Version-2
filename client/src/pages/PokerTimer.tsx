@@ -279,9 +279,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
               return;
             }
 
-            // Add player to league if not already there
-            addLeaguePlayer(player.name);
-
             // Calculate eliminations for this player - use knockouts field
             const eliminationsCount = player.knockouts || 0;
 
@@ -345,7 +342,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       console.error('Critical error in league recording effect:', effectError);
       toast({ title: 'League recording error', description: 'Some results may not have been saved to the league. Please check Tournament History.', variant: 'destructive' });
     }
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, processedEliminations]);
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, processedEliminations]);
 
   // Reset processed eliminations when tournament resets
   useEffect(() => {
