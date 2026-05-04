@@ -142,7 +142,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
         }
 
         case 'fixed': {
-          return formula.fixedPoints || 10;
+          return formula.positionPoints?.[position - 1] ?? formula.fixedPoints ?? 0;
         }
 
         case 'custom': {

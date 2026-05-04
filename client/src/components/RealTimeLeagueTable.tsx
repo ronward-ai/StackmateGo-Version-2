@@ -80,16 +80,13 @@ function RealTimeLeagueTable({
   // Use the actual season doc name first — leagueSettings.seasonSettings.seasonName is legacy/stale
   const currentSeasonName = currentSeason?.name || tournament?.season?.name || leagueSettings?.seasonSettings?.seasonName || 'Current Season';
 
-  // Filter each player's results to the active season — must be before any logic that uses it.
-  // Results with no seasonId (null/undefined) are treated as belonging to the current season
-  // for backward compatibility with data recorded before season tracking was added.
   const seasonId = currentSeason?.id ? String(currentSeason.id) : null;
   const seasonFilteredPlayers = useMemo(() => {
     if (!seasonId || !Array.isArray(leaguePlayers)) return leaguePlayers;
     return leaguePlayers.map(player => ({
       ...player,
       tournamentResults: (player.tournamentResults || []).filter(
-        (r: any) => !r.seasonId || r.seasonId === seasonId
+        (r: any) => r.seasonId === seasonId
       )
     }));
   }, [leaguePlayers, seasonId]); // eslint-disable-line react-hooks/exhaustive-deps

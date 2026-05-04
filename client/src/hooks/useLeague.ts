@@ -487,7 +487,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       }
 
       // Calculate points
-      const points = calculatePointsFromSettings(position, totalPlayers);
+      const points = calculatePointsFromSettings(position, totalPlayers, playersEliminatedCount);
 
       // Add the tournament result
       await addResultMutation.mutateAsync({
