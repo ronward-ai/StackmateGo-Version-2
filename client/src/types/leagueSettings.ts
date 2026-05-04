@@ -81,6 +81,7 @@ export interface LeagueSettings {
   pointsSystem: PointsSystem;
   statsToTrack: LeagueStatsTracked; // Always all enabled - these are calculated
   statsToDisplay: LeagueStatsDisplay; // User configurable for league table
+  statsOrder?: string[]; // Column display order — ordered list of stat keys
   displaySettings: {
     showPosition: boolean;
     showTrend: boolean;
@@ -97,6 +98,34 @@ export interface LeagueSettings {
     endDate?: string;
   };
 }
+
+export const STAT_LABELS: Record<string, string> = {
+  points: 'Points',
+  games: 'Games',
+  averagePoints: 'Avg. Points',
+  firstPlaceFinishes: '1st Place',
+  secondPlaceFinishes: '2nd Place',
+  thirdPlaceFinishes: '3rd Place',
+  hits: 'Hits',
+  cashWinnings: 'Cash',
+  averagePosition: 'Avg. Pos',
+  finalTableAppearances: 'Final Tables',
+  profit: 'Profit',
+  roi: 'ROI',
+  rebuys: 'Rebuys',
+  reEntries: 'Re-entries',
+  itmPercentage: 'ITM %',
+  addOns: 'Add-ons',
+  totalInvested: 'Invested',
+  bountiesWon: 'Bounties',
+  attendancePercent: 'Attendance',
+  currentStreak: 'Streak',
+  biggestWin: 'Biggest Win',
+  worstFinish: 'Worst',
+  winRate: 'Win Rate',
+  bestFinish: 'Best Finish',
+  earlyExits: 'Early Exits',
+};
 
 // Predefined points systems
 export const POINTS_SYSTEMS = {
@@ -199,6 +228,13 @@ export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
     bestFinish: false,
     earlyExits: false
   },
+  statsOrder: [
+    'points', 'games', 'averagePoints', 'firstPlaceFinishes', 'secondPlaceFinishes',
+    'thirdPlaceFinishes', 'hits', 'cashWinnings', 'averagePosition', 'finalTableAppearances',
+    'profit', 'roi', 'rebuys', 'reEntries', 'itmPercentage', 'addOns', 'totalInvested',
+    'bountiesWon', 'attendancePercent', 'currentStreak', 'biggestWin', 'worstFinish',
+    'winRate', 'bestFinish', 'earlyExits'
+  ],
   displaySettings: {
     showPosition: true,
     showTrend: true,

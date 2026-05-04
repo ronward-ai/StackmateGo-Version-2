@@ -16,6 +16,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useAuth } from '@/hooks/useAuth';
+import { STAT_LABELS } from '@/types/leagueSettings';
 import html2canvas from 'html2canvas';
 
 interface RealTimeLeagueTableProps {
@@ -154,48 +155,24 @@ function RealTimeLeagueTable({
     return ids.size;
   }, [seasonFilteredPlayers]);
 
-  const statLabels: {[key: string]: string} = {
-    points: 'Points',
-    games: 'Games',
-    averagePoints: 'Avg. Points',
-    firstPlaceFinishes: '1st Place',
-    secondPlaceFinishes: '2nd Place',
-    thirdPlaceFinishes: '3rd Place',
-    hits: 'Hits',
-    cashWinnings: 'Winnings',
-    bestFinish: 'Best',
-    winRate: 'Win %',
-    averagePosition: 'Avg. Pos',
-    finalTableAppearances: 'Finals',
-    headsUpRecord: 'H2H',
-    earlyExits: 'Early Out',
-    profit: 'Profit',
-    roi: 'ROI (%)',
-    rebuys: 'Rebuys',
-    reEntries: 'Re-entries',
-    itmPercentage: 'ITM %',
-    addOns: 'Add-ons',
-    totalInvested: 'Invested',
-    bountiesWon: 'Bounties',
-    attendancePercent: 'Attendance',
-    currentStreak: 'Streak',
-    biggestWin: 'Biggest Win',
-    worstFinish: 'Worst',
-  };
-
-  // Get enabled stats from settings with proper fallback
+  // Get enabled stats from settings, sorted by user-defined column order
   const enabledStats = useMemo(() => {
     if (!leagueSettings?.statsToDisplay) {
-      // Default stats if no specific settings are found, including financial ones
       return ['points', 'games', 'hits', 'cashWinnings', 'profit', 'roi'];
     }
-
-    const enabledFromSettings = Object.entries(leagueSettings.statsToDisplay)
-      .filter(([_, enabled]) => enabled)
-      .map(([stat, _]) => stat);
-
-    return enabledFromSettings;
-  }, [leagueSettings?.statsToDisplay]);
+    const enabled = Object.entries(leagueSettings.statsToDisplay)
+      .filter(([_, v]) => v)
+      .map(([k]) => k);
+    const order = leagueSettings.statsOrder;
+    if (!order?.length) return enabled;
+    return [...enabled].sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      if (ia === -1 && ib === -1) return 0;
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+  }, [leagueSettings?.statsToDisplay, leagueSettings?.statsOrder]);
 
   // Calculate stats for each player (season-filtered)
   const playersWithStats = useMemo(() => {
@@ -669,7 +646,7 @@ function RealTimeLeagueTable({
                     <TableHead className="text-white w-6 text-center px-0.5 text-xs border-r border-slate-600">Rank</TableHead>
                     <TableHead className="text-white w-16 px-1 text-xs border-r border-slate-600">Player</TableHead>
                     {enabledStats.map(stat => {
-                      const label = statLabels[stat] || stat;
+                      const label = STAT_LABELS[stat] || stat;
                       const words = label.split(' ');
                       const isMultiWord = words.length > 1;
 

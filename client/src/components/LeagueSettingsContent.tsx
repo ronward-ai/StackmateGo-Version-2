@@ -6,9 +6,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calculator, BarChart3, Check } from 'lucide-react';
+import { Calculator, BarChart3, Check, ChevronUp, ChevronDown } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
-import { POINTS_SYSTEMS, LeagueSettings, DEFAULT_LEAGUE_SETTINGS } from '@/types/leagueSettings';
+import { POINTS_SYSTEMS, LeagueSettings, DEFAULT_LEAGUE_SETTINGS, STAT_LABELS } from '@/types/leagueSettings';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,6 +63,25 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
     const isChanged = JSON.stringify(localSettings) !== JSON.stringify(settings);
     setIsDirty(isChanged);
   }, [localSettings, settings]);
+
+  // Column order — fall back to default declaration order for users without statsOrder saved
+  const effectiveStatsOrder = localSettings.statsOrder?.length
+    ? localSettings.statsOrder
+    : Object.keys(DEFAULT_LEAGUE_SETTINGS.statsToDisplay);
+
+  const moveStatUp = useCallback((index: number) => {
+    if (index === 0) return;
+    const next = [...effectiveStatsOrder];
+    [next[index - 1], next[index]] = [next[index], next[index - 1]];
+    setLocalSettings(prev => ({ ...prev, statsOrder: next }));
+  }, [effectiveStatsOrder]);
+
+  const moveStatDown = useCallback((index: number) => {
+    if (index === effectiveStatsOrder.length - 1) return;
+    const next = [...effectiveStatsOrder];
+    [next[index], next[index + 1]] = [next[index + 1], next[index]];
+    setLocalSettings(prev => ({ ...prev, statsOrder: next }));
+  }, [effectiveStatsOrder]);
 
   const handleSave = useCallback(() => {
     updateSettings(localSettings);
@@ -596,26 +615,47 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
           <Card>
             <CardHeader>
               <CardTitle>Statistics Display</CardTitle>
-              <CardDescription>Choose which statistics to display in the league table</CardDescription>
+              <CardDescription>Choose which stats to show and drag the arrows to set column order</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  {Object.entries(localSettings.statsToDisplay).map(([key, enabled]) => (
-                    <div key={key} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={key}
-                        checked={enabled as boolean}
-                        onCheckedChange={(checked) => setLocalSettings(prev => ({
-                          ...prev,
-                          statsToDisplay: { ...prev.statsToDisplay, [key]: !!checked }
-                        }))}
-                      />
-                      <Label htmlFor={key} className="text-sm capitalize">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}
-                      </Label>
-                    </div>
-                  ))}
+                <div className="space-y-0.5">
+                  {effectiveStatsOrder.map((key, index) => {
+                    const enabled = (localSettings.statsToDisplay as any)[key] ?? false;
+                    return (
+                      <div key={key} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/30">
+                        <div className="flex flex-col shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => moveStatUp(index)}
+                            disabled={index === 0}
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0 leading-none"
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveStatDown(index)}
+                            disabled={index === effectiveStatsOrder.length - 1}
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-not-allowed p-0 leading-none"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <Checkbox
+                          id={`stat-${key}`}
+                          checked={enabled}
+                          onCheckedChange={(checked) => setLocalSettings(prev => ({
+                            ...prev,
+                            statsToDisplay: { ...prev.statsToDisplay, [key]: !!checked }
+                          }))}
+                        />
+                        <Label htmlFor={`stat-${key}`} className="text-sm cursor-pointer select-none">
+                          {STAT_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1').trim()}
+                        </Label>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Display Settings grouped together */}
