@@ -689,7 +689,7 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
       <div className="flex justify-end">
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="outline" className="text-red-500 hover:text-red-600 hover:bg-red-50">
+            <Button variant="destructive">
               Reset to Defaults
             </Button>
           </AlertDialogTrigger>
@@ -702,7 +702,7 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleResetToDefaults} className="bg-red-500 hover:bg-red-600">
+              <AlertDialogAction onClick={handleResetToDefaults} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Reset Settings
               </AlertDialogAction>
             </AlertDialogFooter>

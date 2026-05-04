@@ -589,12 +589,13 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                 (player.rebuys || 0) < (state.prizeStructure?.maxRebuys || 3) && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <button
+                                    <Button
+                                      variant="secondary"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="h-7 px-1.5 bg-purple-500/80 hover:bg-purple-500 text-white rounded text-[10px] font-bold transition-colors"
+                                      className="h-7 px-1.5 text-[10px] font-bold"
                                     >
                                       R
-                                    </button>
+                                    </Button>
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
@@ -623,12 +624,13 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                 (player.reEntries || 0) < (state.prizeStructure?.maxReEntries ?? 99) && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <button
+                                    <Button
+                                      variant="secondary"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="h-7 px-1.5 bg-blue-500/80 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-colors"
+                                      className="h-7 px-1.5 text-[10px] font-bold"
                                     >
                                       RE
-                                    </button>
+                                    </Button>
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
@@ -653,17 +655,18 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                               )}
                               {/* KO button — only for active players */}
                               {player.isActive !== false && (
-                                <button
+                                <Button
+                                  variant="destructive"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setPlayerToBustOut(player);
                                     setHitmanId(null);
                                     setBustOutDialogOpen(true);
                                   }}
-                                  className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold transition-colors"
+                                  className="h-7 w-10 text-[10px] font-bold"
                                 >
                                   KO
-                                </button>
+                                </Button>
                               )}
                             </div>
                           )}

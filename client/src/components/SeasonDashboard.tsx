@@ -143,7 +143,7 @@ export default function SeasonDashboard() {
             {!isCompleted && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="text-orange-500 border-orange-500/30">
+                  <Button variant="warning" size="sm">
                     <Archive className="h-4 w-4 mr-1" />
                     End Season
                   </Button>

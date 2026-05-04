@@ -13,9 +13,9 @@ export default function ManualStartButton() {
   };
   
   return (
-    <Button 
-      variant="default" 
-      className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white" 
+    <Button
+      variant="destructive"
+      className="w-full mt-4"
       onClick={handleStartTimer}
       disabled={state.isRunning}
     >
