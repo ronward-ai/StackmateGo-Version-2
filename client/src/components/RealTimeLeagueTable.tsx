@@ -197,8 +197,8 @@ function RealTimeLeagueTable({
 
       // Cash winnings from actual tournament history - only use recorded prize money
       const cashWinnings = results.reduce((sum, result) => {
-        const prizeMoney = result.prizeMoney || result.cashWon || result.winnings || result.prizeAmount || result.totalWinnings;
-        return sum + (prizeMoney || 0);
+        const prizeMoney = result.prizeMoney ?? result.cashWon ?? result.winnings ?? result.prizeAmount ?? 0;
+        return sum + prizeMoney;
       }, 0);
 
       // Calculate total investment from tournament history

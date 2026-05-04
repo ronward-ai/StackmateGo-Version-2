@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { db, collections } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot, increment } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 
 // Legacy interface for backwards compatibility
@@ -305,14 +305,10 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       });
       const docRef = await addDoc(collections.tournamentResults, newResult);
       
-      // Update player's total points using a Firestore transaction-safe approach:
-      // Recalculate from all results for this player
-      const allPlayerResults = cloudResults.filter(
-        r => r.leaguePlayerId === String(resultData.leaguePlayerId)
-      );
-      const newTotal = allPlayerResults.reduce((sum, r) => sum + (r.points || 0), 0) + resultData.points;
+      // Atomically increment totalPoints — avoids stale-closure race when
+      // multiple results are recorded back-to-back at tournament end.
       const playerRef = doc(db, 'leaguePlayers', String(resultData.leaguePlayerId));
-      await updateDoc(playerRef, { totalPoints: newTotal, updatedAt: serverTimestamp() });
+      await updateDoc(playerRef, { totalPoints: increment(resultData.points), updatedAt: serverTimestamp() });
       
       return { id: docRef.id, ...newResult };
     },
@@ -420,14 +416,11 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   const removeResult = useCallback(async (playerId: string, resultId: string) => {
     if (!currentLeagueId) return;
     try {
+      const resultSnap = await getDoc(doc(db, 'tournamentResults', resultId));
+      const removedPoints = resultSnap.data()?.points || 0;
       await deleteDoc(doc(db, 'tournamentResults', resultId));
-      // Recalculate total points for player
-      const remainingResults = cloudResults.filter(
-        r => r.leaguePlayerId === playerId && r.id !== resultId
-      );
-      const newTotal = remainingResults.reduce((sum, r) => sum + (r.points || 0), 0);
       const playerRef = doc(db, 'leaguePlayers', playerId);
-      await updateDoc(playerRef, { totalPoints: newTotal, updatedAt: serverTimestamp() });
+      await updateDoc(playerRef, { totalPoints: increment(-removedPoints), updatedAt: serverTimestamp() });
       queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
       queryClient.invalidateQueries({ queryKey: ['leagueResults', currentLeagueId] });
     } catch (error) {
@@ -532,10 +525,15 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       );
       const snapshot = await getDocs(q);
       
-      // 3. Delete them
+      // 3. Delete them and atomically decrement totalPoints
+      const totalRemoved = snapshot.docs.reduce((sum, d) => sum + (d.data().points || 0), 0);
       const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, 'tournamentResults', docSnap.id)));
       await Promise.all(deletePromises);
-      
+      if (totalRemoved > 0) {
+        const playerRef = doc(db, 'leaguePlayers', String(player.id));
+        await updateDoc(playerRef, { totalPoints: increment(-totalRemoved), updatedAt: serverTimestamp() });
+      }
+
       // 4. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
       queryClient.invalidateQueries({ queryKey: ['leagueResults', currentLeagueId] });

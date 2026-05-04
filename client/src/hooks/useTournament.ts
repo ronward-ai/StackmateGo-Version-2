@@ -353,7 +353,17 @@ export function useTournament(tournamentId?: string) {
                     return incomingPlayer; // Allow elimination
                   }
 
-                  // For all other cases, use the incoming data
+                  // For active players preserve monotonically-increasing local fields
+                  // that may not yet have been flushed to Firestore
+                  if (currentPlayer && currentPlayer.isActive !== false) {
+                    return {
+                      ...incomingPlayer,
+                      knockouts: Math.max(incomingPlayer.knockouts || 0, currentPlayer.knockouts || 0),
+                      rebuys: Math.max(incomingPlayer.rebuys || 0, currentPlayer.rebuys || 0),
+                      reEntries: Math.max(incomingPlayer.reEntries || 0, currentPlayer.reEntries || 0),
+                      prizeMoney: currentPlayer.prizeMoney || incomingPlayer.prizeMoney || 0,
+                    };
+                  }
                   return incomingPlayer;
                 });
 
@@ -490,6 +500,7 @@ export function useTournament(tournamentId?: string) {
       // Create new interval that runs every second
       const intervalId = setInterval(() => {
         setState(prevState => {
+          if (!prevState.isRunning) return prevState; // discard tick racing with cleanup
           // Check if tournament is complete before processing timer tick
           // Only count players who have been explicitly eliminated (isActive === false)
           const eliminatedPlayers = prevState.players.filter(p => p.isActive === false);
@@ -708,7 +719,7 @@ export function useTournament(tournamentId?: string) {
 
     // If timer isn't running, just return a no-op cleanup
     return () => {};
-  }, [state.isRunning, state.settings.enableSounds, state.settings.enableVoice]);
+  }, [state.isRunning, state.settings.enableSounds, state.settings.enableVoice, user]);
 
   // Enhanced broadcast function with proper WebSocket communication
   const broadcastTournamentAction = useCallback(async (actionName: string, newState: TournamentState) => {
@@ -942,8 +953,8 @@ export function useTournament(tournamentId?: string) {
       }
 
       // Count current active players to determine position
-      const currentActivePlayers = prev.players.filter(p => p.isActive !== false);
-      const newPosition = currentActivePlayers.length; // Position based on elimination order
+      const alreadyPositioned = prev.players.filter(p => p.isActive === false && p.position).length;
+      const newPosition = prev.players.length - alreadyPositioned;
 
       // Calculate points (simplified system)
       const totalPlayers = prev.players.length;
@@ -999,13 +1010,15 @@ export function useTournament(tournamentId?: string) {
               points,
               eliminatedBy: eliminatedById,
               prizeMoney,
-              isActive: false, // Explicitly set to false
+              isActive: false,
               seatInfo,
-              eliminationLevel: prev.currentLevel + 1, // Track elimination level
+              eliminationLevel: prev.currentLevel + 1,
               playTime: prev.levels.slice(0, prev.currentLevel + 1)
                 .reduce((total, level) => total + level.duration, 0) - prev.secondsLeft
             }
-          : player
+          : player.id === eliminatedById && eliminatedById
+            ? { ...player, knockouts: (player.knockouts || 0) + 1 }
+            : player
       );
 
       // Handle PKO logic if enabled
@@ -1094,7 +1107,7 @@ export function useTournament(tournamentId?: string) {
         // Broadcast tournament completion immediately
         setTimeout(() => {
           broadcastTournamentAction('tournament_complete', finalState);
-        }, 150);
+        }, 0);
 
         return finalState;
       }
@@ -1254,7 +1267,7 @@ export function useTournament(tournamentId?: string) {
       levels,
       players: [],
       currentLevel: 0,
-      secondsLeft: levels[0].duration,
+      secondsLeft: levels[0]?.duration ?? 0,
       isRunning: false,
       settings,
       bestLosingHand: undefined,
@@ -1399,16 +1412,17 @@ export function useTournament(tournamentId?: string) {
         i === index ? { ...level, ...updates } : level
       );
       saveBlindLevels(newLevels);
-      // If the current level's duration changed, reset secondsLeft to the new duration
-      // so the timer reflects the edit immediately without needing a skip-away/back.
-      const secondsLeft =
-        index === prev.currentLevel && typeof updates.duration === 'number'
-          ? updates.duration
-          : prev.secondsLeft;
+      const isCurrentLevelDuration =
+        index === prev.currentLevel && typeof updates.duration === 'number';
+      const secondsLeft = isCurrentLevelDuration ? updates.duration! : prev.secondsLeft;
+      const targetEndTime = isCurrentLevelDuration && prev.isRunning
+        ? Date.now() + updates.duration! * 1000
+        : prev.targetEndTime;
       return {
         ...prev,
         levels: newLevels,
         secondsLeft,
+        targetEndTime,
       };
     });
   }, []);
@@ -1540,7 +1554,12 @@ export function useTournament(tournamentId?: string) {
       const seatsPerTable = prev.settings.tables?.seatsPerTable || 6;
 
       // Randomly assign seats at Table 1 for final table
-      const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+      const arr = [...activePlayers];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      const shuffledPlayers = arr;
 
       const updatedPlayers = prev.players.map(player => {
         const playerIndex = shuffledPlayers.findIndex(p => p.id === player.id);
@@ -1667,6 +1686,7 @@ export function useTournament(tournamentId?: string) {
     if (state.currentLevel >= state.levels.length) return 100;
 
     const totalSeconds = state.levels[state.currentLevel].duration;
+    if (!totalSeconds) return 0;
     return 100 - (state.secondsLeft / totalSeconds) * 100;
   }, [state.currentLevel, state.levels, state.secondsLeft]);
 
@@ -1701,10 +1721,10 @@ export function useTournament(tournamentId?: string) {
 
     // If next level is a break
     if (nextLevel.isBreak) {
-      return `🍺 Break | Duration: ${nextLevel.duration / 60} min`;
+      return `🍺 Break | Duration: ${(nextLevel.duration || 0) / 60} min`;
     }
 
-    return `Small: ${nextLevel.small} | Big: ${nextLevel.big} | Duration: ${nextLevel.duration / 60} min`;
+    return `Small: ${nextLevel.small} | Big: ${nextLevel.big} | Duration: ${(nextLevel.duration || 0) / 60} min`;
   }, [state.currentLevel, state.levels]);
 
   // Get current level text
@@ -1894,34 +1914,38 @@ export function useTournament(tournamentId?: string) {
 
       // Restore the player to active status and remove their elimination data
       // Also decrement knockout count from the eliminating player
-      const newState = {
-        ...prev,
-        players: prev.players.map(player => {
-          if (player.id === playerToRestore.id) {
-            // Restore the eliminated player with their original table assignment
-            return {
-              ...player,
-              isActive: true,
-              position: undefined,
-              eliminatedBy: undefined,
-              prizeMoney: 0, // Reset prize money as they're back in the game
-              seated: shouldRestoreToSeat, // Only seat if they had seat info
-              tableAssignment: shouldRestoreToSeat ? {
-                tableIndex: playerToRestore.seatInfo!.tableIndex,
-                seatIndex: playerToRestore.seatInfo!.seatIndex
-              } : undefined,
-              seatInfo: undefined // Clear seat info after using it
-            };
-          } else if (player.id === playerToRestore.eliminatedBy && player.knockouts > 0) {
-            // Remove knockout from the eliminating player
-            return {
-              ...player,
-              knockouts: player.knockouts - 1
-            };
-          }
-          return player;
-        })
-      };
+      const restoredPlayers = prev.players.map(player => {
+        if (player.id === playerToRestore.id) {
+          return {
+            ...player,
+            isActive: true,
+            position: undefined,
+            eliminatedBy: undefined,
+            prizeMoney: 0,
+            seated: shouldRestoreToSeat,
+            tableAssignment: shouldRestoreToSeat ? {
+              tableIndex: playerToRestore.seatInfo!.tableIndex,
+              seatIndex: playerToRestore.seatInfo!.seatIndex
+            } : undefined,
+            seatInfo: undefined
+          };
+        } else if (player.id === playerToRestore.eliminatedBy && player.knockouts > 0) {
+          return { ...player, knockouts: player.knockouts - 1 };
+        }
+        return player;
+      });
+
+      // If 2+ players are now active, reset any false winner locked in at position 1
+      const activeAfterUndo = restoredPlayers.filter(p => p.isActive !== false).length;
+      const finalPlayers = activeAfterUndo >= 2
+        ? restoredPlayers.map(p =>
+            p.position === 1 && p.isActive === false
+              ? { ...p, isActive: true, position: undefined, prizeMoney: 0, eliminatedBy: undefined }
+              : p
+          )
+        : restoredPlayers;
+
+      const newState = { ...prev, players: finalPlayers };
 
       // Broadcast undo bustout action to all connected clients
       broadcastTournamentAction('undo_bustout', newState);

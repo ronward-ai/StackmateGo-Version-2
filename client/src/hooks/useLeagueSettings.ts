@@ -164,8 +164,9 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
               Math
             );
 
-            const finalResult = Math.floor(Number(result)) || 0;
-            return Math.max(0, finalResult); // Ensure non-negative points
+            const num = Number(result);
+            if (isNaN(num)) return 0;
+            return Math.max(0, Math.floor(num));
           } catch (error) {
             console.error('Error evaluating custom formula:', error, 'Formula:', formula.customFormula);
             return 0;

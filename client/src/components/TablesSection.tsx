@@ -227,7 +227,6 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       totalSeatedPlayers: state.players.filter(p => p.seated).length
     } : undefined;
     eliminatePlayer(playerToBustOut.id, hitmanId, seatInfo);
-    setTimeout(() => addKnockout(hitmanId), 100);
     setBustOutDialogOpen(false);
     setPlayerToBustOut(null);
     setHitmanId(null);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
@@ -118,6 +118,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
   const [activeTab, setActiveTab] = useState('players');
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
+  const lastSyncedPlayersRef = useRef<string>('');
 
   // Add safety check for tournament hook
   if (!tournament) {
@@ -138,6 +139,9 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   useEffect(() => {
     if (!dbTournamentId || !user || isAnonymous) return;
     const sync = async () => {
+      const serialised = JSON.stringify(tournament.state.players);
+      if (serialised === lastSyncedPlayersRef.current) return;
+      lastSyncedPlayersRef.current = serialised;
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       const { sanitizeForFirestore } = await import('@/lib/utils');
@@ -330,8 +334,9 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             });
             
             // 2. Remove their premature result from the league database
-            if (tournament.state.details?.id) {
-              removeTournamentResultForPlayer(player.name, String(tournament.state.details.id));
+            const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
+            if (gameId) {
+              removeTournamentResultForPlayer(player.name, String(gameId));
             }
           } catch (rebuyError) {
             console.error('Error handling rebuy for league tracking:', player.name, rebuyError);

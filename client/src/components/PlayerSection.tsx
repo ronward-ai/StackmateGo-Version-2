@@ -224,7 +224,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const handleBustOut = () => {
     if (!playerToBustOut || !hitmanId) return;
     eliminatePlayer(playerToBustOut.id, hitmanId);
-    setTimeout(() => addKnockout(hitmanId), 100);
     setBustOutDialogOpen(false);
     setPlayerToBustOut(null);
     setHitmanId(null);

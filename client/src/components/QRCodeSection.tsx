@@ -13,6 +13,13 @@ import { getAuth } from 'firebase/auth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
 
+function generateSecureCode(length = 6): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes confusable 0/O/1/I
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => chars[b % chars.length]).join('');
+}
+
 // Convert a plain JS value to Firestore REST API field format
 function toFirestoreValue(val: any): any {
   if (val === null || val === undefined) return { nullValue: null };
@@ -91,8 +98,8 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
 
     setIsCreating(true);
     try {
-      const participantCode = Math.random().toString(36).substr(2, 6).toUpperCase();
-      const directorCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+      const participantCode = generateSecureCode();
+      const directorCode = generateSecureCode();
 
       // sanitizeForFirestore first, then re-add FieldValues so they bypass the sanitizer
       const newTournamentData = sanitizeForFirestore({
@@ -179,7 +186,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       return;
     }
 
-    const code = Math.random().toString(36).substr(2, 6).toUpperCase();
+    const code = generateSecureCode();
     const expiresAt = new Date(Date.now() + 300000).toISOString();
 
     // Show the code immediately — don't block on the Firestore write
