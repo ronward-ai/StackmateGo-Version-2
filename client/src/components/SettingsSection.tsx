@@ -284,7 +284,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
 
                   <div className="flex gap-2 pt-1">
                     <Button
-                      className="btn-apply-branding flex-1 h-10"
+                      className="flex-1 h-10"
                       disabled={isApplying}
                       onClick={applyBranding}
                     >
@@ -293,7 +293,8 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                        : 'Apply Branding'}
                     </Button>
                     <Button
-                      className="btn-remove-branding h-10 px-3"
+                      variant="destructive"
+                      className="h-10 px-3"
                       onClick={() => {
                         updateSettings({ branding: { leagueName: '', logoUrl: undefined, isVisible: false } });
                         setLeagueName('');
