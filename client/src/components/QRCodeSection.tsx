@@ -6,7 +6,7 @@ import { Loader2, Shield, Copy, Radio, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
-import { db, projectId, databaseId } from '@/lib/firebase';
+import { db, projectId, databaseId, collections } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { doc, updateDoc, getDocs, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';

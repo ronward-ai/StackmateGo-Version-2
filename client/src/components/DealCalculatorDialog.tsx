@@ -21,7 +21,7 @@ interface DealCalculatorDialogProps {
 
 export default function DealCalculatorDialog({ players, prizePool, payouts, currencySymbol }: DealCalculatorDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const activePlayers = players.filter(p => p.status === 'active');
+  const activePlayers = players.filter(p => p.isActive !== false);
   const [chipCounts, setChipCounts] = useState<Record<string, number>>({});
   const [dealType, setDealType] = useState<'icm' | 'chipChop'>('icm');
   const [results, setResults] = useState<Record<string, number>>({});

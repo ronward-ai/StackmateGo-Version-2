@@ -331,7 +331,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             
             // 2. Remove their premature result from the league database
             if (tournament.state.details?.id) {
-              removeTournamentResultForPlayer(player.name, tournament.state.details.id);
+              removeTournamentResultForPlayer(player.name, String(tournament.state.details.id));
             }
           } catch (rebuyError) {
             console.error('Error handling rebuy for league tracking:', player.name, rebuyError);
