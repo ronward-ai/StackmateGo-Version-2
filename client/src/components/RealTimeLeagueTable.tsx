@@ -308,8 +308,7 @@ function RealTimeLeagueTable({
         currentStreak,
         biggestWin,
         worstFinish,
-        // Keep original totalPoints for display
-        displayPoints: player.totalPoints || totalPoints
+        displayPoints: totalPoints
       };
     });
   }, [seasonFilteredPlayers, totalTournaments]);
