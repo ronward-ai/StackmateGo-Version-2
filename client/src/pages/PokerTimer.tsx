@@ -347,7 +347,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       console.error('Critical error in league recording effect:', effectError);
       toast({ title: 'League recording error', description: 'Some results may not have been saved to the league. Please check Tournament History.', variant: 'destructive' });
     }
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, processedEliminations]);
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, processedEliminations, currentSeason?.id]);
 
   // Reset processed eliminations when tournament resets
   useEffect(() => {
