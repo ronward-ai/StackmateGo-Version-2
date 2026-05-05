@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   LeagueSettings,
   PointsSystem,
@@ -59,6 +59,10 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
 
   const [settings, setSettings] = useState<LeagueSettings>(() => loadFromStorage(storageKey));
 
+  // Always-current ref so calculatePoints never reads a stale closure value
+  const settingsRef = useRef<LeagueSettings>(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+
   // When the league context changes, reload settings from the scoped storage key
   useEffect(() => {
     setSettings(loadFromStorage(storageKey));
@@ -97,21 +101,24 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     }
   }, [storageKey]);
 
-  // Calculate points based on current points system
+  // Calculate points based on current points system.
+  // Reads from settingsRef so this callback is always stable and never stale —
+  // safe to call even when React hasn't yet re-rendered with new settings.
   const calculatePoints = useCallback((
-    position: number, 
-    totalPlayers: number, 
+    position: number,
+    totalPlayers: number,
     knockouts: number = 0,
     buyIn: number = 0,
     totalCost: number = 0,
     prizepool: number = 0
   ): number => {
     try {
-      if (!settings?.pointsSystem?.formula) {
+      const currentSettings = settingsRef.current;
+      if (!currentSettings?.pointsSystem?.formula) {
         return 0;
       }
 
-      const { formula } = settings.pointsSystem;
+      const { formula } = currentSettings.pointsSystem;
 
       switch (formula.type) {
         case 'logarithmic': {
@@ -180,7 +187,9 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
       console.error('Error calculating points:', error);
       return 0;
     }
-  }, [settings]);
+  // settingsRef is stable; no deps needed — reads always go through the ref
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Update entire settings
   const updateSettings = useCallback((newSettings: LeagueSettings) => {
