@@ -38,9 +38,10 @@ export default function DealCalculatorDialog({ players, prizePool, payouts, curr
   }, [isOpen, activePlayers]);
 
   const handleChipChange = (playerId: string, value: string) => {
+    const raw = value.replace(/[^0-9]/g, '');
     setChipCounts(prev => ({
       ...prev,
-      [playerId]: parseInt(value) || 0
+      [playerId]: raw === '' ? 0 : (parseInt(raw, 10) || 0)
     }));
   };
 
@@ -168,11 +169,14 @@ export default function DealCalculatorDialog({ players, prizePool, payouts, curr
                 <Label className="flex-1 truncate">{player.name}</Label>
                 <div className="flex items-center gap-2">
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="Chips"
                     className="w-24 text-right"
                     value={chipCounts[player.id] || ''}
                     onChange={(e) => handleChipChange(player.id, e.target.value)}
+                    onFocus={(e) => e.target.select()}
                   />
                   <div className="w-24 text-right font-medium text-green-500">
                     {results[player.id] ? `${currencySymbol}${results[player.id]}` : '-'}

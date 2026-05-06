@@ -276,9 +276,13 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                     <div className="space-y-2">
                       <Label>Base Multiplier</Label>
                       <Input
-                        type="number"
-                        value={settings.pointsSystem.formula.baseMultiplier || 10}
-                        onChange={(e) => updateFormulaParameter('baseMultiplier', parseInt(e.target.value) || 10)}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={settings.pointsSystem.formula.baseMultiplier || ''}
+                        onChange={(e) => { const n = parseInt(e.target.value, 10); if (!isNaN(n)) updateFormulaParameter('baseMultiplier', n); }}
+                        onFocus={(e) => e.target.select()}
+                        onBlur={() => { if (!settings.pointsSystem.formula.baseMultiplier) updateFormulaParameter('baseMultiplier', 10); }}
                         min={1}
                         max={100}
                       />
@@ -286,10 +290,12 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                     <div className="space-y-2">
                       <Label>Winner Multiplier</Label>
                       <Input
-                        type="number"
-                        step="0.1"
-                        value={settings.pointsSystem.formula.winnerMultiplier || 1.0}
-                        onChange={(e) => updateFormulaParameter('winnerMultiplier', parseFloat(e.target.value) || 1.0)}
+                        type="text"
+                        inputMode="decimal"
+                        value={settings.pointsSystem.formula.winnerMultiplier || ''}
+                        onChange={(e) => { const n = parseFloat(e.target.value); if (!isNaN(n)) updateFormulaParameter('winnerMultiplier', n); }}
+                        onFocus={(e) => e.target.select()}
+                        onBlur={() => { if (!settings.pointsSystem.formula.winnerMultiplier) updateFormulaParameter('winnerMultiplier', 1.0); }}
                         min={1.0}
                         max={3.0}
                       />
@@ -310,13 +316,17 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                           <div key={index} className="flex items-center space-x-2">
                             <Label className="text-xs w-8">{index + 1}:</Label>
                             <Input
-                              type="number"
-                              value={points}
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={points === 0 ? '' : points}
                               onChange={(e) => {
                                 const newPoints = [...(settings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1])];
-                                newPoints[index] = parseInt(e.target.value) || 0;
+                                const raw = e.target.value.replace(/[^0-9]/g, '');
+                                newPoints[index] = raw === '' ? 0 : (parseInt(raw, 10) || 0);
                                 updateFormulaParameter('positionPoints', newPoints);
                               }}
+                              onFocus={(e) => e.target.select()}
                               min={0}
                               max={100}
                               className="text-xs h-8"
@@ -683,13 +693,17 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                 <div className="space-y-2">
                   <Label>Number of Games per League Season</Label>
                   <Input
-                    type="number"
-                    value={settings.seasonSettings.numberOfGames}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={settings.seasonSettings.numberOfGames || ''}
                     onChange={(e) => {
-                      updateSeasonSettings({
-                        ...settings.seasonSettings,
-                        numberOfGames: parseInt(e.target.value) || 12
-                      });
+                      const n = parseInt(e.target.value, 10);
+                      if (!isNaN(n)) updateSeasonSettings({ ...settings.seasonSettings, numberOfGames: n });
+                    }}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => {
+                      if (!settings.seasonSettings.numberOfGames) updateSeasonSettings({ ...settings.seasonSettings, numberOfGames: 12 });
                     }}
                     min={1}
                     max={100}

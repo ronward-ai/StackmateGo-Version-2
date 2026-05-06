@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { calculatePrizePool } from "@/lib/prizePool";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -53,7 +53,9 @@ function SectionHeader({ icon: Icon, title, color }: { icon: any; title: string;
   );
 }
 
-// Inline number input with optional prefix/suffix
+// Inline number input with optional prefix/suffix.
+// Uses internal string state so the field can be fully cleared on iPad/mobile
+// without the value snapping back mid-edit.
 function NumberInput({
   id, value, onChange, min = 0, max, step = 1, placeholder = '0', prefix, suffix, className
 }: {
@@ -61,21 +63,36 @@ function NumberInput({
   min?: number; max?: number; step?: number;
   placeholder?: string; prefix?: string; suffix?: string; className?: string;
 }) {
+  const [display, setDisplay] = useState(value === 0 ? '' : String(value));
+
+  // Sync display when parent drives a new value (e.g. template loaded)
+  const prevValue = React.useRef(value);
+  if (prevValue.current !== value) {
+    prevValue.current = value;
+    setDisplay(value === 0 ? '' : String(value));
+  }
+
   return (
     <div className="flex items-center gap-1.5">
       {prefix && <span className="text-sm font-medium text-muted-foreground w-6 text-right">{prefix}</span>}
       <Input
         id={id}
-        type="number"
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         min={min}
         max={max}
         step={step}
-        value={value === 0 ? '' : value}
-        onChange={(e) => onChange(e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
+        value={display}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^0-9]/g, '');
+          setDisplay(raw);
+          if (raw === '') { onChange(0); return; }
+          const n = parseInt(raw, 10);
+          if (!isNaN(n)) onChange(n);
+        }}
         onFocus={(e) => e.target.select()}
         placeholder={placeholder}
-        inputMode="numeric"
-        pattern="[0-9]*"
         className={cn('h-9 w-24 text-right', className)}
       />
       {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
@@ -586,18 +603,18 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
                   )}
                   <div className="flex items-center gap-1.5 flex-1">
                     <Input
-                      type="number"
-                      min={0}
-                      max={100}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={payout.percentage === 0 ? '' : payout.percentage}
                       onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
                         const newPayouts = [...manualPayouts];
-                        newPayouts[i].percentage = parseInt(e.target.value) || 0;
+                        newPayouts[i].percentage = raw === '' ? 0 : (parseInt(raw, 10) || 0);
                         setManualPayouts(newPayouts);
                       }}
                       onFocus={(e) => e.target.select()}
                       className="h-9 w-20 text-right"
-                      inputMode="numeric"
                     />
                     <span className="text-sm text-muted-foreground">%</span>
                     {amount !== null && amount > 0 && (

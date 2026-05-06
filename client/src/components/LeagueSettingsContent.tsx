@@ -332,9 +332,13 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
                   <div className="space-y-2">
                     <Label>Base Multiplier</Label>
                     <Input
-                      type="number"
-                      value={localSettings.pointsSystem.formula.baseMultiplier || 10}
-                      onChange={(e) => updateFormulaParameter('baseMultiplier', parseInt(e.target.value) || 10)}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={localSettings.pointsSystem.formula.baseMultiplier || ''}
+                      onChange={(e) => { const n = parseInt(e.target.value, 10); if (!isNaN(n)) updateFormulaParameter('baseMultiplier', n); }}
+                      onFocus={(e) => e.target.select()}
+                      onBlur={(e) => { if (!localSettings.pointsSystem.formula.baseMultiplier) updateFormulaParameter('baseMultiplier', 10); }}
                       min={1} max={1000}
                     />
                     <p className="text-xs text-muted-foreground">Scale factor for all positions</p>
@@ -342,10 +346,12 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
                   <div className="space-y-2">
                     <Label>Winner Bonus</Label>
                     <Input
-                      type="number"
-                      step="0.1"
-                      value={localSettings.pointsSystem.formula.winnerMultiplier || 1.0}
-                      onChange={(e) => updateFormulaParameter('winnerMultiplier', parseFloat(e.target.value) || 1.0)}
+                      type="text"
+                      inputMode="decimal"
+                      value={localSettings.pointsSystem.formula.winnerMultiplier || ''}
+                      onChange={(e) => { const n = parseFloat(e.target.value); if (!isNaN(n)) updateFormulaParameter('winnerMultiplier', n); }}
+                      onFocus={(e) => e.target.select()}
+                      onBlur={(e) => { if (!localSettings.pointsSystem.formula.winnerMultiplier) updateFormulaParameter('winnerMultiplier', 1.0); }}
                       min={1.0} max={5.0}
                     />
                     <p className="text-xs text-muted-foreground">1st place multiplier (e.g. 1.5 = 50% bonus)</p>
@@ -395,13 +401,17 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
                       <span className="text-xs text-muted-foreground w-6 text-right">{index + 1}</span>
                       <div className="flex-1 flex items-center gap-1">
                         <Input
-                          type="number"
-                          value={points}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={points === 0 ? '' : points}
                           onChange={(e) => {
                             const newPoints = [...(localSettings.pointsSystem.formula.positionPoints || [])];
-                            newPoints[index] = parseInt(e.target.value) || 0;
+                            const raw = e.target.value.replace(/[^0-9]/g, '');
+                            newPoints[index] = raw === '' ? 0 : (parseInt(raw, 10) || 0);
                             updateFormulaParameter('positionPoints', newPoints);
                           }}
+                          onFocus={(e) => e.target.select()}
                           min={0}
                           className="h-8 text-sm"
                         />
@@ -540,20 +550,26 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
                 <div className="space-y-2">
                   <Label>Participation</Label>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={localSettings.pointsSystem.formula.participationPoints ?? ''}
+                    onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); updateFormulaParameter('participationPoints', raw === '' ? 0 : (parseInt(raw, 10) || 0)); }}
+                    onFocus={(e) => e.target.select()}
                     min={0}
-                    value={localSettings.pointsSystem.formula.participationPoints ?? 0}
-                    onChange={(e) => updateFormulaParameter('participationPoints', parseInt(e.target.value) || 0)}
                   />
                   <p className="text-xs text-muted-foreground">Points for just showing up</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Per Knockout</Label>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={localSettings.pointsSystem.formula.knockoutPoints ?? ''}
+                    onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); updateFormulaParameter('knockoutPoints', raw === '' ? 0 : (parseInt(raw, 10) || 0)); }}
+                    onFocus={(e) => e.target.select()}
                     min={0}
-                    value={localSettings.pointsSystem.formula.knockoutPoints ?? 0}
-                    onChange={(e) => updateFormulaParameter('knockoutPoints', parseInt(e.target.value) || 0)}
                   />
                   <p className="text-xs text-muted-foreground">Points per player eliminated</p>
                 </div>
@@ -570,11 +586,15 @@ export function LeagueSettingsContent({ leagueId = null, leagueName = null }: Le
               <div className="flex items-center gap-3">
                 <Label className="text-sm whitespace-nowrap">Players in game</Label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   min={2}
                   max={50}
-                  value={previewPoints.totalPlayers}
-                  onChange={(e) => setPreviewPoints(prev => ({ ...prev, totalPlayers: parseInt(e.target.value) || 10 }))}
+                  value={previewPoints.totalPlayers || ''}
+                  onChange={(e) => { const n = parseInt(e.target.value, 10); if (!isNaN(n) && n >= 2) setPreviewPoints(prev => ({ ...prev, totalPlayers: n })); }}
+                  onFocus={(e) => e.target.select()}
+                  onBlur={(e) => { if (!previewPoints.totalPlayers || previewPoints.totalPlayers < 2) setPreviewPoints(prev => ({ ...prev, totalPlayers: 10 })); }}
                   className="w-20"
                 />
               </div>
