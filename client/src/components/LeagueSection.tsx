@@ -33,7 +33,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [leagueView, setLeagueView] = useState<'overview' | 'settings'>('overview');
   const [showNewSeason, setShowNewSeason] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
-  const [newSeasonGames, setNewSeasonGames] = useState(12);
+  const [newSeasonGames, setNewSeasonGames] = useState<number | ''>(12);
   const [showNewLeague, setShowNewLeague] = useState(false);
   const [newLeagueName, setNewLeagueName] = useState('');
   const [isCreatingLeague, setIsCreatingLeague] = useState(false);
@@ -106,7 +106,7 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
         name: newSeasonName.trim(),
         startDate: dateRange.from.toISOString(),
         endDate: dateRange.to.toISOString(),
-        numberOfGames: newSeasonGames,
+        numberOfGames: typeof newSeasonGames === 'number' ? newSeasonGames : 12,
       });
       // Auto-activate the new season and demote all others
       if (newSeason?.id && newSeason.id !== 'default-season') {
@@ -251,7 +251,13 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                 min={1}
                 max={100}
                 value={newSeasonGames}
-                onChange={e => setNewSeasonGames(parseInt(e.target.value) || 12)}
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === '') { setNewSeasonGames(''); return; }
+                  const n = parseInt(v, 10);
+                  if (!isNaN(n)) setNewSeasonGames(n);
+                }}
+                onBlur={() => { if (newSeasonGames === '' || (newSeasonGames as number) < 1) setNewSeasonGames(12); }}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
