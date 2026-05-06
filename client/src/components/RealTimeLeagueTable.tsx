@@ -80,16 +80,23 @@ function RealTimeLeagueTable({
   // Use the actual season doc name first — leagueSettings.seasonSettings.seasonName is legacy/stale
   const currentSeasonName = currentSeason?.name || tournament?.season?.name || leagueSettings?.seasonSettings?.seasonName || 'Current Season';
 
-  const seasonId = currentSeason?.id ? String(currentSeason.id) : null;
+  // 'default-season' is a synthetic fallback ID used before Firestore loads — treat it
+  // the same as null so stale results written with that ID never bleed into the table.
+  const rawSeasonId = currentSeason?.id ? String(currentSeason.id) : null;
+  const seasonId = rawSeasonId === 'default-season' ? null : rawSeasonId;
   const seasonFilteredPlayers = useMemo(() => {
-    if (!seasonId || !Array.isArray(leaguePlayers)) return leaguePlayers;
+    if (!Array.isArray(leaguePlayers)) return [];
+    if (!seasonId) {
+      // Season not yet confirmed from Firestore — show players with no results
+      return leaguePlayers.map(player => ({ ...player, tournamentResults: [] }));
+    }
     return leaguePlayers.map(player => ({
       ...player,
       tournamentResults: (player.tournamentResults || []).filter(
         (r: any) => r.seasonId === seasonId
       )
     }));
-  }, [leaguePlayers, seasonId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leaguePlayers, seasonId]);
 
   // Derive "previous rankings" from data: rankings before the most recent tournament.
   // This is always accurate regardless of component lifecycle / remounts.
