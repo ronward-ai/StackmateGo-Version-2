@@ -787,7 +787,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     </span>
                     <span className="font-bold text-white text-base truncate" title={player.name}>{player.name}</span>
 
-                    {player.seated && player.tableAssignment && (
+                    {!tournamentFinished && player.seated && player.tableAssignment && (
                       <span className="text-xs bg-blue-600/70 text-blue-100 px-2 py-0.5 rounded font-normal flex-shrink-0">
                         T{player.tableAssignment.tableIndex + 1}S{player.tableAssignment.seatIndex + 1}
                       </span>
