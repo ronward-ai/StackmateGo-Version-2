@@ -53,6 +53,7 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
   const totalKnockouts = players.reduce((sum, p) => sum + (p.knockouts || 0), 0);
 
   const isFinished = players.some(p => p.position === 1);
+  const hideTableBadge = isFinished || (activePlayers.length === 1 && eliminatedPlayers.length > 0);
 
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border/50">
@@ -83,7 +84,7 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                     <span className="font-medium">{player.name}</span>
-                    {!isFinished && player.seated && player.tableAssignment && (
+                    {!hideTableBadge && player.seated && player.tableAssignment && (
                       <Badge variant="outline" className="text-xs">
                         Table {player.tableAssignment.tableIndex + 1} • Seat {player.tableAssignment.seatIndex + 1}
                       </Badge>
