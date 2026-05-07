@@ -347,7 +347,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       const rake = perEntryRake * state.players.length
         + (reEntryRake ? totalReEntries * (ps?.reEntryRakeAmount || perEntryRake) : 0)
         + (rebuyRake ? totalRebuys * (ps?.rebuyRakeAmount || perEntryRake) : 0);
-      const prizePool = Math.max(0, gross - rake);
+      const prizePool = gross;
 
       const sorted = [...state.players].sort((a, b) => {
         if (a.isActive !== false && b.isActive === false) return -1;
@@ -416,7 +416,9 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           right.appendChild(b);
         };
 
-        if (player.seated && player.tableAssignment)
+        const exportActivePlayers = state.players.filter(p => p.isActive !== false);
+        const exportFinished = state.players.some(p => p.position === 1) || exportActivePlayers.length <= 1;
+        if (!exportFinished && player.seated && player.tableAssignment)
           addBadge(`T${player.tableAssignment.tableIndex + 1}S${player.tableAssignment.seatIndex + 1}`, '#1d4ed8', '#bfdbfe');
         if ((player.knockouts || 0) > 0)
           addBadge(`KO x${player.knockouts}`, '#9a3412', '#fed7aa');
