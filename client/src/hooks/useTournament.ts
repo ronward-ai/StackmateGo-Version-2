@@ -195,6 +195,18 @@ export function useTournament(tournamentId?: string) {
   const savedSettings = loadSavedSettings();
   const mergedSettings = { ...DEFAULT_SETTINGS, ...savedSettings };
 
+  // Persist localGameId so it survives page refreshes — only generate a new one
+  // when a game is explicitly reset (see resetTournament). This prevents the
+  // recording effect from writing a duplicate result with a phantom new ID after
+  // a browser refresh, which would inflate the games-played count.
+  const getOrCreateLocalGameId = () => {
+    const stored = localStorage.getItem('tournamentLocalGameId');
+    if (stored) return stored;
+    const newId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    try { localStorage.setItem('tournamentLocalGameId', newId); } catch {}
+    return newId;
+  };
+
   // Create an initial state with saved preferences
   const savedLevels = loadSavedBlindLevels();
   const initialState: TournamentState = {
@@ -212,7 +224,7 @@ export function useTournament(tournamentId?: string) {
       id: tournamentId
     } : (mergedSettings as any)?.isSeasonTournament ? {
       type: 'season',
-      localGameId: `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
+      localGameId: getOrCreateLocalGameId()
     } : {
       type: 'standalone'
     }
@@ -1262,6 +1274,9 @@ export function useTournament(tournamentId?: string) {
     const newLocalGameId = isLeagueReset
       ? `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
       : undefined;
+    if (newLocalGameId) {
+      try { localStorage.setItem('tournamentLocalGameId', newLocalGameId); } catch {}
+    }
 
     setState({
       levels,
@@ -1458,14 +1473,15 @@ export function useTournament(tournamentId?: string) {
   // Set tournament details
   const updateTournamentDetails = useCallback((details: Partial<TournamentDetails>) => {
     setState(prev => {
-      const newState = {
-        ...prev,
-        details: {
-          type: 'standalone' as const,
-          ...prev.details || {},
-          ...details
-        } as TournamentDetails
-      };
+      const merged = { type: 'standalone' as const, ...prev.details || {}, ...details };
+      // Ensure localGameId is set when switching to season mode
+      if (merged.type === 'season' && !merged.localGameId) {
+        const stored = localStorage.getItem('tournamentLocalGameId');
+        const id = stored || `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        if (!stored) { try { localStorage.setItem('tournamentLocalGameId', id); } catch {} }
+        merged.localGameId = id;
+      }
+      const newState = { ...prev, details: merged as TournamentDetails };
 
       // Broadcast details update to all connected clients (including league/standalone mode changes)
       setTimeout(() => {
