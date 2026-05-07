@@ -73,7 +73,8 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
   const { state, updateBlindLevel, addBlindLevel, removeLevel, addBreak, setBlindLevels } = tournament;
   const { toast } = useToast();
   const { user } = useAuth();
-  const { saveTemplate } = useTournamentTemplates();
+  const { saveTemplate, templates: allTemplates } = useTournamentTemplates();
+  const savedBlindTemplates = allTemplates.filter(t => t.templateType === 'blindLevels');
   const isRegisteredUser = !!user && 'email' in user && !!(user as any).email;
 
   const [breakDialogOpen, setBreakDialogOpen] = useState(false);
@@ -94,9 +95,13 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
   };
 
   const applyTemplate = (key: string) => {
-    const t = TEMPLATES[key];
-    if (!t) return;
-    setBlindLevels(t.blinds.map(([small, big]) => ({ small, big, duration: t.duration })));
+    const builtin = TEMPLATES[key];
+    if (builtin) {
+      setBlindLevels(builtin.blinds.map(([small, big]) => ({ small, big, duration: builtin.duration })));
+      return;
+    }
+    const saved = savedBlindTemplates.find(t => t.id === key);
+    if (saved) setBlindLevels(saved.blindLevels);
   };
 
   // Estimated total tournament time
@@ -133,6 +138,16 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   {Object.entries(TEMPLATES).map(([key, t]) => (
                     <SelectItem key={key} value={key} className="text-xs">{t.label}</SelectItem>
                   ))}
+                  {savedBlindTemplates.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-t border-border/40 mt-1 pt-1">
+                        Saved
+                      </div>
+                      {savedBlindTemplates.map(t => (
+                        <SelectItem key={t.id} value={t.id!} className="text-xs">{t.name}</SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
 
@@ -438,7 +453,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               onKeyDown={e => e.key === 'Enter' && !isSavingTemplate && templateName.trim() && (async () => {
                 setIsSavingTemplate(true);
                 try {
-                  await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 } });
+                  await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 }, templateType: 'blindLevels' });
                   toast({ title: 'Template saved', description: `"${templateName.trim()}" saved to your templates.` });
                   setTemplateName('');
                   setSaveTemplateOpen(false);
@@ -456,7 +471,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               onClick={async () => {
                 setIsSavingTemplate(true);
                 try {
-                  await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 } });
+                  await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 }, templateType: 'blindLevels' });
                   toast({ title: 'Template saved', description: `"${templateName.trim()}" saved to your templates.` });
                   setTemplateName('');
                   setSaveTemplateOpen(false);

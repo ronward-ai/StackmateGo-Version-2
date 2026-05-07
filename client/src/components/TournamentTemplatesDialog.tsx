@@ -20,7 +20,8 @@ export default function TournamentTemplatesDialog({
   onLoadTemplate 
 }: TournamentTemplatesDialogProps) {
   const { user } = useAuth();
-  const { templates, isLoading, saveTemplate, deleteTemplate } = useTournamentTemplates();
+  const { templates: allTemplates, isLoading, saveTemplate, deleteTemplate } = useTournamentTemplates();
+  const templates = allTemplates.filter(t => t.templateType !== 'blindLevels');
   const [isOpen, setIsOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -37,7 +38,8 @@ export default function TournamentTemplatesDialog({
       await saveTemplate({
         name: templateName.trim(),
         blindLevels: currentBlindLevels,
-        prizeStructure: currentPrizeStructure
+        prizeStructure: currentPrizeStructure,
+        templateType: 'tournament'
       });
       toast({ title: "Success", description: "Template saved successfully" });
       setTemplateName('');

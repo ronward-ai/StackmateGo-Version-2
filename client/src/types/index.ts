@@ -120,6 +120,7 @@ export interface TournamentTemplate {
   ownerId: string;
   blindLevels: BlindLevel[];
   prizeStructure: PrizeStructure;
+  templateType?: 'blindLevels' | 'tournament';
   createdAt?: string;
   updatedAt?: string;
 }
