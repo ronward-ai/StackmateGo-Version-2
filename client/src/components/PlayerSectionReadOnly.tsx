@@ -52,7 +52,7 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
   // Calculate tournament stats
   const totalKnockouts = players.reduce((sum, p) => sum + (p.knockouts || 0), 0);
 
-  const isFinished = activePlayers.length <= 1 && eliminatedPlayers.length > 0;
+  const isFinished = players.some(p => p.position === 1);
 
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border/50">
