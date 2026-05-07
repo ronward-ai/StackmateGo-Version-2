@@ -651,12 +651,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
         </CardContent>
       </Card>
 
-      {/* ── Template actions + Apply Button ─────────────── */}
-      {templateActions && (
-        <div className="flex justify-end gap-2">
-          {templateActions}
-        </div>
-      )}
+      {/* ── Apply Button ─────────────────────────────────── */}
       <Button
         className="h-11 w-full text-sm font-semibold"
         disabled={isApplying || totalPercentage !== 100}
@@ -673,6 +668,12 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
 
       {totalPercentage !== 100 && (
         <p className="text-xs text-center text-amber-400">Fix prize distribution before applying</p>
+      )}
+
+      {templateActions && (
+        <div className="flex justify-end gap-2">
+          {templateActions}
+        </div>
       )}
     </div>
   );
