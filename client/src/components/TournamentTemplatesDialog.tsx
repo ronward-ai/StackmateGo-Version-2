@@ -21,7 +21,7 @@ export default function TournamentTemplatesDialog({
 }: TournamentTemplatesDialogProps) {
   const { user } = useAuth();
   const { templates: allTemplates, isLoading, saveTemplate, deleteTemplate } = useTournamentTemplates();
-  const templates = allTemplates.filter(t => t.templateType !== 'blindLevels');
+  const templates = allTemplates.filter(t => t.templateType === 'tournament');
   const [isOpen, setIsOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
