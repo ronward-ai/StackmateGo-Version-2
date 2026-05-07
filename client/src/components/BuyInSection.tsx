@@ -300,11 +300,21 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
 
           {/* Live prize pool preview */}
           {state.players.length > 0 && (
-            <div className="flex items-center justify-between pt-2 border-t border-border/30">
-              <span className="text-sm text-muted-foreground">Estimated Prize Pool</span>
-              <span className="font-mono font-bold text-lg text-primary">
-                {currencySymbol}{netPool.toLocaleString()}
-              </span>
+            <div className="pt-2 border-t border-border/30 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Estimated Prize Pool</span>
+                <span className="font-mono font-bold text-lg text-primary">
+                  {currencySymbol}{gross.toLocaleString()}
+                </span>
+              </div>
+              {rake > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">House fee</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {currencySymbol}{rake.toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

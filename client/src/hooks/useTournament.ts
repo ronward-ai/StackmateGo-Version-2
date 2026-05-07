@@ -998,7 +998,7 @@ export function useTournament(tournamentId?: string) {
             + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
             + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
 
-          const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
+          const totalPrizePool = grossPrizePool;
 
           prizeMoney = Math.floor((totalPrizePool * payout.percentage) / 100);
         }
@@ -1081,7 +1081,7 @@ export function useTournament(tournamentId?: string) {
               + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
               + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
 
-            const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
+            const totalPrizePool = grossPrizePool;
 
             firstPlacePrize = Math.floor((totalPrizePool * firstPlacePayout.percentage) / 100);
           }
@@ -1633,7 +1633,7 @@ export function useTournament(tournamentId?: string) {
       ? Math.floor(grossPrizePool * (rakePercentage / 100))
       : (state.prizeStructure?.rakeAmount || 0);
       
-    const totalPool = Math.max(0, grossPrizePool - rakeAmount);
+    const totalPool = grossPrizePool;
 
     // Use manual payouts if configured
     if (state.prizeStructure?.manualPayouts && state.prizeStructure.manualPayouts.length > 0) {

@@ -189,7 +189,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                   <DetailRow label={`Buy-in ×${players.length}`} value={`${sym}${(buyIn * players.length).toLocaleString()}`} />
                   {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys}×)`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} />}
                   {totalAddons > 0 && <DetailRow label={`Add-ons (${totalAddons}×)`} value={`${sym}${(addonAmt * totalAddons).toLocaleString()}`} />}
-                  {rake > 0 && <DetailRow label={`Rake${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`-${sym}${rake.toLocaleString()}`} />}
+                  {rake > 0 && <DetailRow label={`House fee${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`${sym}${rake.toLocaleString()}`} />}
                   <DetailRow label="Total" value={`${sym}${pool.toLocaleString()}`} highlight />
                 </div>
 
