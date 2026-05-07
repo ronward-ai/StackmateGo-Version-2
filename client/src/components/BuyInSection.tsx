@@ -13,6 +13,7 @@ import { db } from '@/lib/firebase';
 
 interface BuyInSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
+  templateActions?: React.ReactNode;
 }
 
 // Reusable field row for consistent label + input layout
@@ -100,7 +101,7 @@ function NumberInput({
   );
 }
 
-export default function BuyInSection({ tournament }: BuyInSectionProps) {
+export default function BuyInSection({ tournament, templateActions }: BuyInSectionProps) {
   const { state, updateSettings, updatePrizeStructure } = tournament;
 
   const [buyInAmount, setBuyInAmount] = useState(10);
@@ -650,7 +651,12 @@ export default function BuyInSection({ tournament }: BuyInSectionProps) {
         </CardContent>
       </Card>
 
-      {/* ── Apply Button ─────────────────────────────────── */}
+      {/* ── Template actions + Apply Button ─────────────── */}
+      {templateActions && (
+        <div className="flex justify-end gap-2">
+          {templateActions}
+        </div>
+      )}
       <Button
         className="h-11 w-full text-sm font-semibold"
         disabled={isApplying || totalPercentage !== 100}

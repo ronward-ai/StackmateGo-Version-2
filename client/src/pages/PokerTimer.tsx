@@ -503,17 +503,19 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
             </TabsContent>
 
             <TabsContent value="buyins" className="mt-0 p-4 pt-5">
-              <div className="flex justify-end mb-3">
-                <TournamentTemplatesDialog
-                  currentBlindLevels={tournament.state.levels}
-                  currentPrizeStructure={tournament.state.prizeStructure || { buyIn: 0 }}
-                  onLoadTemplate={(blindLevels, prizeStructure) => {
-                    tournament.setBlindLevels(blindLevels);
-                    tournament.updatePrizeStructure(prizeStructure);
-                  }}
-                />
-              </div>
-              <BuyInSection tournament={tournament} />
+              <BuyInSection
+                tournament={tournament}
+                templateActions={
+                  <TournamentTemplatesDialog
+                    currentBlindLevels={tournament.state.levels}
+                    currentPrizeStructure={tournament.state.prizeStructure || { buyIn: 0 }}
+                    onLoadTemplate={(blindLevels, prizeStructure) => {
+                      tournament.setBlindLevels(blindLevels);
+                      tournament.updatePrizeStructure(prizeStructure);
+                    }}
+                  />
+                }
+              />
             </TabsContent>
 
             <TabsContent value="levels" className="mt-0 p-4 pt-5">
