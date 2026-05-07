@@ -159,6 +159,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   const [cloudPlayers, setCloudPlayers] = useState<any[]>([]);
   const [cloudResults, setCloudResults] = useState<any[]>([]);
+  const cloudResultsRef = useRef<any[]>([]);
   const [playersLoading, setPlayersLoading] = useState(true);
   const [resultsLoading, setResultsLoading] = useState(true);
 
@@ -200,6 +201,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     const q = query(collections.tournamentResults, where('leagueId', '==', String(currentLeagueId)));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      cloudResultsRef.current = results;
       setCloudResults(results);
       setResultsLoading(false);
     }, (error) => {
@@ -478,9 +480,10 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         }
       }
 
-      // Deduplicate: skip if a result already exists for this player+tournament
+      // Deduplicate: skip if a result already exists for this player+tournament.
+      // Use ref to always read the latest results — cloudResults in closure may be stale.
       if (tournamentId) {
-        const alreadyRecorded = cloudResults.some(r =>
+        const alreadyRecorded = cloudResultsRef.current.some(r =>
           r.leaguePlayerId === String(targetPlayer.id) && r.tournamentId === tournamentId
         );
         if (alreadyRecorded) return;

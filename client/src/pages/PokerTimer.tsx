@@ -113,6 +113,8 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   const tournament = useTournament(tournamentId);
   const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, league, switchLeague } = useLeague();
   const { currentSeason } = useSeasons({ leagueId: league?.id });
+  const currentSeasonRef = useRef(currentSeason);
+  useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
   const { user, isAnonymous } = useAuth();
   const { toast } = useToast();
   const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
@@ -291,6 +293,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
 
             // Record tournament result for this player
             const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
+            const seasonId = currentSeasonRef.current?.id ? String(currentSeasonRef.current.id) : undefined;
             recordResultByName(
               player.name,
               player.position,
@@ -299,7 +302,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
               prizeMoney,
               tournament.state.prizeStructure?.buyIn || 10,
               gameId ? String(gameId) : undefined,
-              currentSeason?.id ? String(currentSeason.id) : undefined
+              seasonId
             );
 
             // Track successful processing
@@ -347,7 +350,8 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       console.error('Critical error in league recording effect:', effectError);
       toast({ title: 'League recording error', description: 'Some results may not have been saved to the league. Please check Tournament History.', variant: 'destructive' });
     }
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, processedEliminations, currentSeason?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, processedEliminations]);
 
   // Reset processed eliminations when tournament resets
   useEffect(() => {
