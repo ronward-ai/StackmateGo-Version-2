@@ -57,15 +57,42 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeHint, setUpgradeHint] = useState('');
 
+  // Compute current game number — same logic as TournamentInfoCard
+  const gameNumber = useMemo(() => {
+    if (!currentSeason?.id || !leaguePlayers) return 1;
+    const ids = new Set<string>();
+    leaguePlayers.forEach((player: any) => {
+      (player.tournamentResults || [])
+        .filter((r: any) => r.seasonId === String(currentSeason.id))
+        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
+    });
+    const localGameId = tournament?.state?.details?.localGameId;
+    if (localGameId && ids.has(localGameId)) return ids.size;
+    return ids.size + 1;
+  }, [currentSeason?.id, leaguePlayers, tournament?.state?.details?.localGameId]);
+
   useEffect(() => {
     if (currentSeason?.id) {
       setActiveSeasonId(String(currentSeason.id));
-      // Keep seasonId in tournament settings so handover restores the right season
+      // Keep season info in tournament settings so it syncs to Firestore and
+      // the participant view can display season name and game number.
       if (tournament?.updateSettings) {
-        tournament.updateSettings({ seasonId: String(currentSeason.id) });
+        tournament.updateSettings({
+          seasonId: String(currentSeason.id),
+          seasonName: currentSeason.name,
+          numberOfGames: currentSeason.numberOfGames,
+          gameNumber,
+        });
       }
     }
   }, [currentSeason?.id, setActiveSeasonId]);
+
+  // Keep gameNumber in sync as league results are recorded during the game
+  useEffect(() => {
+    if (tournament?.updateSettings && currentSeason?.id) {
+      tournament.updateSettings({ gameNumber });
+    }
+  }, [gameNumber]);
 
   const isSeasonTournament =
     tournament?.state?.details?.type === 'season' ||
@@ -94,6 +121,9 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
         isSeasonTournament: true,
         leagueId: String(league.id),
         seasonId: currentSeason?.id ? String(currentSeason.id) : undefined,
+        seasonName: currentSeason?.name,
+        numberOfGames: currentSeason?.numberOfGames,
+        gameNumber,
       });
     }
   };
