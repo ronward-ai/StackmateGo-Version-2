@@ -327,7 +327,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                   <DetailRow label={`Buy-in ×${state.players.length}`} value={`${sym}${(buyIn * state.players.length).toLocaleString()}`} compact />
                   {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys}×)`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} compact />}
                   {totalAddons > 0 && <DetailRow label={`Add-ons (${totalAddons}×)`} value={`${sym}${(addonAmt * totalAddons).toLocaleString()}`} compact />}
-                  {rake > 0 && <DetailRow label={`Rake${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`-${sym}${rake.toLocaleString()}`} compact />}
+                  {rake > 0 && <DetailRow label={`House fee${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`${sym}${rake.toLocaleString()}`} compact />}
                   <DetailRow label="Total" value={`${sym}${pool.toLocaleString()}`} highlight compact />
                 </div>
 

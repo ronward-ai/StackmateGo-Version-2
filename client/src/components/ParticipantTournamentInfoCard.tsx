@@ -19,6 +19,11 @@ function DetailRow({ label, value, highlight }: { label: string; value: string |
 export default function ParticipantTournamentInfoCard({ tournament }: { tournament: any }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
+  const isLeagueMode = tournament.settings?.isSeasonTournament === true;
+  const seasonName = tournament.settings?.seasonName as string | undefined;
+  const gameNumber = tournament.settings?.gameNumber as number | undefined;
+  const totalGames = (tournament.settings?.numberOfGames as number | undefined) || 12;
+
   const sym = tournament.settings?.currency || '£';
   const p = tournament.prizeStructure || {};
   const buyIn = p.buyIn || 0;
@@ -70,6 +75,11 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
               : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
         </div>
+        {isLeagueMode && gameNumber != null && (
+          <span className="text-xs font-medium text-orange-400 mt-1 block">
+            {seasonName ? `${seasonName} · ` : ''}Game {gameNumber} of {totalGames}
+          </span>
+        )}
 
         {isExpanded && (
           <div className="mt-4 space-y-3">
@@ -179,7 +189,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                   <DetailRow label={`Buy-in ×${players.length}`} value={`${sym}${(buyIn * players.length).toLocaleString()}`} />
                   {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys}×)`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} />}
                   {totalAddons > 0 && <DetailRow label={`Add-ons (${totalAddons}×)`} value={`${sym}${(addonAmt * totalAddons).toLocaleString()}`} />}
-                  {rake > 0 && <DetailRow label={`Rake${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`-${sym}${rake.toLocaleString()}`} />}
+                  {rake > 0 && <DetailRow label={`House fee${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`${sym}${rake.toLocaleString()}`} />}
                   <DetailRow label="Total" value={`${sym}${pool.toLocaleString()}`} highlight />
                 </div>
 
