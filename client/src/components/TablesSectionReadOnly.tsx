@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users } from 'lucide-react';
+import { Users, ChevronUp, ChevronDown } from 'lucide-react';
 
 // Mirrors TablesSection.tsx FELT_COLORS — single source of truth
 const feltClass = (key: string) => {
@@ -40,6 +41,7 @@ interface TablesSectionReadOnlyProps {
 }
 
 export default function TablesSectionReadOnly({ tournament }: TablesSectionReadOnlyProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
   const { players, settings } = tournament.state;
   const tableSettings = settings?.tables || { numberOfTables: 1, seatsPerTable: 9, tableNames: ['Table 1'] };
   const tableBackgrounds = settings?.tableBackgrounds || [];
@@ -52,12 +54,17 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border/50">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-purple-500" />
-          Table Seating
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-purple-500" />
+            Table Seating
+          </div>
+          <button onClick={() => setIsExpanded(v => !v)}>
+            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      {isExpanded && <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: Math.min(6, tableSettings.numberOfTables) }).map((_, tableIndex) => {
             const tableName = tableSettings.tableNames?.[tableIndex] || `Table ${tableIndex + 1}`;
@@ -122,7 +129,7 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
             </div>
           )}
         </div>
-      </CardContent>
+      </CardContent>}
     </Card>
   );
 }

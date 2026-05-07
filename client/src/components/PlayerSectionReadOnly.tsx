@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Trophy, Target } from 'lucide-react';
+import { Users, Trophy, Target, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface Player {
   id: string;
@@ -38,6 +39,7 @@ interface PlayerSectionReadOnlyProps {
 }
 
 export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadOnlyProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
   const { players, settings, prizeStructure } = tournament.state;
   const currencySymbol = settings?.currency || '£';
 
@@ -53,12 +55,17 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border/50">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-blue-500" />
-          Players & Rankings
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-blue-500" />
+            Players & Rankings
+          </div>
+          <button onClick={() => setIsExpanded(v => !v)}>
+            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      {isExpanded && <CardContent className="space-y-6">
 
 
         {/* Active Players */}
@@ -132,7 +139,7 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
             <p className="text-muted-foreground">No players have joined yet</p>
           </div>
         )}
-      </CardContent>
+      </CardContent>}
     </Card>
   );
 }

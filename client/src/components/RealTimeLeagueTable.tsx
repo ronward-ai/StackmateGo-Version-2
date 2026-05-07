@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
+import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from "lucide-react";
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -31,6 +31,7 @@ function RealTimeLeagueTable({
   // ALWAYS call ALL hooks first - never conditionally
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   // Safety timeout — if data doesn't arrive within 6s, stop showing the spinner
   // so participants don't see it permanently when Firestore reads are silently failing
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
@@ -621,6 +622,11 @@ function RealTimeLeagueTable({
               {leagueName || 'League'} Standings - {currentSeasonName}
             </div>
             <div className="flex items-center gap-3">
+              {isParticipantView && (
+                <button onClick={() => setIsExpanded(v => !v)}>
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </button>
+              )}
               {!isParticipantView && (
                 <Button
                   variant="outline"
@@ -639,7 +645,7 @@ function RealTimeLeagueTable({
           </CardTitle>
         </CardHeader>
 
-      <CardContent>
+      {(!isParticipantView || isExpanded) && <CardContent>
         {displayPlayers.length > 0 ? (
           <div className="relative overflow-hidden rounded-lg">
             <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
@@ -742,7 +748,7 @@ function RealTimeLeagueTable({
           </div>
         )}
 
-      </CardContent>
+      </CardContent>}
       </div>
     </Card>
   );

@@ -3,7 +3,7 @@ import { useParams, useLocation } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X } from 'lucide-react';
+import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
@@ -79,6 +79,7 @@ function TournamentParticipantView() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notesExpanded, setNotesExpanded] = useState(true);
   const { user, isAuthenticated, isLoading, signInAnonymously } = useAuth();
 
   useEffect(() => {
@@ -908,14 +909,19 @@ function TournamentParticipantView() {
                       <span className="material-icons mr-2 text-yellow-500">note</span>
                       Tournament Notes
                     </h2>
+                    <button onClick={() => setNotesExpanded(v => !v)}>
+                      {notesExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    </button>
                   </div>
-                  <div className="p-4 pt-0 border-t border-[#2a2a2a]">
-                    <div className="bg-background bg-opacity-40 rounded-lg p-4">
-                      <div className="text-foreground whitespace-pre-wrap text-sm leading-relaxed">
-                        {notes}
+                  {notesExpanded && (
+                    <div className="p-4 pt-0 border-t border-[#2a2a2a]">
+                      <div className="bg-background bg-opacity-40 rounded-lg p-4">
+                        <div className="text-foreground whitespace-pre-wrap text-sm leading-relaxed">
+                          {notes}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </Card>
               </div>
             );
