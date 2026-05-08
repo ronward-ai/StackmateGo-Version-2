@@ -48,14 +48,15 @@ const inactiveStyle = { borderColor: 'transparent', color: 'var(--muted-foregrou
 
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state, updateTournamentDetails, updateSettings, resetTournament } = tournament;
-  const { league, leaguePlayers } = useLeague();
+  const { league, leaguePlayers, userLeagues, switchLeague } = useLeague();
   const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
+  const [dialogLeagueId, setDialogLeagueId] = useState<string | null>(null);
+  const { seasons: dialogSeasonsList } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
   const [, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
   const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
   const [dialogSeasonId, setDialogSeasonId] = useState<string | number | null>(null);
-
   const handleNewTournament = (keepStructure: boolean) => {
     try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
     resetTournament({ keepStructure });
@@ -63,8 +64,14 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
   };
 
   const handleLeagueNewGame = (seasonId: string | number | null) => {
-    const chosenSeason = (seasons as any[]).find(s => String(s.id) === String(seasonId));
-    if (chosenSeason && String(chosenSeason.id) !== String(currentSeason?.id)) {
+    const sourceSeasons = dialogSeasonsList.length > 0 ? dialogSeasonsList : (seasons as any[]);
+    const chosenSeason = (sourceSeasons as any[]).find(s => String(s.id) === String(seasonId));
+    // Switch league first if it changed
+    if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
+      switchLeague(dialogLeagueId);
+      updateSettings({ isSeasonTournament: true, leagueId: String(dialogLeagueId) } as any);
+    }
+    if (chosenSeason) {
       updateSettings({
         seasonId: String(chosenSeason.id),
         seasonName: chosenSeason.name,
@@ -116,6 +123,28 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
   }, [isLeagueMode, currentSeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
   const totalGames = currentSeason?.numberOfGames || 12;
 
+  // Game number for the dialog — recalculates when user selects a different season
+  const dialogGameNumber = useMemo(() => {
+    if (!dialogSeasonId) return gameNumber;
+    // Only calc from leaguePlayers if the dialog league matches the loaded data
+    if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) return null;
+    const ids = new Set<string>();
+    leaguePlayers.forEach((player: any) => {
+      (player.tournamentResults || [])
+        .filter((r: any) => r.seasonId === String(dialogSeasonId))
+        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
+    });
+    const localGameId = state.details?.localGameId;
+    if (localGameId && ids.has(localGameId)) return ids.size;
+    return ids.size + 1;
+  }, [dialogSeasonId, dialogLeagueId, league?.id, leaguePlayers, state.details?.localGameId, gameNumber]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dialogTotalGames = useMemo(() => {
+    const dialogSeason = (dialogSeasonsList as any[]).find(s => String(s.id) === String(dialogSeasonId))
+      || (seasons as any[]).find(s => String(s.id) === String(dialogSeasonId));
+    return dialogSeason?.numberOfGames || totalGames;
+  }, [dialogSeasonId, dialogSeasonsList, seasons, totalGames]);
+
   const sym = state.settings.currency || '£';
   const p = state.prizeStructure;
   const buyIn = p?.buyIn || 0;
@@ -165,18 +194,22 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             {/* New button — standalone uses AlertDialog, league uses its own dialog */}
             {isLeagueMode ? (
               <button
-                onClick={() => { setDialogSeasonId(currentSeason?.id ?? null); setShowLeagueNewDialog(true); }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50"
+                onClick={() => {
+                  setDialogLeagueId(league?.id ? String(league.id) : null);
+                  setDialogSeasonId(currentSeason?.id ?? null);
+                  setShowLeagueNewDialog(true);
+                }}
+                className="flex items-center gap-1 text-xs font-medium text-orange-400/80 hover:text-orange-300 border border-orange-400/20 hover:border-orange-400/40 px-2 py-1 rounded-md hover:bg-orange-500/10 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">New</span>
+                New
               </button>
             ) : (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50">
+                  <button className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground border border-border/40 hover:border-border px-2 py-1 rounded-md hover:bg-muted/50 transition-colors">
                     <RotateCcw className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">New</span>
+                    New
                   </button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -203,7 +236,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             )}
 
             {/* Divider */}
-            <span className="w-px h-4 bg-border/50" />
+            <span className="w-px h-4 bg-border" />
 
             {/* In-game tools */}
             {active.length >= 2 && pool > 0 && (
@@ -230,35 +263,64 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               <DialogTitle>Start next league game</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              {/* Season selector */}
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Season</label>
-                {(seasons as any[]).length > 1 ? (
+              {/* League selector — only shown when user has multiple leagues */}
+              {(userLeagues as any[]).length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">League</label>
                   <Select
-                    value={String(dialogSeasonId ?? '')}
-                    onValueChange={v => setDialogSeasonId(v)}
+                    value={String(dialogLeagueId ?? '')}
+                    onValueChange={v => {
+                      setDialogLeagueId(v);
+                      setDialogSeasonId(null); // reset season when league changes
+                    }}
                   >
                     <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select season" />
+                      <SelectValue placeholder="Select league" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(seasons as any[]).map((s: any) => (
-                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      {(userLeagues as any[]).map((l: any) => (
+                        <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                ) : (
-                  <p className="text-sm text-muted-foreground px-1">
-                    {currentSeason?.name ?? '—'}
-                  </p>
-                )}
+                </div>
+              )}
+              {/* Season selector */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Season</label>
+                {(() => {
+                  const displaySeasons = (dialogSeasonsList as any[]).length > 0
+                    ? (dialogSeasonsList as any[])
+                    : (seasons as any[]);
+                  return displaySeasons.length > 1 ? (
+                    <Select
+                      value={String(dialogSeasonId ?? '')}
+                      onValueChange={v => setDialogSeasonId(v)}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select season" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {displaySeasons.map((s: any) => (
+                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-sm text-muted-foreground px-1">
+                      {displaySeasons[0]?.name ?? currentSeason?.name ?? '—'}
+                    </p>
+                  );
+                })()}
               </div>
               {/* Game number */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Game</label>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-mono font-bold text-orange-400 px-1">
-                    Game {gameNumber} of {totalGames}
+                    {dialogGameNumber != null
+                      ? `Game ${dialogGameNumber} of ${dialogTotalGames}`
+                      : 'Game — of —'}
                   </span>
                   <span className="text-xs text-muted-foreground">· auto-calculated</span>
                 </div>
@@ -266,7 +328,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-col">
               <Button className="w-full" onClick={() => handleLeagueNewGame(dialogSeasonId)}>
-                Start Game {gameNumber}
+                {dialogGameNumber != null ? `Start Game ${dialogGameNumber}` : 'Start Next Game'}
               </Button>
               <button
                 onClick={() => { setShowLeagueNewDialog(false); handleNewTournament(false); }}
