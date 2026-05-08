@@ -7,12 +7,17 @@ import { calculatePrizePool } from "@/lib/prizePool";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -44,15 +49,30 @@ const inactiveStyle = { borderColor: 'transparent', color: 'var(--muted-foregrou
 export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
   const { state, updateTournamentDetails, updateSettings, resetTournament } = tournament;
   const { league, leaguePlayers } = useLeague();
-  const { currentSeason } = useSeasons({ leagueId: league?.id });
+  const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const [, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
+  const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
+  const [dialogSeasonId, setDialogSeasonId] = useState<string | number | null>(null);
 
   const handleNewTournament = (keepStructure: boolean) => {
     try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
     resetTournament({ keepStructure });
     setLocation('/');
+  };
+
+  const handleLeagueNewGame = (seasonId: string | number | null) => {
+    const chosenSeason = (seasons as any[]).find(s => String(s.id) === String(seasonId));
+    if (chosenSeason && String(chosenSeason.id) !== String(currentSeason?.id)) {
+      updateSettings({
+        seasonId: String(chosenSeason.id),
+        seasonName: chosenSeason.name,
+        numberOfGames: chosenSeason.numberOfGames || 12,
+      } as any);
+    }
+    setShowLeagueNewDialog(false);
+    handleNewTournament(true);
   };
 
   const isLeagueMode =
@@ -142,36 +162,50 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Info</span>
           </div>
           <div className="flex items-center gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50">
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">New</span>
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Start a new tournament?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    All players and results will be cleared. Choose whether to keep your current blind structure and buy-in settings.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-muted text-foreground hover:bg-muted/80"
-                    onClick={() => handleNewTournament(true)}
-                  >
-                    Keep structure
-                  </AlertDialogAction>
-                  <AlertDialogAction
-                    onClick={() => handleNewTournament(false)}
-                  >
-                    Full reset
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {/* New button — standalone uses AlertDialog, league uses its own dialog */}
+            {isLeagueMode ? (
+              <button
+                onClick={() => { setDialogSeasonId(currentSeason?.id ?? null); setShowLeagueNewDialog(true); }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">New</span>
+              </button>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50">
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">New</span>
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Start a new tournament?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      All players and results will be cleared. Choose whether to keep your current blind structure and buy-in settings.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-muted text-foreground hover:bg-muted/80"
+                      onClick={() => handleNewTournament(true)}
+                    >
+                      Keep structure
+                    </AlertDialogAction>
+                    <AlertDialogAction onClick={() => handleNewTournament(false)}>
+                      Full reset
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
+            {/* Divider */}
+            <span className="w-px h-4 bg-border/50" />
+
+            {/* In-game tools */}
             {active.length >= 2 && pool > 0 && (
               <button
                 onClick={() => setShowChipChop(true)}
@@ -188,6 +222,61 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
             </button>
           </div>
         </div>
+
+        {/* League new game dialog */}
+        <Dialog open={showLeagueNewDialog} onOpenChange={setShowLeagueNewDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Start next league game</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {/* Season selector */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Season</label>
+                {(seasons as any[]).length > 1 ? (
+                  <Select
+                    value={String(dialogSeasonId ?? '')}
+                    onValueChange={v => setDialogSeasonId(v)}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Select season" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(seasons as any[]).map((s: any) => (
+                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-muted-foreground px-1">
+                    {currentSeason?.name ?? '—'}
+                  </p>
+                )}
+              </div>
+              {/* Game number */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Game</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono font-bold text-orange-400 px-1">
+                    Game {gameNumber} of {totalGames}
+                  </span>
+                  <span className="text-xs text-muted-foreground">· auto-calculated</span>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="flex-col gap-2 sm:flex-col">
+              <Button className="w-full" onClick={() => handleLeagueNewGame(dialogSeasonId)}>
+                Start Game {gameNumber}
+              </Button>
+              <button
+                onClick={() => { setShowLeagueNewDialog(false); handleNewTournament(false); }}
+                className="text-xs text-destructive hover:text-destructive/80 text-center py-1"
+              >
+                Full reset (clears structure &amp; switches to standalone)
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Mode toggle — left-aligned, below header, always visible */}
         <div className="flex items-center gap-3 mt-2">
@@ -265,11 +354,9 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                       if (!finisher || !p?.enableBounties || !p?.bountyAmount) return 0;
                       if (p.bountyType === 'progressive') {
                         const winnings = finisher.bountyWinnings || 0;
-                        // Winner gets their own current bounty back (they never lost it)
                         const ownBounty = i === 0 ? (finisher.currentBounty || p.bountyAmount) : 0;
                         return winnings + ownBounty;
                       }
-                      // Standard: winner also gets their own bounty back
                       return ((finisher.knockouts || 0) + (i === 0 ? 1 : 0)) * p.bountyAmount;
                     })();
                     const total = amount + bountyBonus;
@@ -303,7 +390,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               </div>
             )}
 
-            {/* 2×2 stat grid */}
+            {/* 2x2 stat grid */}
             <div className="border-t border-border/20 pt-3">
               <div className="grid grid-cols-2 gap-2">
 
