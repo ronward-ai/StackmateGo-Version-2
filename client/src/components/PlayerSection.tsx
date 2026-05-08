@@ -372,15 +372,16 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           : pos > 0 ? '#7f1d1d' : '#16a34a';
         const rankFg = pos <= 2 ? '#000' : '#fff';
 
-        // Winnings
-        let winnings = 0;
+        // Winnings (split into prize and bounty for separate display)
+        let exportPrize = 0;
+        let exportBounty = 0;
         if (ps?.enableBounties && ps?.bountyAmount) {
           const kos = player.knockouts || 0;
-          winnings += pos === 1 ? (kos + 1) * ps.bountyAmount : kos * ps.bountyAmount;
+          exportBounty = pos === 1 ? (kos + 1) * ps.bountyAmount : kos * ps.bountyAmount;
         }
         if (pos > 0 && ps?.manualPayouts) {
           const payout = ps.manualPayouts.find((p: any) => p.position === pos);
-          if (payout?.percentage > 0) winnings += Math.floor(prizePool * payout.percentage / 100);
+          if (payout?.percentage > 0) exportPrize = Math.floor(prizePool * payout.percentage / 100);
         }
 
         const row = document.createElement('div');
@@ -428,8 +429,10 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         }
         if ((player.rebuys || 0) > 0)
           addBadge(`R x${player.rebuys}`, '#581c87', '#e9d5ff');
-        if (winnings > 0)
-          addBadge(`${sym}${winnings}`, '#14532d', '#86efac');
+        if (exportPrize > 0)
+          addBadge(`${sym}${exportPrize}`, '#14532d', '#86efac');
+        if (exportBounty > 0)
+          addBadge(`🎯 ${sym}${exportBounty}`, '#9a3412', '#fed7aa');
         // League points
         if (isLeagueMode && pos > 0) {
           const pts = calculatePoints(pos, state.players.length, player.knockouts || 0, buyIn, 0, 0);
@@ -693,34 +696,32 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               + (reEntryRake ? totalReEntries * (state.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
               + (rebuyRake ? totalRebuys * (state.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
 
-            const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
+            const totalPrizePool = grossPrizePool;
 
-            const calculatePlayerWinnings = (player: any): number => {
-              let totalWinnings = 0;
+            const calculatePlayerWinnings = (player: any): { prize: number; bounty: number } => {
+              let prize = 0;
+              let bounty = 0;
 
-              // Add bounty winnings for eliminations
+              // Bounty winnings from knockouts
               if (state.prizeStructure?.enableBounties && state.prizeStructure?.bountyAmount) {
                 const knockouts = player.knockouts || 0;
 
-                // Only the winner (position 1) gets their own bounty back plus knockout bounties
                 if (player.position === 1) {
-                  totalWinnings += (knockouts + 1) * state.prizeStructure.bountyAmount;
+                  bounty += (knockouts + 1) * state.prizeStructure.bountyAmount;
                 } else {
-                  // All other players (active or eliminated) only get knockout bounties
-                  totalWinnings += knockouts * state.prizeStructure.bountyAmount;
+                  bounty += knockouts * state.prizeStructure.bountyAmount;
                 }
               }
 
-              // Add position-based prize money
+              // Position-based prize money
               if (player.position && player.position > 0 && state.prizeStructure?.manualPayouts) {
                 const positionPayout = state.prizeStructure.manualPayouts.find((p: any) => p.position === player.position);
                 if (positionPayout && positionPayout.percentage > 0) {
-                  const prizeAmount = Math.floor((totalPrizePool * positionPayout.percentage) / 100);
-                  totalWinnings += prizeAmount;
+                  prize = Math.floor((totalPrizePool * positionPayout.percentage) / 100);
                 }
               }
 
-              return totalWinnings;
+              return { prize, bounty };
             };
 
             // Sort players by position: active players first (no position), then by position (1st, 2nd, 3rd, etc.)
@@ -755,7 +756,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             }
 
             return sortedPlayers.map((player) => {
-              const winnings = calculatePlayerWinnings(player);
+              const { prize, bounty } = calculatePlayerWinnings(player);
 
               // Check if player has been eliminated (has a position)
               let displayRank = "Active";
@@ -820,9 +821,14 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                         R{player.rebuys}
                       </span>
                     )}
-                    {winnings > 0 && (
+                    {prize > 0 && (
                       <span className="text-xs font-mono font-bold text-green-300 bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded flex-shrink-0">
-                        {currencySymbol}{winnings.toFixed(0)}
+                        {currencySymbol}{prize.toFixed(0)}
+                      </span>
+                    )}
+                    {bounty > 0 && (
+                      <span className="text-xs font-mono font-bold text-orange-300 bg-orange-600/20 border border-orange-500/30 px-2 py-0.5 rounded flex-shrink-0">
+                        🎯 {currencySymbol}{bounty.toFixed(0)}
                       </span>
                     )}
                   </div>
