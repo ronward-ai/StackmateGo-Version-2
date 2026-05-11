@@ -93,35 +93,42 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
     }
   };
 
+  // Resolve which season to display — prefer the one stored in tournament settings,
+  // fall back to the DB's active season.
+  const storedSeasonId = (state.settings as any)?.seasonId;
+  const displaySeason = storedSeasonId
+    ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
+    : currentSeason;
+
   // Auto-load structure when league mode activates or season switches
   const lastLoadedSeasonId = useRef<string | number | null>(null);
   useEffect(() => {
-    if (!isLeagueMode || !currentSeason) return;
-    const saved = currentSeason.settings;
+    if (!isLeagueMode || !displaySeason) return;
+    const saved = displaySeason.settings;
     if (!saved?.blindLevels || !saved?.prizeStructure) return;
-    if (lastLoadedSeasonId.current === currentSeason.id) return;
-    lastLoadedSeasonId.current = currentSeason.id;
+    if (lastLoadedSeasonId.current === displaySeason.id) return;
+    lastLoadedSeasonId.current = displaySeason.id;
     tournament.setBlindLevels(saved.blindLevels);
     tournament.updatePrizeStructure(saved.prizeStructure);
-  }, [isLeagueMode, currentSeason?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLeagueMode, displaySeason?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compute current game number for this season.
   // Results are written to Firestore as soon as the first player is eliminated,
   // so localGameId may already be in the recorded set mid-game. We count the
   // current game as its recorded position rather than tacking +1 onto the total.
   const gameNumber = useMemo(() => {
-    if (!isLeagueMode || !currentSeason) return null;
+    if (!isLeagueMode || !displaySeason) return null;
     const ids = new Set<string>();
     leaguePlayers.forEach((player: any) => {
       (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(currentSeason.id))
+        .filter((r: any) => r.seasonId === String(displaySeason.id))
         .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
     });
     const localGameId = state.details?.localGameId;
     if (localGameId && ids.has(localGameId)) return ids.size;
     return ids.size + 1;
-  }, [isLeagueMode, currentSeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const totalGames = currentSeason?.numberOfGames || 12;
+  }, [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const totalGames = displaySeason?.numberOfGames || 12;
 
   // Game number for the dialog — recalculates when user selects a different season
   const dialogGameNumber = useMemo(() => {
@@ -196,7 +203,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
               <button
                 onClick={() => {
                   setDialogLeagueId(league?.id ? String(league.id) : null);
-                  setDialogSeasonId(currentSeason?.id ?? null);
+                  setDialogSeasonId(displaySeason?.id ?? null);
                   setShowLeagueNewDialog(true);
                 }}
                 className="flex items-center gap-1 text-xs font-medium text-orange-400/80 hover:text-orange-300 border border-orange-400/20 hover:border-orange-400/40 px-2 py-1 rounded-md hover:bg-orange-500/10 transition-colors"
@@ -308,7 +315,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
                     </Select>
                   ) : (
                     <p className="text-sm text-muted-foreground px-1">
-                      {displaySeasons[0]?.name ?? currentSeason?.name ?? '—'}
+                      {displaySeasons[0]?.name ?? displaySeason?.name ?? '—'}
                     </p>
                   );
                 })()}
@@ -363,7 +370,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
           </div>
           {isLeagueMode && gameNumber !== null && (
             <span className="text-xs font-medium text-orange-400">
-              {currentSeason?.name && `${currentSeason.name} · `}Game {gameNumber} of {totalGames}
+              {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
             </span>
           )}
         </div>
