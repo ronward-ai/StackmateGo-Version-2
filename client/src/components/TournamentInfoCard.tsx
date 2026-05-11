@@ -70,7 +70,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
     // Reset FIRST so the functional updateSettings below applies on top of the clean state,
     // not the other way round (direct setState in resetTournament would overwrite it).
     handleNewTournament(true);
-    // Now apply league/season settings — updateSettings uses setState(prev=>...) so it
+    // Now apply league/season settings — updateSettings uses setState(prev=>) so it
     // correctly sees the state AFTER the reset above.
     if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
       switchLeague(dialogLeagueId);

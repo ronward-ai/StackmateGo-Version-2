@@ -1,51 +1,38 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Calendar as CalendarPicker } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ChevronDown, LayoutDashboard, Target, Calendar, CalendarIcon, Plus, Trophy, Trash2 } from 'lucide-react';
-import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { cn } from "@/lib/utils";
 import SeasonDashboard from '@/components/SeasonDashboard';
-import LeagueTournaments from '@/components/LeagueTournaments';
-import { LeagueSettingsContent } from '@/components/LeagueSettingsContent';
+import { useSubscription } from '@/hooks/useSubscription';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { useSubscription } from '@/hooks/useSubscription';
-import { UpgradeModal } from '@/components/UpgradeModal';
-import { useState, useEffect, useMemo } from 'react';
-import { format } from 'date-fns';
-import type { DateRange } from 'react-day-picker';
-import { cn } from '@/lib/utils';
 
 interface LeagueSectionProps {
-  tournament?: any;
+  tournament?: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
+  readOnly?: boolean;
 }
 
-export default function LeagueSection({ tournament }: LeagueSectionProps) {
-  const [showAnalytics, setShowAnalytics] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [leagueView, setLeagueView] = useState<'overview' | 'settings'>('overview');
+const statusColor: Record<string, string> = {
+  active: 'bg-green-500/20 text-green-400 border-green-500/30',
+  draft:  'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  completed: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  archived: 'bg-red-500/20 text-red-400 border-red-500/30',
+};
+
+export default function LeagueSection({ tournament, readOnly = false }: LeagueSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
   const [showNewSeason, setShowNewSeason] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
   const [newSeasonGames, setNewSeasonGames] = useState<number | ''>(12);
-  const [showNewLeague, setShowNewLeague] = useState(false);
-  const [newLeagueName, setNewLeagueName] = useState('');
-  const [isCreatingLeague, setIsCreatingLeague] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    const from = new Date();
-    const to = new Date();
-    to.setMonth(to.getMonth() + 3);
-    return { from, to };
-  });
-  const [rangeOpen, setRangeOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [showDeleteSeason, setShowDeleteSeason] = useState(false);
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteLeague, setShowDeleteLeague] = useState(false);
   const [isDeletingSeason, setIsDeletingSeason] = useState(false);
   const [isDeletingLeague, setIsDeletingLeague] = useState(false);
@@ -135,66 +122,55 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
 
   const handleCreateSeason = async () => {
     if (!newSeasonName.trim() || !dateRange?.from || !dateRange?.to) return;
-    setIsCreating(true);
     try {
       const newSeason = await addSeason({
         name: newSeasonName.trim(),
-        startDate: dateRange.from.toISOString(),
-        endDate: dateRange.to.toISOString(),
+        startDate: dateRange.from.toISOString().split('T')[0],
+        endDate: dateRange.to.toISOString().split('T')[0],
         numberOfGames: typeof newSeasonGames === 'number' ? newSeasonGames : 12,
+        status: 'active',
       });
-      // Auto-activate the new season and demote all others
       if (newSeason?.id && newSeason.id !== 'default-season') {
-        for (const season of seasons) {
-          await updateSeason(season.id, { status: 'draft' });
-        }
-        await updateSeason(newSeason.id, { status: 'active' });
         setActiveSeasonId(String(newSeason.id));
+        tournament?.updateSettings?.({
+          seasonId: String(newSeason.id),
+          seasonName: newSeason.name,
+          numberOfGames: newSeason.numberOfGames || 12,
+        });
       }
       setShowNewSeason(false);
       setNewSeasonName('');
       setNewSeasonGames(12);
-      const from = new Date();
-      const to = new Date();
-      to.setMonth(to.getMonth() + 3);
-      setDateRange({ from, to });
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleCreateLeague = async () => {
-    if (!newLeagueName.trim()) return;
-    setIsCreatingLeague(true);
-    try {
-      await createLeague(newLeagueName.trim());
-      setShowNewLeague(false);
-      setNewLeagueName('');
-    } finally {
-      setIsCreatingLeague(false);
+      setDateRange(undefined);
+    } catch (err) {
+      console.error('Failed to create season:', err);
     }
   };
 
   const handleDeleteSeason = async () => {
-    if (!currentSeason?.id) return;
+    if (!currentSeason || currentSeason.id === 'default-season') return;
     setIsDeletingSeason(true);
     try {
       await deleteSeason(currentSeason.id);
-      setShowDeleteSeason(false);
+    } catch (err) {
+      console.error('Failed to delete season:', err);
     } finally {
       setIsDeletingSeason(false);
+      setShowDeleteConfirm(false);
     }
   };
 
   const handleDeleteLeague = async () => {
-    if (!league?.id || league.id === 'pending') return;
+    if (!league?.id || deleteLeagueConfirm !== league?.name) return;
     setIsDeletingLeague(true);
     try {
-      await deleteLeague(league.id);
-      setShowDeleteLeague(false);
-      setDeleteLeagueConfirm('');
+      await deleteLeague(String(league.id));
+    } catch (err) {
+      console.error('Failed to delete league:', err);
     } finally {
       setIsDeletingLeague(false);
+      setShowDeleteLeague(false);
+      setDeleteLeagueConfirm('');
     }
   };
 
@@ -218,248 +194,70 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
   };
 
   return (
-    <div className="space-y-4" data-testid="league-section">
+    <>
+      {showUpgrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowUpgrade(false)}>
+          <div className="bg-card border border-border rounded-xl p-6 max-w-sm mx-4 text-center space-y-3">
+            <Trophy className="h-8 w-8 text-orange-400 mx-auto" />
+            <h3 className="font-bold text-lg">Pro Feature</h3>
+            <p className="text-sm text-muted-foreground">{upgradeHint} requires a Pro subscription.</p>
+            <Button className="w-full" onClick={() => setShowUpgrade(false)}>OK</Button>
+          </div>
+        </div>
+      )}
 
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} featureHint={upgradeHint} />
+      <Card className="card-glass-purple rounded-xl">
+        <CardContent className="p-5">
 
-      {/* New Season dialog */}
-      <Dialog open={showNewSeason} onOpenChange={setShowNewSeason}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New Season</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Season Name</Label>
-              <Input
-                value={newSeasonName}
-                onChange={e => setNewSeasonName(e.target.value)}
-                placeholder="e.g. Summer 2026"
-                autoFocus
-              />
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-orange-400" />
+              <span className="text-sm font-semibold text-foreground uppercase tracking-wide">League</span>
             </div>
-            <div className="space-y-2">
-              <Label>Date Range</Label>
-              <Popover open={rangeOpen} onOpenChange={setRangeOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dateRange?.from && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "d MMM yyyy")}
-                          {" → "}
-                          {format(dateRange.to, "d MMM yyyy")}
-                        </>
-                      ) : (
-                        format(dateRange.from, "d MMM yyyy")
-                      )
-                    ) : (
-                      <span>Pick start → end</span>
-                    )}
+            <div className="flex items-center gap-2">
+              {userLeagues.length > 1 && (
+                <Select
+                  value={league?.id?.toString()}
+                  onValueChange={id => switchLeague(id)}
+                >
+                  <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
+                    <SelectValue placeholder="Select league" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userLeagues.map((l: any) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {userLeagues.length <= 1 && (
+                <span className="text-sm font-semibold text-foreground">{league?.name || 'My League'}</span>
+              )}
+              <button onClick={() => setIsExpanded(v => !v)}>
+                {isExpanded
+                  ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </button>
+            </div>
+          </div>
+
+          {isExpanded && (
+            <div className="space-y-4">
+
+              {/* League mode toggle */}
+              {!readOnly && !isSeasonTournament && (
+                <div className="flex items-center justify-between p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-orange-400">Enable League Mode</p>
+                    <p className="text-xs text-muted-foreground">Track results across multiple games</p>
+                  </div>
+                  <Button size="sm" onClick={handleSwitchToLeague} className="bg-orange-500 hover:bg-orange-600 text-white">
+                    Enable
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarPicker
-                    mode="range"
-                    selected={dateRange}
-                    onSelect={(range) => {
-                      setDateRange(range);
-                      if (range?.from && range?.to) setRangeOpen(false);
-                    }}
-                    numberOfMonths={2}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-2">
-              <Label>Number of Games</Label>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={newSeasonGames}
-                onChange={e => {
-                  const v = e.target.value;
-                  if (v === '') { setNewSeasonGames(''); return; }
-                  const n = parseInt(v, 10);
-                  if (!isNaN(n)) setNewSeasonGames(n);
-                }}
-                onBlur={() => { if (newSeasonGames === '' || (newSeasonGames as number) < 1) setNewSeasonGames(12); }}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowNewSeason(false)}>Cancel</Button>
-              <Button
-                onClick={handleCreateSeason}
-                disabled={!newSeasonName.trim() || !dateRange?.from || !dateRange?.to || isCreating}
-              >
-                {isCreating ? 'Creating...' : 'Create Season'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* New League dialog */}
-      <Dialog open={showNewLeague} onOpenChange={setShowNewLeague}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New League</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>League Name</Label>
-              <Input
-                value={newLeagueName}
-                onChange={e => setNewLeagueName(e.target.value)}
-                placeholder="e.g. Thursday Night Pub League"
-                autoFocus
-                onKeyDown={e => { if (e.key === 'Enter') handleCreateLeague(); }}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShowNewLeague(false)}>Cancel</Button>
-              <Button
-                onClick={handleCreateLeague}
-                disabled={!newLeagueName.trim() || isCreatingLeague}
-              >
-                {isCreatingLeague ? 'Creating...' : 'Create League'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Season confirmation */}
-      <AlertDialog open={showDeleteSeason} onOpenChange={setShowDeleteSeason}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete season?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <strong>{currentSeason?.name}</strong> and all its tournament results will be permanently deleted. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteSeason}
-              disabled={isDeletingSeason}
-            >
-              {isDeletingSeason ? 'Deleting...' : 'Delete Season'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete League confirmation */}
-      <Dialog open={showDeleteLeague} onOpenChange={(open) => { setShowDeleteLeague(open); if (!open) setDeleteLeagueConfirm(''); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete league?</DialogTitle>
-            <DialogDescription>
-              This will permanently delete <strong>{league?.name}</strong> including all seasons, players, and tournament results. This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 pt-1">
-            <p className="text-sm text-muted-foreground">Type <span className="font-mono font-semibold text-foreground">{league?.name}</span> to confirm:</p>
-            <Input
-              value={deleteLeagueConfirm}
-              onChange={e => setDeleteLeagueConfirm(e.target.value)}
-              placeholder={league?.name}
-              autoFocus
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setShowDeleteLeague(false); setDeleteLeagueConfirm(''); }}>Cancel</Button>
-            <Button
-              variant="destructive"
-              disabled={deleteLeagueConfirm !== league?.name || isDeletingLeague}
-              onClick={handleDeleteLeague}
-            >
-              {isDeletingLeague ? 'Deleting...' : 'Delete League'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Tabs value={leagueView} onValueChange={(v) => setLeagueView(v as 'overview' | 'settings')}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="overview" variant="league">Overview</TabsTrigger>
-          <TabsTrigger value="settings" variant="settings">Settings</TabsTrigger>
-        </TabsList>
-
-        {/* ── Overview tab ── */}
-        <TabsContent value="overview" className="space-y-4 mt-4">
-          {!isSeasonTournament && (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              <p>League mode is off.</p>
-              <p className="mt-1">Enable it via the <span className="text-foreground font-medium">Tournament Info</span> card above the tabs.</p>
-            </div>
-          )}
-
-          {isSeasonTournament && (
-            <>
-              {/* League header — only when a real league exists */}
-              {league.id !== 'pending' && (
-                <Card className="rounded-xl border border-border/40">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Trophy className="h-4 w-4 text-yellow-400 flex-shrink-0" />
-                        {userLeagues.length > 1 ? (
-                          <Select
-                            value={league?.id}
-                            onValueChange={switchLeague}
-                          >
-                            <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
-                              <SelectValue placeholder="Select league" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {userLeagues.map((l: any) => (
-                                <SelectItem key={l.id} value={l.id}>
-                                  {l.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <span className="font-semibold text-foreground truncate">
-                            {league.name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => { if (!isPro) { setUpgradeHint('Creating leagues'); setShowUpgrade(true); } else setShowNewLeague(true); }}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          New League
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => setShowDeleteLeague(true)}
-                          title="Delete league"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                </div>
               )}
 
               {/* Season header */}
@@ -519,78 +317,130 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
                         size="sm"
                         variant="ghost"
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => setShowDeleteSeason(true)}
+                        onClick={() => setShowDeleteConfirm(true)}
                         title="Delete season"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
-                  {currentSeason && (
-                    <p className="text-xs text-muted-foreground mt-2 ml-7">
-                      {formatSeasonDateRange(currentSeason)}
-                      {' · '}
-                      {gamesPlayed} of {totalGames} games played
-                    </p>
+
+                  {/* New season form */}
+                  {showNewSeason && (
+                    <div className="mt-4 space-y-3 border-t border-border/40 pt-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Season Name</Label>
+                        <Input
+                          value={newSeasonName}
+                          onChange={e => setNewSeasonName(e.target.value)}
+                          placeholder="e.g. Season 2"
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Number of Games</Label>
+                        <Input
+                          type="number"
+                          value={newSeasonGames}
+                          onChange={e => setNewSeasonGames(e.target.value === '' ? '' : Number(e.target.value))}
+                          min={1}
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Date Range</Label>
+                        <DateRangePicker
+                          value={dateRange}
+                          onSelect={setDateRange}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1" onClick={handleCreateSeason}>
+                          Create Season
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setShowNewSeason(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Live standings */}
-              <RealTimeLeagueTable tournament={tournament} />
+              {/* Season dashboard */}
+              {currentSeason && (
+                <SeasonDashboard
+                  season={currentSeason}
+                  leaguePlayers={leaguePlayers}
+                  tournament={tournament}
+                />
+              )}
 
-              {/* Season Analytics */}
-              <Collapsible open={showAnalytics} onOpenChange={setShowAnalytics}>
-                <Card className="rounded-xl">
-                  <CollapsibleTrigger className="w-full" data-testid="button-toggle-analytics">
-                    <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <LayoutDashboard className="h-4 w-4 text-blue-400" />
-                        <span className="text-sm font-semibold">Season Analytics</span>
-                      </div>
-                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showAnalytics ? 'rotate-180' : ''}`} />
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="px-4 pb-4">
-                      <SeasonDashboard />
-                    </div>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
+              {/* Danger zone */}
+              {!readOnly && (
+                <div className="border-t border-border/20 pt-3">
+                  <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete season?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete <strong>{currentSeason?.name}</strong> and all its tournament results. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/80"
+                          onClick={handleDeleteSeason}
+                          disabled={isDeletingSeason}
+                        >
+                          {isDeletingSeason ? 'Deleting...' : 'Delete Season'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
 
-              {/* Tournament history */}
-              <Collapsible open={showHistory} onOpenChange={setShowHistory}>
-                <Card className="rounded-xl">
-                  <CollapsibleTrigger className="w-full" data-testid="button-toggle-history">
-                    <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <Target className="h-4 w-4 text-purple-400" />
-                        <span className="text-sm font-semibold">Tournament History</span>
+                  <AlertDialog open={showDeleteLeague} onOpenChange={setShowDeleteLeague}>
+                    <AlertDialogTrigger asChild>
+                      <button className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+                        Delete entire league
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete league?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete <strong>{league?.name}</strong> including all seasons, players, and tournament results. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <div className="px-6 pb-2">
+                        <Label className="text-xs text-muted-foreground">Type the league name to confirm</Label>
+                        <Input
+                          value={deleteLeagueConfirm}
+                          onChange={e => setDeleteLeagueConfirm(e.target.value)}
+                          placeholder={league?.name}
+                          className="mt-1 h-8 text-sm"
+                        />
                       </div>
-                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showHistory ? 'rotate-180' : ''}`} />
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="px-4 pb-4">
-                      <LeagueTournaments />
-                    </div>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            </>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setDeleteLeagueConfirm('')}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/80"
+                          onClick={handleDeleteLeague}
+                          disabled={isDeletingLeague || deleteLeagueConfirm !== league?.name}
+                        >
+                          {isDeletingLeague ? 'Deleting...' : 'Delete League'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+
+            </div>
           )}
-        </TabsContent>
-
-        {/* ── Settings tab ── */}
-        <TabsContent value="settings" className="mt-4">
-          <LeagueSettingsContent
-            leagueId={league?.id && league.id !== 'pending' ? String(league.id) : null}
-            leagueName={league?.id && league.id !== 'pending' ? league.name : null}
-          />
-        </TabsContent>
-      </Tabs>
-
-    </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
