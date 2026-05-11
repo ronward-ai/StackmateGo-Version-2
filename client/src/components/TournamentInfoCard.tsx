@@ -66,20 +66,24 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
   const handleLeagueNewGame = (seasonId: string | number | null) => {
     const sourceSeasons = dialogSeasonsList.length > 0 ? dialogSeasonsList : (seasons as any[]);
     const chosenSeason = (sourceSeasons as any[]).find(s => String(s.id) === String(seasonId));
-    // Switch league first if it changed
+    setShowLeagueNewDialog(false);
+    // Reset FIRST so the functional updateSettings below applies on top of the clean state,
+    // not the other way round (direct setState in resetTournament would overwrite it).
+    handleNewTournament(true);
+    // Now apply league/season settings — updateSettings uses setState(prev=>...) so it
+    // correctly sees the state AFTER the reset above.
     if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
       switchLeague(dialogLeagueId);
-      updateSettings({ isSeasonTournament: true, leagueId: String(dialogLeagueId) } as any);
     }
     if (chosenSeason) {
       updateSettings({
+        isSeasonTournament: true,
+        leagueId: String(dialogLeagueId ?? league?.id ?? ''),
         seasonId: String(chosenSeason.id),
         seasonName: chosenSeason.name,
         numberOfGames: chosenSeason.numberOfGames || 12,
       } as any);
     }
-    setShowLeagueNewDialog(false);
-    handleNewTournament(true);
   };
 
   const isLeagueMode =

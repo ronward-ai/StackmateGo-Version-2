@@ -99,8 +99,13 @@ export default function LeagueSection({ tournament }: LeagueSectionProps) {
     (tournament?.state?.settings as any)?.isSeasonTournament === true;
 
   const handleSeasonChange = async (seasonId: string) => {
+    const selected = seasons.find(s => String(s.id) === seasonId);
     setActiveSeasonId(seasonId);
-    tournament?.updateSettings?.({ seasonId });
+    tournament?.updateSettings?.({
+      seasonId,
+      seasonName: selected?.name,
+      numberOfGames: selected?.numberOfGames,
+    });
     await updateSeason(seasonId, { status: 'active' });
     for (const season of seasons) {
       if (String(season.id) !== seasonId) {
