@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -347,12 +346,25 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                           className="mt-1 h-8 text-sm"
                         />
                       </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Date Range</Label>
-                        <DateRangePicker
-                          value={dateRange}
-                          onSelect={setDateRange}
-                        />
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Label className="text-xs text-muted-foreground">Start Date</Label>
+                          <Input
+                            type="date"
+                            className="mt-1 h-8 text-sm"
+                            value={dateRange?.from ? dateRange.from.toISOString().split('T')[0] : ''}
+                            onChange={e => setDateRange(prev => ({ from: e.target.value ? new Date(e.target.value) : undefined, to: prev?.to }))}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-xs text-muted-foreground">End Date</Label>
+                          <Input
+                            type="date"
+                            className="mt-1 h-8 text-sm"
+                            value={dateRange?.to ? dateRange.to.toISOString().split('T')[0] : ''}
+                            onChange={e => setDateRange(prev => ({ from: prev?.from, to: e.target.value ? new Date(e.target.value) : undefined }))}
+                          />
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" className="flex-1" onClick={handleCreateSeason}>
