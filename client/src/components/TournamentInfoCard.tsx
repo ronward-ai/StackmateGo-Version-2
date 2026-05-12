@@ -21,9 +21,16 @@ import {
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
+  league: ReturnType<typeof useLeague>['league'];
+  userLeagues?: ReturnType<typeof useLeague>['userLeagues'];
+  leaguePlayers?: ReturnType<typeof useLeague>['leaguePlayers'];
+  switchLeague?: ReturnType<typeof useLeague>['switchLeague'];
+  currentSeason: ReturnType<typeof useSeasons>['currentSeason'];
+  seasons: ReturnType<typeof useSeasons>['seasons'];
 }
 
 type TournamentProp = TournamentInfoCardProps['tournament'];
+type SharedLeagueProps = Omit<TournamentInfoCardProps, 'tournament'>;
 
 const ordinal = (n: number) => ['1st','2nd','3rd'][n-1] ?? `${n}th`;
 
@@ -48,23 +55,21 @@ const activeStyle = {
 };
 const inactiveStyle = { borderColor: 'transparent', color: 'var(--muted-foreground)' };
 
-export function TournamentModeToggle({ tournament }: { tournament: TournamentProp }) {
+export function TournamentModeToggle({ tournament, league, leaguePlayers = [], currentSeason, seasons }: { tournament: TournamentProp } & Pick<SharedLeagueProps, 'league' | 'leaguePlayers' | 'currentSeason' | 'seasons'>) {
   const { state, updateTournamentDetails, updateSettings } = tournament;
-  const { league, leaguePlayers } = useLeague();
-  const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
 
   const isLeagueMode =
     state.details?.type === 'season' ||
-    (state.settings as any)?.isSeasonTournament === true;
+    state.settings?.isSeasonTournament === true;
 
   const handleEnableLeague = () => {
     updateTournamentDetails({ ...state.details, type: 'season' });
     if (league?.id) {
-      updateSettings({ isSeasonTournament: true, leagueId: String(league.id) } as any);
+      updateSettings({ isSeasonTournament: true, leagueId: String(league.id) });
     }
   };
 
-  const storedSeasonId = (state.settings as any)?.seasonId;
+  const storedSeasonId = state.settings?.seasonId;
   const displaySeason = storedSeasonId
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
@@ -84,14 +89,14 @@ export function TournamentModeToggle({ tournament }: { tournament: TournamentPro
   const totalGames = displaySeason?.numberOfGames || 12;
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="inline-flex items-center bg-muted p-1 rounded-md">
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
         <button
           className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
           style={!isLeagueMode ? activeStyle : inactiveStyle}
           onClick={() => {
             updateTournamentDetails({ ...state.details, type: 'standalone' });
-            updateSettings({ isSeasonTournament: false } as any);
+            updateSettings({ isSeasonTournament: false });
           }}
         >
           Standalone
@@ -105,7 +110,7 @@ export function TournamentModeToggle({ tournament }: { tournament: TournamentPro
         </button>
       </div>
       {isLeagueMode && gameNumber !== null && (
-        <span className="text-xs font-medium text-orange-400">
+        <span className="text-xs font-medium text-orange-400 truncate min-w-0">
           {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
         </span>
       )}
@@ -113,21 +118,19 @@ export function TournamentModeToggle({ tournament }: { tournament: TournamentPro
   );
 }
 
-export function TournamentNewButton({ tournament }: { tournament: TournamentProp }) {
+export function TournamentNewButton({ tournament, league, userLeagues = [], switchLeague, leaguePlayers = [], currentSeason, seasons }: { tournament: TournamentProp } & Required<Pick<SharedLeagueProps, 'switchLeague'>> & Omit<SharedLeagueProps, 'switchLeague'>) {
   const { state, resetTournament, updateSettings } = tournament;
   const [, setLocation] = useLocation();
-  const { league, userLeagues, switchLeague, leaguePlayers } = useLeague();
-  const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const [dialogLeagueId, setDialogLeagueId] = useState<string | null>(null);
-  const { seasons: dialogSeasonsList } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
+  const { seasons: dialogSeasonsList, isLoading: dialogSeasonsLoading } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
   const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
   const [dialogSeasonId, setDialogSeasonId] = useState<string | number | null>(null);
 
   const isLeagueMode =
     state.details?.type === 'season' ||
-    (state.settings as any)?.isSeasonTournament === true;
+    state.settings?.isSeasonTournament === true;
 
-  const storedSeasonId = (state.settings as any)?.seasonId;
+  const storedSeasonId = state.settings?.seasonId;
   const displaySeason = storedSeasonId
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
@@ -153,7 +156,7 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
         seasonId: String(chosenSeason.id),
         seasonName: chosenSeason.name,
         numberOfGames: chosenSeason.numberOfGames || 12,
-      } as any);
+      });
     }
   };
 
@@ -244,7 +247,7 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
           <div className="space-y-4 py-2">
             {(userLeagues as any[]).length > 1 && (
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">League</label>
+                <label htmlFor="dialog-league" className="text-sm font-medium text-foreground">League</label>
                 <Select
                   value={String(dialogLeagueId ?? '')}
                   onValueChange={v => {
@@ -252,7 +255,7 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
                     setDialogSeasonId(null);
                   }}
                 >
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger id="dialog-league" className="h-9">
                     <SelectValue placeholder="Select league" />
                   </SelectTrigger>
                   <SelectContent>
@@ -264,7 +267,7 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
               </div>
             )}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Season</label>
+              <label htmlFor="dialog-season" className="text-sm font-medium text-foreground">Season</label>
               {(() => {
                 const displaySeasons = (dialogSeasonsList as any[]).length > 0
                   ? (dialogSeasonsList as any[])
@@ -274,7 +277,7 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
                     value={String(dialogSeasonId ?? '')}
                     onValueChange={v => setDialogSeasonId(v)}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger id="dialog-season" className="h-9">
                       <SelectValue placeholder="Select season" />
                     </SelectTrigger>
                     <SelectContent>
@@ -291,8 +294,8 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
               })()}
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Game</label>
-              <div className="flex items-center gap-2">
+              <label htmlFor="dialog-game" className="text-sm font-medium text-foreground">Game</label>
+              <div id="dialog-game" className="flex items-center gap-2">
                 <span className="text-sm font-mono font-bold text-orange-400 px-1">
                   {dialogGameNumber != null
                     ? `Game ${dialogGameNumber} of ${dialogTotalGames}`
@@ -303,7 +306,11 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button className="w-full" onClick={() => handleLeagueNewGame(dialogSeasonId)}>
+            <Button
+              className="w-full"
+              disabled={dialogSeasonsLoading || (dialogLeagueId !== null && String(dialogLeagueId) !== String(league?.id) && dialogSeasonsList.length === 0)}
+              onClick={() => handleLeagueNewGame(dialogSeasonId)}
+            >
               {dialogGameNumber != null ? `Start Game ${dialogGameNumber}` : 'Start Next Game'}
             </Button>
             <button
@@ -319,18 +326,16 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
   );
 }
 
-export default function TournamentInfoCard({ tournament }: TournamentInfoCardProps) {
+export default function TournamentInfoCard({ tournament, league, currentSeason, seasons }: TournamentInfoCardProps) {
   const { state } = tournament;
-  const { league } = useLeague();
-  const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
 
   const isLeagueMode =
     state.details?.type === 'season' ||
-    (state.settings as any)?.isSeasonTournament === true;
+    state.settings?.isSeasonTournament === true;
 
-  const storedSeasonId = (state.settings as any)?.seasonId;
+  const storedSeasonId = state.settings?.seasonId;
   const displaySeason = storedSeasonId
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
@@ -357,7 +362,7 @@ export default function TournamentInfoCard({ tournament }: TournamentInfoCardPro
   const totalAddons = state.players.reduce((s, pl) => s + (pl.addons || 0), 0);
   const totalReEntries = state.players.reduce((s, pl) => s + (pl.reEntries || 0), 0);
 
-  const { gross, rake, net: pool } = calculatePrizePool({
+  const { rake, net: pool } = calculatePrizePool({
     buyIn, playerCount: state.players.length,
     totalRebuys, rebuyAmount: rebuyAmt,
     totalAddons, addonAmount: addonAmt,
