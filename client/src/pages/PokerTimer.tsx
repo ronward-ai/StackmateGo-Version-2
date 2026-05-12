@@ -473,7 +473,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         )}
 
         {/* Tabbed Management Sections */}
-        <div className="mb-6 rounded-xl border border-border/40 overflow-hidden">
+        <Card className="mb-6 card-glass rounded-xl overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex items-center gap-2 px-4 pt-4 pb-3">
               <Settings2 className="h-4 w-4 text-muted-foreground" />
@@ -542,7 +542,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
               <SettingsSection tournament={tournament} />
             </TabsContent>
           </Tabs>
-        </div>
+        </Card>
 
         <footer className="mt-8 text-center text-muted-foreground text-sm py-4">
           <p>StackMateGo &copy; {new Date().getFullYear()}</p>
