@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import SeasonDashboard from '@/components/SeasonDashboard';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -17,13 +16,6 @@ interface LeagueSectionProps {
   tournament?: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   readOnly?: boolean;
 }
-
-const statusColor: Record<string, string> = {
-  active: 'bg-green-500/20 text-green-400 border-green-500/30',
-  draft:  'bg-gray-500/20 text-gray-400 border-gray-500/30',
-  completed: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  archived: 'bg-red-500/20 text-red-400 border-red-500/30',
-};
 
 export default function LeagueSection({ tournament, readOnly = false }: LeagueSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -37,7 +29,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const [isDeletingLeague, setIsDeletingLeague] = useState(false);
   const [deleteLeagueConfirm, setDeleteLeagueConfirm] = useState('');
 
-  const { league, userLeagues, switchLeague, createLeague, deleteLeague, setActiveSeasonId, leaguePlayers } = useLeague();
+  const { league, userLeagues, switchLeague, deleteLeague, setActiveSeasonId, leaguePlayers } = useLeague();
   const { seasons, currentSeason, addSeason, updateSeason, deleteSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
   const { isPro } = useSubscription();
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -82,7 +74,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
 
   const isSeasonTournament =
     tournament?.state?.details?.type === 'season' ||
-    (tournament?.state?.settings as any)?.isSeasonTournament === true;
+    tournament?.state?.settings?.isSeasonTournament === true;
 
   const handleSeasonChange = async (seasonId: string) => {
     const selected = seasons.find(s => String(s.id) === seasonId);
