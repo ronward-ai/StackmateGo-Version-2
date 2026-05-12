@@ -132,8 +132,8 @@ function PokerTimerInner({
   tournament: NonNullable<ReturnType<typeof useTournament>>;
   tournamentId?: string;
 }) {
-  const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague } = useLeague();
-  const { currentSeason } = useSeasons({ leagueId: league?.id });
+  const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague, userLeagues, leaguePlayers } = useLeague();
+  const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);
   useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
   const { user, isAnonymous } = useAuth();
@@ -223,9 +223,9 @@ function PokerTimerInner({
             prizeStructure: tournament.state.prizeStructure,
             settings: tournament.state.settings,
             // Keep top-level league fields in sync so handover always works
-            leagueId: (tournament.state.settings as any)?.leagueId || null,
-            seasonId: (tournament.state.settings as any)?.seasonId || null,
-            isSeasonTournament: (tournament.state.settings as any)?.isSeasonTournament || false,
+            leagueId: tournament.state.settings?.leagueId || null,
+            seasonId: tournament.state.settings?.seasonId || null,
+            isSeasonTournament: tournament.state.settings?.isSeasonTournament || false,
           })
         );
       } catch (e) {
@@ -261,7 +261,7 @@ function PokerTimerInner({
     try {
       const isSeasonTournament =
         tournament?.state?.details?.type === 'season' ||
-        (tournament?.state?.settings as any)?.isSeasonTournament === true;
+        tournament?.state?.settings?.isSeasonTournament === true;
 
       if (!isSeasonTournament) {
         return;
@@ -367,11 +367,11 @@ function PokerTimerInner({
   // The leagueId is stored in tournament settings and synced to Firestore, so the
   // receiving director's device always gets the right league regardless of localStorage.
   useEffect(() => {
-    const leagueId = (tournament.state.settings as any)?.leagueId;
+    const leagueId = tournament.state.settings?.leagueId;
     if (leagueId && tournament.state.details?.type === 'database') {
       switchLeague(String(leagueId));
     }
-  }, [(tournament.state.settings as any)?.leagueId, tournament.state.details?.type, switchLeague]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.settings?.leagueId, tournament.state.details?.type, switchLeague]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear any old test data flag
   useEffect(() => {
@@ -463,7 +463,7 @@ function PokerTimerInner({
 
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
-          <TournamentInfoCard tournament={tournament} />
+          <TournamentInfoCard tournament={tournament} league={league} currentSeason={currentSeason} seasons={seasons} />
         </div>
 
         {/* Live banner — shown when players exist but haven't gone live yet */}
@@ -480,11 +480,11 @@ function PokerTimerInner({
                 <Settings2 className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
               </div>
-              <TournamentNewButton tournament={tournament} />
+              <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
             </div>
             {/* Row 2: mode toggle */}
             <div className="px-4 pb-3">
-              <TournamentModeToggle tournament={tournament} />
+              <TournamentModeToggle tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
             </div>
             <div className="relative">
               <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none bg-transparent p-0 border-b border-border/40 h-auto">

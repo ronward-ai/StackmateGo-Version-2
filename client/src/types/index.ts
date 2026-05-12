@@ -66,6 +66,9 @@ export interface Settings {
   isSeasonTournament?: boolean;
   leagueId?: string;
   seasonId?: string;
+  seasonName?: string;
+  numberOfGames?: number;
+  gameNumber?: number;
   notes?: string;
 }
 
