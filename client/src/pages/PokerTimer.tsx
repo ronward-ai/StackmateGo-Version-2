@@ -474,17 +474,14 @@ function PokerTimerInner({
         {/* Tabbed Management Sections */}
         <Card className="mb-6 card-glass rounded-xl overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            {/* Row 1: title + New button */}
-            <div className="flex items-center justify-between px-4 pt-4 pb-2">
-              <div className="flex items-center gap-2">
+            {/* Header: title | mode toggle | new button — single row */}
+            <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <Settings2 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
+                <span className="text-sm font-semibold text-foreground uppercase tracking-wide hidden sm:inline">Tournament Setup</span>
               </div>
-              <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
-            </div>
-            {/* Row 2: mode toggle */}
-            <div className="px-4 pb-3">
               <TournamentModeToggle tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
+              <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
             </div>
             <div className="relative">
               <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none bg-transparent p-0 border-b border-border/40 h-auto">
