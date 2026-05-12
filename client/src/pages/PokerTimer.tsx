@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import TimerCard from '@/components/TimerCard';
-import TournamentInfoCard from '@/components/TournamentInfoCard';
+import TournamentInfoCard, { TournamentNewButton, TournamentModeToggle } from '@/components/TournamentInfoCard';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
@@ -475,9 +475,17 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         {/* Tabbed Management Sections */}
         <Card className="mb-6 card-glass rounded-xl overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="flex items-center gap-2 px-4 pt-4 pb-3">
-              <Settings2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
+            {/* Row 1: title + New button */}
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
+              </div>
+              <TournamentNewButton tournament={tournament} />
+            </div>
+            {/* Row 2: mode toggle */}
+            <div className="px-4 pb-3">
+              <TournamentModeToggle tournament={tournament} />
             </div>
             <div className="relative">
               <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none bg-transparent p-0 border-b border-border/40 h-auto">
