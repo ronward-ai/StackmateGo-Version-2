@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, LogOut, UserCircle, ChevronDown } from 'lucide-react';
+import { User, LogOut, UserCircle, ChevronDown, Settings2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import TimerCard from '@/components/TimerCard';
-import TournamentInfoCard from '@/components/TournamentInfoCard';
+import TournamentInfoCard, { TournamentNewButton, TournamentModeToggle } from '@/components/TournamentInfoCard';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
@@ -472,19 +472,23 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
           <LiveBanner onGoLive={() => setActiveTab('qr')} />
         )}
 
-        {/* Setup section label */}
-        <div className="flex items-center gap-3 mb-2 px-1">
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
-            Tournament Setup
-          </span>
-          <div className="flex-1 h-px bg-border/40" />
-        </div>
-
         {/* Tabbed Management Sections */}
-        <div className="mb-6 rounded-xl border border-border/40 overflow-hidden">
+        <Card className="mb-6 card-glass rounded-xl overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            {/* Row 1: title + New button */}
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
+              </div>
+              <TournamentNewButton tournament={tournament} />
+            </div>
+            {/* Row 2: mode toggle */}
+            <div className="px-4 pb-3">
+              <TournamentModeToggle tournament={tournament} />
+            </div>
             <div className="relative">
-              <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none">
+              <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none bg-transparent p-0 border-b border-border/40 h-auto">
                 <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
                 <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
                 <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
@@ -546,7 +550,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
               <SettingsSection tournament={tournament} />
             </TabsContent>
           </Tabs>
-        </div>
+        </Card>
 
         <footer className="mt-8 text-center text-muted-foreground text-sm py-4">
           <p>StackMateGo &copy; {new Date().getFullYear()}</p>
