@@ -390,6 +390,12 @@ export default function TournamentInfoCard({ tournament, league, currentSeason, 
           </div>
         </div>
 
+        {isLeagueMode && state.settings?.seasonName && state.settings?.gameNumber != null && (
+          <div className="mt-1 text-xs text-orange-400/70">
+            {state.settings.seasonName} · Game {state.settings.gameNumber} of {state.settings.numberOfGames || 12}
+          </div>
+        )}
+
         {isExpanded && (
           <div className="mt-4 space-y-3">
 
