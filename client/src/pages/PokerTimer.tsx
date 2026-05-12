@@ -484,7 +484,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         <div className="mb-6 rounded-xl border border-border/40 overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="relative">
-              <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none">
+              <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none bg-transparent p-0 border-b border-border/40 h-auto">
                 <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
                 <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
                 <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
