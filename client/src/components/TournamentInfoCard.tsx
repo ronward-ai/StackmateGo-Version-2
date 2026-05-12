@@ -84,8 +84,8 @@ export function TournamentModeToggle({ tournament }: { tournament: TournamentPro
   const totalGames = displaySeason?.numberOfGames || 12;
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="inline-flex items-center bg-muted p-1 rounded-md">
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
         <button
           className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
           style={!isLeagueMode ? activeStyle : inactiveStyle}
@@ -105,7 +105,7 @@ export function TournamentModeToggle({ tournament }: { tournament: TournamentPro
         </button>
       </div>
       {isLeagueMode && gameNumber !== null && (
-        <span className="text-xs font-medium text-orange-400">
+        <span className="text-xs font-medium text-orange-400 truncate min-w-0">
           {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
         </span>
       )}
@@ -119,7 +119,7 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
   const { league, userLeagues, switchLeague, leaguePlayers } = useLeague();
   const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const [dialogLeagueId, setDialogLeagueId] = useState<string | null>(null);
-  const { seasons: dialogSeasonsList } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
+  const { seasons: dialogSeasonsList, isLoading: dialogSeasonsLoading } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
   const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
   const [dialogSeasonId, setDialogSeasonId] = useState<string | number | null>(null);
 
@@ -303,7 +303,11 @@ export function TournamentNewButton({ tournament }: { tournament: TournamentProp
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button className="w-full" onClick={() => handleLeagueNewGame(dialogSeasonId)}>
+            <Button
+              className="w-full"
+              disabled={dialogSeasonsLoading || (dialogLeagueId !== null && String(dialogLeagueId) !== String(league?.id) && dialogSeasonsList.length === 0)}
+              onClick={() => handleLeagueNewGame(dialogSeasonId)}
+            >
               {dialogGameNumber != null ? `Start Game ${dialogGameNumber}` : 'Start Next Game'}
             </Button>
             <button

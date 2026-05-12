@@ -103,7 +103,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   // If returning to the home page after previously going live, redirect back to the
   // live director view so Firestore state is fully restored from the database.
   useEffect(() => {
-    if (tournamentId) return; // already on a specific tournament URL
+    if (tournamentId) return;
     try {
       const saved = localStorage.getItem('activeDirectorTournamentId');
       if (saved) setLocation(`/tournament/${saved}/director`);
@@ -111,18 +111,7 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   }, []);
 
   const tournament = useTournament(tournamentId);
-  const { recordResultByName, addLeaguePlayer, removeTournamentResultForPlayer, league, switchLeague } = useLeague();
-  const { currentSeason } = useSeasons({ leagueId: league?.id });
-  const currentSeasonRef = useRef(currentSeason);
-  useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
-  const { user, isAnonymous } = useAuth();
-  const { toast } = useToast();
-  const [processedEliminations, setProcessedEliminations] = useState(new Set<string>());
-  const [activeTab, setActiveTab] = useState('players');
-  const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
-  const lastSyncedPlayersRef = useRef<string>('');
 
-  // Add safety check for tournament hook
   if (!tournament) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black">
@@ -132,6 +121,27 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       </div>
     );
   }
+
+  return <PokerTimerInner tournament={tournament} tournamentId={tournamentId} />;
+}
+
+function PokerTimerInner({
+  tournament,
+  tournamentId,
+}: {
+  tournament: NonNullable<ReturnType<typeof useTournament>>;
+  tournamentId?: string;
+}) {
+  const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague } = useLeague();
+  const { currentSeason } = useSeasons({ leagueId: league?.id });
+  const currentSeasonRef = useRef(currentSeason);
+  useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
+  const { user, isAnonymous } = useAuth();
+  const { toast } = useToast();
+  const processedEliminationsRef = useRef(new Set<string>());
+  const [activeTab, setActiveTab] = useState('players');
+  const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
+  const lastSyncedPlayersRef = useRef<string>('');
 
   // Tournament creation is now explicit — triggered by "Go Live" in QRCodeSection (Pro feature).
   // The sync effects below are already guarded on dbTournamentId so they naturally no-op until live.
@@ -264,13 +274,13 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       const eliminatedPlayers = tournament?.state?.players?.filter(p => {
         if (isFinished) {
           // Tournament finished - record all players with positions who haven't been processed
-          return p.position && p.position > 0 && !processedEliminations.has(p.id);
+          return p.position && p.position > 0 && !processedEliminationsRef.current.has(p.id);
         } else {
           // Tournament ongoing - only record eliminated players
           return p.isActive === false &&
                  p.position &&
                  p.position > 0 &&
-                 !processedEliminations.has(p.id);
+                 !processedEliminationsRef.current.has(p.id);
         }
       }) || [];
 
@@ -315,28 +325,17 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
 
         // Update processed eliminations only for successfully processed players
         if (processedPlayerIds.length > 0) {
-          setProcessedEliminations(prev => {
-            const newSet = new Set(prev);
-            processedPlayerIds.forEach(id => newSet.add(id));
-            return newSet;
-          });
+          processedPlayerIds.forEach(id => processedEliminationsRef.current.add(id));
         }
       }
 
       // Handle Rebuys: If a player is active again but was previously processed as eliminated,
-      // we need to remove their premature league result and remove them from processedEliminations.
-      const rebuysToProcess = activePlayers.filter(p => processedEliminations.has(p.id));
+      // remove their premature league result and allow re-recording when they're eliminated again.
+      const rebuysToProcess = activePlayers.filter(p => processedEliminationsRef.current.has(p.id));
       if (rebuysToProcess.length > 0) {
         rebuysToProcess.forEach(player => {
           try {
-            // 1. Remove from processed eliminations so they can be recorded again later
-            setProcessedEliminations(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(player.id);
-              return newSet;
-            });
-            
-            // 2. Remove their premature result from the league database
+            processedEliminationsRef.current.delete(player.id);
             const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
             if (gameId) {
               removeTournamentResultForPlayer(player.name, String(gameId));
@@ -351,16 +350,16 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
       toast({ title: 'League recording error', description: 'Some results may not have been saved to the league. Please check Tournament History.', variant: 'destructive' });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, processedEliminations]);
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer]);
 
-  // Reset processed eliminations when tournament resets
+  // Reset processed eliminations only when it's a genuine tournament reset (all active, no positions).
+  // Guarding on positions prevents mid-game Firestore snapshots during handover from wiping the set.
   useEffect(() => {
-    const activePlayers = tournament?.state?.players?.filter(p => p.isActive !== false) || [];
-    const totalPlayers = tournament?.state?.players?.length || 0;
-
-    // If all players are active again, reset processed eliminations
-    if (activePlayers.length === totalPlayers && totalPlayers > 0) {
-      setProcessedEliminations(new Set());
+    const players = tournament?.state?.players || [];
+    const allActive = players.length > 0 && players.every(p => p.isActive !== false);
+    const noPositions = !players.some(p => (p.position || 0) > 0);
+    if (allActive && noPositions) {
+      processedEliminationsRef.current = new Set();
     }
   }, [tournament?.state?.players]);
 
