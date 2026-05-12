@@ -69,51 +69,25 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
     }
   };
 
-  const storedSeasonId = state.settings?.seasonId;
-  const displaySeason = storedSeasonId
-    ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
-    : currentSeason;
-
-  const gameNumber = useMemo(() => {
-    if (!isLeagueMode || !displaySeason) return null;
-    const ids = new Set<string>();
-    leaguePlayers.forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(displaySeason.id))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    const localGameId = state.details?.localGameId;
-    if (localGameId && ids.has(localGameId)) return ids.size;
-    return ids.size + 1;
-  }, [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const totalGames = displaySeason?.numberOfGames || 12;
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
-        <button
-          className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
-          style={!isLeagueMode ? activeStyle : inactiveStyle}
-          onClick={() => {
-            updateTournamentDetails({ ...state.details, type: 'standalone' });
-            updateSettings({ isSeasonTournament: false });
-          }}
-        >
-          Standalone
-        </button>
-        <button
-          className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
-          style={isLeagueMode ? activeStyle : inactiveStyle}
-          onClick={handleEnableLeague}
-        >
-          League
-        </button>
-      </div>
-      {isLeagueMode && gameNumber !== null && (
-        <span className="text-xs font-medium text-orange-400 truncate min-w-0">
-          {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
-        </span>
-      )}
+    <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
+      <button
+        className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
+        style={!isLeagueMode ? activeStyle : inactiveStyle}
+        onClick={() => {
+          updateTournamentDetails({ ...state.details, type: 'standalone' });
+          updateSettings({ isSeasonTournament: false });
+        }}
+      >
+        Standalone
+      </button>
+      <button
+        className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
+        style={isLeagueMode ? activeStyle : inactiveStyle}
+        onClick={handleEnableLeague}
+      >
+        League
+      </button>
     </div>
   );
 }
