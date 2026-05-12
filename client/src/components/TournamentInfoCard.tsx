@@ -366,13 +366,17 @@ export default function TournamentInfoCard({ tournament, league, currentSeason, 
       <CardContent className="p-5">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="relative flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Trophy className="h-4 w-4 text-orange-400" />
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Info</span>
           </div>
-          <div className="flex items-center gap-2">
-            {/* In-game tools */}
+          {isLeagueMode && state.settings?.seasonName && state.settings?.gameNumber != null && (
+            <div className="absolute left-1/2 -translate-x-1/2 text-xs text-orange-400/70 whitespace-nowrap pointer-events-none">
+              {state.settings.seasonName} · Game {state.settings.gameNumber} of {state.settings.numberOfGames || 12}
+            </div>
+          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
             {active.length >= 2 && pool > 0 && (
               <button
                 onClick={() => setShowChipChop(true)}
@@ -389,12 +393,6 @@ export default function TournamentInfoCard({ tournament, league, currentSeason, 
             </button>
           </div>
         </div>
-
-        {isLeagueMode && state.settings?.seasonName && state.settings?.gameNumber != null && (
-          <div className="mt-1 text-xs text-orange-400/70">
-            {state.settings.seasonName} · Game {state.settings.gameNumber} of {state.settings.numberOfGames || 12}
-          </div>
-        )}
 
         {isExpanded && (
           <div className="mt-4 space-y-3">
