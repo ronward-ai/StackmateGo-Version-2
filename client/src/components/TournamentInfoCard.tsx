@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { calculatePrizePool } from "@/lib/prizePool";
 import ChipChopCalculator from './ChipChopCalculator';
@@ -205,8 +205,9 @@ export function TournamentNewButton({ tournament, league, userLeagues = [], swit
           }}
           className="flex items-center gap-1 text-xs font-medium text-orange-400/80 hover:text-orange-300 border border-orange-400/20 hover:border-orange-400/40 px-2 py-1 rounded-md hover:bg-orange-500/10 transition-colors"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
-          New
+          <ChevronRight className="h-3.5 w-3.5" />
+          Next Game
+          <ChevronDown className="h-3 w-3 opacity-60" />
         </button>
       ) : (
         <AlertDialog>
