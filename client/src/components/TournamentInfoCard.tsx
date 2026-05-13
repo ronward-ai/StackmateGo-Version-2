@@ -398,16 +398,6 @@ export default function TournamentInfoCard({ tournament, league, currentSeason, 
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Info</span>
           </div>
           <div className="flex items-center gap-2">
-            {/* In-game tools */}
-            {active.length >= 2 && pool > 0 && (
-              <button
-                onClick={() => setShowChipChop(true)}
-                className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 px-2 py-1 rounded-md hover:bg-orange-500/10"
-              >
-                <Calculator className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Chop</span>
-              </button>
-            )}
             <button onClick={() => setIsExpanded(v => !v)}>
               {isExpanded
                 ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -452,9 +442,20 @@ export default function TournamentInfoCard({ tournament, league, currentSeason, 
             {/* Payouts */}
             {p?.manualPayouts && p.manualPayouts.length > 0 && pool > 0 && (
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Trophy className="h-3.5 w-3.5 text-yellow-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-yellow-400">Payouts</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-3.5 w-3.5 text-yellow-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-yellow-400">Payouts</span>
+                  </div>
+                  {active.length >= 2 && (
+                    <button
+                      onClick={() => setShowChipChop(true)}
+                      className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 px-2 py-1 rounded-md hover:bg-orange-500/10 transition-colors"
+                    >
+                      <Calculator className="h-3.5 w-3.5" />
+                      Chop
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   {p.manualPayouts.map((po: any, i: number) => {
