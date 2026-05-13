@@ -62,6 +62,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
   const [seatsPerTable, setSeatsPerTable]   = useState(tables.seatsPerTable);
+  const [tablesInputValue, setTablesInputValue] = useState(String(tables.numberOfTables));
+  const [seatsInputValue, setSeatsInputValue]   = useState(String(tables.seatsPerTable));
   const [tableNames, setTableNames]         = useState<string[]>(tables.tableNames || Array.from({ length: tables.numberOfTables }, (_, i) => `Table ${i + 1}`));
   const [tableBackgrounds, setTableBackgrounds] = useState<string[]>(
     state.settings?.tableBackgrounds?.length === tables.numberOfTables
@@ -97,6 +99,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       const c = state.settings.tables;
       setNumberOfTables(c.numberOfTables);
       setSeatsPerTable(c.seatsPerTable);
+      setTablesInputValue(String(c.numberOfTables));
+      setSeatsInputValue(String(c.seatsPerTable));
       setTableNames(c.tableNames?.length === c.numberOfTables
         ? c.tableNames
         : Array.from({ length: c.numberOfTables }, (_, i) => `Table ${i + 1}`)
@@ -350,15 +354,24 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               <Input
                 id="numberOfTables"
                 type="text"
-                value={numberOfTables}
+                value={tablesInputValue}
                 onChange={(e) => {
+                  setTablesInputValue(e.target.value);
                   const v = parseInt(e.target.value);
                   if (!isNaN(v) && v >= 1 && v <= 20) {
                     setNumberOfTables(v);
                     expandTableNames(v);
                   }
                 }}
-                onBlur={() => saveTableConfig()}
+                onBlur={() => {
+                  const v = parseInt(tablesInputValue);
+                  const clamped = isNaN(v) ? numberOfTables : Math.min(20, Math.max(1, v));
+                  setTablesInputValue(String(clamped));
+                  setNumberOfTables(clamped);
+                  expandTableNames(clamped);
+                  saveTableConfig(clamped, seatsPerTable, tableNames);
+                }}
+                onFocus={(e) => e.target.select()}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
               />
@@ -368,12 +381,20 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               <Input
                 id="seatsPerTable"
                 type="text"
-                value={seatsPerTable}
+                value={seatsInputValue}
                 onChange={(e) => {
+                  setSeatsInputValue(e.target.value);
                   const v = parseInt(e.target.value);
                   if (!isNaN(v) && v >= 2 && v <= 12) setSeatsPerTable(v);
                 }}
-                onBlur={() => saveTableConfig()}
+                onBlur={() => {
+                  const v = parseInt(seatsInputValue);
+                  const clamped = isNaN(v) ? seatsPerTable : Math.min(12, Math.max(2, v));
+                  setSeatsInputValue(String(clamped));
+                  setSeatsPerTable(clamped);
+                  saveTableConfig(numberOfTables, clamped, tableNames);
+                }}
+                onFocus={(e) => e.target.select()}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
               />

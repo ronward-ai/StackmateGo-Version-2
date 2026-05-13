@@ -130,6 +130,7 @@ export function TournamentNewButton({ tournament, league, userLeagues = [], swit
         seasonId: String(chosenSeason.id),
         seasonName: chosenSeason.name,
         numberOfGames: chosenSeason.numberOfGames || 12,
+        gameNumber: dialogGameNumber ?? 1,
       });
     }
   };
