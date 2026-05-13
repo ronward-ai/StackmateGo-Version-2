@@ -37,7 +37,6 @@ const TEMPLATES: Record<string, { label: string; duration: number; blinds: [numb
   'pro':         { label: 'Pro (60 min)',         duration: 3600, blinds: [[10,20],[20,40],[30,60],[50,100],[100,200],[150,300],[200,400],[300,600],[500,1000]] },
 };
 
-// Compact editable number cell for the blind levels table
 function LevelInput({
   value, onChange, onBlur, disabled, min = 0
 }: {
@@ -104,7 +103,6 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
     if (saved) setBlindLevels(saved.blindLevels);
   };
 
-  // Estimated total tournament time
   const totalMinutes = Math.round(
     state.levels.reduce((sum, l) => sum + (l.duration || 0), 0) / 60
   );
@@ -116,13 +114,10 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
       <Card className="card-glass-purple rounded-xl">
         <CardContent className="p-5">
 
-          {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-y-2 mb-5">
             <div className="flex items-center gap-2">
               <ListOrdered className="h-4 w-4 text-orange-400" />
-              <span className="text-sm font-semibold text-foreground uppercase tracking-wide">
-                Blind Levels
-              </span>
+              <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Blind Levels</span>
               <Badge variant="outline" className="text-xs border-orange-500/30 text-orange-300">
                 {nonBreakLevels.length} levels
               </Badge>
@@ -140,9 +135,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   ))}
                   {savedBlindTemplates.length > 0 && (
                     <>
-                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-t border-border/40 mt-1 pt-1">
-                        Saved
-                      </div>
+                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-t border-border/40 mt-1 pt-1">Saved</div>
                       {savedBlindTemplates.map(t => (
                         <SelectItem key={t.id} value={t.id!} className="text-xs">{t.name}</SelectItem>
                       ))}
@@ -150,43 +143,33 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   )}
                 </SelectContent>
               </Select>
-
-              {/* Template confirmation dialog — triggered by dropdown selection */}
               <AlertDialog open={pendingTemplate !== null} onOpenChange={(open) => { if (!open) setPendingTemplate(null); }}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Replace blind structure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will overwrite all current blind levels with the selected template. This cannot be undone.
-                    </AlertDialogDescription>
+                    <AlertDialogDescription>This will overwrite all current blind levels with the selected template. This cannot be undone.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel onClick={() => setPendingTemplate(null)}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => { if (pendingTemplate) applyTemplate(pendingTemplate); setPendingTemplate(null); }}>
-                      Apply Template
-                    </AlertDialogAction>
+                    <AlertDialogAction onClick={() => { if (pendingTemplate) applyTemplate(pendingTemplate); setPendingTemplate(null); }}>Apply Template</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
             </div>
           </div>
 
-          {/* Action buttons */}
           <div className="grid grid-cols-3 gap-2 mb-4">
             <Button variant="outline" size="sm" className="btn-add-level gap-1.5 h-8 text-xs" onClick={addBlindLevel}>
-              <Plus className="h-3.5 w-3.5" />
-              Add Level
+              <Plus className="h-3.5 w-3.5" />Add Level
             </Button>
             <Button variant="outline" size="sm" className="btn-add-break gap-1.5 h-8 text-xs" onClick={() => setBreakDialogOpen(true)}>
-              <Coffee className="h-3.5 w-3.5" />
-              Add Break
+              <Coffee className="h-3.5 w-3.5" />Add Break
             </Button>
             {showAnteCol ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs opacity-60 hover:opacity-100">
-                    <Coins className="h-3.5 w-3.5" />
-                    No Antes
+                    <Coins className="h-3.5 w-3.5" />No Antes
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -202,15 +185,12 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
               </AlertDialog>
             ) : (
               <Button variant="outline" size="sm" className="btn-add-antes gap-1.5 h-8 text-xs" onClick={() => setAntesVisible(true)}>
-                <Coins className="h-3.5 w-3.5" />
-                Add Antes
+                <Coins className="h-3.5 w-3.5" />Add Antes
               </Button>
             )}
           </div>
 
-          {/* Blind levels table */}
           <div className="rounded-lg overflow-x-auto border border-border/30">
-            {/* Table header */}
             <div className={cn(
               "grid gap-1 px-2 py-2 bg-muted/40 border-b border-border/30 min-w-[200px]",
               showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]"
@@ -227,51 +207,30 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                 <div key={h} className="text-xs font-medium text-muted-foreground text-center">{h}</div>
               ))}
             </div>
-
-            {/* Rows */}
             <div className="divide-y divide-border/20">
               {state.levels.map((level, index) => {
                 const isCurrentLevel = index === state.currentLevel;
                 const blindLevelNum = state.levels.slice(0, index + 1).filter(l => !l.isBreak).length;
-
                 if (level.isBreak) {
                   return (
-                    <div
-                      key={index}
-                      className={cn(
-                        "grid gap-1 px-2 py-2 items-center min-w-[200px]",
-                        showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
-                        "bg-amber-500/5 border-l-2 border-amber-500/40",
-                        isCurrentLevel && "bg-amber-500/15 border-l-2 border-amber-400"
-                      )}
-                    >
-                      <div className="flex justify-center">
-                        <Coffee className="h-3.5 w-3.5 text-amber-400" />
-                      </div>
+                    <div key={index} className={cn(
+                      "grid gap-1 px-2 py-2 items-center min-w-[200px]",
+                      showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
+                      "bg-amber-500/5 border-l-2 border-amber-500/40",
+                      isCurrentLevel && "bg-amber-500/15 border-l-2 border-amber-400"
+                    )}>
+                      <div className="flex justify-center"><Coffee className="h-3.5 w-3.5 text-amber-400" /></div>
                       <div className={cn("text-center", showAnteCol ? "col-span-3" : "col-span-2")}>
-                        <span className="text-xs text-amber-400 font-medium">
-                          Break {isCurrentLevel && '← Current'}
-                        </span>
+                        <span className="text-xs text-amber-400 font-medium">Break {isCurrentLevel && '← Current'}</span>
                       </div>
                       <div className="flex justify-center">
-                        <LevelInput
-                          value={level.duration / 60}
-                          onChange={(v) => updateBlindLevel(index, { duration: v * 60 })}
-                          onBlur={(v) => updateBlindLevel(index, { duration: Math.max(1, v) * 60 })}
-                          min={1}
-                        />
+                        <LevelInput value={level.duration / 60} onChange={(v) => updateBlindLevel(index, { duration: v * 60 })} onBlur={(v) => updateBlindLevel(index, { duration: Math.max(1, v) * 60 })} min={1} />
                       </div>
                       <div className="flex justify-center">
                         {state.levels.length > 2 && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                              >
-                                ×
-                              </Button>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive">×</Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
@@ -289,18 +248,13 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                     </div>
                   );
                 }
-
                 return (
-                  <div
-                    key={index}
-                    className={cn(
-                      "grid gap-1 px-2 py-2 items-center min-w-[200px]",
-                      showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
-                      "hover:bg-muted/20 transition-colors",
-                      isCurrentLevel && "border-l-[3px] border-[#14B8A6] bg-[rgba(20,184,166,0.08)]"
-                    )}
-                  >
-                    {/* Level number */}
+                  <div key={index} className={cn(
+                    "grid gap-1 px-2 py-2 items-center min-w-[200px]",
+                    showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
+                    "hover:bg-muted/20 transition-colors",
+                    isCurrentLevel && "border-l-[3px] border-[#14B8A6] bg-[rgba(20,184,166,0.08)]"
+                  )}>
                     <div className="flex justify-center">
                       {isCurrentLevel ? (
                         <div className="flex flex-col items-center gap-0.5">
@@ -313,75 +267,32 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                         <span className="text-xs text-muted-foreground text-center">{blindLevelNum}</span>
                       )}
                     </div>
-
-                    {/* SB */}
-                    <div className="flex justify-center">
-                      <LevelInput
-                        value={level.small}
-                        onChange={(v) => updateBlindLevel(index, { small: v })}
-                        onBlur={(v) => updateBlindLevel(index, { small: Math.max(1, v) })}
-                        min={1}
-                      />
-                    </div>
-
-                    {/* BB */}
-                    <div className="flex justify-center">
-                      <LevelInput
-                        value={level.big}
-                        onChange={(v) => updateBlindLevel(index, { big: v })}
-                        onBlur={(v) => updateBlindLevel(index, { big: Math.max(2, v) })}
-                        min={2}
-                      />
-                    </div>
-
-                    {/* Ante — only when column is visible */}
+                    <div className="flex justify-center"><LevelInput value={level.small} onChange={(v) => updateBlindLevel(index, { small: v })} onBlur={(v) => updateBlindLevel(index, { small: Math.max(1, v) })} min={1} /></div>
+                    <div className="flex justify-center"><LevelInput value={level.big} onChange={(v) => updateBlindLevel(index, { big: v })} onBlur={(v) => updateBlindLevel(index, { big: Math.max(2, v) })} min={2} /></div>
                     {showAnteCol && (
-                      <div className="flex justify-center">
-                        <LevelInput
-                          value={level.ante || 0}
-                          onChange={(v) => updateBlindLevel(index, { ante: v })}
-                          onBlur={(v) => updateBlindLevel(index, { ante: Math.max(0, v) })}
-                          min={0}
-                        />
-                      </div>
+                      <div className="flex justify-center"><LevelInput value={level.ante || 0} onChange={(v) => updateBlindLevel(index, { ante: v })} onBlur={(v) => updateBlindLevel(index, { ante: Math.max(0, v) })} min={0} /></div>
                     )}
-
-                    {/* Duration */}
                     <div className="flex justify-center">
                       <LevelInput
                         value={level.duration / 60}
                         onChange={(v) => {
                           const duration = v * 60;
-                          if (state.settings.applyDurationToAll) {
-                            state.levels.forEach((_, i) => updateBlindLevel(i, { duration }));
-                          } else {
-                            updateBlindLevel(index, { duration });
-                          }
+                          if (state.settings.applyDurationToAll) state.levels.forEach((_, i) => updateBlindLevel(i, { duration }));
+                          else updateBlindLevel(index, { duration });
                         }}
                         onBlur={(v) => {
                           const duration = Math.max(1, v) * 60;
-                          if (state.settings.applyDurationToAll) {
-                            state.levels.forEach((_, i) => updateBlindLevel(i, { duration }));
-                          } else {
-                            updateBlindLevel(index, { duration });
-                          }
+                          if (state.settings.applyDurationToAll) state.levels.forEach((_, i) => updateBlindLevel(i, { duration }));
+                          else updateBlindLevel(index, { duration });
                         }}
                         min={1}
                       />
                     </div>
-
-                    {/* Remove */}
                     <div className="flex justify-center">
                       {state.levels.length > 2 && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                            >
-                              ×
-                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive">×</Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
@@ -403,46 +314,30 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
           </div>
 
           {state.settings.applyDurationToAll && (
-            <p className="text-xs text-amber-400 mt-2 text-center">
-              ⚡ Editing any duration updates all levels
-            </p>
+            <p className="text-xs text-amber-400 mt-2 text-center">⚡ Editing any duration updates all levels</p>
           )}
 
           <div className="mt-4 flex justify-end gap-2">
             {isRegisteredUser && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => setSaveTemplateOpen(true)}
-              >
-                <BookmarkPlus className="h-3.5 w-3.5" />
-                Save as Template
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setSaveTemplateOpen(true)}>
+                <BookmarkPlus className="h-3.5 w-3.5" />Save as Template
               </Button>
             )}
-            <Button
-              size="sm"
-              className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
-              onClick={() => {
-                setBlindLevels([...state.levels]);
-                toast({ title: 'Blind levels saved', description: 'Your structure has been applied.' });
-              }}
-            >
-              <Save className="h-3.5 w-3.5" />
-              Save Changes
+            <Button size="sm" className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white" onClick={() => {
+              setBlindLevels([...state.levels]);
+              toast({ title: 'Blind levels saved', description: 'Your structure has been applied.' });
+            }}>
+              <Save className="h-3.5 w-3.5" />Save Changes
             </Button>
           </div>
-
         </CardContent>
       </Card>
 
-      {/* Save as Template Dialog */}
       <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <BookmarkPlus className="h-4 w-4 text-purple-400" />
-              Save as Template
+              <BookmarkPlus className="h-4 w-4 text-purple-400" />Save as Template
             </DialogTitle>
           </DialogHeader>
           <div className="py-2">
@@ -455,109 +350,70 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                 try {
                   await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 }, templateType: 'blindLevels' });
                   toast({ title: 'Template saved', description: `"${templateName.trim()}" saved to your templates.` });
-                  setTemplateName('');
-                  setSaveTemplateOpen(false);
-                } catch {
-                  toast({ title: 'Save failed', description: 'Could not save template. Please try again.', variant: 'destructive' });
-                } finally { setIsSavingTemplate(false); }
+                  setTemplateName(''); setSaveTemplateOpen(false);
+                } catch { toast({ title: 'Save failed', description: 'Could not save template. Please try again.', variant: 'destructive' }); }
+                finally { setIsSavingTemplate(false); }
               })()}
               autoFocus
             />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveTemplateOpen(false)}>Cancel</Button>
-            <Button
-              disabled={!templateName.trim() || isSavingTemplate}
-              onClick={async () => {
-                setIsSavingTemplate(true);
-                try {
-                  await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 }, templateType: 'blindLevels' });
-                  toast({ title: 'Template saved', description: `"${templateName.trim()}" saved to your templates.` });
-                  setTemplateName('');
-                  setSaveTemplateOpen(false);
-                } catch {
-                  toast({ title: 'Save failed', description: 'Could not save template. Please try again.', variant: 'destructive' });
-                } finally { setIsSavingTemplate(false); }
-              }}
-            >
-              {isSavingTemplate ? 'Saving…' : 'Save'}
-            </Button>
+            <Button disabled={!templateName.trim() || isSavingTemplate} onClick={async () => {
+              setIsSavingTemplate(true);
+              try {
+                await saveTemplate({ name: templateName.trim(), blindLevels: state.levels, prizeStructure: tournament.state.prizeStructure || { buyIn: 0 }, templateType: 'blindLevels' });
+                toast({ title: 'Template saved', description: `"${templateName.trim()}" saved to your templates.` });
+                setTemplateName(''); setSaveTemplateOpen(false);
+              } catch { toast({ title: 'Save failed', description: 'Could not save template. Please try again.', variant: 'destructive' }); }
+              finally { setIsSavingTemplate(false); }
+            }}>{isSavingTemplate ? 'Saving…' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Break Dialog */}
       <Dialog open={breakDialogOpen} onOpenChange={setBreakDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Coffee className="h-4 w-4 text-amber-400" />
-              Add Break
+              <Coffee className="h-4 w-4 text-amber-400" />Add Break
             </DialogTitle>
             <DialogDescription>Insert a break after a blind level.</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-2">
             <div className="flex items-center justify-between gap-4">
               <Label className="text-sm">Duration</Label>
               <div className="flex items-center gap-2">
-                <Input
-                  type="text"
-                  value={breakDuration.toString()}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value);
-                    if (!isNaN(v) && v >= 1 && v <= 60) setBreakDuration(v);
-                    else if (e.target.value === '') setBreakDuration(10);
-                  }}
-                  className="w-20 h-9 text-center"
-                  inputMode="numeric"
-                />
+                <Input type="text" value={breakDuration.toString()} onChange={(e) => {
+                  const v = parseInt(e.target.value);
+                  if (!isNaN(v) && v >= 1 && v <= 60) setBreakDuration(v);
+                  else if (e.target.value === '') setBreakDuration(10);
+                }} className="w-20 h-9 text-center" inputMode="numeric" />
                 <span className="text-sm text-muted-foreground">minutes</span>
               </div>
             </div>
-
             <div className="flex items-center justify-between gap-4">
               <Label className="text-sm">After Level</Label>
               <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                <SelectTrigger className="w-48 h-9">
-                  <SelectValue placeholder="Select a level..." />
-                </SelectTrigger>
+                <SelectTrigger className="w-48 h-9"><SelectValue placeholder="Select a level..." /></SelectTrigger>
                 <SelectContent>
-                  {state.levels
-                    .filter(l => !l.isBreak)
-                    .map((level) => {
-                      const idx = state.levels.indexOf(level);
-                      const num = state.levels.slice(0, idx + 1).filter(l => !l.isBreak).length;
-                      return (
-                        <SelectItem key={idx} value={String(idx)}>
-                          Level {num}: {level.small}/{level.big}
-                        </SelectItem>
-                      );
-                    })}
+                  {state.levels.filter(l => !l.isBreak).map((level) => {
+                    const idx = state.levels.indexOf(level);
+                    const num = state.levels.slice(0, idx + 1).filter(l => !l.isBreak).length;
+                    return <SelectItem key={idx} value={String(idx)}>Level {num}: {level.small}/{level.big}</SelectItem>;
+                  })}
                 </SelectContent>
               </Select>
             </div>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setBreakDialogOpen(false)}>Cancel</Button>
-            <Button
-              className="btn-add-break"
-              onClick={() => {
-                if (selectedLevel) {
-                  addBreak(breakDuration, parseInt(selectedLevel));
-                  setBreakDialogOpen(false);
-                  setSelectedLevel(undefined);
-                }
-              }}
-              disabled={!selectedLevel}
-            >
-              Add Break
-            </Button>
+            <Button className="btn-add-break" onClick={() => {
+              if (selectedLevel) { addBreak(breakDuration, parseInt(selectedLevel)); setBreakDialogOpen(false); setSelectedLevel(undefined); }
+            }} disabled={!selectedLevel}>Add Break</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
