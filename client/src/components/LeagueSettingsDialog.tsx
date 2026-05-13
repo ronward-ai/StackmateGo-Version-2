@@ -562,12 +562,11 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                       <div>
                         <Label>Position</Label>
                         <Input
-                          type="number"
-                          min={1}
-                          max={previewPoints.totalPlayers}
+                          type="text"
+                          inputMode="numeric"
                           value={previewPoints.position === 0 ? '' : previewPoints.position}
                           onChange={(e) => {
-                            const value = e.target.value;
+                            const value = e.target.value.replace(/[^0-9]/g, '');
                             if (value === '') {
                               setPreviewPoints(prev => ({ ...prev, position: 0 }));
                               return;
@@ -585,17 +584,17 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                               setPreviewPoints(prev => ({ ...prev, position: previewPoints.totalPlayers }));
                             }
                           }}
+                          onFocus={(e) => e.target.select()}
                         />
                       </div>
                       <div>
                         <Label>Total Players</Label>
                         <Input
-                          type="number"
-                          min={2}
-                          max={1000}
+                          type="text"
+                          inputMode="numeric"
                           value={previewPoints.totalPlayers === 0 ? '' : previewPoints.totalPlayers}
                           onChange={(e) => {
-                            const value = e.target.value;
+                            const value = e.target.value.replace(/[^0-9]/g, '');
                             if (value === '') {
                               setPreviewPoints(prev => ({ ...prev, totalPlayers: 0 }));
                               return;
@@ -617,6 +616,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                               setPreviewPoints(prev => ({ ...prev, totalPlayers: 1000, position: Math.min(prev.position, 1000) }));
                             }
                           }}
+                          onFocus={(e) => e.target.select()}
                         />
                       </div>
                     </div>

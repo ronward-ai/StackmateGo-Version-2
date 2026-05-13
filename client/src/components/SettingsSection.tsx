@@ -246,7 +246,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                           <Button
                             variant="destructive"
                             size="icon"
-                            className="absolute top-2 right-2 h-6 w-6"
+                            className="absolute top-2 right-2 h-8 w-8"
                             onClick={() => setLogoUrl('')}
                           >
                             <X className="h-3 w-3" />

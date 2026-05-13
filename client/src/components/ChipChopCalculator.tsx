@@ -130,11 +130,12 @@ export default function ChipChopCalculator({
               <div className="w-6 text-center text-xs text-gray-500 flex-shrink-0">{i + 1}</div>
               <div className="flex-1 text-sm font-medium truncate">{player.name}</div>
               <Input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="numeric"
                 placeholder="chips"
                 value={chips[player.id] || ''}
-                onChange={e => setChips(prev => ({ ...prev, [player.id]: e.target.value }))}
+                onChange={e => setChips(prev => ({ ...prev, [player.id]: e.target.value.replace(/[^0-9]/g, '') }))}
+                onFocus={(e) => e.target.select()}
                 className="w-28 h-8 text-right bg-gray-800 border-gray-700 text-white text-sm"
               />
               {totalChips > 0 && chipValues[i] > 0 && (

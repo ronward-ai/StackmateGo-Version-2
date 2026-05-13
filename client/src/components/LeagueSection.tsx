@@ -370,10 +370,14 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                       <div>
                         <Label className="text-xs text-muted-foreground">Number of Games</Label>
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           value={newSeasonGames}
-                          onChange={e => setNewSeasonGames(e.target.value === '' ? '' : Number(e.target.value))}
-                          min={1}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9]/g, '');
+                            setNewSeasonGames(raw === '' ? '' : Number(raw));
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="mt-1 h-8 text-sm"
                         />
                       </div>

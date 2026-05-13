@@ -24,6 +24,7 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
   const [newPlayerName, setNewPlayerName] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [position, setPosition] = useState<number>(1);
+  const [positionInput, setPositionInput] = useState('1');
 
   const {
     league,
@@ -247,10 +248,21 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
                 <div className="flex items-center">
                   <span className="mr-2 text-muted-foreground">Position:</span>
                   <Input
-                    type="number" 
-                    min={1}
-                    value={position}
-                    onChange={(e) => setPosition(parseInt(e.target.value) || 1)}
+                    type="text"
+                    inputMode="numeric"
+                    value={positionInput}
+                    onChange={(e) => {
+                      setPositionInput(e.target.value);
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v) && v >= 1) setPosition(v);
+                    }}
+                    onBlur={() => {
+                      const v = parseInt(positionInput);
+                      const clamped = isNaN(v) || v < 1 ? 1 : v;
+                      setPositionInput(String(clamped));
+                      setPosition(clamped);
+                    }}
+                    onFocus={(e) => e.target.select()}
                     className="w-20 rounded-lg px-3 py-2 bg-input border border-border"
                   />
                   <div className="ml-2 text-muted-foreground">
