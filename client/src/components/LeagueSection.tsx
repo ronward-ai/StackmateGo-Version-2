@@ -35,7 +35,6 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeHint, setUpgradeHint] = useState('');
 
-  // Compute current game number — same logic as TournamentInfoCard
   const gameNumber = useMemo(() => {
     if (!currentSeason?.id || !leaguePlayers) return 1;
     const ids = new Set<string>();
@@ -52,8 +51,6 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   useEffect(() => {
     if (currentSeason?.id) {
       setActiveSeasonId(String(currentSeason.id));
-      // Keep season info in tournament settings so it syncs to Firestore and
-      // the participant view can display season name and game number.
       if (tournament?.updateSettings) {
         tournament.updateSettings({
           seasonId: String(currentSeason.id),
@@ -65,7 +62,6 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     }
   }, [currentSeason?.id, setActiveSeasonId]);
 
-  // Keep gameNumber in sync as league results are recorded during the game
   useEffect(() => {
     if (tournament?.updateSettings && currentSeason?.id) {
       tournament.updateSettings({ gameNumber });
@@ -97,8 +93,6 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
       ...tournament?.state?.details,
       type: 'season',
     });
-    // Persist leagueId, seasonId + flag into tournament settings so any director
-    // on any device can restore the full league/season context via handover.
     if (league?.id) {
       tournament?.updateSettings?.({
         isSeasonTournament: true,
@@ -331,10 +325,14 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                       <div>
                         <Label className="text-xs text-muted-foreground">Number of Games</Label>
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           value={newSeasonGames}
-                          onChange={e => setNewSeasonGames(e.target.value === '' ? '' : Number(e.target.value))}
-                          min={1}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9]/g, '');
+                            setNewSeasonGames(raw === '' ? '' : Number(raw));
+                          }}
+                          onFocus={(e) => e.target.select()}
                           className="mt-1 h-8 text-sm"
                         />
                       </div>
