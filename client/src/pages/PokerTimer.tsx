@@ -230,9 +230,9 @@ function PokerTimerInner({
     };
     sync();
   }, [ // eslint-disable-line react-hooks/exhaustive-deps
-    tournament.state.isRunning,       // start / pause
-    tournament.state.currentLevel,    // level skip
-    tournament.state.targetEndTime,   // set on start, cleared on pause
+    tournament.state.isRunning,
+    tournament.state.currentLevel,
+    tournament.state.targetEndTime,
     tournament.state.levels,
     tournament.state.notes,
     dbTournamentId,
@@ -253,7 +253,6 @@ function PokerTimerInner({
           sanitizeForFirestore({
             prizeStructure: tournament.state.prizeStructure,
             settings: tournament.state.settings,
-            // Keep top-level league fields in sync so handover always works
             leagueId: tournament.state.settings?.leagueId || null,
             seasonId: tournament.state.settings?.seasonId || null,
             isSeasonTournament: tournament.state.settings?.isSeasonTournament || false,
@@ -267,13 +266,10 @@ function PokerTimerInner({
     sync();
   }, [tournament.state.prizeStructure, tournament.state.settings, dbTournamentId, user, isAnonymous]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Setup Socket.IO connection for real-time updates removed
-
   // Listen for director coordination sync events
   useEffect(() => {
     const handleTournamentSync = (event: CustomEvent) => {
       if (event.detail?.tournament) {
-        // Trigger a manual re-render by dispatching additional events
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('leagueDataChanged'));
         }, 100);
@@ -288,7 +284,6 @@ function PokerTimerInner({
 
   // Auto-record eliminated players to league when season mode is enabled
   useEffect(() => {
-    // Wrap the entire effect in a try-catch to prevent crashes
     try {
       const isSeasonTournament =
         tournament?.state?.details?.type === 'season' ||
@@ -298,16 +293,13 @@ function PokerTimerInner({
         return;
       }
 
-      // Get players to record - if tournament is finished, record all players, otherwise just newly eliminated
       const activePlayers = tournament?.state?.players?.filter(p => p.isActive !== false) || [];
       const isFinished = activePlayers.length <= 1 && tournament?.state?.players && tournament.state.players.length > 1;
 
       const eliminatedPlayers = tournament?.state?.players?.filter(p => {
         if (isFinished) {
-          // Tournament finished - record all players with positions who haven't been processed
           return p.position && p.position > 0 && !processedEliminationsRef.current.has(p.id);
         } else {
-          // Tournament ongoing - only record eliminated players
           return p.isActive === false &&
                  p.position &&
                  p.position > 0 &&
@@ -316,23 +308,16 @@ function PokerTimerInner({
       }) || [];
 
       if (eliminatedPlayers.length > 0) {
-        // Process each player with individual error handling
         const processedPlayerIds: string[] = [];
 
         eliminatedPlayers.forEach(player => {
           try {
-            // Validate player data before processing
             if (!player.name || !player.position || !tournament?.state?.players?.length) {
               return;
             }
 
-            // Calculate eliminations for this player - use knockouts field
             const eliminationsCount = player.knockouts || 0;
-
-            // Get prize money for this player
             const prizeMoney = player.prizeMoney || 0;
-
-            // Record tournament result for this player
             const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
             const seasonId = currentSeasonRef.current?.id ? String(currentSeasonRef.current.id) : undefined;
             recordResultByName(
@@ -346,22 +331,17 @@ function PokerTimerInner({
               seasonId
             );
 
-            // Track successful processing
             processedPlayerIds.push(player.id);
           } catch (playerError) {
             console.error('Error recording individual player to league:', player.name, playerError);
-            // Continue processing other players even if one fails
           }
         });
 
-        // Update processed eliminations only for successfully processed players
         if (processedPlayerIds.length > 0) {
           processedPlayerIds.forEach(id => processedEliminationsRef.current.add(id));
         }
       }
 
-      // Handle Rebuys: If a player is active again but was previously processed as eliminated,
-      // remove their premature league result and allow re-recording when they're eliminated again.
       const rebuysToProcess = activePlayers.filter(p => processedEliminationsRef.current.has(p.id));
       if (rebuysToProcess.length > 0) {
         rebuysToProcess.forEach(player => {
@@ -384,7 +364,6 @@ function PokerTimerInner({
   }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer]);
 
   // Reset processed eliminations only when it's a genuine tournament reset (all active, no positions).
-  // Guarding on positions prevents mid-game Firestore snapshots during handover from wiping the set.
   useEffect(() => {
     const players = tournament?.state?.players || [];
     const allActive = players.length > 0 && players.every(p => p.isActive !== false);
@@ -395,8 +374,6 @@ function PokerTimerInner({
   }, [tournament?.state?.players]);
 
   // Restore league context when a tournament is loaded via director handover.
-  // The leagueId is stored in tournament settings and synced to Firestore, so the
-  // receiving director's device always gets the right league regardless of localStorage.
   useEffect(() => {
     const leagueId = tournament.state.settings?.leagueId;
     if (leagueId && tournament.state.details?.type === 'database') {
@@ -404,13 +381,11 @@ function PokerTimerInner({
     }
   }, [tournament.state.settings?.leagueId, tournament.state.details?.type, switchLeague]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Clear any old test data flag
   useEffect(() => {
     localStorage.removeItem('leagueTestDataAdded');
   }, []);
   const [recentLevelChange, setRecentLevelChange] = useState(false);
 
-  // Track level changes to trigger the flash animation
   useEffect(() => {
     if (tournament.state.isRunning) {
       setRecentLevelChange(true);
@@ -427,7 +402,6 @@ function PokerTimerInner({
       <div className="container mx-auto px-4 py-3 sm:py-6 max-w-4xl">
         {/* Header — row 1: logo + user menu | row 2: mode toggle */}
         <header className="mb-3 sm:mb-5">
-          {/* Row 1: logo left, user menu right */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex flex-col">
               <img
@@ -481,8 +455,6 @@ function PokerTimerInner({
           }
           return null;
         })()}
-
-
 
         {/* Main Timer Card - Always Visible */}
         <div className="mb-6">
