@@ -160,6 +160,15 @@ function PokerTimerInner({
   }, [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId]);
   const totalGames = _displaySeason?.numberOfGames || 12;
 
+  // Keep tournament.settings.gameNumber in sync so the participant (QR) view
+  // always shows the same value as the director view.
+  useEffect(() => {
+    if (gameNumber !== null && _isLeagueMode) {
+      tournament.updateSettings({ gameNumber });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameNumber]);
+
   const processedEliminationsRef = useRef(new Set<string>());
   const [activeTab, setActiveTab] = useState('players');
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
