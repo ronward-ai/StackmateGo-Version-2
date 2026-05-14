@@ -27,6 +27,8 @@ interface TournamentInfoCardProps {
   switchLeague?: ReturnType<typeof useLeague>['switchLeague'];
   currentSeason: ReturnType<typeof useSeasons>['currentSeason'];
   seasons: ReturnType<typeof useSeasons>['seasons'];
+  gameNumber?: number | null;
+  totalGames?: number;
 }
 
 type TournamentProp = TournamentInfoCardProps['tournament'];
@@ -327,7 +329,7 @@ export function TournamentNewButton({ tournament, league, userLeagues = [], swit
   );
 }
 
-export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons }: TournamentInfoCardProps) {
+export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, gameNumber: gameNumberProp, totalGames: totalGamesProp }: TournamentInfoCardProps) {
   const { state } = tournament;
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
@@ -341,19 +343,10 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
 
-  const gameNumber = useMemo(() => {
-    if (!isLeagueMode || !displaySeason) return null;
-    const ids = new Set<string>();
-    (leaguePlayers as any[]).forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(displaySeason.id))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    const localGameId = state.details?.localGameId;
-    if (localGameId && ids.has(localGameId)) return ids.size;
-    return ids.size + 1;
-  }, [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const totalGames = displaySeason?.numberOfGames || 12;
+  // Prefer the value computed by the parent (PokerTimer) to guarantee consistency
+  // with TournamentModeToggle, which is also computed there from the same data.
+  const gameNumber = gameNumberProp !== undefined ? gameNumberProp : null;
+  const totalGames = totalGamesProp ?? displaySeason?.numberOfGames ?? 12;
 
   const lastLoadedSeasonId = useRef<string | number | null>(null);
   useEffect(() => {
