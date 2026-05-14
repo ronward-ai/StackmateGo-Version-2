@@ -463,7 +463,7 @@ function PokerTimerInner({
 
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
-          <TournamentInfoCard tournament={tournament} league={league} currentSeason={currentSeason} seasons={seasons} />
+          <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
         </div>
 
         {/* Live banner — shown when players exist but haven't gone live yet */}
