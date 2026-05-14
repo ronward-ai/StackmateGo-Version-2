@@ -28,6 +28,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.onerror = function(msg, src, line, col, err) {
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#b00;color:#fff;padding:12px;font:14px monospace;z-index:99999;white-space:pre-wrap;word-break:break-all';
+        d.textContent = 'ERROR: ' + msg + '\n' + (src||'') + ':' + line + '\n' + (err && err.stack ? err.stack : '');
+        document.body.appendChild(d);
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#a50;color:#fff;padding:12px;font:14px monospace;z-index:99999;white-space:pre-wrap;word-break:break-all';
+        d.textContent = 'UNHANDLED PROMISE: ' + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason));
+        document.body.appendChild(d);
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
