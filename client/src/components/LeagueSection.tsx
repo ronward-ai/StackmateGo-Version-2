@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeHint, setUpgradeHint] = useState('');
 
+  // Compute current game number — same logic as TournamentInfoCard
   const gameNumber = useMemo(() => {
     if (!currentSeason?.id || !leaguePlayers) return 1;
     const ids = new Set<string>();
@@ -51,6 +53,8 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   useEffect(() => {
     if (currentSeason?.id) {
       setActiveSeasonId(String(currentSeason.id));
+      // Keep season info in tournament settings so it syncs to Firestore and
+      // the participant view can display season name and game number.
       if (tournament?.updateSettings) {
         tournament.updateSettings({
           seasonId: String(currentSeason.id),
@@ -62,6 +66,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     }
   }, [currentSeason?.id, setActiveSeasonId]);
 
+  // Keep gameNumber in sync as league results are recorded during the game
   useEffect(() => {
     if (tournament?.updateSettings && currentSeason?.id) {
       tournament.updateSettings({ gameNumber });
@@ -93,6 +98,8 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
       ...tournament?.state?.details,
       type: 'season',
     });
+    // Persist leagueId, seasonId + flag into tournament settings so any director
+    // on any device can restore the full league/season context via handover.
     if (league?.id) {
       tournament?.updateSettings?.({
         isSeasonTournament: true,
@@ -325,36 +332,19 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                       <div>
                         <Label className="text-xs text-muted-foreground">Number of Games</Label>
                         <Input
-                          type="text"
-                          inputMode="numeric"
+                          type="number"
                           value={newSeasonGames}
-                          onChange={e => {
-                            const raw = e.target.value.replace(/[^0-9]/g, '');
-                            setNewSeasonGames(raw === '' ? '' : Number(raw));
-                          }}
-                          onFocus={(e) => e.target.select()}
+                          onChange={e => setNewSeasonGames(e.target.value === '' ? '' : Number(e.target.value))}
+                          min={1}
                           className="mt-1 h-8 text-sm"
                         />
                       </div>
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <Label className="text-xs text-muted-foreground">Start Date</Label>
-                          <Input
-                            type="date"
-                            className="mt-1 h-8 text-sm"
-                            value={dateRange?.from ? dateRange.from.toISOString().split('T')[0] : ''}
-                            onChange={e => setDateRange(prev => ({ from: e.target.value ? new Date(e.target.value) : undefined, to: prev?.to }))}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <Label className="text-xs text-muted-foreground">End Date</Label>
-                          <Input
-                            type="date"
-                            className="mt-1 h-8 text-sm"
-                            value={dateRange?.to ? dateRange.to.toISOString().split('T')[0] : ''}
-                            onChange={e => setDateRange(prev => ({ from: prev?.from, to: e.target.value ? new Date(e.target.value) : undefined }))}
-                          />
-                        </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Date Range</Label>
+                        <DateRangePicker
+                          value={dateRange}
+                          onSelect={setDateRange}
+                        />
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" className="flex-1" onClick={handleCreateSeason}>
