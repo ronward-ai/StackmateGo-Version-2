@@ -27,6 +27,8 @@ interface TournamentInfoCardProps {
   switchLeague?: ReturnType<typeof useLeague>['switchLeague'];
   currentSeason: ReturnType<typeof useSeasons>['currentSeason'];
   seasons: ReturnType<typeof useSeasons>['seasons'];
+  gameNumber?: number | null;
+  totalGames?: number;
 }
 
 type TournamentProp = TournamentInfoCardProps['tournament'];
@@ -327,7 +329,7 @@ export function TournamentNewButton({ tournament, league, userLeagues = [], swit
   );
 }
 
-export default function TournamentInfoCard({ tournament, league, currentSeason, seasons }: TournamentInfoCardProps) {
+export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, gameNumber: gameNumberProp, totalGames: totalGamesProp }: TournamentInfoCardProps) {
   const { state } = tournament;
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
@@ -340,6 +342,11 @@ export default function TournamentInfoCard({ tournament, league, currentSeason, 
   const displaySeason = storedSeasonId
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
+
+  // Prefer the value computed by the parent (PokerTimer) to guarantee consistency
+  // with TournamentModeToggle, which is also computed there from the same data.
+  const gameNumber = gameNumberProp !== undefined ? gameNumberProp : null;
+  const totalGames = totalGamesProp ?? displaySeason?.numberOfGames ?? 12;
 
   const lastLoadedSeasonId = useRef<string | number | null>(null);
   useEffect(() => {
@@ -396,6 +403,11 @@ export default function TournamentInfoCard({ tournament, league, currentSeason, 
           <div className="flex items-center gap-2">
             <Trophy className="h-4 w-4 text-orange-400" />
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Info</span>
+            {isLeagueMode && gameNumber !== null && (
+              <span className="text-xs font-medium text-orange-400">
+                {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setIsExpanded(v => !v)}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
@@ -138,6 +138,28 @@ function PokerTimerInner({
   useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
   const { user, isAnonymous } = useAuth();
   const { toast } = useToast();
+
+  // Compute game number once here so TournamentInfoCard and TournamentModeToggle always show the same value.
+  const _isLeagueMode = tournament.state.details?.type === 'season' || tournament.state.settings?.isSeasonTournament === true;
+  const _storedSeasonId = tournament.state.settings?.seasonId;
+  const _displaySeason = _storedSeasonId
+    ? ((seasons as any[]).find((s: any) => String(s.id) === String(_storedSeasonId)) ?? currentSeason)
+    : currentSeason;
+  const gameNumber = useMemo(() => {
+    if (!_isLeagueMode || !_displaySeason) return null;
+    const ids = new Set<string>();
+    (leaguePlayers as any[]).forEach((player: any) => {
+      (player.tournamentResults || [])
+        .filter((r: any) => r.seasonId === String(_displaySeason.id))
+        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
+    });
+    const localGameId = tournament.state.details?.localGameId;
+    if (localGameId && ids.has(localGameId)) return ids.size;
+    return ids.size + 1;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId]);
+  const totalGames = _displaySeason?.numberOfGames || 12;
+
   const processedEliminationsRef = useRef(new Set<string>());
   const [activeTab, setActiveTab] = useState('players');
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
@@ -463,7 +485,7 @@ function PokerTimerInner({
 
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
-          <TournamentInfoCard tournament={tournament} league={league} currentSeason={currentSeason} seasons={seasons} />
+          <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} />
         </div>
 
         {/* Live banner — shown when players exist but haven't gone live yet */}
