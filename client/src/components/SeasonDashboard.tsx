@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,12 +24,38 @@ import {
   DollarSign,
   Award,
   Archive,
-  BarChart2
+  BarChart2,
+  History
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function SeasonDashboard() {
   const { league, leaguePlayers } = useLeague();
   const { currentSeason, seasons, formatSeasonDateRange, updateSeason } = useSeasons({ leagueId: league?.id });
+  const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
+
+  const pastSeasons = useMemo(
+    () => seasons.filter(s => String(s.id) !== String(currentSeason?.id)),
+    [seasons, currentSeason?.id]
+  );
+
+  const pastSeasonStandings = useMemo(() => {
+    if (!selectedPastSeasonId) return [];
+    return leaguePlayers
+      .map(player => {
+        const results = (player.tournamentResults || []).filter(
+          r => r.seasonId === selectedPastSeasonId
+        );
+        if (results.length === 0) return null;
+        const tournaments = new Set(results.map(r => r.tournamentId)).size;
+        const wins = results.filter(r => r.position === 1).length;
+        const points = results.reduce((sum, r) => sum + (r.points || 0), 0);
+        const prize = results.reduce((sum, r) => sum + (r.cashWon ?? r.prizeMoney ?? 0), 0);
+        return { name: (player as any).name || (player as any).playerName || 'Unknown', tournaments, wins, points, prize };
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+      .sort((a, b) => b.points - a.points);
+  }, [selectedPastSeasonId, leaguePlayers]);
 
   // ✅ FIXED: Filter results by seasonId, not players by seasonId
   const currentSeasonPlayers = useMemo(() => {
@@ -273,45 +299,69 @@ export default function SeasonDashboard() {
         </div>
       </div>
 
-      {/* All Seasons Summary */}
-      {seasons.length > 1 && (
+      {/* Previous Seasons */}
+      {pastSeasons.length > 0 && (
         <div>
           <div className="flex items-center mb-4">
-            <BarChart2 className="h-5 w-5 mr-2 text-primary" />
-            <h3 className="text-xl font-semibold">All Seasons</h3>
+            <History className="h-5 w-5 mr-2 text-primary" />
+            <h3 className="text-xl font-semibold">Previous Seasons</h3>
           </div>
-          <Card>
-            <CardContent className="p-0">
-              <div className="divide-y">
-                {seasons.map(season => {
-                  const seasonResults = leaguePlayers.flatMap(p =>
-                    p.tournamentResults.filter(r => r.seasonId === String(season.id))
-                  );
-                  const uniqueTourneys = new Set(seasonResults.map(r => r.tournamentId)).size;
-                  const isActive = (season as any).isActive || (season as any).status === 'active';
-                  return (
-                    <div key={season.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{season.name}</p>
-                          <Badge variant={isActive ? 'default' : 'secondary'} className="text-xs">
-                            {isActive ? 'Active' : 'Completed'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatSeasonDateRange(season)}
-                        </p>
+          <Select
+            value={selectedPastSeasonId ?? ''}
+            onValueChange={val => setSelectedPastSeasonId(val || null)}
+          >
+            <SelectTrigger className="w-full mb-4">
+              <SelectValue placeholder="Select a season to view standings" />
+            </SelectTrigger>
+            <SelectContent>
+              {pastSeasons.map(season => (
+                <SelectItem key={season.id} value={String(season.id)}>
+                  <span className="font-medium">{season.name}</span>
+                  <span className="ml-2 text-muted-foreground text-xs">{formatSeasonDateRange(season)}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedPastSeasonId && (
+            pastSeasonStandings.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <BarChart2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No results recorded for this season</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
+                    <span>#</span>
+                    <span>Player</span>
+                    <span className="text-right">Pts</span>
+                    <span className="text-right">Played</span>
+                    <span className="text-right">Wins</span>
+                    <span className="text-right">Prize</span>
+                  </div>
+                  <div className="divide-y">
+                    {pastSeasonStandings.map((player, i) => (
+                      <div key={player.name} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3">
+                        <span className={`text-sm font-bold w-6 text-center ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                          {i + 1}
+                        </span>
+                        <span className="font-medium truncate">{player.name}</span>
+                        <span className="font-mono font-bold text-right">{player.points}</span>
+                        <span className="font-mono text-right text-muted-foreground">{player.tournaments}</span>
+                        <span className="font-mono text-right text-muted-foreground">{player.wins}</span>
+                        <span className="font-mono text-right text-muted-foreground">
+                          {player.prize > 0 ? `£${player.prize}` : '—'}
+                        </span>
                       </div>
-                      <div className="text-right">
-                        <p className="font-mono font-bold">{uniqueTourneys}</p>
-                        <p className="text-xs text-muted-foreground">tournaments</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          )}
         </div>
       )}
     </div>
