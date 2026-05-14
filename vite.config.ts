@@ -17,6 +17,7 @@ export default defineConfig(async (): Promise<any> => {
     build: {
       outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
+      target: ['es2020', 'safari14'],
     },
     server: {
       host: '0.0.0.0',
