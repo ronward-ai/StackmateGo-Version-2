@@ -62,8 +62,6 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
   const [seatsPerTable, setSeatsPerTable]   = useState(tables.seatsPerTable);
-  const [tablesInputValue, setTablesInputValue] = useState(String(tables.numberOfTables));
-  const [seatsInputValue, setSeatsInputValue]   = useState(String(tables.seatsPerTable));
   const [tableNames, setTableNames]         = useState<string[]>(tables.tableNames || Array.from({ length: tables.numberOfTables }, (_, i) => `Table ${i + 1}`));
   const [tableBackgrounds, setTableBackgrounds] = useState<string[]>(
     state.settings?.tableBackgrounds?.length === tables.numberOfTables
@@ -99,8 +97,6 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       const c = state.settings.tables;
       setNumberOfTables(c.numberOfTables);
       setSeatsPerTable(c.seatsPerTable);
-      setTablesInputValue(String(c.numberOfTables));
-      setSeatsInputValue(String(c.seatsPerTable));
       setTableNames(c.tableNames?.length === c.numberOfTables
         ? c.tableNames
         : Array.from({ length: c.numberOfTables }, (_, i) => `Table ${i + 1}`)
@@ -238,9 +234,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const balanceRandomly = () => {
     if (!balanceOptions) return;
-    // Random player from the overloaded table
     const player = balanceOptions.playersToMove[Math.floor(Math.random() * balanceOptions.playersToMove.length)];
-    // Collect all empty seats at the underloaded table, pick one at random
     const occupiedAtTarget = new Set(
       state.players
         .filter(p => p.seated && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable)
@@ -266,26 +260,22 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     const current = [...state.players];
     const { seatsPerTable: spt = 9 } = tables;
 
-    // Players to redistribute (active, seated at the broken table)
     const toRedistribute = current
       .filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === breakIdx)
-      .sort(() => Math.random() - 0.5); // shuffle so assignment order is random
+      .sort(() => Math.random() - 0.5);
 
-    // Remove their seat assignments
     let updated = current.map(p =>
       toRedistribute.some(r => r.id === p.id)
         ? { ...p, seated: false, tableAssignment: undefined }
         : p
     );
 
-    // Assign each player to the emptiest table that still has a free seat
     for (const player of toRedistribute) {
       const occupied = new Set(
         updated.filter(p => p.seated && p.tableAssignment)
                .map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`)
       );
 
-      // Count occupancy per table (skip the broken one)
       const tableCount: Record<number, number> = {};
       for (let t = 0; t < numberOfTables; t++) {
         if (t !== breakIdx) tableCount[t] = 0;
@@ -354,24 +344,15 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               <Input
                 id="numberOfTables"
                 type="text"
-                value={tablesInputValue}
+                value={numberOfTables}
                 onChange={(e) => {
-                  setTablesInputValue(e.target.value);
                   const v = parseInt(e.target.value);
                   if (!isNaN(v) && v >= 1 && v <= 20) {
                     setNumberOfTables(v);
                     expandTableNames(v);
                   }
                 }}
-                onBlur={() => {
-                  const v = parseInt(tablesInputValue);
-                  const clamped = isNaN(v) ? numberOfTables : Math.min(20, Math.max(1, v));
-                  setTablesInputValue(String(clamped));
-                  setNumberOfTables(clamped);
-                  expandTableNames(clamped);
-                  saveTableConfig(clamped, seatsPerTable, tableNames);
-                }}
-                onFocus={(e) => e.target.select()}
+                onBlur={() => saveTableConfig()}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
               />
@@ -381,20 +362,12 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               <Input
                 id="seatsPerTable"
                 type="text"
-                value={seatsInputValue}
+                value={seatsPerTable}
                 onChange={(e) => {
-                  setSeatsInputValue(e.target.value);
                   const v = parseInt(e.target.value);
                   if (!isNaN(v) && v >= 2 && v <= 12) setSeatsPerTable(v);
                 }}
-                onBlur={() => {
-                  const v = parseInt(seatsInputValue);
-                  const clamped = isNaN(v) ? seatsPerTable : Math.min(12, Math.max(2, v));
-                  setSeatsInputValue(String(clamped));
-                  setSeatsPerTable(clamped);
-                  saveTableConfig(numberOfTables, clamped, tableNames);
-                }}
-                onFocus={(e) => e.target.select()}
+                onBlur={() => saveTableConfig()}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
               />
