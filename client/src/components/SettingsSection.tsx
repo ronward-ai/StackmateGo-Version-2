@@ -13,6 +13,7 @@ interface SettingsSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
 }
 
+// Consistent toggle row — label on left, control on right
 function SettingRow({
   id, label, hint, checked, onCheckedChange, children
 }: {
@@ -41,6 +42,7 @@ function SettingRow({
   );
 }
 
+// Grouped settings card
 function SettingsGroup({ icon: Icon, title, color, children }: {
   icon: any; title: string; color: string; children: React.ReactNode;
 }) {
@@ -68,6 +70,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
   const [justApplied, setJustApplied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Local (staged) copy of general settings — only written to tournament on Apply
   const [localSettings, setLocalSettings] = useState(() => ({ ...state.settings }));
   const [generalDirty, setGeneralDirty] = useState(false);
   const [generalJustApplied, setGeneralJustApplied] = useState(false);
@@ -137,7 +140,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
               </TabsTrigger>
             </TabsList>
 
-            {/* ── General Tab ─────────────────────────────────────────── */}
+            {/* ── General Tab ─────────────────────────────── */}
             <TabsContent value="general" className="space-y-4 mt-0">
               <SettingsGroup icon={Volume2} title="Audio" color="text-cyan-400">
                 <SettingRow
@@ -219,7 +222,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
               </Button>
             </TabsContent>
 
-            {/* ── Branding Tab ─────────────────────────────────────────── */}
+            {/* ── Branding Tab ─────────────────────────────── */}
             <TabsContent value="branding" className="space-y-4 mt-0">
               <Card className="card-glass rounded-xl">
                 <CardContent className="p-4 space-y-4">
@@ -243,7 +246,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                           <Button
                             variant="destructive"
                             size="icon"
-                            className="absolute top-2 right-2 h-8 w-8"
+                            className="absolute top-2 right-2 h-6 w-6"
                             onClick={() => setLogoUrl('')}
                           >
                             <X className="h-3 w-3" />
@@ -305,7 +308,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
               </Card>
             </TabsContent>
 
-            {/* ── Notes Tab ─────────────────────────────────────────── */}
+            {/* ── Notes Tab ─────────────────────────────── */}
             <TabsContent value="notes" className="mt-0">
               <Card className="card-glass rounded-xl">
                 <CardContent className="p-4 space-y-3">
