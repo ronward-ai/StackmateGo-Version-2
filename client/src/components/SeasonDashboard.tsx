@@ -57,20 +57,18 @@ export default function SeasonDashboard() {
       .sort((a, b) => b.points - a.points);
   }, [selectedPastSeasonId, leaguePlayers]);
 
-  // ✅ FIXED: Filter results by seasonId, not players by seasonId
   const currentSeasonPlayers = useMemo(() => {
     if (!currentSeason) return [];
     return leaguePlayers
       .map(player => ({
         ...player,
         tournamentResults: player.tournamentResults.filter(
-          r => r.seasonId === String(currentSeason.id)
+          r => String(r.seasonId) === String(currentSeason.id)
         )
       }))
       .filter(player => player.tournamentResults.length > 0);
   }, [leaguePlayers, currentSeason?.id]);
 
-  // Calculate season statistics from filtered results
   const seasonStats = useMemo(() => {
     const allResults = currentSeasonPlayers.flatMap(p => p.tournamentResults);
     const uniqueTournaments = new Set(allResults.map(r => r.tournamentId)).size;
@@ -78,13 +76,10 @@ export default function SeasonDashboard() {
     const avgPlayersPerTournament = uniqueTournaments > 0
       ? Math.round(allResults.length / uniqueTournaments)
       : 0;
-
-    // Season progress
     const gamesRemaining = Math.max(0, (currentSeason?.numberOfGames || 0) - uniqueTournaments);
     const progressPercent = currentSeason?.numberOfGames
       ? Math.min(100, Math.round((uniqueTournaments / currentSeason.numberOfGames) * 100))
       : 0;
-
     return {
       totalPlayers: currentSeasonPlayers.length,
       totalTournaments: uniqueTournaments,
@@ -95,7 +90,6 @@ export default function SeasonDashboard() {
     };
   }, [currentSeasonPlayers, currentSeason]);
 
-  // Top performers for current season
   const topPerformers = useMemo(() => {
     return [...currentSeasonPlayers]
       .sort((a, b) => {
@@ -111,6 +105,19 @@ export default function SeasonDashboard() {
         const cashWon = player.tournamentResults.reduce((s, r) => s + (r.cashWon || 0), 0);
         return { ...player, rank: index + 1, seasonPoints, wins, cashWon };
       });
+  }, [currentSeasonPlayers]);
+
+  const currentSeasonStandings = useMemo(() => {
+    return [...currentSeasonPlayers]
+      .map(player => {
+        const results = player.tournamentResults;
+        const tournaments = new Set(results.map(r => r.tournamentId)).size;
+        const wins = results.filter(r => r.position === 1).length;
+        const points = results.reduce((sum, r) => sum + (r.points || 0), 0);
+        const prize = results.reduce((sum, r) => sum + (r.cashWon ?? r.prizeMoney ?? 0), 0);
+        return { name: (player as any).name || (player as any).playerName || 'Unknown', tournaments, wins, points, prize };
+      })
+      .sort((a, b) => b.points - a.points);
   }, [currentSeasonPlayers]);
 
   const handleEndSeason = async () => {
@@ -146,8 +153,6 @@ export default function SeasonDashboard() {
               </Badge>
             </div>
             <p className="text-muted-foreground text-sm">{formatSeasonDateRange(currentSeason)}</p>
-
-            {/* Season progress bar */}
             {(currentSeason.numberOfGames || 0) > 0 && (
               <div className="mt-3">
                 <div className="flex justify-between text-xs text-muted-foreground mb-1">
@@ -163,8 +168,6 @@ export default function SeasonDashboard() {
               </div>
             )}
           </div>
-
-          {/* Season actions */}
           <div className="flex gap-2 flex-shrink-0 flex-wrap">
             {!isCompleted && (
               <AlertDialog>
@@ -184,9 +187,7 @@ export default function SeasonDashboard() {
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleEndSeason}>
-                      End Season
-                    </AlertDialogAction>
+                    <AlertDialogAction onClick={handleEndSeason}>End Season</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -207,7 +208,6 @@ export default function SeasonDashboard() {
             <p className="text-xs text-muted-foreground mt-1">This season</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Tournaments</CardTitle>
@@ -218,7 +218,6 @@ export default function SeasonDashboard() {
             <p className="text-xs text-muted-foreground mt-1">Completed</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Avg Players</CardTitle>
@@ -229,7 +228,6 @@ export default function SeasonDashboard() {
             <p className="text-xs text-muted-foreground mt-1">Per tournament</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Prize Pool</CardTitle>
@@ -286,7 +284,6 @@ export default function SeasonDashboard() {
               </CardContent>
             </Card>
           ))}
-
           {topPerformers.length === 0 && (
             <Card className="col-span-3">
               <CardContent className="py-8 text-center text-muted-foreground">
@@ -298,6 +295,45 @@ export default function SeasonDashboard() {
           )}
         </div>
       </div>
+
+      {/* Current Season Standings */}
+      {currentSeasonStandings.length > 0 && (
+        <div>
+          <div className="flex items-center mb-4">
+            <BarChart2 className="h-5 w-5 mr-2 text-primary" />
+            <h3 className="text-xl font-semibold">Standings</h3>
+            <span className="ml-2 text-sm text-muted-foreground">({currentSeason.name})</span>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
+                <span>#</span>
+                <span>Player</span>
+                <span className="text-right">Pts</span>
+                <span className="text-right">Played</span>
+                <span className="text-right">Wins</span>
+                <span className="text-right">Prize</span>
+              </div>
+              <div className="divide-y">
+                {currentSeasonStandings.map((player, i) => (
+                  <div key={player.name} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3">
+                    <span className={`text-sm font-bold w-6 text-center ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                      {i + 1}
+                    </span>
+                    <span className="font-medium truncate">{player.name}</span>
+                    <span className="font-mono font-bold text-right">{player.points}</span>
+                    <span className="font-mono text-right text-muted-foreground">{player.tournaments}</span>
+                    <span className="font-mono text-right text-muted-foreground">{player.wins}</span>
+                    <span className="font-mono text-right text-muted-foreground">
+                      {player.prize > 0 ? `£${player.prize}` : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Previous Seasons */}
       {pastSeasons.length > 0 && (
@@ -322,7 +358,6 @@ export default function SeasonDashboard() {
               ))}
             </SelectContent>
           </Select>
-
           {selectedPastSeasonId && (
             pastSeasonStandings.length === 0 ? (
               <Card>
