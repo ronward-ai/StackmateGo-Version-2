@@ -89,6 +89,11 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const handleSeasonChange = async (seasonId: string) => {
     const selected = seasons.find(s => String(s.id) === seasonId);
     setActiveSeasonId(seasonId);
+    // Broadcast immediately so all useSeasons instances switch without waiting for Firestore
+    try {
+      localStorage.setItem('activeSeasonId', seasonId);
+      window.dispatchEvent(new CustomEvent('seasonSwitched', { detail: seasonId }));
+    } catch {}
     tournament?.updateSettings?.({
       seasonId,
       seasonName: selected?.name,
@@ -132,7 +137,12 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
         status: 'active',
       });
       if (newSeason?.id && newSeason.id !== 'default-season') {
-        setActiveSeasonId(String(newSeason.id));
+        const nsId = String(newSeason.id);
+        setActiveSeasonId(nsId);
+        try {
+          localStorage.setItem('activeSeasonId', nsId);
+          window.dispatchEvent(new CustomEvent('seasonSwitched', { detail: nsId }));
+        } catch {}
         tournament?.updateSettings?.({
           seasonId: String(newSeason.id),
           seasonName: newSeason.name,

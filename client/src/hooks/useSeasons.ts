@@ -47,6 +47,27 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   const [dbSeasons, setDbSeasons] = useState<Season[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Optimistic local override — updated immediately on season switch so all hook
+  // instances respond without waiting for Firestore's onSnapshot round-trip.
+  const [localActiveSeasonId, setLocalActiveSeasonId] = useState<string | null>(() => {
+    try { return localStorage.getItem('activeSeasonId'); } catch { return null; }
+  });
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setLocalActiveSeasonId((e as CustomEvent<string>).detail ?? null);
+    };
+    window.addEventListener('seasonSwitched', handler);
+    return () => window.removeEventListener('seasonSwitched', handler);
+  }, []);
+
+  // Clear the local override when the league changes so a stale season ID from a
+  // different league never bleeds into this instance.
+  useEffect(() => {
+    setLocalActiveSeasonId(null);
+    try { localStorage.removeItem('activeSeasonId'); } catch {}
+  }, [leagueId]);
+
   // Fetch seasons from database if leagueId is provided and valid.
   // No auth guard needed — Firestore rules allow read: if true for seasons.
   useEffect(() => {
@@ -203,11 +224,16 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     return [fallbackSeason];
   }, [dbSeasons, fallbackSeason, leagueId]);
 
-  // Get current active season
+  // Get current active season — prefer the local override (set instantly on switch)
+  // then fall back to whichever season Firestore has marked active.
   const currentSeason = useMemo(() => {
+    if (localActiveSeasonId) {
+      const override = seasons.find(s => String(s.id) === localActiveSeasonId);
+      if (override) return override;
+    }
     const activeSeason = seasons.find(s => s.isActive);
     return activeSeason || seasons[0] || fallbackSeason;
-  }, [seasons, fallbackSeason]);
+  }, [seasons, fallbackSeason, localActiveSeasonId]);
 
   // Format season date range for display
   const formatSeasonDateRange = useCallback((season: MinimalSeason) => {
