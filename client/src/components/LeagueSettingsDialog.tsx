@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
+import { useLeague } from '@/hooks/useLeague';
 import { POINTS_SYSTEMS, STAT_LABELS, DEFAULT_LEAGUE_SETTINGS } from '@/types/leagueSettings';
 
 // Define the structure for a saved formula template
@@ -50,10 +51,13 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
   const [savedFormulas, setSavedFormulas] = useState<SavedFormula[]>([]); // State for saved formulas
   const [templateName, setTemplateName] = useState(''); // State for the template name input
 
+  const { league } = useLeague();
+  const leagueId = league?.id ? String(league.id) : null;
+
   // Safe hook usage with error handling
   let hookData;
   try {
-    hookData = useLeagueSettings();
+    hookData = useLeagueSettings(undefined, leagueId);
   } catch (err) {
     console.error('Error loading league settings:', err);
     setError('Failed to load league settings');
@@ -82,7 +86,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
     updateSettings,
     updateStatsToDisplay,
     updateDisplaySettings,
-
+    saveSettingsToDatabase,
     resetToDefaults,
     calculatePoints,
     updateCustomFormula,
@@ -93,6 +97,15 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
     deleteSettingsFromDatabase,
     getSavedCustomFormulas
   } = hookData;
+
+  // Auto-save to Firestore (scoped to leagueId) whenever settings change
+  useEffect(() => {
+    if (!leagueId || !settings) return;
+    const timer = setTimeout(() => {
+      saveSettingsToDatabase('League Settings', true, settings);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [settings, leagueId]);
 
   const effectiveStatsOrder = settings.statsOrder?.length
     ? settings.statsOrder
