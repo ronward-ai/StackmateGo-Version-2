@@ -22,11 +22,13 @@ import html2canvas from 'html2canvas';
 interface RealTimeLeagueTableProps {
   tournament?: any;
   isParticipantView?: boolean;
+  seasonIdOverride?: string | null;
 }
 
 function RealTimeLeagueTable({
   tournament,
-  isParticipantView = false
+  isParticipantView = false,
+  seasonIdOverride = null,
 }: RealTimeLeagueTableProps) {
   // ALWAYS call ALL hooks first - never conditionally
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -49,7 +51,7 @@ function RealTimeLeagueTable({
     ? _rawLeagueId
     : directLeagueId;
   const settingsData = useLeagueSettings(tournament?.ownerId, leagueId ? String(leagueId) : null);
-  const { currentSeason } = useSeasons({ leagueId });
+  const { currentSeason, seasons } = useSeasons({ leagueId });
 
   // ALL hook calls complete - now safe to do any logic
   // leagueId present is the definitive signal — it's set when the director links a league,
@@ -78,13 +80,23 @@ function RealTimeLeagueTable({
   }, [isSeasonTournament]);
 
 
+  // When a past season is requested, look it up from the seasons list for its name
+  const overrideSeason = seasonIdOverride
+    ? seasons.find(s => String(s.id) === String(seasonIdOverride))
+    : null;
+
   // Use the actual season doc name first — leagueSettings.seasonSettings.seasonName is legacy/stale
-  const currentSeasonName = currentSeason?.name || tournament?.season?.name || leagueSettings?.seasonSettings?.seasonName || 'Current Season';
+  const currentSeasonName = overrideSeason?.name
+    || currentSeason?.name
+    || tournament?.season?.name
+    || leagueSettings?.seasonSettings?.seasonName
+    || 'Current Season';
 
   // 'default-season' is a synthetic fallback ID used before Firestore loads — treat it
   // the same as null so stale results written with that ID never bleed into the table.
   const rawSeasonId = currentSeason?.id ? String(currentSeason.id) : null;
-  const seasonId = rawSeasonId === 'default-season' ? null : rawSeasonId;
+  const baseSeasonId = rawSeasonId === 'default-season' ? null : rawSeasonId;
+  const seasonId = seasonIdOverride ? String(seasonIdOverride) : baseSeasonId;
   const seasonFilteredPlayers = useMemo(() => {
     if (!Array.isArray(leaguePlayers)) return [];
     if (!seasonId) {
