@@ -5,9 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2, Settings } from 'lucide-react';
-import { cn } from "@/lib/utils";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Trophy, Calendar, ChevronDown, ChevronUp, Plus, Trash2, Settings, Archive, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import SeasonDashboard from '@/components/SeasonDashboard';
 import { LeagueSettingsDialog } from '@/components/LeagueSettingsDialog';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -27,6 +33,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteLeague, setShowDeleteLeague] = useState(false);
+  const [showEndSeasonConfirm, setShowEndSeasonConfirm] = useState(false);
   const [showLeagueSettings, setShowLeagueSettings] = useState(false);
   const [isDeletingSeason, setIsDeletingSeason] = useState(false);
   const [isDeletingLeague, setIsDeletingLeague] = useState(false);
@@ -141,6 +148,17 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     }
   };
 
+  const handleEndSeason = async () => {
+    if (!currentSeason) return;
+    try {
+      await updateSeason(currentSeason.id, { status: 'completed' });
+    } catch (err) {
+      console.error('Failed to end season:', err);
+    } finally {
+      setShowEndSeasonConfirm(false);
+    }
+  };
+
   const handleDeleteSeason = async () => {
     if (!currentSeason || currentSeason.id === 'default-season') return;
     setIsDeletingSeason(true);
@@ -167,18 +185,6 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
       setDeleteLeagueConfirm('');
     }
   };
-
-  const gamesPlayed = useMemo(() => {
-    if (!currentSeason) return 0;
-    const ids = new Set<string>();
-    leaguePlayers.forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(currentSeason.id))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    return ids.size;
-  }, [currentSeason?.id, leaguePlayers]);
-  const totalGames = currentSeason?.numberOfGames || 12;
 
   const statusColor: Record<string, string> = {
     active: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -301,29 +307,51 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {currentSeason && (
-                        <span className="text-xs text-muted-foreground hidden sm:block mr-1">
-                          {gamesPlayed}/{totalGames} games
-                        </span>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => { if (!isPro) { setUpgradeHint('Creating seasons'); setShowUpgrade(true); } else setShowNewSeason(true); }}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        New Season
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => setShowDeleteConfirm(true)}
-                        title="Delete season"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            title="Season actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() => { if (!isPro) { setUpgradeHint('Creating seasons'); setShowUpgrade(true); } else setShowNewSeason(true); }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            New Season
+                          </DropdownMenuItem>
+                          {currentSeason && (currentSeason as any).status !== 'completed' && (
+                            <DropdownMenuItem onSelect={() => setShowEndSeasonConfirm(true)}>
+                              <Archive className="h-4 w-4 mr-2" />
+                              End Season
+                            </DropdownMenuItem>
+                          )}
+                          {!readOnly && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => setShowDeleteConfirm(true)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Season
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => setShowDeleteLeague(true)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete League
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
 
@@ -378,71 +406,78 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                 />
               )}
 
-              {/* Danger zone */}
-              {!readOnly && (
-                <div className="border-t border-border/20 pt-3">
-                  <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete season?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete <strong>{currentSeason?.name}</strong> and all its tournament results. This cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive hover:bg-destructive/80"
-                          onClick={handleDeleteSeason}
-                          disabled={isDeletingSeason}
-                        >
-                          {isDeletingSeason ? 'Deleting...' : 'Delete Season'}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-
-                  <AlertDialog open={showDeleteLeague} onOpenChange={setShowDeleteLeague}>
-                    <AlertDialogTrigger asChild>
-                      <button className="text-xs text-muted-foreground hover:text-destructive transition-colors">
-                        Delete entire league
-                      </button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete league?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete <strong>{league?.name}</strong> including all seasons, players, and tournament results. This cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="px-6 pb-2">
-                        <Label className="text-xs text-muted-foreground">Type the league name to confirm</Label>
-                        <Input
-                          value={deleteLeagueConfirm}
-                          onChange={e => setDeleteLeagueConfirm(e.target.value)}
-                          placeholder={league?.name}
-                          className="mt-1 h-8 text-sm"
-                        />
-                      </div>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setDeleteLeagueConfirm('')}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive hover:bg-destructive/80"
-                          onClick={handleDeleteLeague}
-                          disabled={isDeletingLeague || deleteLeagueConfirm !== league?.name}
-                        >
-                          {isDeletingLeague ? 'Deleting...' : 'Delete League'}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
-
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmation dialogs (triggered from season actions menu) */}
+      <AlertDialog open={showEndSeasonConfirm} onOpenChange={setShowEndSeasonConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>End "{currentSeason?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the season as completed. All results will be preserved.
+              You can create a new season afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleEndSeason}>End Season</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete season?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{currentSeason?.name}</strong> and all its tournament results. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/80"
+              onClick={handleDeleteSeason}
+              disabled={isDeletingSeason}
+            >
+              {isDeletingSeason ? 'Deleting...' : 'Delete Season'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteLeague} onOpenChange={setShowDeleteLeague}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete league?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{league?.name}</strong> including all seasons, players, and tournament results. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 pb-2">
+            <Label className="text-xs text-muted-foreground">Type the league name to confirm</Label>
+            <Input
+              value={deleteLeagueConfirm}
+              onChange={e => setDeleteLeagueConfirm(e.target.value)}
+              placeholder={league?.name}
+              className="mt-1 h-8 text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteLeagueConfirm('')}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/80"
+              onClick={handleDeleteLeague}
+              disabled={isDeletingLeague || deleteLeagueConfirm !== league?.name}
+            >
+              {isDeletingLeague ? 'Deleting...' : 'Delete League'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
