@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
+import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,9 +30,118 @@ import {
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+function StandingsTable({ rows, columns }: { rows: any[]; columns: string[] }) {
+  const gridTemplate = `auto 1fr ${columns.map(() => 'auto').join(' ')}`;
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <div
+          className="grid items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b gap-x-4"
+          style={{ gridTemplateColumns: gridTemplate }}
+        >
+          <span>#</span>
+          <span>Player</span>
+          {columns.map(key => (
+            <span key={key} className="text-right">{STAT_DEFS[key].label}</span>
+          ))}
+        </div>
+        <div className="divide-y">
+          {rows.map((player, i) => (
+            <div
+              key={player.name}
+              className="grid items-center px-4 py-3 gap-x-4"
+              style={{ gridTemplateColumns: gridTemplate }}
+            >
+              <span className={`text-sm font-bold w-6 text-center ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                {i + 1}
+              </span>
+              <span className="font-medium truncate">{player.name}</span>
+              {columns.map(key => (
+                <span key={key} className="font-mono text-right text-sm text-muted-foreground">
+                  {STAT_DEFS[key].fmt(player)}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Stat column definitions — label + value extractor
+const STAT_DEFS: Record<string, { label: string; fmt: (p: any) => string | number }> = {
+  points:                { label: 'Pts',        fmt: p => p.points },
+  games:                 { label: 'Played',     fmt: p => p.tournaments },
+  averagePoints:         { label: 'Avg Pts',    fmt: p => p.averagePoints },
+  firstPlaceFinishes:    { label: '1st',        fmt: p => p.wins },
+  secondPlaceFinishes:   { label: '2nd',        fmt: p => p.secondPlaces },
+  thirdPlaceFinishes:    { label: '3rd',        fmt: p => p.thirdPlaces },
+  cashWinnings:          { label: 'Prize',      fmt: p => p.prize > 0 ? `£${p.prize}` : '—' },
+  averagePosition:       { label: 'Avg Pos',    fmt: p => p.averagePosition ?? '—' },
+  finalTableAppearances: { label: 'Finals',     fmt: p => p.finalTables },
+  hits:                  { label: 'Hits',       fmt: p => p.hits },
+  rebuys:                { label: 'Rebuys',     fmt: p => p.rebuys },
+  reEntries:             { label: 'Re-entries', fmt: p => p.reEntries },
+  addOns:                { label: 'Add-ons',    fmt: p => p.addOns },
+  winRate:               { label: 'Win %',      fmt: p => `${p.winRate}%` },
+  bestFinish:            { label: 'Best',       fmt: p => p.bestFinish ?? '—' },
+  worstFinish:           { label: 'Worst',      fmt: p => p.worstFinish ?? '—' },
+  itmPercentage:         { label: 'ITM %',      fmt: p => `${p.itmPercentage}%` },
+  biggestWin:            { label: 'Best Win',   fmt: p => p.biggestWin > 0 ? `£${p.biggestWin}` : '—' },
+  attendancePercent:     { label: 'Attend %',   fmt: p => p.attendancePercent != null ? `${p.attendancePercent}%` : '—' },
+  bountiesWon:           { label: 'Bounties',   fmt: p => p.bountiesWon },
+  totalInvested:         { label: 'Invested',   fmt: p => p.totalInvested > 0 ? `£${p.totalInvested}` : '—' },
+  profit:                { label: 'Profit',     fmt: p => p.profit !== 0 ? `£${p.profit}` : '—' },
+  roi:                   { label: 'ROI %',      fmt: p => p.totalInvested > 0 ? `${p.roi}%` : '—' },
+};
+
+function computeStats(results: any[], seasonTotalGames = 0) {
+  const tournaments = new Set(results.map(r => r.tournamentId)).size;
+  const wins = results.filter(r => r.position === 1).length;
+  const points = results.reduce((sum, r) => sum + (r.points || 0), 0);
+  const prize = results.reduce((sum, r) => sum + (r.cashWon ?? r.prizeMoney ?? 0), 0);
+  const secondPlaces = results.filter(r => r.position === 2).length;
+  const thirdPlaces = results.filter(r => r.position === 3).length;
+  const finalTables = results.filter(r => r.position && r.position <= 6).length;
+  const hits = results.reduce((sum, r) => sum + ((r as any).knockouts || 0), 0);
+  const rebuys = results.reduce((sum, r) => sum + ((r as any).rebuys || 0), 0);
+  const reEntries = results.reduce((sum, r) => sum + ((r as any).reEntries || 0), 0);
+  const addOns = results.reduce((sum, r) => sum + ((r as any).addons || 0), 0);
+  const bountiesWon = results.reduce((sum, r) => sum + ((r as any).bountiesWon || (r as any).bounties || 0), 0);
+  const posResults = results.filter(r => r.position);
+  const averagePosition = posResults.length > 0
+    ? Math.round((posResults.reduce((s, r) => s + r.position, 0) / posResults.length) * 10) / 10
+    : null;
+  const averagePoints = tournaments > 0 ? Math.round((points / tournaments) * 10) / 10 : 0;
+  const positions = posResults.map(r => r.position);
+  const bestFinish = positions.length > 0 ? Math.min(...positions) : null;
+  const worstFinish = positions.length > 0 ? Math.max(...positions) : null;
+  const winRate = tournaments > 0 ? Math.round((wins / tournaments) * 100) : 0;
+  const itmCount = results.filter(r => (r.cashWon ?? r.prizeMoney ?? 0) > 0).length;
+  const itmPercentage = tournaments > 0 ? Math.round((itmCount / tournaments) * 100) : 0;
+  const attendancePercent = seasonTotalGames > 0 ? Math.round((tournaments / seasonTotalGames) * 100) : null;
+  const biggestWin = results.length > 0 ? Math.max(...results.map(r => r.cashWon ?? r.prizeMoney ?? 0)) : 0;
+  const totalInvested = results.reduce((sum, r) => {
+    const buyIn = r.buyIn || (r as any).buyInAmount || 0;
+    const rebuyAmt = ((r as any).rebuys || 0) * ((r as any).rebuyAmount || buyIn);
+    const addonAmt = ((r as any).addons || 0) * ((r as any).addonAmount || buyIn);
+    return sum + buyIn + rebuyAmt + addonAmt;
+  }, 0);
+  const profit = prize - totalInvested;
+  const roi = totalInvested > 0 ? Math.round((profit / totalInvested) * 100 * 10) / 10 : 0;
+  return {
+    tournaments, wins, points, prize, secondPlaces, thirdPlaces, finalTables,
+    hits, rebuys, reEntries, addOns, bountiesWon, averagePosition, averagePoints,
+    bestFinish, worstFinish, winRate, itmPercentage, attendancePercent, biggestWin,
+    totalInvested, profit, roi,
+  };
+}
+
 export default function SeasonDashboard() {
   const { league, leaguePlayers } = useLeague();
   const { currentSeason, seasons, formatSeasonDateRange, updateSeason } = useSeasons({ leagueId: league?.id });
+  const { settings } = useLeagueSettings(undefined, league?.id && league.id !== 'pending' ? String(league.id) : null);
   const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
 
   const pastSeasons = useMemo(
@@ -41,21 +151,22 @@ export default function SeasonDashboard() {
 
   const pastSeasonStandings = useMemo(() => {
     if (!selectedPastSeasonId) return [];
+    const pastSeason = seasons.find(s => String(s.id) === String(selectedPastSeasonId));
+    const seasonGames = pastSeason?.numberOfGames || 0;
     return leaguePlayers
       .map(player => {
         const results = (player.tournamentResults || []).filter(
           r => String(r.seasonId) === String(selectedPastSeasonId)
         );
         if (results.length === 0) return null;
-        const tournaments = new Set(results.map(r => r.tournamentId)).size;
-        const wins = results.filter(r => r.position === 1).length;
-        const points = results.reduce((sum, r) => sum + (r.points || 0), 0);
-        const prize = results.reduce((sum, r) => sum + (r.cashWon ?? r.prizeMoney ?? 0), 0);
-        return { name: (player as any).name || (player as any).playerName || 'Unknown', tournaments, wins, points, prize };
+        return {
+          name: (player as any).name || (player as any).playerName || 'Unknown',
+          ...computeStats(results, seasonGames),
+        };
       })
       .filter((p): p is NonNullable<typeof p> => p !== null)
       .sort((a, b) => b.points - a.points);
-  }, [selectedPastSeasonId, leaguePlayers]);
+  }, [selectedPastSeasonId, leaguePlayers, seasons]);
 
   const currentSeasonPlayers = useMemo(() => {
     if (!currentSeason) return [];
@@ -108,17 +219,21 @@ export default function SeasonDashboard() {
   }, [currentSeasonPlayers]);
 
   const currentSeasonStandings = useMemo(() => {
+    const seasonGames = currentSeason?.numberOfGames || 0;
     return [...currentSeasonPlayers]
-      .map(player => {
-        const results = player.tournamentResults;
-        const tournaments = new Set(results.map(r => r.tournamentId)).size;
-        const wins = results.filter(r => r.position === 1).length;
-        const points = results.reduce((sum, r) => sum + (r.points || 0), 0);
-        const prize = results.reduce((sum, r) => sum + (r.cashWon ?? r.prizeMoney ?? 0), 0);
-        return { name: (player as any).name || (player as any).playerName || 'Unknown', tournaments, wins, points, prize };
-      })
+      .map(player => ({
+        name: (player as any).name || (player as any).playerName || 'Unknown',
+        ...computeStats(player.tournamentResults, seasonGames),
+      }))
       .sort((a, b) => b.points - a.points);
-  }, [currentSeasonPlayers]);
+  }, [currentSeasonPlayers, currentSeason?.numberOfGames]);
+
+  const enabledColumns = useMemo(() => {
+    const order = settings?.statsOrder?.length ? settings.statsOrder : Object.keys(STAT_DEFS);
+    const display = settings?.statsToDisplay as Record<string, boolean> | undefined;
+    const cols = order.filter(key => STAT_DEFS[key] && display?.[key]);
+    return cols.length > 0 ? cols : ['points', 'games', 'firstPlaceFinishes', 'cashWinnings'];
+  }, [settings?.statsToDisplay, settings?.statsOrder]);
 
   const handleEndSeason = async () => {
     if (!currentSeason) return;
@@ -304,34 +419,7 @@ export default function SeasonDashboard() {
             <h3 className="text-xl font-semibold">Standings</h3>
             <span className="ml-2 text-sm text-muted-foreground">({currentSeason.name})</span>
           </div>
-          <Card>
-            <CardContent className="p-0">
-              <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
-                <span>#</span>
-                <span>Player</span>
-                <span className="text-right">Pts</span>
-                <span className="text-right">Played</span>
-                <span className="text-right">Wins</span>
-                <span className="text-right">Prize</span>
-              </div>
-              <div className="divide-y">
-                {currentSeasonStandings.map((player, i) => (
-                  <div key={player.name} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3">
-                    <span className={`text-sm font-bold w-6 text-center ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-500' : 'text-muted-foreground'}`}>
-                      {i + 1}
-                    </span>
-                    <span className="font-medium truncate">{player.name}</span>
-                    <span className="font-mono font-bold text-right">{player.points}</span>
-                    <span className="font-mono text-right text-muted-foreground">{player.tournaments}</span>
-                    <span className="font-mono text-right text-muted-foreground">{player.wins}</span>
-                    <span className="font-mono text-right text-muted-foreground">
-                      {player.prize > 0 ? `£${player.prize}` : '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <StandingsTable rows={currentSeasonStandings} columns={enabledColumns} />
         </div>
       )}
 
@@ -367,34 +455,7 @@ export default function SeasonDashboard() {
                 </CardContent>
               </Card>
             ) : (
-              <Card>
-                <CardContent className="p-0">
-                  <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
-                    <span>#</span>
-                    <span>Player</span>
-                    <span className="text-right">Pts</span>
-                    <span className="text-right">Played</span>
-                    <span className="text-right">Wins</span>
-                    <span className="text-right">Prize</span>
-                  </div>
-                  <div className="divide-y">
-                    {pastSeasonStandings.map((player, i) => (
-                      <div key={player.name} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3">
-                        <span className={`text-sm font-bold w-6 text-center ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-500' : 'text-muted-foreground'}`}>
-                          {i + 1}
-                        </span>
-                        <span className="font-medium truncate">{player.name}</span>
-                        <span className="font-mono font-bold text-right">{player.points}</span>
-                        <span className="font-mono text-right text-muted-foreground">{player.tournaments}</span>
-                        <span className="font-mono text-right text-muted-foreground">{player.wins}</span>
-                        <span className="font-mono text-right text-muted-foreground">
-                          {player.prize > 0 ? `£${player.prize}` : '—'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              <StandingsTable rows={pastSeasonStandings} columns={enabledColumns} />
             )
           )}
         </div>
