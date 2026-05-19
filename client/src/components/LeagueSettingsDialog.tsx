@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Settings, Calculator, BarChart3, Trophy, Info, CalendarRange } from 'lucide-react';
+import { Settings, Calculator, BarChart3, Trophy, Info } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { POINTS_SYSTEMS } from '@/types/leagueSettings';
 
@@ -81,7 +81,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
     settings,
     updateStatsToDisplay,
     updateDisplaySettings,
-    updateSeasonSettings,
+
     resetToDefaults,
     calculatePoints,
     updateCustomFormula,
@@ -213,22 +213,15 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
           )}
         </DialogHeader>
 
-        <Tabs defaultValue="seasons" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-12">
+        <Tabs defaultValue="points" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 h-12">
             <TabsTrigger value="points" variant="settings" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
               <Calculator className="h-4 w-4" />
-              <span className="hidden sm:inline">Points</span>
-              <span className="sm:hidden">Points</span>
+              Points
             </TabsTrigger>
             <TabsTrigger value="stats" variant="players" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
               <BarChart3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Stats</span>
-              <span className="sm:hidden">Stats</span>
-            </TabsTrigger>
-            <TabsTrigger value="seasons" variant="league" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
-              <CalendarRange className="h-4 w-4" />
-              <span className="hidden sm:inline">League Seasons</span>
-              <span className="sm:hidden">Seasons</span>
+              Stats
             </TabsTrigger>
           </TabsList>
 
@@ -665,70 +658,6 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
             </Card>
           </TabsContent>
 
-          {/* Seasons Tab */}
-          <TabsContent value="seasons" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>League Season Settings</CardTitle>
-                <CardDescription>
-                  Configure season names, game counts, and reset behavior for your league
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>League Season Name</Label>
-                  <Input
-                    type="text"
-                    value={settings.seasonSettings.seasonName}
-                    onChange={(e) => {
-                      updateSeasonSettings({
-                        ...settings.seasonSettings,
-                        seasonName: e.target.value
-                      });
-                    }}
-                    placeholder="e.g., July to September 2025"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Number of Games per League Season</Label>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={settings.seasonSettings.numberOfGames || ''}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value, 10);
-                      if (!isNaN(n)) updateSeasonSettings({ ...settings.seasonSettings, numberOfGames: n });
-                    }}
-                    onFocus={(e) => e.target.select()}
-                    onBlur={() => {
-                      if (!settings.seasonSettings.numberOfGames) updateSeasonSettings({ ...settings.seasonSettings, numberOfGames: 12 });
-                    }}
-                    min={1}
-                    max={100}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    League season will reset after this many tournaments
-                  </p>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="autoReset"
-                    checked={settings.seasonSettings.autoReset}
-                    onCheckedChange={(checked) => {
-                      updateSeasonSettings({
-                        ...settings.seasonSettings,
-                        autoReset: !!checked
-                      });
-                    }}
-                  />
-                  <Label htmlFor="autoReset">Auto-reset at league season end</Label>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
 
         <div className="flex justify-between pt-4">
