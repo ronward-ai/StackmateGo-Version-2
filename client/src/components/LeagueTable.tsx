@@ -39,65 +39,44 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
   const { settings, calculatePoints } = useLeagueSettings(undefined, league?.id && league.id !== 'pending' ? String(league.id) : null);
   const standings = getLeagueStandings();
 
-  // Check if we're in a league tournament context
-  // For now, always show the table if accessed directly, but this could be enhanced
-  // to check tournament context if passed as prop
-
-  // Calculate additional stats for each player
   const playersWithStats = useMemo(() => {
     return leaguePlayers.map(player => {
       const totalGames = player.tournamentResults?.length || 0;
       const totalWins = player.tournamentResults?.filter(result => result.position === 1).length || 0;
       const averagePoints = totalGames > 0 ? Math.round(player.totalPoints / totalGames) : 0;
 
-      // Calculate positions
       const firstPlaces = player.tournamentResults?.filter(result => result.position === 1).length || 0;
       const secondPlaces = player.tournamentResults?.filter(result => result.position === 2).length || 0;
       const thirdPlaces = player.tournamentResults?.filter(result => result.position === 3).length || 0;
 
-      // Calculate final table appearances (top 6 positions)
       const finalTableAppearances = player.tournamentResults?.filter(result => result.position && result.position <= 6).length || 0;
 
-      // Calculate average position (only for tournaments where position is recorded)
       const resultsWithPosition = player.tournamentResults?.filter(result => result.position) || [];
       const averagePosition = resultsWithPosition.length > 0 
         ? Math.round((resultsWithPosition.reduce((sum, result) => sum + (result.position || 0), 0) / resultsWithPosition.length) * 10) / 10
         : 0;
 
-      // Calculate total cash winnings from actual prize money
       const cashWinnings = player.tournamentResults?.reduce((sum, result) => sum + ((result as any).prizeMoney || 0), 0) || 0;
 
-      // Calculate hits (players busted)
       const hits = player.tournamentResults?.reduce((sum, result) => sum + ((result as any).knockouts || (result as any).playersEliminatedCount || 0), 0) || 0;
 
-      // Calculate total investment (buy-ins + rebuys + add-ons)
       const totalInvestment = player.tournamentResults?.reduce((sum, result) => {
-        const buyIn = result.buyIn || (result as any).buyInAmount || 10; // Use recorded buy-in, fallback to 10
-
-        // Add rebuys and add-ons if available
+        const buyIn = result.buyIn || (result as any).buyInAmount || 10;
         const rebuys = ((result as any).rebuys || 0) * ((result as any).rebuyAmount || buyIn);
         const addons = ((result as any).addons || 0) * ((result as any).addonAmount || buyIn);
-
         return sum + buyIn + rebuys + addons;
       }, 0) || 0;
 
-      // Calculate profit (winnings - investment)
       const profit = cashWinnings - totalInvestment;
-
-      // Calculate ROI (return on investment as percentage)
       const roi = totalInvestment > 0 ? Math.round((profit / totalInvestment) * 100 * 10) / 10 : 0;
 
-      // Recent form
       const recentGames = player.tournamentResults?.slice(-5) || [];
       const recentAvg = recentGames.length > 0 
         ? recentGames.reduce((sum: number, r: any) => sum + r.points, 0) / recentGames.length
         : 0;
       const formScore = Math.min(10, Math.max(0, Math.round(recentAvg / 10)));
 
-      // Best finish
       const bestFinish = Math.min(...(player.tournamentResults?.map((r: any) => r.position) || [999]));
-      
-      // Win rate
       const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
 
       return {
@@ -121,12 +100,10 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
     });
   }, [leaguePlayers]);
 
-  // Get enabled stats for display
   const enabledStats = Object.entries(settings?.statsToDisplay || {})
     .filter(([_, enabled]) => enabled)
     .map(([stat, _]) => stat);
 
-  // Stat labels for display
   const statLabels: Record<string, string> = {
     points: 'Points',
     hits: 'Hits',
@@ -157,11 +134,9 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
 
   const handleRecordResult = () => {
     if (selectedPlayer && position > 0) {
-      // Check if this player already has a result recorded for today's tournament
       const selectedPlayerData = leaguePlayers.find(p => p.id === selectedPlayer);
-      const today = new Date().toISOString().split('T')[0]; // Get today's date
+      const today = new Date().toISOString().split('T')[0];
 
-      // Check if player already has a result for today
       const hasResultToday = selectedPlayerData?.tournamentResults.some(result => 
         result.date.split('T')[0] === today
       );
@@ -183,41 +158,24 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
     }
   };
 
-  // Calculate stats for a player
   const getPlayerStat = (player: any, stat: string) => {
     switch(stat) {
-      case 'points':
-        return player.totalPoints?.toString() || '0';
-      case 'games':
-        return player.totalGames?.toString() || '0';
-      case 'averagePoints':
-        return player.averagePoints?.toString() || '0';
-      case 'firstPlaceFinishes':
-        return player.firstPlaces?.toString() || '0';
-      case 'secondPlaceFinishes':
-        return player.secondPlaces?.toString() || '0';
-      case 'thirdPlaceFinishes':
-        return player.thirdPlaces?.toString() || '0';
-      case 'hits':
-        return player.hits?.toString() || '0';
-      case 'cashWinnings':
-        return `£${player.cashWinnings?.toFixed(0) || '0'}`;
-      case 'recentForm':
-        return `${player.formScore || 0}/10`;
-      case 'bestFinish':
-        return player.bestFinish === 999 ? 'N/A' : player.bestFinish?.toString() || 'N/A';
-      case 'winRate':
-        return `${player.winRate || 0}%`;
-      case 'averagePosition':
-        return player.averagePosition?.toString() || '0';
-      case 'finalTableAppearances':
-        return player.finalTableAppearances?.toString() || '0';
-      case 'profit':
-        return `£${player.profit?.toFixed(0) || '0'}`;
-      case 'roi':
-        return `${player.roi?.toFixed(1) || '0'}%`;
-      default:
-        return 'N/A';
+      case 'points': return player.totalPoints?.toString() || '0';
+      case 'games': return player.totalGames?.toString() || '0';
+      case 'averagePoints': return player.averagePoints?.toString() || '0';
+      case 'firstPlaceFinishes': return player.firstPlaces?.toString() || '0';
+      case 'secondPlaceFinishes': return player.secondPlaces?.toString() || '0';
+      case 'thirdPlaceFinishes': return player.thirdPlaces?.toString() || '0';
+      case 'hits': return player.hits?.toString() || '0';
+      case 'cashWinnings': return `£${player.cashWinnings?.toFixed(0) || '0'}`;
+      case 'recentForm': return `${player.formScore || 0}/10`;
+      case 'bestFinish': return player.bestFinish === 999 ? 'N/A' : player.bestFinish?.toString() || 'N/A';
+      case 'winRate': return `${player.winRate || 0}%`;
+      case 'averagePosition': return player.averagePosition?.toString() || '0';
+      case 'finalTableAppearances': return player.finalTableAppearances?.toString() || '0';
+      case 'profit': return `£${player.profit?.toFixed(0) || '0'}`;
+      case 'roi': return `${player.roi?.toFixed(1) || '0'}%`;
+      default: return 'N/A';
     }
   };
 
@@ -238,7 +196,6 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
 
       {isExpanded && (
         <div className="p-5 pt-0 border-t border-[#2a2a2a]">
-          {/* Season Info */}
           {currentSeason && (
             <div className="mb-4 pb-3 border-b border-[#2a2a2a]">
               <h3 className="text-lg font-medium mb-1">{currentSeason.name}</h3>
@@ -251,7 +208,6 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
             </div>
           )}
 
-          {/* Add League Player */}
           <div className="mb-4">
             <h3 className="text-lg font-medium mb-3">Add Player to League</h3>
             <div className="flex gap-2">
@@ -272,7 +228,6 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
             </div>
           </div>
 
-          {/* Record Tournament Result */}
           <div className="mb-6">
             <h3 className="text-lg font-medium mb-3">Record Tournament Result</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -316,7 +271,6 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
             </div>
           </div>
 
-          {/* Recent Results */}
           <div className="mb-6">
             <h3 className="text-lg font-medium mb-3">Recent Results (Today)</h3>
             <div className="bg-[#1e1e1e] rounded-lg p-3 max-h-32 overflow-y-auto">
@@ -351,7 +305,6 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
             </div>
           </div>
 
-          {/* League Standings */}
           <div className="rounded-lg overflow-hidden">
             <ScrollArea className="h-[400px] w-full">
               <div className="overflow-x-auto">
@@ -370,7 +323,6 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
                 <TableBody>
                   {standings.length > 0 ? (
                     standings.map((player, index) => {
-                      // Find the enhanced player data with calculated stats
                       const enhancedPlayer = playersWithStats.find(p => p.id === player.id) || player;
                       return (
                         <TableRow key={player.id} className={index % 2 === 0 ? 'bg-[#1e1e1e]' : ''}>
@@ -397,7 +349,6 @@ export default function LeagueTable({ playerCount }: LeagueTableProps) {
             </ScrollArea>
           </div>
 
-          {/* Reset League Button */}
           <div className="mt-4 flex justify-end">
             <Button 
               variant="destructive" 

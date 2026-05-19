@@ -234,9 +234,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const balanceRandomly = () => {
     if (!balanceOptions) return;
-    // Random player from the overloaded table
     const player = balanceOptions.playersToMove[Math.floor(Math.random() * balanceOptions.playersToMove.length)];
-    // Collect all empty seats at the underloaded table, pick one at random
     const occupiedAtTarget = new Set(
       state.players
         .filter(p => p.seated && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable)
@@ -262,26 +260,22 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     const current = [...state.players];
     const { seatsPerTable: spt = 9 } = tables;
 
-    // Players to redistribute (active, seated at the broken table)
     const toRedistribute = current
       .filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === breakIdx)
-      .sort(() => Math.random() - 0.5); // shuffle so assignment order is random
+      .sort(() => Math.random() - 0.5);
 
-    // Remove their seat assignments
     let updated = current.map(p =>
       toRedistribute.some(r => r.id === p.id)
         ? { ...p, seated: false, tableAssignment: undefined }
         : p
     );
 
-    // Assign each player to the emptiest table that still has a free seat
     for (const player of toRedistribute) {
       const occupied = new Set(
         updated.filter(p => p.seated && p.tableAssignment)
                .map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`)
       );
 
-      // Count occupancy per table (skip the broken one)
       const tableCount: Record<number, number> = {};
       for (let t = 0; t < numberOfTables; t++) {
         if (t !== breakIdx) tableCount[t] = 0;
