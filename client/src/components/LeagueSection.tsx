@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Trophy, Users, Calendar, ChevronDown, ChevronUp, Plus, Trash2, Settings } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import SeasonDashboard from '@/components/SeasonDashboard';
+import { LeagueSettingsDialog } from '@/components/LeagueSettingsDialog';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -26,6 +27,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>(undefined);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteLeague, setShowDeleteLeague] = useState(false);
+  const [showLeagueSettings, setShowLeagueSettings] = useState(false);
   const [isDeletingSeason, setIsDeletingSeason] = useState(false);
   const [isDeletingLeague, setIsDeletingLeague] = useState(false);
   const [deleteLeagueConfirm, setDeleteLeagueConfirm] = useState('');
@@ -187,6 +189,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
 
   return (
     <>
+      <LeagueSettingsDialog open={showLeagueSettings} onOpenChange={setShowLeagueSettings} />
       {showUpgrade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowUpgrade(false)}>
           <div className="bg-card border border-border rounded-xl p-6 max-w-sm mx-4 text-center space-y-3">
@@ -228,6 +231,13 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
               {userLeagues.length <= 1 && (
                 <span className="text-sm font-semibold text-foreground">{league?.name || 'My League'}</span>
               )}
+              <button
+                onClick={() => setShowLeagueSettings(true)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                title="League settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
               <button onClick={() => setIsExpanded(v => !v)}>
                 {isExpanded
                   ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
