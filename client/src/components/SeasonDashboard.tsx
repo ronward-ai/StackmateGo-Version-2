@@ -44,7 +44,7 @@ export default function SeasonDashboard() {
     return leaguePlayers
       .map(player => {
         const results = (player.tournamentResults || []).filter(
-          r => r.seasonId === selectedPastSeasonId
+          r => String(r.seasonId) === String(selectedPastSeasonId)
         );
         if (results.length === 0) return null;
         const tournaments = new Set(results.map(r => r.tournamentId)).size;
