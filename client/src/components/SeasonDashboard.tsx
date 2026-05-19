@@ -4,27 +4,12 @@ import { useLeague } from '@/hooks/useLeague';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  Trophy,
   Users,
   Target,
   TrendingUp,
   Calendar,
   DollarSign,
-  Award,
-  Archive,
   BarChart2,
   History
 } from 'lucide-react';
@@ -140,7 +125,7 @@ function computeStats(results: any[], seasonTotalGames = 0) {
 
 export default function SeasonDashboard({ tournament }: { tournament?: any }) {
   const { league, leaguePlayers } = useLeague();
-  const { currentSeason, seasons, formatSeasonDateRange, updateSeason } = useSeasons({ leagueId: league?.id });
+  const { currentSeason, seasons, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
   const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
 
   const pastSeasons = useMemo(
@@ -181,28 +166,6 @@ export default function SeasonDashboard({ tournament }: { tournament?: any }) {
     };
   }, [currentSeasonPlayers, currentSeason]);
 
-  const topPerformers = useMemo(() => {
-    return [...currentSeasonPlayers]
-      .sort((a, b) => {
-        const aPoints = a.tournamentResults.reduce((s, r) => s + (r.points || 0), 0);
-        const bPoints = b.tournamentResults.reduce((s, r) => s + (r.points || 0), 0);
-        if (bPoints !== aPoints) return bPoints - aPoints;
-        return a.tournamentResults.length - b.tournamentResults.length;
-      })
-      .slice(0, 3)
-      .map((player, index) => {
-        const seasonPoints = player.tournamentResults.reduce((s, r) => s + (r.points || 0), 0);
-        const wins = player.tournamentResults.filter(r => r.position === 1).length;
-        const cashWon = player.tournamentResults.reduce((s, r) => s + (r.cashWon || 0), 0);
-        return { ...player, rank: index + 1, seasonPoints, wins, cashWon };
-      });
-  }, [currentSeasonPlayers]);
-
-  const handleEndSeason = async () => {
-    if (!currentSeason) return;
-    await updateSeason(currentSeason.id, { status: 'completed' });
-  };
-
   if (!currentSeason) {
     return (
       <Card className="p-8" data-testid="season-dashboard-empty">
@@ -222,56 +185,27 @@ export default function SeasonDashboard({ tournament }: { tournament?: any }) {
 
       {/* Season Header */}
       <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-6 rounded-xl border border-primary/20">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-1 flex-wrap">
-              <h2 className="text-2xl font-bold truncate">{currentSeason.name}</h2>
-              <Badge variant={isCompleted ? 'secondary' : 'default'}>
-                {isCompleted ? 'Completed' : 'Active'}
-              </Badge>
-            </div>
-            <p className="text-muted-foreground text-sm">{formatSeasonDateRange(currentSeason)}</p>
-            {(currentSeason.numberOfGames || 0) > 0 && (
-              <div className="mt-3">
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                  <span>Game {seasonStats.totalTournaments} of {currentSeason.numberOfGames}</span>
-                  <span>{seasonStats.gamesRemaining} remaining</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-500"
-                    style={{ width: `${seasonStats.progressPercent}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2 flex-shrink-0 flex-wrap">
-            {!isCompleted && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="warning" size="sm">
-                    <Archive className="h-4 w-4 mr-1" />
-                    End Season
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>End "{currentSeason.name}"?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will mark the season as completed. All results will be preserved.
-                      You can create a new season afterwards.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleEndSeason}>End Season</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
+        <div className="flex items-center gap-3 mb-1 flex-wrap">
+          <h2 className="text-2xl font-bold truncate">{currentSeason.name}</h2>
+          <Badge variant={isCompleted ? 'secondary' : 'default'}>
+            {isCompleted ? 'Completed' : 'Active'}
+          </Badge>
         </div>
+        <p className="text-muted-foreground text-sm">{formatSeasonDateRange(currentSeason)}</p>
+        {(currentSeason.numberOfGames || 0) > 0 && (
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>Game {seasonStats.totalTournaments} of {currentSeason.numberOfGames}</span>
+              <span>{seasonStats.gamesRemaining} remaining</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-500"
+                style={{ width: `${seasonStats.progressPercent}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stats Overview */}
@@ -316,62 +250,6 @@ export default function SeasonDashboard({ tournament }: { tournament?: any }) {
             <p className="text-xs text-muted-foreground mt-1">Distributed</p>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Top Performers */}
-      <div>
-        <div className="flex items-center mb-4">
-          <Trophy className="h-5 w-5 mr-2 text-yellow-500" />
-          <h3 className="text-xl font-semibold">Top Performers</h3>
-          <span className="ml-2 text-sm text-muted-foreground">({currentSeason.name})</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {topPerformers.map((player) => (
-            <Card key={player.id} className={player.rank === 1 ? 'border-yellow-500/50' : ''}>
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mr-3 ${
-                      player.rank === 1 ? 'bg-yellow-500 text-black' :
-                      player.rank === 2 ? 'bg-gray-400 text-black' :
-                      'bg-orange-600 text-white'
-                    }`}>
-                      {player.rank}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-lg">{player.name}</p>
-                      <p className="text-sm text-muted-foreground">{player.tournamentResults.length} games</p>
-                    </div>
-                  </div>
-                  {player.rank === 1 && <Trophy className="h-5 w-5 text-yellow-500" />}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center pt-3 border-t">
-                  <div>
-                    <p className="text-2xl font-bold font-mono">{player.seasonPoints}</p>
-                    <p className="text-xs text-muted-foreground">Points</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold font-mono">{player.wins}</p>
-                    <p className="text-xs text-muted-foreground">Wins</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold font-mono">£{player.cashWon}</p>
-                    <p className="text-xs text-muted-foreground">Earned</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {topPerformers.length === 0 && (
-            <Card className="col-span-3">
-              <CardContent className="py-8 text-center text-muted-foreground">
-                <Award className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="font-medium mb-1">No results yet for {currentSeason.name}</p>
-                <p className="text-sm">Results recorded during this season will appear here.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </div>
 
       {/* Current Season Standings */}
