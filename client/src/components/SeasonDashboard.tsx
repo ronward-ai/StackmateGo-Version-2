@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
-import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -138,35 +138,15 @@ function computeStats(results: any[], seasonTotalGames = 0) {
   };
 }
 
-export default function SeasonDashboard() {
+export default function SeasonDashboard({ tournament }: { tournament?: any }) {
   const { league, leaguePlayers } = useLeague();
   const { currentSeason, seasons, formatSeasonDateRange, updateSeason } = useSeasons({ leagueId: league?.id });
-  const { settings } = useLeagueSettings(undefined, league?.id && league.id !== 'pending' ? String(league.id) : null);
   const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
 
   const pastSeasons = useMemo(
     () => seasons.filter(s => String(s.id) !== String(currentSeason?.id)),
     [seasons, currentSeason?.id]
   );
-
-  const pastSeasonStandings = useMemo(() => {
-    if (!selectedPastSeasonId) return [];
-    const pastSeason = seasons.find(s => String(s.id) === String(selectedPastSeasonId));
-    const seasonGames = pastSeason?.numberOfGames || 0;
-    return leaguePlayers
-      .map(player => {
-        const results = (player.tournamentResults || []).filter(
-          r => String(r.seasonId) === String(selectedPastSeasonId)
-        );
-        if (results.length === 0) return null;
-        return {
-          name: (player as any).name || (player as any).playerName || 'Unknown',
-          ...computeStats(results, seasonGames),
-        };
-      })
-      .filter((p): p is NonNullable<typeof p> => p !== null)
-      .sort((a, b) => b.points - a.points);
-  }, [selectedPastSeasonId, leaguePlayers, seasons]);
 
   const currentSeasonPlayers = useMemo(() => {
     if (!currentSeason) return [];
@@ -217,23 +197,6 @@ export default function SeasonDashboard() {
         return { ...player, rank: index + 1, seasonPoints, wins, cashWon };
       });
   }, [currentSeasonPlayers]);
-
-  const currentSeasonStandings = useMemo(() => {
-    const seasonGames = currentSeason?.numberOfGames || 0;
-    return [...currentSeasonPlayers]
-      .map(player => ({
-        name: (player as any).name || (player as any).playerName || 'Unknown',
-        ...computeStats(player.tournamentResults, seasonGames),
-      }))
-      .sort((a, b) => b.points - a.points);
-  }, [currentSeasonPlayers, currentSeason?.numberOfGames]);
-
-  const enabledColumns = useMemo(() => {
-    const order = settings?.statsOrder?.length ? settings.statsOrder : Object.keys(STAT_DEFS);
-    const display = settings?.statsToDisplay as Record<string, boolean> | undefined;
-    const cols = order.filter(key => STAT_DEFS[key] && display?.[key]);
-    return cols.length > 0 ? cols : ['points', 'games', 'firstPlaceFinishes', 'cashWinnings'];
-  }, [settings?.statsToDisplay, settings?.statsOrder]);
 
   const handleEndSeason = async () => {
     if (!currentSeason) return;
@@ -412,16 +375,7 @@ export default function SeasonDashboard() {
       </div>
 
       {/* Current Season Standings */}
-      {currentSeasonStandings.length > 0 && (
-        <div>
-          <div className="flex items-center mb-4">
-            <BarChart2 className="h-5 w-5 mr-2 text-primary" />
-            <h3 className="text-xl font-semibold">Standings</h3>
-            <span className="ml-2 text-sm text-muted-foreground">({currentSeason.name})</span>
-          </div>
-          <StandingsTable rows={currentSeasonStandings} columns={enabledColumns} />
-        </div>
-      )}
+      <RealTimeLeagueTable tournament={tournament} />
 
       {/* Previous Seasons */}
       {pastSeasons.length > 0 && (
@@ -447,16 +401,7 @@ export default function SeasonDashboard() {
             </SelectContent>
           </Select>
           {selectedPastSeasonId && (
-            pastSeasonStandings.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  <BarChart2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">No results recorded for this season</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <StandingsTable rows={pastSeasonStandings} columns={enabledColumns} />
-            )
+            <RealTimeLeagueTable tournament={tournament} seasonIdOverride={selectedPastSeasonId} />
           )}
         </div>
       )}
