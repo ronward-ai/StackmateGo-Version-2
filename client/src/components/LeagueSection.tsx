@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trophy, Calendar, ChevronDown, ChevronUp, Plus, Trash2, Settings, Archive, MoreHorizontal } from 'lucide-react';
+import { Trophy, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Settings, Archive, MoreHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -210,41 +210,91 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
       <Card className="card-glass-purple rounded-xl">
         <CardContent className="p-5">
 
-          {/* Header */}
+          {/* Unified header: League › Season */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-orange-400" />
-              <span className="text-sm font-semibold text-foreground uppercase tracking-wide">League</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {userLeagues.length > 1 && (
-                <Select
-                  value={league?.id?.toString()}
-                  onValueChange={id => switchLeague(id)}
-                >
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <Trophy className="h-4 w-4 text-orange-400 flex-shrink-0" />
+              {userLeagues.length > 1 ? (
+                <Select value={league?.id?.toString()} onValueChange={id => switchLeague(id)}>
                   <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
                     <SelectValue placeholder="Select league" />
                   </SelectTrigger>
                   <SelectContent>
                     {userLeagues.map((l: any) => (
-                      <SelectItem key={l.id} value={l.id}>
-                        {l.name}
+                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="text-sm font-semibold text-foreground truncate">{league?.name || 'My League'}</span>
+              )}
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              {seasons.length > 1 ? (
+                <Select value={currentSeason?.id?.toString()} onValueChange={handleSeasonChange}>
+                  <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
+                    <SelectValue placeholder="Select season" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {seasons.map(season => (
+                      <SelectItem key={season.id} value={season.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          <span>{season.name}</span>
+                          <span className="text-xs text-muted-foreground">{formatSeasonDateRange(season)}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              ) : (
+                <span className="text-sm font-semibold text-foreground truncate">{currentSeason?.name || 'Season 1'}</span>
               )}
-              {userLeagues.length <= 1 && (
-                <span className="text-sm font-semibold text-foreground">{league?.name || 'My League'}</span>
+              {(currentSeason as any)?.status && (
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${statusColor[(currentSeason as any).status] || statusColor.draft}`}>
+                  {(currentSeason as any).status.charAt(0).toUpperCase() + (currentSeason as any).status.slice(1)}
+                </span>
               )}
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={() => setShowLeagueSettings(true)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
                 title="League settings"
               >
                 <Settings className="h-4 w-4" />
               </button>
-              <button onClick={() => setIsExpanded(v => !v)}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" title="Season actions">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => { if (!isPro) { setUpgradeHint('Creating seasons'); setShowUpgrade(true); } else setShowNewSeason(true); }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Season
+                  </DropdownMenuItem>
+                  {currentSeason && (currentSeason as any).status !== 'completed' && (
+                    <DropdownMenuItem onSelect={() => setShowEndSeasonConfirm(true)}>
+                      <Archive className="h-4 w-4 mr-2" />
+                      End Season
+                    </DropdownMenuItem>
+                  )}
+                  {!readOnly && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setShowDeleteConfirm(true)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Season
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setShowDeleteLeague(true)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete League
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <button onClick={() => setIsExpanded(v => !v)} className="p-1">
                 {isExpanded
                   ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
                   : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -268,134 +318,38 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                 </div>
               )}
 
-              {/* Season header */}
-              <Card className="rounded-xl border border-border/40">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Calendar className="h-4 w-4 text-primary flex-shrink-0" />
-                      {seasons.length > 1 ? (
-                        <Select
-                          value={currentSeason?.id?.toString()}
-                          onValueChange={handleSeasonChange}
-                        >
-                          <SelectTrigger className="border-0 p-0 h-auto bg-transparent font-semibold text-foreground focus:ring-0 w-auto min-w-0">
-                            <SelectValue placeholder="Select season" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {seasons.map(season => (
-                              <SelectItem key={season.id} value={season.id.toString()}>
-                                <div className="flex items-center gap-2">
-                                  <span>{season.name}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {formatSeasonDateRange(season)}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="font-semibold text-foreground truncate">
-                          {currentSeason?.name || 'Season 1'}
-                        </span>
-                      )}
-                      {(currentSeason as any)?.status && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${statusColor[(currentSeason as any).status] || statusColor.draft}`}>
-                          {(currentSeason as any).status.charAt(0).toUpperCase() + (currentSeason as any).status.slice(1)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                            title="Season actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onSelect={() => { if (!isPro) { setUpgradeHint('Creating seasons'); setShowUpgrade(true); } else setShowNewSeason(true); }}
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            New Season
-                          </DropdownMenuItem>
-                          {currentSeason && (currentSeason as any).status !== 'completed' && (
-                            <DropdownMenuItem onSelect={() => setShowEndSeasonConfirm(true)}>
-                              <Archive className="h-4 w-4 mr-2" />
-                              End Season
-                            </DropdownMenuItem>
-                          )}
-                          {!readOnly && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onSelect={() => setShowDeleteConfirm(true)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Season
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onSelect={() => setShowDeleteLeague(true)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete League
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+              {/* New season form */}
+              {showNewSeason && (
+                <div className="space-y-3 border border-border/40 rounded-xl p-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Season Name</Label>
+                    <Input
+                      value={newSeasonName}
+                      onChange={e => setNewSeasonName(e.target.value)}
+                      placeholder="e.g. Season 2"
+                      className="mt-1 h-8 text-sm"
+                    />
                   </div>
-
-                  {/* New season form */}
-                  {showNewSeason && (
-                    <div className="mt-4 space-y-3 border-t border-border/40 pt-3">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Season Name</Label>
-                        <Input
-                          value={newSeasonName}
-                          onChange={e => setNewSeasonName(e.target.value)}
-                          placeholder="e.g. Season 2"
-                          className="mt-1 h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Number of Games</Label>
-                        <Input
-                          type="number"
-                          value={newSeasonGames}
-                          onChange={e => setNewSeasonGames(e.target.value === '' ? '' : Number(e.target.value))}
-                          min={1}
-                          className="mt-1 h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Date Range</Label>
-                        <DateRangePicker
-                          value={dateRange}
-                          onSelect={setDateRange}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" className="flex-1" onClick={handleCreateSeason}>
-                          Create Season
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setShowNewSeason(false)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Number of Games</Label>
+                    <Input
+                      type="number"
+                      value={newSeasonGames}
+                      onChange={e => setNewSeasonGames(e.target.value === '' ? '' : Number(e.target.value))}
+                      min={1}
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Date Range</Label>
+                    <DateRangePicker value={dateRange} onSelect={setDateRange} />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1" onClick={handleCreateSeason}>Create Season</Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowNewSeason(false)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
 
               {/* Season dashboard */}
               {currentSeason && (
