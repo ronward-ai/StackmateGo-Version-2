@@ -4,8 +4,6 @@ import {
   initializeFirestore,
   collection,
   memoryLocalCache,
-  persistentLocalCache,
-  persistentSingleTabManager,
 } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -25,18 +23,13 @@ export const databaseId = (import.meta.env.VITE_FIREBASE_DATABASE_ID || '').trim
 // Initialize Firebase SDK
 export const app = initializeApp(firebaseConfig);
 
-// iOS Safari enforces a tight IndexedDB storage quota; using the default unlimited
-// persistent cache reliably triggers QuotaExceededError on iPad/iPhone.
-// Use in-memory cache on iOS (real-time listeners still work; no offline persistence)
-// and a bounded single-tab persistent cache everywhere else.
-const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+// Use in-memory cache for all clients. This app is always-online real-time
+// poker — there is no meaningful offline use case. Persistent IndexedDB cache
+// reliably triggers QuotaExceededError on iOS Safari (including iPadOS 13+
+// which reports as "Macintosh" so UA detection is unreliable) and can cause
+// stale-cache bugs on desktop. Memory cache is simpler and quota-safe.
 export const db = initializeFirestore(app, {
-  localCache: isIOS
-    ? memoryLocalCache()
-    : persistentLocalCache({
-        tabManager: persistentSingleTabManager({}),
-        cacheSizeBytes: 40 * 1024 * 1024, // 40 MB cap
-      }),
+  localCache: memoryLocalCache(),
 }, databaseId);
 export const auth = getAuth(app);
 
