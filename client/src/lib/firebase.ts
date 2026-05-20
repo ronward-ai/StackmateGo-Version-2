@@ -1,6 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, collection } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  collection,
+  memoryLocalCache,
+  persistentLocalCache,
+  persistentSingleTabManager,
+} from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY            || '',
@@ -18,7 +24,20 @@ export const databaseId = (import.meta.env.VITE_FIREBASE_DATABASE_ID || '').trim
 
 // Initialize Firebase SDK
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, databaseId);
+
+// iOS Safari enforces a tight IndexedDB storage quota; using the default unlimited
+// persistent cache reliably triggers QuotaExceededError on iPad/iPhone.
+// Use in-memory cache on iOS (real-time listeners still work; no offline persistence)
+// and a bounded single-tab persistent cache everywhere else.
+const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+export const db = initializeFirestore(app, {
+  localCache: isIOS
+    ? memoryLocalCache()
+    : persistentLocalCache({
+        tabManager: persistentSingleTabManager({}),
+        cacheSizeBytes: 40 * 1024 * 1024, // 40 MB cap
+      }),
+}, databaseId);
 export const auth = getAuth(app);
 
 // Collections
