@@ -3,6 +3,28 @@ import App from "./App";
 import "./index.css";
 import { auth } from "./lib/firebase";
 
+// Delete stale Firestore IndexedDB databases left over from before the app
+// switched to memoryLocalCache. They serve no purpose now and consume the
+// browser's origin storage quota, which causes Firebase Auth's own IndexedDB
+// writes to fail with QuotaExceededError on storage-constrained devices
+// (iOS Safari, Chrome on iPad/Android with limited free space).
+if ('indexedDB' in window) {
+  const tryDelete = (name: string) => {
+    try { indexedDB.deleteDatabase(name); } catch { /* ignore */ }
+  };
+  // Enumerate all databases and drop any Firestore ones (Safari 14.5+ / Chrome 72+)
+  if (typeof (indexedDB as any).databases === 'function') {
+    (indexedDB as any).databases().then((dbs: { name?: string }[]) => {
+      dbs.forEach(db => {
+        if (db.name && /firestore/i.test(db.name)) tryDelete(db.name);
+      });
+    }).catch(() => {});
+  } else {
+    // Fallback: blindly attempt known Firestore database name patterns
+    ['firestore/[DEFAULT]/main', 'firestore/[DEFAULT]/documents'].forEach(tryDelete);
+  }
+}
+
 // Suppress ResizeObserver loop errors which are benign
 const originalError = console.error;
 console.error = (...args) => {
