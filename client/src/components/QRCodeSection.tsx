@@ -59,6 +59,23 @@ async function createDocViaRest(
     body: JSON.stringify({ fields }),
   });
 
+  // Document already exists with this localGameId (previous session) — overwrite it.
+  if (res.status === 409 && docId) {
+    const patchRes = await fetch(
+      `${base}/${collection}/${encodeURIComponent(docId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ fields }),
+      }
+    );
+    if (!patchRes.ok) {
+      const err = await patchRes.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Firestore error ${patchRes.status}`);
+    }
+    return docId;
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.error?.message || `Firestore error ${res.status}`);
