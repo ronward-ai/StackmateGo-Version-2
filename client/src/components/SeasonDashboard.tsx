@@ -123,9 +123,32 @@ function computeStats(results: any[], seasonTotalGames = 0) {
   };
 }
 
-export default function SeasonDashboard({ tournament }: { tournament?: any }) {
-  const { league, leaguePlayers } = useLeague();
-  const { currentSeason, seasons, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
+interface SeasonDashboardProps {
+  tournament?: any;
+  /** Season to display. When omitted, falls back to the hook's active season. */
+  season?: any;
+  /** League players to display. When omitted, falls back to the hook's list. */
+  leaguePlayers?: any[];
+}
+
+export default function SeasonDashboard({
+  tournament,
+  season,
+  leaguePlayers: leaguePlayersProp,
+}: SeasonDashboardProps) {
+  const { league, leaguePlayers: leaguePlayersFromHook } = useLeague();
+  const {
+    currentSeason: currentSeasonFromHook,
+    seasons,
+    formatSeasonDateRange,
+  } = useSeasons({ leagueId: league?.id });
+
+  // Prefer what the parent passed so this dashboard can never disagree with the
+  // season shown in the League header. The hook values are a fallback for when
+  // the component is rendered without props.
+  const currentSeason = season ?? currentSeasonFromHook;
+  const leaguePlayers = leaguePlayersProp ?? leaguePlayersFromHook;
+
   const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
 
   const pastSeasons = useMemo(
