@@ -5,6 +5,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot, increment } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
+import { useSharedSnapshot } from '@/lib/sharedSnapshot';
+
+/** Stable empty reference — required by useSharedSnapshot. */
+const EMPTY_DOCS: any[] = [];
 
 // Legacy interface for backwards compatibility
 export interface TournamentResult {
@@ -157,60 +161,37 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     await createLeagueMutation.mutateAsync(name);
   }, [createLeagueMutation]);
 
-  const [cloudPlayers, setCloudPlayers] = useState<any[]>([]);
-  const [cloudResults, setCloudResults] = useState<any[]>([]);
   const cloudResultsRef = useRef<any[]>([]);
-  const [playersLoading, setPlayersLoading] = useState(true);
-  const [resultsLoading, setResultsLoading] = useState(true);
 
-  const [playersError, setPlayersError] = useState<Error | null>(null);
+  // Real-time listeners for league players and tournament results. Both are
+  // shared per league via lib/sharedSnapshot, so the 9 components calling this
+  // hook hold 2 Firestore listeners between them rather than 18.
+  // No auth required (rules: allow read: if true).
+  const { data: cloudPlayers, isLoading: playersLoading, error: playersError } =
+    useSharedSnapshot<any[]>(
+      currentLeagueId ? `leaguePlayers:${currentLeagueId}` : null,
+      (emit, fail) => onSnapshot(
+        query(collections.leaguePlayers, where('leagueId', '==', String(currentLeagueId))),
+        snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        error => { console.error('Error fetching league players:', error); fail(error); },
+      ),
+      EMPTY_DOCS,
+    );
 
-  // Real-time listener for league players — no auth required (rules: allow read: if true)
-  useEffect(() => {
-    if (!currentLeagueId) {
-      setCloudPlayers([]);
-      setPlayersLoading(false);
-      return;
-    }
+  const { data: cloudResults, isLoading: resultsLoading } =
+    useSharedSnapshot<any[]>(
+      currentLeagueId ? `tournamentResults:${currentLeagueId}` : null,
+      (emit, fail) => onSnapshot(
+        query(collections.tournamentResults, where('leagueId', '==', String(currentLeagueId))),
+        snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        error => { console.error('Error fetching tournament results:', error); fail(error); },
+      ),
+      EMPTY_DOCS,
+    );
 
-    setPlayersLoading(true);
-    setPlayersError(null);
-    const q = query(collections.leaguePlayers, where('leagueId', '==', String(currentLeagueId)));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCloudPlayers(players);
-      setPlayersLoading(false);
-    }, (error) => {
-      console.error('Error fetching league players:', error);
-      setPlayersError(error as Error);
-      setPlayersLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [currentLeagueId]);
-
-  // Real-time listener for tournament results — no auth required (rules: allow read: if true)
-  useEffect(() => {
-    if (!currentLeagueId) {
-      setCloudResults([]);
-      setResultsLoading(false);
-      return;
-    }
-
-    setResultsLoading(true);
-    const q = query(collections.tournamentResults, where('leagueId', '==', String(currentLeagueId)));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      cloudResultsRef.current = results;
-      setCloudResults(results);
-      setResultsLoading(false);
-    }, (error) => {
-      console.error('Error fetching tournament results:', error);
-      setResultsLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [currentLeagueId]);
+  // recordResultByName reads this synchronously to dedupe, so it must not wait
+  // for a re-render to observe new results.
+  useEffect(() => { cloudResultsRef.current = cloudResults; }, [cloudResults]);
 
   // Convert cloud data to legacy format, deduplicating players with the same name.
   // Duplicate player docs can arise from concurrent recording — merge them so the

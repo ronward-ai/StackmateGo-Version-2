@@ -10,6 +10,10 @@ import { useAuth } from './useAuth';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
+import { useSharedSnapshot } from '@/lib/sharedSnapshot';
+
+/** Stable empty reference — required by useSharedSnapshot. */
+const EMPTY_SETTINGS_DOCS: any[] = [];
 
 function loadFromStorage(storageKey: string): LeagueSettings {
   try {
@@ -279,45 +283,39 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     });
   }, [savedSettings]);
 
-  // Load saved settings from database — scoped to this league when leagueId is provided.
-  // Legacy docs with no leagueId are only used as a fallback when no league-scoped docs exist.
+  // Load saved settings from database. The Firestore query is keyed only by
+  // userId, so every instance for the same owner shares one listener even when
+  // their leagueIds differ — the league scoping below is applied locally.
+  const { data: settingsDocs } = useSharedSnapshot<any[]>(
+    targetOwnerId ? `leagueSettings:${targetOwnerId}` : null,
+    (emit, fail) => onSnapshot(
+      query(collections.leagueSettings, where('userId', '==', targetOwnerId)),
+      snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]),
+      error => { console.error('Failed to load saved settings:', error); fail(error); },
+    ),
+    EMPTY_SETTINGS_DOCS,
+  );
+
+  // Scope to this league when leagueId is provided. Legacy docs with no leagueId
+  // are only used as a fallback when no league-scoped docs exist.
   useEffect(() => {
     if (!targetOwnerId) return;
-
-    const q = query(collections.leagueSettings, where('userId', '==', targetOwnerId));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      try {
-        const data = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as any[];
-
-        if (leagueId) {
-          const forThisLeague = data.filter(s => s.leagueId === leagueId);
-          const legacy = data.filter(s => !s.leagueId);
-          const scoped = forThisLeague.length > 0 ? forThisLeague : legacy;
-          setSavedSettings(scoped);
-
-          const defaultSettings = scoped.find((s: any) => s.isDefault);
-          if (defaultSettings) {
-            setSettings(defaultSettings.settings);
-          }
-        } else {
-          setSavedSettings(data);
-          const defaultSettings = data.find((s: any) => s.isDefault);
-          if (defaultSettings) {
-            setSettings(defaultSettings.settings);
-          }
-        }
-      } catch (error) {
-        console.error('Error processing settings snapshot:', error);
+    try {
+      let scoped = settingsDocs;
+      if (leagueId) {
+        const forThisLeague = settingsDocs.filter(s => s.leagueId === leagueId);
+        scoped = forThisLeague.length > 0 ? forThisLeague : settingsDocs.filter(s => !s.leagueId);
       }
-    }, (error) => {
-      console.error('Failed to load saved settings:', error);
-    });
+      setSavedSettings(scoped);
 
-    return () => unsubscribe();
-  }, [targetOwnerId, leagueId]);
+      const defaultSettings = scoped.find((s: any) => s.isDefault);
+      if (defaultSettings) {
+        setSettings(defaultSettings.settings);
+      }
+    } catch (error) {
+      console.error('Error processing settings snapshot:', error);
+    }
+  }, [settingsDocs, leagueId, targetOwnerId]);
 
   const loadSavedSettings = useCallback(async () => {
     // no-op: settings are kept in sync by the real-time Firestore listener above

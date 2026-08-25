@@ -5,6 +5,10 @@ import { useAuth } from './useAuth';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
+import { useSharedSnapshot } from '@/lib/sharedSnapshot';
+
+/** Stable empty reference — required by useSharedSnapshot. */
+const EMPTY_SEASONS: Season[] = [];
 
 // Season interface matching database schema
 interface Season {
@@ -44,8 +48,17 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   const { isAuthenticated: isUserAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
-  const [dbSeasons, setDbSeasons] = useState<Season[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // One shared listener per league, regardless of how many components call this
+  // hook. See lib/sharedSnapshot.ts.
+  const { data: dbSeasons, isLoading } = useSharedSnapshot<Season[]>(
+    leagueId ? `seasons:${leagueId}` : null,
+    (emit, fail) => onSnapshot(
+      query(collections.seasons, where('leagueId', '==', String(leagueId))),
+      snapshot => emit(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Season))),
+      error => { console.error('Error fetching seasons:', error); fail(error); },
+    ),
+    EMPTY_SEASONS,
+  );
 
   // Optimistic local override — updated immediately on season switch so all hook
   // instances respond without waiting for Firestore's onSnapshot round-trip.
@@ -66,29 +79,6 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   useEffect(() => {
     setLocalActiveSeasonId(null);
     try { localStorage.removeItem('activeSeasonId'); } catch {}
-  }, [leagueId]);
-
-  // Fetch seasons from database if leagueId is provided and valid.
-  // No auth guard needed — Firestore rules allow read: if true for seasons.
-  useEffect(() => {
-    if (!leagueId) {
-      setDbSeasons([]);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    const q = query(collections.seasons, where('leagueId', '==', String(leagueId)));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const seasonsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Season));
-      setDbSeasons(seasonsData);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching seasons:", error);
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
   }, [leagueId]);
 
   // Create mutation for creating a season
@@ -256,6 +246,9 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     startDate: string;
     endDate: string;
     numberOfGames: number;
+    // Forwarded to createSeasonMutation, which has always accepted it — the
+    // omission here was a type-level oversight, not intended behaviour.
+    status?: 'draft' | 'active';
   }) => {
     if (!leagueId) {
       console.warn('Cannot create season without league ID');
