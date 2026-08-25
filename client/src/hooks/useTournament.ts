@@ -1604,85 +1604,12 @@ export function useTournament(tournamentId?: string) {
   }, []);
 
   // Enhanced prize pool calculation with comprehensive analytics
-  const calculatePrizePool = useCallback(() => {
-    const totalPlayers = state.players.length;
-    if (totalPlayers === 0) return { totalPlayers: 0, totalPool: 0, grossPrizePool: 0, rakeAmount: 0, payouts: [], payoutStructure: "none" };
-
-    const buyIn = state.prizeStructure?.buyIn || 10;
-    let grossPrizePool = totalPlayers * buyIn;
-
-    // Calculate rebuys, addons, and re-entries with validation
-    if (state.prizeStructure?.allowRebuys) {
-      const actualRebuys = state.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
-      grossPrizePool += actualRebuys * (state.prizeStructure?.rebuyAmount || buyIn);
-    }
-
-    if (state.prizeStructure?.allowReEntry) {
-      const actualReEntries = state.players.reduce((sum, player) => sum + (player.reEntries || 0), 0);
-      grossPrizePool += actualReEntries * buyIn;
-    }
-
-    if (state.prizeStructure?.allowAddons) {
-      const actualAddons = state.players.reduce((sum, player) => sum + (player.addons || 0), 0);
-      grossPrizePool += actualAddons * (state.prizeStructure?.addonAmount || buyIn);
-    }
-
-    // Calculate rake
-    const rakePercentage = state.prizeStructure?.rakePercentage || 0;
-    const rakeAmount = rakePercentage > 0 
-      ? Math.floor(grossPrizePool * (rakePercentage / 100))
-      : (state.prizeStructure?.rakeAmount || 0);
-      
-    const totalPool = grossPrizePool;
-
-    // Use manual payouts if configured
-    if (state.prizeStructure?.manualPayouts && state.prizeStructure.manualPayouts.length > 0) {
-      return {
-        totalPlayers,
-        totalPool,
-        grossPrizePool,
-        rakeAmount,
-        payouts: state.prizeStructure.manualPayouts,
-        payoutStructure: "manual"
-      };
-    }
-
-    // Different payout structure based on number of players
-    if (totalPlayers < 13) {
-      // Under 13 players: 2 places (60% / 40%)
-      return {
-        totalPlayers,
-        totalPool,
-        grossPrizePool,
-        rakeAmount,
-        firstPlace: Math.floor(totalPool * 0.6),
-        secondPlace: Math.floor(totalPool * 0.4),
-        thirdPlace: 0,
-        payouts: [
-          { position: 1, amount: Math.floor(totalPool * 0.6) },
-          { position: 2, amount: Math.floor(totalPool * 0.4) }
-        ],
-        payoutStructure: "2-places" // Track which structure we're using
-      };
-    } else {
-      // 13+ players: 3 places (50% / 30% / 20%)
-      return {
-        totalPlayers,
-        totalPool,
-        grossPrizePool,
-        rakeAmount,
-        firstPlace: Math.floor(totalPool * 0.5),
-        secondPlace: Math.floor(totalPool * 0.3),
-        thirdPlace: Math.floor(totalPool * 0.2),
-        payouts: [
-          { position: 1, amount: Math.floor(totalPool * 0.5) },
-          { position: 2, amount: Math.floor(totalPool * 0.3) },
-          { position: 3, amount: Math.floor(totalPool * 0.2) }
-        ],
-        payoutStructure: "3-places" // Track which structure we're using
-      };
-    }
-  }, [state.players, state.prizeStructure]);
+  // NOTE: a second `calculatePrizePool` used to live here. It was exported but
+  // never called, and its rake maths diverged from lib/prizePool.ts — it raked a
+  // percentage of the whole gross pool (so rebuy and addon money too) and, in
+  // fixed mode, charged the fee once instead of per player. A GBP 5 fixed rake
+  // across 10 players came to 5 rather than 50. Removed rather than fixed, since
+  // lib/prizePool.ts is the canonical implementation and is now covered by tests.
 
   // Format time
   const formatTime = useCallback(() => {
@@ -2156,7 +2083,6 @@ export function useTournament(tournamentId?: string) {
     skipToPreviousLevel,
     updateTimer,
 
-    calculatePrizePool,
     formatTime,
     calculateProgress,
     getCurrentBlinds,
