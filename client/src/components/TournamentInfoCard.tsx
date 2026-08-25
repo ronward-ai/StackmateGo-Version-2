@@ -98,7 +98,16 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
           style={!isLeagueMode ? activeStyle : inactiveStyle}
           onClick={() => {
             updateTournamentDetails({ ...state.details, type: 'standalone' });
-            updateSettings({ isSeasonTournament: false });
+            // Clear the whole league context, not just the flag. Leaving leagueId
+            // behind is what made spectators see a league standings table on a
+            // tournament switched back to Standalone.
+            updateSettings({
+              isSeasonTournament: false,
+              leagueId: undefined,
+              seasonId: undefined,
+              seasonName: undefined,
+              gameNumber: undefined,
+            });
           }}
         >
           Standalone

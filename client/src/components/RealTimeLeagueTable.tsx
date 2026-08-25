@@ -15,6 +15,7 @@ import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, 
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
+import { isLeagueTournament } from '@/lib/tournamentMode';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
@@ -56,11 +57,10 @@ function RealTimeLeagueTable({
   const { currentSeason, seasons } = useSeasons({ leagueId });
 
   // ALL hook calls complete - now safe to do any logic
-  // leagueId present is the definitive signal — it's set when the director links a league,
-  // and isSeasonTournament may not yet be written to the Firestore doc at scan time.
-  const isSeasonTournament = tournament?.isSeasonTournament === true
-    || tournament?.settings?.isSeasonTournament === true
-    || !!directLeagueId;
+  // An explicit flag wins in either direction; leagueId is only consulted when no
+  // flag is present, for the case where a participant scans before
+  // isSeasonTournament has reached the Firestore doc. See lib/tournamentMode.
+  const isSeasonTournament = isLeagueTournament(tournament);
 
   // Safely destructure with fallbacks
   const {
