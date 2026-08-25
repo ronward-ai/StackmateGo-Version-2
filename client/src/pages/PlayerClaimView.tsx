@@ -126,6 +126,22 @@ export default function PlayerClaimView() {
     return () => { unsubscribe?.(); };
   }, [tournamentId]);
 
+  /**
+   * Writes the players array back via the Firestore REST API with no auth token.
+   *
+   * The matching security rule allows this unauthenticated, restricted to the
+   * `players` field with the array length preserved. That blocks deletion and
+   * injection but still lets a participant alter fields inside an existing
+   * entry. Fully closing it means authenticating this write (anonymous is
+   * enough) and requiring isAuthenticated() in the rule.
+   *
+   * Deliberately not done yet: every other participant route already depends on
+   * signInAnonymously(), and anonymous auth is the leading suspect for the
+   * unexplained "quota limit exceeded" reports. Adding that dependency to
+   * check-in — the one participant flow that currently works without it — would
+   * risk breaking the flow while that is still unresolved. Revisit once the
+   * quota question is settled.
+   */
   const patchPlayers = async (updatedPlayers: TournamentPlayer[]): Promise<void> => {
     const { projectId, databaseId } = await import('@/lib/firebase');
     const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;

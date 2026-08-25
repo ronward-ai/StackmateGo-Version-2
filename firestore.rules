@@ -59,8 +59,13 @@ service cloud.firestore {
     }
 
     // Leagues
+    // Read is owner-scoped. The only client read is
+    // query(leagues, where('ownerId','==',uid)) — the participant view never
+    // fetches the league doc, it synthesises {id, name:'League'} from the
+    // tournament's stored leagueId — so this does not affect QR participants.
+    // ownsLeague()'s get() is a rules-internal read and bypasses this.
     match /leagues/{leagueId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
       allow create: if isRegistered() && isDocOwner()
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
@@ -73,10 +78,13 @@ service cloud.firestore {
       allow delete: if isRegistered() && isExistingDocOwner();
     }
 
-    // Seasons — public read so QR participants see live standings before anonymous auth completes
+    // Seasons — public read so QR participants see live standings before anonymous auth completes.
+    // Create is scoped to the league owner: without ownsLeague() any registered
+    // user could create documents inside somebody else's league.
     match /seasons/{seasonId} {
       allow read: if true;
-      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow create: if request.resource.data.leagueId is string
+        && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
@@ -84,7 +92,8 @@ service cloud.firestore {
     // League Players — public read for live standings in participant view
     match /leaguePlayers/{playerId} {
       allow read: if true;
-      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow create: if request.resource.data.leagueId is string
+        && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
@@ -92,7 +101,8 @@ service cloud.firestore {
     // Tournament Results — public read for live standings in participant view
     match /tournamentResults/{resultId} {
       allow read: if true;
-      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow create: if request.resource.data.leagueId is string
+        && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
@@ -118,16 +128,34 @@ service cloud.firestore {
                     'targetEndTime', 'smallBlind', 'bigBlind', 'ante', 'blindLevels',
                     'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy'])
       ) || (
-        // Unauthenticated player claiming — only the players field may change.
-        // Allows QR check-in without requiring Firebase Auth on the player's device.
+        // Unauthenticated player claiming (PlayerClaimView check-in via QR).
+        // Only the players field may change, AND the array length must be
+        // preserved. Without the size check this branch let anyone holding a
+        // tournament id — which is handed to every participant in the QR code —
+        // replace the entire players array: wiping the field mid-tournament, or
+        // injecting entries that then feed through into league standings.
+        //
+        // Preserving size blocks deletion and injection. It does not prevent a
+        // determined participant from altering fields within an existing entry;
+        // closing that fully requires authenticating this write, which is
+        // deliberately deferred — see the note in PlayerClaimView.
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players'])
+        && request.resource.data.players.size() == resource.data.players.size()
       );
       allow delete: if isRegistered() && isExistingDocOwner();
     }
 
-    // League Settings — registered users only, scoped to their own settings
+    // League Settings
+    // Public read, matching seasons/leaguePlayers/tournamentResults above.
+    // The participant view renders standings using the DIRECTOR's points system,
+    // so RealTimeLeagueTable reads the director's settings doc as an anonymous
+    // user. Restricting read to the owner silently denied that and fell back to
+    // DEFAULT_LEAGUE_SETTINGS, so participants could be shown different points
+    // totals than the director. These documents hold points formulas and column
+    // display preferences — no personal or sensitive data.
+    // Writes remain owner-only.
     match /leagueSettings/{settingId} {
-      allow read: if isRegistered() && resource.data.userId == request.auth.uid;
+      allow read: if true;
       allow create: if isRegistered() && isDocUser();
       allow update: if isRegistered() && isExistingDocUser()
         && request.resource.data.userId == resource.data.userId;
