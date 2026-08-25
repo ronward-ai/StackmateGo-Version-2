@@ -18,6 +18,29 @@ export default defineConfig(async (): Promise<any> => {
       outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
       target: ['es2020', 'safari14'],
+      rollupOptions: {
+        output: {
+          // Split long-lived third-party code out of the app chunk. These change
+          // only on dependency upgrades, so returning visitors keep them cached
+          // across deploys instead of refetching everything on each release.
+          //
+          // Only libraries that are genuinely imported at startup are named here.
+          // A catch-all `return 'vendor'` must be avoided: it pulls
+          // dynamically-imported packages (html2canvas) into a chunk that is
+          // statically reachable from the entry, which silently cancels their
+          // lazy loading. Everything unnamed falls through to Rollup's default
+          // chunking, which keeps dynamic imports in their own on-demand chunks.
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return;
+            if (id.includes('/firebase/') || id.includes('/@firebase/')) return 'vendor-firebase';
+            if (id.includes('/react-dom/') || id.includes('/react/') || id.includes('/scheduler/')) {
+              return 'vendor-react';
+            }
+            if (id.includes('/@radix-ui/')) return 'vendor-radix';
+            return;
+          },
+        },
+      },
     },
     server: {
       host: '0.0.0.0',

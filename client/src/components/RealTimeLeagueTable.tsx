@@ -17,7 +17,9 @@ import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
-import html2canvas from 'html2canvas';
+// html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
+// imported dynamically at the call site rather than loaded on every page. This
+// component renders in the participant view, where that matters most.
 
 interface RealTimeLeagueTableProps {
   tournament?: any;
@@ -481,6 +483,7 @@ function RealTimeLeagueTable({
       // Wait for layout to settle
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      const { default: html2canvas } = await import('html2canvas');
       const canvas = await html2canvas(exportRef.current, {
         backgroundColor: '#1e1e1e',
         scale: 2,

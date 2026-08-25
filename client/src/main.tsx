@@ -1,14 +1,19 @@
 // MUST stay the first import. This module installs its global error and
 // unhandledrejection handlers as a side effect of being evaluated, and module
-// evaluation follows import order — so importing it above ./lib/firebase is
-// what guarantees the handlers are armed before the Firebase SDK initialises
-// and gets its chance to throw. No-op unless the URL carries ?debug=1.
+// evaluation follows import order, so nothing here can throw before they are
+// armed. No-op unless the URL carries ?debug=1.
 import "./lib/debugOverlay";
 
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { auth } from "./lib/firebase";
+
+// ./lib/firebase is deliberately NOT imported here. It used to be, for `auth`,
+// which was never actually referenced — so Rollup tree-shook it anyway once the
+// routes were split. Firebase now initialises with whichever route chunk first
+// needs it, keeping its 146 kB (gzipped) out of the initial load. The debug
+// handlers above are installed in the entry chunk, so they are still armed
+// before that happens.
 
 // Suppress ResizeObserver loop errors which are benign
 const originalError = console.error;

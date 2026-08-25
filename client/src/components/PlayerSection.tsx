@@ -6,7 +6,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, Download, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import html2canvas from 'html2canvas';
+// html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
+// imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
@@ -446,6 +447,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       document.body.appendChild(wrap);
       await new Promise(resolve => setTimeout(resolve, 80));
 
+      const { default: html2canvas } = await import('html2canvas');
       const canvas = await html2canvas(wrap, {
         backgroundColor: '#1e1e1e',
         scale: 2,

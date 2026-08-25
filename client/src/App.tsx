@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Route, Switch, useLocation } from 'wouter';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -6,12 +6,25 @@ import { Toaster } from '@/components/ui/toaster';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import ComingSoonGate from '@/components/ComingSoonGate';
 
-// Import components directly without lazy loading
-import PokerTimer from './pages/PokerTimer';
-import TournamentParticipant from './pages/TournamentParticipant';
-import TournamentParticipantView from './pages/TournamentParticipantView';
-import TournamentDirector from './pages/TournamentDirector';
-import PlayerClaimView from './pages/PlayerClaimView';
+// Routes are split so a participant scanning a QR code does not download the
+// entire director application (timer, blind editor, league settings, seating)
+// just to check in or watch the clock. Each page becomes its own chunk, fetched
+// only when its route is matched.
+const PokerTimer = lazy(() => import('./pages/PokerTimer'));
+const TournamentParticipant = lazy(() => import('./pages/TournamentParticipant'));
+const TournamentParticipantView = lazy(() => import('./pages/TournamentParticipantView'));
+const TournamentDirector = lazy(() => import('./pages/TournamentDirector'));
+const PlayerClaimView = lazy(() => import('./pages/PlayerClaimView'));
+
+/** Matches the "Connecting…" state PlayerClaimView shows, so a split route
+ *  transition looks the same as its own loading state rather than a flash. */
+function RouteFallback() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-muted-foreground text-sm animate-pulse">Loading…</div>
+    </div>
+  );
+}
 
 function NotFoundPage() {
   const [, setLocation] = useLocation();
@@ -36,23 +49,25 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-background">
         <ErrorBoundary>
-          <Switch>
-            {/* Director routes — gated */}
-            <Route path="/">
-              <ComingSoonGate><PokerTimer /></ComingSoonGate>
-            </Route>
-            <Route path="/tournament">
-              <ComingSoonGate><PokerTimer /></ComingSoonGate>
-            </Route>
-            {/* Participant/handover routes — always accessible via QR/link */}
-            <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
-            <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
-            <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
-            <Route path="/tournament/:tournamentId/participant" component={TournamentParticipant} />
-            <Route path="/tournament/:tournamentId/participant-view" component={TournamentParticipantView} />
-            <Route path="/tournament-participant" component={TournamentParticipant} />
-            <Route component={NotFoundPage} />
-          </Switch>
+          <Suspense fallback={<RouteFallback />}>
+            <Switch>
+              {/* Director routes — gated */}
+              <Route path="/">
+                <ComingSoonGate><PokerTimer /></ComingSoonGate>
+              </Route>
+              <Route path="/tournament">
+                <ComingSoonGate><PokerTimer /></ComingSoonGate>
+              </Route>
+              {/* Participant/handover routes — always accessible via QR/link */}
+              <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
+              <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
+              <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
+              <Route path="/tournament/:tournamentId/participant" component={TournamentParticipant} />
+              <Route path="/tournament/:tournamentId/participant-view" component={TournamentParticipantView} />
+              <Route path="/tournament-participant" component={TournamentParticipant} />
+              <Route component={NotFoundPage} />
+            </Switch>
+          </Suspense>
         </ErrorBoundary>
         <Toaster />
       </div>
