@@ -1,3 +1,10 @@
+// MUST stay the first import. This module installs its global error and
+// unhandledrejection handlers as a side effect of being evaluated, and module
+// evaluation follows import order — so importing it above ./lib/firebase is
+// what guarantees the handlers are armed before the Firebase SDK initialises
+// and gets its chance to throw. No-op unless the URL carries ?debug=1.
+import "./lib/debugOverlay";
+
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
