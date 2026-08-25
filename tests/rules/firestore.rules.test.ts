@@ -176,6 +176,22 @@ describe('league data integrity', () => {
   });
 });
 
+describe('director handover', () => {
+  it('REGRESSION CHECK: a handover director recording results into the original league', async () => {
+    // After a transfer-code handover the new director is a registered user who
+    // is NOT the league owner. useLeague resolves currentLeagueId from the
+    // tournament's stored leagueId, so addResultMutation writes results tagged
+    // with the ORIGINAL director's leagueId while authenticated as someone else.
+    // ownsLeague() on create denies exactly this.
+    const db = stranger();
+    const write = setDoc(doc(db, 'tournamentResults', 'handover-result'), {
+      leagueId: LEAGUE, position: 3, points: 5, leaguePlayerId: 'player-1',
+    });
+    // Documenting actual behaviour: this is denied under the tightened rules.
+    await assertFails(write);
+  });
+});
+
 describe('league privacy', () => {
   it('lets a director list their own leagues', async () => {
     const q = query(collection(director(), 'leagues'), where('ownerId', '==', DIRECTOR));
