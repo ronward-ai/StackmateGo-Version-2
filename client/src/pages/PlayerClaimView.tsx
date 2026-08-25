@@ -135,12 +135,15 @@ export default function PlayerClaimView() {
    * entry. Fully closing it means authenticating this write (anonymous is
    * enough) and requiring isAuthenticated() in the rule.
    *
-   * Deliberately not done yet: every other participant route already depends on
-   * signInAnonymously(), and anonymous auth is the leading suspect for the
-   * unexplained "quota limit exceeded" reports. Adding that dependency to
-   * check-in — the one participant flow that currently works without it — would
-   * risk breaking the flow while that is still unresolved. Revisit once the
-   * quota question is settled.
+   * This was deferred because anonymous auth was the leading suspect for the
+   * "quota limit exceeded" reports, and check-in was the one participant flow
+   * that did not depend on it. That blocker is now gone: the cause turned out
+   * to be AI-shared quota limits on the Firestore database itself, resolved by
+   * moving it to pay-as-you-go billing — nothing to do with auth.
+   *
+   * So this is now safe to do and worth doing: sign in anonymously, send the ID
+   * token on the PATCH, and tighten the rule's unauthenticated branch to require
+   * isAuthenticated(). The rules test suite already covers this branch.
    */
   const patchPlayers = async (updatedPlayers: TournamentPlayer[]): Promise<void> => {
     const { projectId, databaseId } = await import('@/lib/firebase');

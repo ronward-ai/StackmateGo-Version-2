@@ -24,10 +24,17 @@ export const databaseId = (import.meta.env.VITE_FIREBASE_DATABASE_ID || '').trim
 export const app = initializeApp(firebaseConfig);
 
 // Use in-memory cache for all clients. This app is always-online real-time
-// poker — there is no meaningful offline use case. Persistent IndexedDB cache
-// reliably triggers QuotaExceededError on iOS Safari (including iPadOS 13+
-// which reports as "Macintosh" so UA detection is unreliable) and can cause
-// stale-cache bugs on desktop. Memory cache is simpler and quota-safe.
+// poker, so offline persistence buys nothing and an in-memory cache avoids a
+// class of stale-data bugs.
+//
+// This was originally introduced to chase "quota limit exceeded" errors on
+// mobile, on the theory that the persistent IndexedDB cache was exhausting
+// device storage. That theory was wrong — a storage snapshot on an affected
+// device showed 0.00 MB used of a 10 GB quota. The real cause was that the
+// Firestore database was provisioned by Google AI Studio and ran under shared
+// AI quota limits, unrelated to this project's usage or billing; it was fixed
+// by moving the database to pay-as-you-go in the Firebase console. Keeping the
+// memory cache on its own merits, not as a quota workaround.
 export const db = initializeFirestore(app, {
   localCache: memoryLocalCache(),
 }, databaseId);
