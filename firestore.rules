@@ -78,31 +78,41 @@ service cloud.firestore {
       allow delete: if isRegistered() && isExistingDocOwner();
     }
 
-    // Seasons — public read so QR participants see live standings before anonymous auth completes.
-    // Create is scoped to the league owner: without ownsLeague() any registered
-    // user could create documents inside somebody else's league.
+    // Seasons / League Players / Tournament Results
+    // Public read so QR participants see live standings before anonymous auth
+    // completes. Update and delete are owner-scoped via ownsLeague().
+    //
+    // KNOWN GAP: create checks only isRegistered(), so any account that learns a
+    // leagueId can add documents to that league. Tightening this to ownsLeague()
+    // was tried and reverted: after a transfer-code handover the new director is
+    // registered but does not own the league, yet useLeague still resolves
+    // currentLeagueId from the tournament's stored leagueId — so their result
+    // writes were denied, silently, with results simply never recorded.
+    //
+    // Silent data loss during a live game is worse than the forged-write risk,
+    // which needs an authenticated attacker who has gone looking for a leagueId.
+    // The proper fix is to authorise by tournament rather than by league: results
+    // already carry tournamentId, so a rule can verify the writer is the current
+    // director of a tournament belonging to that league. leaguePlayers writes
+    // need a tournamentId adding before that can cover them too.
+    // See the director-handover test in tests/rules/firestore.rules.test.ts.
     match /seasons/{seasonId} {
       allow read: if true;
-      allow create: if request.resource.data.leagueId is string
-        && ownsLeague(request.resource.data.leagueId);
+      allow create: if isRegistered() && request.resource.data.leagueId is string;
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
-    // League Players — public read for live standings in participant view
     match /leaguePlayers/{playerId} {
       allow read: if true;
-      allow create: if request.resource.data.leagueId is string
-        && ownsLeague(request.resource.data.leagueId);
+      allow create: if isRegistered() && request.resource.data.leagueId is string;
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
-    // Tournament Results — public read for live standings in participant view
     match /tournamentResults/{resultId} {
       allow read: if true;
-      allow create: if request.resource.data.leagueId is string
-        && ownsLeague(request.resource.data.leagueId);
+      allow create: if isRegistered() && request.resource.data.leagueId is string;
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }

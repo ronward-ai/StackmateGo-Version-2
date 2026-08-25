@@ -156,13 +156,23 @@ describe('league data integrity', () => {
     await assertSucceeds(setDoc(doc(db, 'tournamentResults', 'new-result'), { leagueId: LEAGUE, points: 5 }));
   });
 
-  it("stops a registered stranger writing into someone else's league", async () => {
-    // Previously create only checked isRegistered(), so any account could
-    // inject forged results into any league.
+  it('KNOWN GAP: a registered stranger can still create league documents', async () => {
+    // Documents the accepted trade-off rather than the desired end state.
+    // Scoping create to ownsLeague() closes this, but also denies handover
+    // directors — silently losing results mid-game. See the director-handover
+    // test below. The real fix is to authorise by tournament, not by league.
     const db = stranger();
-    await assertFails(setDoc(doc(db, 'seasons', 'forged-season'), { name: 'Fake', leagueId: LEAGUE }));
-    await assertFails(setDoc(doc(db, 'leaguePlayers', 'forged-player'), { name: 'Mallory', leagueId: LEAGUE }));
-    await assertFails(setDoc(doc(db, 'tournamentResults', 'forged-result'), { leagueId: LEAGUE, points: 999 }));
+    await assertSucceeds(setDoc(doc(db, 'seasons', 'forged-season'), { name: 'Fake', leagueId: LEAGUE }));
+    await assertSucceeds(setDoc(doc(db, 'tournamentResults', 'forged-result'), { leagueId: LEAGUE, points: 999 }));
+  });
+
+  it('still stops a stranger MODIFYING existing league documents', async () => {
+    // update/delete remain owner-scoped, so existing standings cannot be
+    // rewritten or destroyed — only new documents can be added.
+    const db = stranger();
+    await assertFails(updateDoc(doc(db, 'leaguePlayers', 'player-1'), { totalPoints: 9999 }));
+    await assertFails(updateDoc(doc(db, 'tournamentResults', 'result-1'), { points: 9999 }));
+    await assertFails(deleteDoc(doc(db, 'tournamentResults', 'result-1')));
   });
 
   it('stops anonymous users creating league documents', async () => {
@@ -177,18 +187,22 @@ describe('league data integrity', () => {
 });
 
 describe('director handover', () => {
-  it('REGRESSION CHECK: a handover director recording results into the original league', async () => {
+  it('lets a handover director record results into the original league', async () => {
     // After a transfer-code handover the new director is a registered user who
-    // is NOT the league owner. useLeague resolves currentLeagueId from the
+    // is NOT the league owner. useLeague still resolves currentLeagueId from the
     // tournament's stored leagueId, so addResultMutation writes results tagged
     // with the ORIGINAL director's leagueId while authenticated as someone else.
-    // ownsLeague() on create denies exactly this.
-    const db = stranger();
-    const write = setDoc(doc(db, 'tournamentResults', 'handover-result'), {
+    //
+    // This is the flow that ownsLeague()-on-create broke. The denial surfaced
+    // only as a console permission error, so a full night's results would go
+    // unrecorded with nothing shown to the director. Guards the revert.
+    await assertSucceeds(setDoc(doc(stranger(), 'tournamentResults', 'handover-result'), {
       leagueId: LEAGUE, position: 3, points: 5, leaguePlayerId: 'player-1',
-    });
-    // Documenting actual behaviour: this is denied under the tightened rules.
-    await assertFails(write);
+    }));
+  });
+
+  it('still denies a handover director rewriting existing league standings', async () => {
+    await assertFails(updateDoc(doc(stranger(), 'leaguePlayers', 'player-1'), { totalPoints: 1 }));
   });
 });
 
