@@ -227,6 +227,15 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     p => p.isActive !== false && p.id !== playerToBustOut?.id
   );
 
+  // Heads-up: there is only one person it could have been, so pick them. Making
+  // the director tap a single-item list before Confirm KO would enable reads as
+  // a dead button — which is exactly how it was misread mid-game.
+  useEffect(() => {
+    if (bustOutDialogOpen && !hitmanId && hitmanCandidates.length === 1) {
+      setHitmanId(hitmanCandidates[0].id);
+    }
+  }, [bustOutDialogOpen, hitmanId, hitmanCandidates]);
+
   const handleBustOut = () => {
     if (!playerToBustOut) return;
     // A hitman is only required when there is someone who could have done it.
@@ -1158,6 +1167,13 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               </p>
             )}
           </div>
+          {/* Say why the button is unavailable. A silently disabled button reads
+              as broken, which is how this was misread during a live game. */}
+          {hitmanCandidates.length > 0 && !hitmanId && (
+            <p className="text-center text-xs text-amber-400/90">
+              Tap who knocked them out to continue
+            </p>
+          )}
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => setBustOutDialogOpen(false)}>Cancel</Button>
             <Button
