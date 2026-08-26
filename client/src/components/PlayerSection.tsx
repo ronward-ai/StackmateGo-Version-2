@@ -501,24 +501,37 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   return (
     <Card className="p-4 bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20">
       <div className="flex items-center justify-between">
+        {/* Once finished every player is marked inactive — including the winner —
+            so the live count would read "(0)" and look like an empty state right
+            where the final standings are. Switch to a results heading instead,
+            which also gives the Export button next to it some context. */}
         <h2 className="text-xl font-semibold flex items-center">
-          <span className="material-icons mr-2 text-orange-500">group</span>
-          Players & Rankings ({activePlayers.length})
+          <span className="material-icons mr-2 text-orange-500">
+            {tournamentFinished ? 'emoji_events' : 'group'}
+          </span>
+          {tournamentFinished
+            ? `Final Results (${state.players.length})`
+            : `Players & Rankings (${activePlayers.length})`}
         </h2>
         <div className="flex items-center gap-2">
-          {/* Export button - only show when tournament is finished */}
+          {/* Export button — only shown once the tournament is finished.
+              Labelled rather than icon-only: a bare download arrow appearing in
+              the header gave no clue what it did, and read as detached from the
+              results it saves. */}
           {tournamentFinished && (
             <Button
-              variant="outline"
+              variant="success"
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 handleExportImage();
               }}
               disabled={isExporting}
-              className="h-8 px-2"
+              title="Save the final rankings as an image you can share"
+              className="h-8 px-3 gap-1.5"
             >
               <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
+              <span className="text-xs">{isExporting ? 'Saving…' : 'Export Results'}</span>
             </Button>
           )}
         </div>
