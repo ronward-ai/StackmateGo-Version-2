@@ -45,6 +45,9 @@ export interface BrandingSettings {
 
 export interface Settings {
   enableSounds: boolean;
+  /** When a BREAK ends, wait for the director to press play instead of
+   *  starting the next level automatically. */
+  pauseAfterBreak?: boolean;
   enableVoice?: boolean;
   showSeconds: boolean;
   showNextLevel: boolean;

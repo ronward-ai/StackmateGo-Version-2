@@ -186,6 +186,13 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
 
               <SettingsGroup icon={Layers} title="Blind Levels" color="text-orange-400">
                 <SettingRow
+                  id="pauseAfterBreak"
+                  label="Pause After Break"
+                  hint="Wait for you to press play when a break ends, instead of starting the next level automatically"
+                  checked={localSettings.pauseAfterBreak !== false}
+                  onCheckedChange={(v) => setLocal({ pauseAfterBreak: v })}
+                />
+                <SettingRow
                   id="applyDurationToAll"
                   label="Sync Level Durations"
                   hint="Editing one level duration updates all levels"

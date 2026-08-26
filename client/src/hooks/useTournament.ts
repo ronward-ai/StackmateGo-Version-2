@@ -33,6 +33,9 @@ const DEFAULT_LEVELS: BlindLevel[] = [
 
 const DEFAULT_SETTINGS: Settings = {
   enableSounds: true,
+  // Default on: players wander off during a break, and having the next level
+  // start by itself catches the table out.
+  pauseAfterBreak: true,
   enableVoice: false,
   showSeconds: true,
   showNextLevel: true,
@@ -630,13 +633,21 @@ export function useTournament(tournamentId?: string) {
             if (nextLevelIndex < prevState.levels.length) {
               const nextLevel = prevState.levels[nextLevelIndex];
 
+              // When a BREAK finishes, optionally hold at the start of the next
+              // level until the director presses play — players are typically
+              // still at the bar. startTimer() recomputes targetEndTime from
+              // secondsLeft, so clearing it here resumes on a full level.
+              const finishedLevel = prevState.levels[prevState.currentLevel];
+              const holdAfterBreak =
+                prevState.settings.pauseAfterBreak !== false && !!finishedLevel?.isBreak;
+
               // Move to next level and reset seconds first
               const newState = {
                 ...prevState,
                 currentLevel: nextLevelIndex,
                 secondsLeft: nextLevel.duration,
-                targetEndTime: Date.now() + nextLevel.duration * 1000,
-                isRunning: true // Keep running
+                targetEndTime: holdAfterBreak ? null : Date.now() + nextLevel.duration * 1000,
+                isRunning: !holdAfterBreak
               };
 
               // Schedule voice announcement - use immediate approach
@@ -1051,7 +1062,14 @@ export function useTournament(tournamentId?: string) {
       }
 
       // Check if only one player remains active and award them 1st place
-      const remainingActivePlayers = updatedPlayers.filter(p => p.isActive === true);
+      // `isActive !== false` rather than `=== true`: every other active-player
+      // check in the app (TimerCard, TablesSection, the bust-out dialog) treats
+      // an absent flag as active. Using `=== true` only here meant a player
+      // whose isActive was undefined — from a Firestore round-trip or an older
+      // saved tournament — would not be counted, so this branch never fired,
+      // the winner was never given position 1, and the tournament could not be
+      // closed out.
+      const remainingActivePlayers = updatedPlayers.filter(p => p.isActive !== false);
       if (remainingActivePlayers.length === 1) {
         const winner = remainingActivePlayers[0];
 

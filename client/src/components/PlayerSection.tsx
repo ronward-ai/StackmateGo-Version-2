@@ -222,9 +222,19 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     }
   };
 
+  /** Players who could have knocked this one out — everyone still in, minus them. */
+  const hitmanCandidates = state.players.filter(
+    p => p.isActive !== false && p.id !== playerToBustOut?.id
+  );
+
   const handleBustOut = () => {
-    if (!playerToBustOut || !hitmanId) return;
-    eliminatePlayer(playerToBustOut.id, hitmanId);
+    if (!playerToBustOut) return;
+    // A hitman is only required when there is someone who could have done it.
+    // Busting the last player standing has no attributable knockout, and
+    // previously the Confirm button stayed disabled here — leaving the director
+    // unable to close out the tournament at all.
+    if (hitmanCandidates.length > 0 && !hitmanId) return;
+    eliminatePlayer(playerToBustOut.id, hitmanId ?? undefined);
     setBustOutDialogOpen(false);
     setPlayerToBustOut(null);
     setHitmanId(null);
@@ -1114,12 +1124,19 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
-            <DialogTitle>Bust Out — {playerToBustOut?.name}</DialogTitle>
-            <DialogDescription>Who knocked them out?</DialogDescription>
+            <DialogTitle>
+              {hitmanCandidates.length === 0
+                ? `Finish Tournament — ${playerToBustOut?.name}`
+                : `Bust Out — ${playerToBustOut?.name}`}
+            </DialogTitle>
+            <DialogDescription>
+              {hitmanCandidates.length === 0
+                ? 'No one left to attribute a knockout to — this closes out the tournament.'
+                : 'Who knocked them out?'}
+            </DialogDescription>
           </DialogHeader>
           <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
-            {state.players
-              .filter(p => p.isActive !== false && p.id !== playerToBustOut?.id)
+            {hitmanCandidates
               .map(player => (
                 <div
                   key={player.id}
@@ -1135,13 +1152,21 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                   <span className="text-xs text-muted-foreground">{player.knockouts || 0} KOs</span>
                 </div>
               ))}
-            {state.players.filter(p => p.isActive !== false && p.id !== playerToBustOut?.id).length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">No other active players</p>
+            {hitmanCandidates.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">
+                Last player standing — no knockout to record.
+              </p>
             )}
           </div>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => setBustOutDialogOpen(false)}>Cancel</Button>
-            <Button className="flex-1" disabled={!hitmanId} onClick={handleBustOut}>Confirm KO</Button>
+            <Button
+              className="flex-1"
+              disabled={hitmanCandidates.length > 0 && !hitmanId}
+              onClick={handleBustOut}
+            >
+              {hitmanCandidates.length === 0 ? 'Finish Tournament' : 'Confirm KO'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

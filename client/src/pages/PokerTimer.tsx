@@ -171,6 +171,18 @@ function PokerTimerInner({
 
   const processedEliminationsRef = useRef(new Set<string>());
   const [activeTab, setActiveTab] = useState('players');
+
+  // The League tab is only meaningful for a league game. Hiding it in standalone
+  // also keeps the tab bar from overflowing on a phone in portrait, where it was
+  // pushing Share off-screen. League mode is enabled from the mode toggle above
+  // the tabs, so hiding the tab never blocks getting into league mode.
+  // Reuses _isLeagueMode from above rather than recomputing the same expression.
+  const isLeagueMode = _isLeagueMode;
+
+  // Don't strand the user on a tab that is about to disappear.
+  useEffect(() => {
+    if (!isLeagueMode && activeTab === 'league') setActiveTab('players');
+  }, [isLeagueMode, activeTab]);
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
   const lastSyncedPlayersRef = useRef<string>('');
 
@@ -523,7 +535,9 @@ function PokerTimerInner({
                 <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
                 <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
                 <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
-                <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
+                {isLeagueMode && (
+                  <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
+                )}
                 <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
                 <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">
                   <span className="flex items-center gap-1.5">
@@ -568,9 +582,11 @@ function PokerTimerInner({
               <TablesSection tournament={tournament} />
             </TabsContent>
 
-            <TabsContent value="league" className="mt-0 p-4 pt-5">
-              <LeagueSection tournament={tournament} />
-            </TabsContent>
+            {isLeagueMode && (
+              <TabsContent value="league" className="mt-0 p-4 pt-5">
+                <LeagueSection tournament={tournament} />
+              </TabsContent>
+            )}
 
             <TabsContent value="qr" className="mt-0 p-4 pt-5">
               <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} />
