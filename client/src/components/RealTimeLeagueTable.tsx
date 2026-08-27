@@ -638,14 +638,20 @@ function RealTimeLeagueTable({
             </div>
             <div className="flex items-center gap-3">
               {!isParticipantView && (
+                /* Labelled rather than a bare icon — the same unlabelled Download
+                   arrow was reported as unclear on the end-of-game export. Kept
+                   understated here: this is an always-available utility, not the
+                   headline action the way it is when a tournament finishes. */
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleExportImage}
                   disabled={isExporting}
-                  className="h-8 px-2"
+                  title="Save the standings table as an image you can share"
+                  className="h-8 px-3 gap-1.5"
                 >
                   <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
+                  <span className="text-xs">{isExporting ? 'Saving…' : 'Export'}</span>
                 </Button>
               )}
               <div className="text-sm text-muted-foreground">
