@@ -120,6 +120,47 @@ export interface PrizeStructure {
   addonAvailableLevel?: number;
 }
 
+/**
+ * A finished tournament, kept as history.
+ *
+ * Standalone games previously left no record at all — results are only written
+ * to tournamentResults for league games — so once a new tournament started the
+ * old standings were gone. League games are stored here too, so history is one
+ * list rather than two.
+ */
+export interface CompletedTournament {
+  id?: string;
+  ownerId: string;
+  name?: string;
+  type: 'standalone' | 'season' | 'database';
+  /** Stable per-game id, so re-finishing the same game overwrites rather than duplicates. */
+  localGameId?: string;
+  seasonId?: string;
+  seasonName?: string;
+  leagueId?: string;
+  startTime?: string;
+  endTime: string;
+  playerCount: number;
+  winner?: string;
+  buyIn: number;
+  currency?: string;
+  prizePool: number;
+  rake?: number;
+  totalRebuys?: number;
+  totalAddons?: number;
+  totalReEntries?: number;
+  results: Array<{
+    playerId: string;
+    playerName: string;
+    position: number;
+    prizeMoney: number;
+    knockouts?: number;
+    rebuys?: number;
+    addons?: number;
+  }>;
+  createdAt?: any;
+}
+
 export interface TournamentTemplate {
   id?: string;
   name: string;

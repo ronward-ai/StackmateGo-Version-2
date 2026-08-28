@@ -49,4 +49,5 @@ export const collections = {
   activeTournaments: collection(db, 'activeTournaments'),
   leagueSettings: collection(db, 'leagueSettings'),
   tournamentTemplates: collection(db, 'tournamentTemplates'),
+  completedTournaments: collection(db, 'completedTournaments'),
 };

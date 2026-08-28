@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useCompletedTournaments } from '@/hooks/useCompletedTournaments';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -20,6 +21,7 @@ import {
 import TimerCard from '@/components/TimerCard';
 import TournamentInfoCard, { TournamentNewButton, TournamentModeToggle } from '@/components/TournamentInfoCard';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
+import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
 import BlindLevelsSection from '@/components/BlindLevelsSection';
@@ -171,6 +173,32 @@ function PokerTimerInner({
 
   const processedEliminationsRef = useRef(new Set<string>());
   const [activeTab, setActiveTab] = useState('players');
+
+  // Save finished tournaments to history. Standalone games are the point of
+  // this: results are only written to tournamentResults for league games, so a
+  // standalone tournament otherwise left no record once the next one started.
+  // The record id is derived from localGameId, so a repeat save overwrites
+  // rather than duplicating; the ref just avoids pointless writes.
+  const { saveCompletedTournament } = useCompletedTournaments();
+  const savedHistoryRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const players = tournament.state.players || [];
+    if (players.length === 0) return;
+    // eliminatePlayer marks every player inactive on completion, including the
+    // winner, who is the one given position 1.
+    const stillIn = players.filter(p => p.isActive !== false);
+    const finished = stillIn.length === 0 && players.some(p => p.position === 1);
+    if (!finished) return;
+
+    const gameKey = String(
+      tournament.state.details?.localGameId ?? tournament.state.details?.id ?? ''
+    );
+    if (savedHistoryRef.current === gameKey) return;
+    savedHistoryRef.current = gameKey;
+    saveCompletedTournament(tournament.state);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournament.state.players, saveCompletedTournament]);
 
   // The League tab is only meaningful for a league game. Hiding it in standalone
   // also keeps the tab bar from overflowing on a phone in portrait, where it was
@@ -523,7 +551,10 @@ function PokerTimerInner({
                 <Settings2 className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
               </div>
-              <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
+              <div className="flex items-center gap-2">
+                <TournamentHistoryDialog />
+                <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
+              </div>
             </div>
             {/* Row 2: mode toggle */}
             <div className="px-4 pb-3">

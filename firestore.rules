@@ -172,6 +172,16 @@ service cloud.firestore {
       allow delete: if isRegistered() && isExistingDocUser();
     }
 
+    // Completed Tournaments — private history, owner only.
+    // Not publicly readable: unlike live standings these are a personal record
+    // and participants have no reason to read them.
+    match /completedTournaments/{recordId} {
+      allow read: if isRegistered() && resource.data.ownerId == request.auth.uid;
+      allow create: if isRegistered() && isDocOwner();
+      allow update: if isRegistered() && isExistingDocOwner() && isDocOwner();
+      allow delete: if isRegistered() && isExistingDocOwner();
+    }
+
     // Tournament Templates — owner only
     match /tournamentTemplates/{templateId} {
       allow read: if isRegistered() && resource.data.ownerId == request.auth.uid;

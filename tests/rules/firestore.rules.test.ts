@@ -206,6 +206,50 @@ describe('director handover', () => {
   });
 });
 
+describe('completed tournaments (history)', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'completedTournaments', 'history-1'), {
+        ownerId: DIRECTOR, type: 'standalone', playerCount: 8, endTime: new Date().toISOString(),
+      });
+    });
+  });
+
+  it('lets the owner read, write and delete their own history', async () => {
+    const db = director();
+    await assertSucceeds(getDoc(doc(db, 'completedTournaments', 'history-1')));
+    await assertSucceeds(setDoc(doc(db, 'completedTournaments', 'history-2'), {
+      ownerId: DIRECTOR, type: 'standalone', playerCount: 6, endTime: new Date().toISOString(),
+    }));
+    await assertSucceeds(deleteDoc(doc(db, 'completedTournaments', 'history-1')));
+  });
+
+  it("stops anyone else reading a director's history", async () => {
+    // Deliberately stricter than the standings collections: this is a private
+    // record, and participants have no reason to see it.
+    await assertFails(getDoc(doc(stranger(), 'completedTournaments', 'history-1')));
+    await assertFails(getDoc(doc(anonAuth(), 'completedTournaments', 'history-1')));
+    await assertFails(getDoc(doc(anon(), 'completedTournaments', 'history-1')));
+  });
+
+  it('stops anyone else modifying or deleting it', async () => {
+    await assertFails(updateDoc(doc(stranger(), 'completedTournaments', 'history-1'), { playerCount: 99 }));
+    await assertFails(deleteDoc(doc(stranger(), 'completedTournaments', 'history-1')));
+  });
+
+  it('stops a record being created under someone else’s ownerId', async () => {
+    await assertFails(setDoc(doc(stranger(), 'completedTournaments', 'forged'), {
+      ownerId: DIRECTOR, type: 'standalone', playerCount: 2, endTime: new Date().toISOString(),
+    }));
+  });
+
+  it('stops anonymous users creating history', async () => {
+    await assertFails(setDoc(doc(anonAuth(), 'completedTournaments', 'anon-history'), {
+      ownerId: 'anon-uid', type: 'standalone', playerCount: 2, endTime: new Date().toISOString(),
+    }));
+  });
+});
+
 describe('league privacy', () => {
   it('lets a director list their own leagues', async () => {
     const q = query(collection(director(), 'leagues'), where('ownerId', '==', DIRECTOR));
