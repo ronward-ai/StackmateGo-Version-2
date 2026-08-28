@@ -8,7 +8,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Archive, Trash2, Check, Trophy } from 'lucide-react';
+import { Plus, Archive, Trash2, Check } from 'lucide-react';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -27,7 +27,7 @@ import { useSubscription } from '@/hooks/useSubscription';
  * toward, and it changes what every participant sees.
  */
 export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: boolean }) {
-  const { league, setActiveSeason, deleteLeague } = useLeague();
+  const { league, setActiveSeason } = useLeague();
   const {
     seasons, currentSeason, addSeason, updateSeason, deleteSeason, formatSeasonDateRange,
   } = useSeasons({ leagueId: league?.id });
@@ -40,8 +40,6 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
 
   const [endTarget, setEndTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [showDeleteLeague, setShowDeleteLeague] = useState(false);
-  const [deleteLeagueConfirm, setDeleteLeagueConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,14 +92,6 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
     try { await deleteSeason(deleteTarget); }
     catch (err: any) { setError(err?.message || 'Could not delete the season.'); }
     finally { setBusy(false); setDeleteTarget(null); }
-  };
-
-  const handleDeleteLeague = async () => {
-    if (!league?.id || deleteLeagueConfirm !== league?.name) return;
-    setBusy(true);
-    try { await deleteLeague(String(league.id)); }
-    catch (err: any) { setError(err?.message || 'Could not delete the league.'); }
-    finally { setBusy(false); setShowDeleteLeague(false); setDeleteLeagueConfirm(''); }
   };
 
   return (
@@ -218,21 +208,8 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
         </Card>
       )}
 
-      {/* League-level danger zone. Deleting a league previously sat in a menu
-          titled "Season actions", which is how a league gets deleted by mistake. */}
-      {!readOnly && (
-        <div className="pt-4 mt-2 border-t border-border/40">
-          <p className="text-xs text-muted-foreground mb-2">Danger zone</p>
-          <Button
-            variant="outline"
-            className="w-full gap-1.5 text-destructive border-destructive/40 hover:bg-destructive/10"
-            onClick={() => setShowDeleteLeague(true)}
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete “{league?.name || 'this league'}”
-          </Button>
-        </div>
-      )}
+      {/* Delete League used to sit here. It is a league-level action and now
+          lives on the League tab, beside renaming and switching. */}
 
       <AlertDialog open={!!endTarget} onOpenChange={o => !o && setEndTarget(null)}>
         <AlertDialogContent>
@@ -266,36 +243,6 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showDeleteLeague} onOpenChange={o => { if (!o) { setShowDeleteLeague(false); setDeleteLeagueConfirm(''); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete league?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently deletes <strong>{league?.name}</strong> including every season, player and
-              tournament result. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="px-6 pb-2">
-            <Label className="text-xs text-muted-foreground">Type the league name to confirm</Label>
-            <Input
-              value={deleteLeagueConfirm}
-              onChange={e => setDeleteLeagueConfirm(e.target.value)}
-              placeholder={league?.name}
-              className="mt-1 h-8 text-sm"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteLeagueConfirm('')}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/80"
-              onClick={handleDeleteLeague}
-              disabled={busy || deleteLeagueConfirm !== league?.name}
-            >
-              {busy ? 'Deleting…' : 'Delete League'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

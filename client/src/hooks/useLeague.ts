@@ -122,6 +122,23 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   }, [currentLeagueId]);
   const activeSeasonId = leagueDoc?.activeSeasonId ?? null;
 
+  /**
+   * Rename the league. The Firestore rule requires name to be a non-empty
+   * string under 100 characters, so the same bounds are enforced here to fail
+   * with a useful message rather than a permission error.
+   */
+  const renameLeague = useCallback(async (name: string) => {
+    if (!currentLeagueId) return;
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('League name cannot be empty.');
+    if (trimmed.length >= 100) throw new Error('League name must be under 100 characters.');
+    await updateDoc(doc(db, 'leagues', String(currentLeagueId)), {
+      name: trimmed,
+      updatedAt: serverTimestamp(),
+    });
+    queryClient.invalidateQueries({ queryKey: ['leagues', targetOwnerId] });
+  }, [currentLeagueId, queryClient, targetOwnerId]);
+
   /** Point the league at a season. One write, replacing the old N+1 status loop. */
   const setActiveSeason = useCallback(async (seasonId: string) => {
     if (!currentLeagueId) return;
@@ -640,7 +657,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     removePlayer: () => {},
     addPoints: () => {},
     recordTournamentResult: recordResult,
-    updateLeague: () => {},
+    renameLeague,
     clearError: () => {},
     calculateTournamentPoints: calculatePointsFromSettings
   };

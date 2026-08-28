@@ -14,10 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown, CalendarDays } from 'lucide-react';
+import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown, CalendarDays, Trophy as TrophyIcon } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useLeague } from '@/hooks/useLeague';
 import LeagueSeasonsTab from '@/components/LeagueSeasonsTab';
+import LeagueDetailsTab from '@/components/LeagueDetailsTab';
 import { POINTS_SYSTEMS, STAT_LABELS, DEFAULT_LEAGUE_SETTINGS } from '@/types/leagueSettings';
 
 // Define the structure for a saved formula template
@@ -255,8 +256,12 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
           )}
         </DialogHeader>
 
-        <Tabs defaultValue="seasons" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-12">
+        <Tabs defaultValue="league" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 h-12">
+            <TabsTrigger value="league" variant="timer" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
+              <TrophyIcon className="h-4 w-4" />
+              League
+            </TabsTrigger>
             <TabsTrigger value="seasons" variant="tables" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
               <CalendarDays className="h-4 w-4" />
               Seasons
@@ -270,6 +275,10 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
               Stats
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="league" className="mt-4">
+            <LeagueDetailsTab />
+          </TabsContent>
 
           <TabsContent value="seasons" className="mt-4">
             <LeagueSeasonsTab />
