@@ -191,8 +191,16 @@ function PokerTimerInner({
     const finished = stillIn.length === 0 && players.some(p => p.position === 1);
     if (!finished) return;
 
+    // Dedupe key. Falls back to the shape of the finished game rather than an
+    // empty string: a missing id used to collide with the previous missing id
+    // and silently drop every game after the first. The fallback still differs
+    // between games (different winner or player count) while staying stable
+    // across re-renders of the same finished game, so it cannot cause repeat
+    // writes either.
+    const details = tournament.state.details;
+    const winnerId = players.find(p => p.position === 1)?.id ?? '';
     const gameKey = String(
-      tournament.state.details?.localGameId ?? tournament.state.details?.id ?? ''
+      details?.localGameId ?? details?.id ?? `anon:${players.length}:${winnerId}`
     );
     if (savedHistoryRef.current === gameKey) return;
     savedHistoryRef.current = gameKey;

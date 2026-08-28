@@ -1289,12 +1289,13 @@ export function useTournament(tournamentId?: string) {
     const settings = keepStructure ? state.settings : DEFAULT_SETTINGS;
     const isLeagueReset = keepStructure && state.details?.type === 'season';
     const preservedType = isLeagueReset ? 'season' : 'standalone';
-    const newLocalGameId = isLeagueReset
-      ? `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
-      : undefined;
-    if (newLocalGameId) {
-      try { localStorage.setItem('tournamentLocalGameId', newLocalGameId); } catch {}
-    }
+    // Every new tournament gets a fresh id, standalone included. This used to be
+    // league-only, which left standalone games with localGameId undefined — so
+    // consecutive standalone games were indistinguishable. That broke history
+    // (every game after the first produced the same empty key and was skipped as
+    // a duplicate) and meant repeat "Go Live" reused one Firestore document.
+    const newLocalGameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    try { localStorage.setItem('tournamentLocalGameId', newLocalGameId); } catch {}
 
     setState({
       levels,
