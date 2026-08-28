@@ -14,9 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown } from 'lucide-react';
+import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown, CalendarDays } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useLeague } from '@/hooks/useLeague';
+import LeagueSeasonsTab from '@/components/LeagueSeasonsTab';
 import { POINTS_SYSTEMS, STAT_LABELS, DEFAULT_LEAGUE_SETTINGS } from '@/types/leagueSettings';
 
 // Define the structure for a saved formula template
@@ -237,7 +238,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            League Configuration
+            Manage League
           </DialogTitle>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 mt-2">
@@ -254,8 +255,12 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
           )}
         </DialogHeader>
 
-        <Tabs defaultValue="points" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-12">
+        <Tabs defaultValue="seasons" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 h-12">
+            <TabsTrigger value="seasons" variant="tables" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
+              <CalendarDays className="h-4 w-4" />
+              Seasons
+            </TabsTrigger>
             <TabsTrigger value="points" variant="settings" className="flex items-center justify-center gap-2 h-full text-sm font-medium">
               <Calculator className="h-4 w-4" />
               Points
@@ -265,6 +270,10 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
               Stats
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="seasons" className="mt-4">
+            <LeagueSeasonsTab />
+          </TabsContent>
 
           {/* Points System Tab */}
           <TabsContent value="points" className="space-y-6">

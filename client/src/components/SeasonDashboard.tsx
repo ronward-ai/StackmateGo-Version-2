@@ -92,7 +92,7 @@ export default function SeasonDashboard({
         <div className="text-center text-muted-foreground space-y-2">
           <Calendar className="h-12 w-12 mx-auto opacity-30" />
           <p>No active season.</p>
-          <p className="text-sm">Use the <span className="text-foreground font-medium">New Season</span> button above to get started.</p>
+          <p className="text-sm">Create one from <span className="text-foreground font-medium">Manage League → Seasons</span>.</p>
         </div>
       </Card>
     );
@@ -172,24 +172,25 @@ export default function SeasonDashboard({
         </Card>
       </div>
 
-      {/* Current Season Standings */}
-      <RealTimeLeagueTable tournament={tournament} />
-
-      {/* Previous Seasons */}
+      {/* One standings table. Selecting a past season SWAPS what this table
+          shows rather than appending a second table below the current one —
+          two tables on screen made it ambiguous which was authoritative. */}
       {pastSeasons.length > 0 && (
-        <div>
-          <div className="flex items-center mb-4">
-            <History className="h-5 w-5 mr-2 text-primary" />
-            <h3 className="text-xl font-semibold">Previous Seasons</h3>
-          </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <History className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <span className="text-sm text-muted-foreground">Viewing</span>
           <Select
-            value={selectedPastSeasonId ?? ''}
-            onValueChange={val => setSelectedPastSeasonId(val || null)}
+            value={selectedPastSeasonId ?? 'current'}
+            onValueChange={val => setSelectedPastSeasonId(val === 'current' ? null : val)}
           >
-            <SelectTrigger className="w-full mb-4">
-              <SelectValue placeholder="Select a season to view standings" />
+            <SelectTrigger className="w-auto min-w-[200px] h-8 text-sm">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="current">
+                <span className="font-medium">{currentSeason.name}</span>
+                <span className="ml-2 text-muted-foreground text-xs">current</span>
+              </SelectItem>
               {pastSeasons.map(season => (
                 <SelectItem key={season.id} value={String(season.id)}>
                   <span className="font-medium">{season.name}</span>
@@ -199,10 +200,18 @@ export default function SeasonDashboard({
             </SelectContent>
           </Select>
           {selectedPastSeasonId && (
-            <RealTimeLeagueTable tournament={tournament} seasonIdOverride={selectedPastSeasonId} />
+            <span className="text-xs text-amber-400">
+              Past season — this is a view only, it does not change which season games count toward
+            </span>
           )}
         </div>
       )}
+
+      <RealTimeLeagueTable
+        tournament={tournament}
+        seasonIdOverride={selectedPastSeasonId}
+      />
+
     </div>
   );
 }
