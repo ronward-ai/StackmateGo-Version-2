@@ -51,9 +51,6 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   const queryClient = useQueryClient();
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
 
-  // Active season ID - set externally via setActiveSeasonId
-  const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
-
   // Tracks in-flight player-creation promises keyed by lowercased name.
   // Prevents duplicate Firestore docs when recordResultByName is called
   // concurrently for multiple players before leaguePlayers state has updated.
@@ -108,6 +105,31 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     ? { id: directLeagueId, name: 'League' }
     : (userLeagues.find((l: any) => l.id === selectedLeagueId) || userLeagues[0] || null);
   const currentLeagueId = currentLeague?.id ?? null;
+
+  // Which season new results belong to is stored on the league document, not in
+  // component state. This used to be per-hook-instance useState set only by
+  // LeagueSection, so PokerTimer's separate instance always read null and its
+  // fallback record paths wrote seasonId: null — orphaning those results from
+  // every season-filtered view.
+  const [leagueDoc, setLeagueDoc] = useState<{ activeSeasonId?: string } | null>(null);
+  useEffect(() => {
+    if (!currentLeagueId) { setLeagueDoc(null); return; }
+    return onSnapshot(
+      doc(db, 'leagues', String(currentLeagueId)),
+      snap => setLeagueDoc(snap.exists() ? (snap.data() as any) : null),
+      err => console.error('Error reading league:', err),
+    );
+  }, [currentLeagueId]);
+  const activeSeasonId = leagueDoc?.activeSeasonId ?? null;
+
+  /** Point the league at a season. One write, replacing the old N+1 status loop. */
+  const setActiveSeason = useCallback(async (seasonId: string) => {
+    if (!currentLeagueId) return;
+    await updateDoc(doc(db, 'leagues', String(currentLeagueId)), {
+      activeSeasonId: String(seasonId),
+      updatedAt: serverTimestamp(),
+    });
+  }, [currentLeagueId]);
 
   // Points calculation uses per-league settings
   const { calculatePoints: calculatePointsFromSettings } = useLeagueSettings(
@@ -607,7 +629,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     isLoading,
     error,
     activeSeasonId,
-    setActiveSeasonId,
+    setActiveSeason,
     // Legacy compatibility
     players: leaguePlayers,
     processElimination: (playerName: string, position: number, totalPlayers: number, playersEliminatedCount: number = 0, prizeMoney: number = 0) => 

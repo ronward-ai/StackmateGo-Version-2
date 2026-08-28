@@ -256,12 +256,27 @@ describe('league privacy', () => {
     await assertSucceeds(getDocs(q));
   });
 
-  it("stops a stranger reading another director's league", async () => {
-    await assertFails(getDoc(doc(stranger(), 'leagues', LEAGUE)));
+  it('lets anyone GET a league by id (QR participants resolve activeSeasonId)', async () => {
+    // get and list are deliberately split: a participant knows the leagueId from
+    // the tournament doc and needs the league's activeSeasonId to know which
+    // season the standings belong to.
+    await assertSucceeds(getDoc(doc(anon(), 'leagues', LEAGUE)));
+    await assertSucceeds(getDoc(doc(anonAuth(), 'leagues', LEAGUE)));
+    await assertSucceeds(getDoc(doc(stranger(), 'leagues', LEAGUE)));
   });
 
-  it('stops an anonymous participant enumerating all leagues', async () => {
+  it('stops anyone enumerating leagues they do not own', async () => {
     await assertFails(getDocs(collection(anonAuth(), 'leagues')));
+    await assertFails(getDocs(collection(anon(), 'leagues')));
+    await assertFails(getDocs(query(collection(stranger(), 'leagues'), where('ownerId', '==', DIRECTOR))));
+  });
+
+  it('lets the owner set activeSeasonId, and no one else', async () => {
+    // The season pointer moved onto the league doc. The update rule also asserts
+    // name is still a valid string, so confirm a pointer-only update passes it.
+    await assertSucceeds(updateDoc(doc(director(), 'leagues', LEAGUE), { activeSeasonId: 'season-1' }));
+    await assertFails(updateDoc(doc(stranger(), 'leagues', LEAGUE), { activeSeasonId: 'season-1' }));
+    await assertFails(updateDoc(doc(anonAuth(), 'leagues', LEAGUE), { activeSeasonId: 'season-1' }));
   });
 
   it("stops a stranger writing another director's league settings", async () => {

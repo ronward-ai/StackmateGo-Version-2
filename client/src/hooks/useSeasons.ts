@@ -7,8 +7,12 @@ import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, s
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
 
-/** Stable empty reference — required by useSharedSnapshot. */
+/** Stable empty references — required by useSharedSnapshot. */
 const EMPTY_SEASONS: Season[] = [];
+const NO_LEAGUE_DOC: { activeSeasonId?: string } | null = null;
+
+/** One migration attempt per league per page load. */
+const backfilledLeagues = new Set<string>();
 
 // Season interface matching database schema
 interface Season {
@@ -60,26 +64,23 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     EMPTY_SEASONS,
   );
 
-  // Optimistic local override — updated immediately on season switch so all hook
-  // instances respond without waiting for Firestore's onSnapshot round-trip.
-  const [localActiveSeasonId, setLocalActiveSeasonId] = useState<string | null>(() => {
-    try { return localStorage.getItem('activeSeasonId'); } catch { return null; }
-  });
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      setLocalActiveSeasonId((e as CustomEvent<string>).detail ?? null);
-    };
-    window.addEventListener('seasonSwitched', handler);
-    return () => window.removeEventListener('seasonSwitched', handler);
-  }, []);
-
-  // Clear the local override when the league changes so a stale season ID from a
-  // different league never bleeds into this instance.
-  useEffect(() => {
-    setLocalActiveSeasonId(null);
-    try { localStorage.removeItem('activeSeasonId'); } catch {}
-  }, [leagueId]);
+  // Which season is current is stored once, on the league document, and read
+  // from there by every instance. This replaces an earlier localStorage +
+  // CustomEvent override which could not work: its reset effect keyed on
+  // [leagueId] ran on EVERY instance mount, and six components mount this hook,
+  // so any later mount wiped the key and the choice never survived a reload.
+  //
+  // Shared listener, so all instances see the same value at the same time.
+  const { data: leagueDoc } = useSharedSnapshot<{ activeSeasonId?: string } | null>(
+    leagueId ? `league:${leagueId}` : null,
+    (emit, fail) => onSnapshot(
+      doc(db, 'leagues', String(leagueId)),
+      snap => emit(snap.exists() ? (snap.data() as any) : null),
+      error => { console.error('Error reading league:', error); fail(error); },
+    ),
+    NO_LEAGUE_DOC,
+  );
+  const activeSeasonId = leagueDoc?.activeSeasonId ?? null;
 
   // Create mutation for creating a season
   const createSeasonMutation = useMutation({
@@ -214,16 +215,31 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     return [fallbackSeason];
   }, [dbSeasons, fallbackSeason, leagueId]);
 
-  // Get current active season — prefer the local override (set instantly on switch)
-  // then fall back to whichever season Firestore has marked active.
+  // The league's activeSeasonId is authoritative. The status fallback exists only
+  // for leagues written before the pointer was introduced and is removed once the
+  // backfill below has run.
   const currentSeason = useMemo(() => {
-    if (localActiveSeasonId) {
-      const override = seasons.find(s => String(s.id) === localActiveSeasonId);
-      if (override) return override;
+    if (activeSeasonId) {
+      const pointed = seasons.find(s => String(s.id) === String(activeSeasonId));
+      if (pointed) return pointed;
     }
-    const activeSeason = seasons.find(s => s.isActive);
-    return activeSeason || seasons[0] || fallbackSeason;
-  }, [seasons, fallbackSeason, localActiveSeasonId]);
+    const legacyActive = seasons.find(s => s.isActive);
+    return legacyActive || seasons[0] || fallbackSeason;
+  }, [seasons, fallbackSeason, activeSeasonId]);
+
+  // One-time backfill for leagues predating the pointer. Attempted once per
+  // league per page load; non-owners are denied by the rules and the error is
+  // swallowed, which is correct — only the owner should be setting this.
+  useEffect(() => {
+    if (!leagueId || !leagueDoc || activeSeasonId) return;
+    const key = String(leagueId);
+    if (backfilledLeagues.has(key)) return;
+    const legacyActive = seasons.find(s => s.isActive && s.id !== 'default-season');
+    if (!legacyActive) return;
+    backfilledLeagues.add(key);
+    updateDoc(doc(db, 'leagues', key), { activeSeasonId: String(legacyActive.id) })
+      .catch(() => { /* not the owner, or offline — harmless */ });
+  }, [leagueId, leagueDoc, activeSeasonId, seasons]);
 
   // Format season date range for display
   const formatSeasonDateRange = useCallback((season: MinimalSeason) => {

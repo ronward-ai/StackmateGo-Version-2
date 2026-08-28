@@ -39,7 +39,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const [isDeletingLeague, setIsDeletingLeague] = useState(false);
   const [deleteLeagueConfirm, setDeleteLeagueConfirm] = useState('');
 
-  const { league, userLeagues, switchLeague, deleteLeague, setActiveSeasonId, leaguePlayers } = useLeague();
+  const { league, userLeagues, switchLeague, deleteLeague, setActiveSeason, leaguePlayers } = useLeague();
   const { seasons, currentSeason, addSeason, updateSeason, deleteSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
   const { isPro } = useSubscription();
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -61,7 +61,6 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
 
   useEffect(() => {
     if (currentSeason?.id) {
-      setActiveSeasonId(String(currentSeason.id));
       // Keep season info in tournament settings so it syncs to Firestore and
       // the participant view can display season name and game number.
       if (tournament?.updateSettings) {
@@ -73,7 +72,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
         });
       }
     }
-  }, [currentSeason?.id, setActiveSeasonId]);
+  }, [currentSeason?.id, gameNumber]);
 
   // Keep gameNumber in sync as league results are recorded during the game
   useEffect(() => {
@@ -88,22 +87,23 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
 
   const handleSeasonChange = async (seasonId: string) => {
     const selected = seasons.find(s => String(s.id) === seasonId);
-    setActiveSeasonId(seasonId);
-    // Broadcast immediately so all useSeasons instances switch without waiting for Firestore
-    try {
-      localStorage.setItem('activeSeasonId', seasonId);
-      window.dispatchEvent(new CustomEvent('seasonSwitched', { detail: seasonId }));
-    } catch {}
     tournament?.updateSettings?.({
       seasonId,
       seasonName: selected?.name,
       numberOfGames: selected?.numberOfGames,
     });
-    await updateSeason(seasonId, { status: 'active' });
-    for (const season of seasons) {
-      if (String(season.id) !== seasonId) {
-        await updateSeason(season.id, { status: 'draft' });
-      }
+    // One write to the league's activeSeasonId pointer.
+    //
+    // This previously wrote status:'active' to the chosen season and then looped
+    // status:'draft' over every other season — N+1 sequential un-batched writes
+    // whose errors were swallowed, so a partial failure left the league with
+    // zero or several "active" seasons and no signal. It also clobbered any
+    // season marked 'completed', and rewrote documents that participants read,
+    // so switching changed what everyone saw.
+    try {
+      await setActiveSeason(seasonId);
+    } catch (err) {
+      console.error('Failed to switch season:', err);
     }
   };
 
@@ -138,11 +138,10 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
       });
       if (newSeason?.id && newSeason.id !== 'default-season') {
         const nsId = String(newSeason.id);
-        setActiveSeasonId(nsId);
-        try {
-          localStorage.setItem('activeSeasonId', nsId);
-          window.dispatchEvent(new CustomEvent('seasonSwitched', { detail: nsId }));
-        } catch {}
+        // Creating a season makes it current. Previously this created it with
+        // status:'active' WITHOUT demoting the existing active season, so the
+        // normal "New Season" flow left two seasons marked active.
+        await setActiveSeason(nsId);
         tournament?.updateSettings?.({
           seasonId: String(newSeason.id),
           seasonName: newSeason.name,

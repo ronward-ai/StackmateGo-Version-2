@@ -59,13 +59,14 @@ service cloud.firestore {
     }
 
     // Leagues
-    // Read is owner-scoped. The only client read is
-    // query(leagues, where('ownerId','==',uid)) — the participant view never
-    // fetches the league doc, it synthesises {id, name:'League'} from the
-    // tournament's stored leagueId — so this does not affect QR participants.
-    // ownsLeague()'s get() is a rules-internal read and bypasses this.
     match /leagues/{leagueId} {
-      allow read: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      // get vs list, deliberately split. A participant arriving by QR knows the
+      // leagueId from the tournament document and needs to read that one league
+      // to resolve activeSeasonId — the pointer to which season standings belong
+      // to. Enumerating every league stays owner-only, which was the actual
+      // concern: a single get by known id discloses only a name and an owner id.
+      allow get: if true;
+      allow list: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
       allow create: if isRegistered() && isDocOwner()
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
