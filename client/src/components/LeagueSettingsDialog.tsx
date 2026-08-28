@@ -44,7 +44,12 @@ interface LeagueSettingsDialogProps {
 
 export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenChange }: LeagueSettingsDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  // A controlled dialog already has an external trigger (the cog in LeagueSection),
+  // so rendering the built-in fallback trigger as well put TWO League Settings
+  // controls on screen opening the same dialog. The fallback is only for the
+  // uncontrolled case.
+  const isControlled = controlledOpen !== undefined;
+  const isOpen = isControlled ? controlledOpen : internalOpen;
   const setIsOpen = onOpenChange || setInternalOpen;
   const [previewPoints, setPreviewPoints] = useState({ position: 1, totalPlayers: 10 });
   const [error, setError] = useState<string | null>(null);
@@ -63,14 +68,16 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
     setError('Failed to load league settings');
     return (
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          {children || (
-            <Button variant="outline" className="gap-2">
-              <Settings className="h-4 w-4" />
-              League Settings
-            </Button>
-          )}
-        </DialogTrigger>
+        {!isControlled && (
+          <DialogTrigger asChild>
+            {children || (
+              <Button variant="outline" className="gap-2">
+                <Settings className="h-4 w-4" />
+                League Settings
+              </Button>
+            )}
+          </DialogTrigger>
+        )}
         <DialogContent>
           <div className="p-4 text-center">
             <p className="text-red-500">Error loading league settings. Please try again.</p>
@@ -216,14 +223,16 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button variant="outline" className="gap-2">
-            <Settings className="h-4 w-4" />
-            League Settings
-          </Button>
-        )}
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          {children || (
+            <Button variant="outline" className="gap-2">
+              <Settings className="h-4 w-4" />
+              League Settings
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
