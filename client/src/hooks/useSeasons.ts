@@ -22,7 +22,13 @@ interface Season {
   startDate: string;
   endDate: string;
   numberOfGames: number;
-  status: 'draft' | 'active' | 'completed' | 'archived';
+  /** Only 'active' and 'completed' are reachable. 'draft' and 'archived' were
+   *  declared but never meaningfully set: 'archived' was never written at all,
+   *  and 'draft' was produced solely by the demote-every-other-season loop that
+   *  season switching used to run — which is why finished seasons could display
+   *  "Draft". That loop is gone; the league's activeSeasonId decides which
+   *  season is current. */
+  status: 'active' | 'completed';
   pointsSystemConfig?: any;
   settings?: any;
   createdAt?: any;
@@ -36,7 +42,9 @@ interface MinimalSeason {
   startDate: string;
   endDate: string;
   isActive: boolean;
-  status?: 'draft' | 'active' | 'completed' | 'archived';
+  /** True once the director has ended the season. */
+  isEnded?: boolean;
+  status?: 'active' | 'completed';
   numberOfGames?: number;
   settings?: any;
 }
@@ -89,13 +97,13 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
       startDate: string;
       endDate: string;
       numberOfGames: number;
-      status?: 'draft' | 'active';
+      status?: 'active' | 'completed';
     }) => {
       if (!leagueId) throw new Error('No active league');
       const newSeason = sanitizeForFirestore({
         ...seasonData,
         leagueId: String(leagueId),
-        status: seasonData.status || 'draft',
+        status: seasonData.status || 'active',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -189,12 +197,12 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     if (dbSeasons.length > 0) {
       const seen = new Set<string>();
       const unique: MinimalSeason[] = [];
-      // Active season first, then newest by startDate
-      const sorted = [...dbSeasons].sort((a, b) => {
-        if (a.status === 'active' && b.status !== 'active') return -1;
-        if (b.status === 'active' && a.status !== 'active') return 1;
-        return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
-      });
+      // Newest first. There is no active-first ordering any more: the league's
+      // activeSeasonId decides which season is current, and legacy data can
+      // carry several seasons still marked 'active'.
+      const sorted = [...dbSeasons].sort(
+        (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+      );
       for (const season of sorted) {
         const key = season.name.trim().toLowerCase();
         if (seen.has(key)) continue;
@@ -204,7 +212,10 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
           name: season.name,
           startDate: season.startDate,
           endDate: season.endDate,
-          isActive: season.status === 'active',
+          // Retained for the pre-pointer fallback in currentSeason only. It is
+          // NOT what makes a season current — leagues/{id}.activeSeasonId is.
+          isActive: season.status !== 'completed',
+          isEnded: season.status === 'completed',
           status: season.status,
           numberOfGames: season.numberOfGames,
           settings: season.settings,
@@ -264,7 +275,7 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     numberOfGames: number;
     // Forwarded to createSeasonMutation, which has always accepted it — the
     // omission here was a type-level oversight, not intended behaviour.
-    status?: 'draft' | 'active';
+    status?: 'active' | 'completed';
   }) => {
     if (!leagueId) {
       console.warn('Cannot create season without league ID');

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
-import { countGamesPlayed } from '@/lib/seasonProgress';
+import { countGamesPlayed, isSeasonComplete, clampedGameNumber, nextSeasonDates } from '@/lib/seasonProgress';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,9 @@ import {
   History
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
+import { useSeasonRollover } from '@/hooks/useSeasonRollover';
 
 // Note: a local StandingsTable, a STAT_DEFS label/format map and a computeStats
 // helper used to live here. All three were defined but never called — the only
@@ -48,6 +51,9 @@ export default function SeasonDashboard({
   const leaguePlayers = leaguePlayersProp ?? leaguePlayersFromHook;
 
   const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
+  const {
+    endCurrentSeason, startNextSeason, busy: rolloverBusy, error: rolloverError,
+  } = useSeasonRollover(currentSeason);
 
   const pastSeasons = useMemo(
     () => seasons.filter(s => String(s.id) !== String(currentSeason?.id)),
@@ -116,7 +122,7 @@ export default function SeasonDashboard({
         {(currentSeason.numberOfGames || 0) > 0 && (
           <div className="mt-3">
             <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>Game {seasonStats.totalTournaments} of {currentSeason.numberOfGames}</span>
+              <span>Game {clampedGameNumber(seasonStats.totalTournaments, currentSeason)} of {currentSeason.numberOfGames}</span>
               <span>{seasonStats.gamesRemaining} remaining</span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -128,6 +134,33 @@ export default function SeasonDashboard({
           </div>
         )}
       </div>
+
+      {/* Season complete. Advisory only — nothing ends a season automatically,
+          because a cancelled week means "past the end date" is not the same as
+          "finished". The director decides. */}
+      {!isCompleted && isSeasonComplete(currentSeason, seasonStats.totalTournaments) && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-green-500/30 bg-green-500/10">
+          <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-green-400">This season looks finished</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {seasonStats.totalTournaments >= (currentSeason.numberOfGames || 0)
+                ? `All ${currentSeason.numberOfGames} games have been played.`
+                : 'The season\u2019s end date has passed.'}
+              {' '}Standings stay exactly as they are once you end it.
+            </p>
+            {rolloverError && <p className="text-xs text-destructive mt-1">{rolloverError}</p>}
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <Button size="sm" variant="outline" disabled={rolloverBusy} onClick={endCurrentSeason}>
+              End Season
+            </Button>
+            <Button size="sm" disabled={rolloverBusy} onClick={startNextSeason}>
+              {rolloverBusy ? 'Working\u2026' : 'Start Next Season'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

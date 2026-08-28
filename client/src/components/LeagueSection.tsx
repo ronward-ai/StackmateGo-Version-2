@@ -6,7 +6,7 @@ import SeasonDashboard from '@/components/SeasonDashboard';
 import { LeagueSettingsDialog } from '@/components/LeagueSettingsDialog';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { gameNumberFor } from '@/lib/seasonProgress';
+import { gameNumberFor, clampedGameNumber, isSeasonComplete, countGamesPlayed } from '@/lib/seasonProgress';
 
 interface LeagueSectionProps {
   tournament?: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -46,13 +46,18 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     if (!currentSeason) return 'No season yet';
     const parts: string[] = [];
     if (currentSeason.numberOfGames) {
-      parts.push(`Game ${gameNumber} of ${currentSeason.numberOfGames}`);
+      // Clamped: an extra game beyond the schedule would otherwise read
+      // "Game 14 of 13".
+      parts.push(`Game ${clampedGameNumber(gameNumber, currentSeason)} of ${currentSeason.numberOfGames}`);
     }
     const range = formatSeasonDateRange(currentSeason);
     if (range) parts.push(range);
     if ((currentSeason as any).status === 'completed') parts.push('Ended');
+    else if (isSeasonComplete(currentSeason, countGamesPlayed(currentSeason.id, leaguePlayers))) {
+      parts.push('Season complete');
+    }
     return parts.join(' · ');
-  }, [currentSeason, gameNumber, formatSeasonDateRange]);
+  }, [currentSeason, gameNumber, leaguePlayers, formatSeasonDateRange]);
 
   // NOTE: this component deliberately does NOT write season info into tournament
   // settings. It used to, from currentSeason, while PokerTimer wrote gameNumber
