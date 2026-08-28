@@ -10,118 +10,15 @@ import {
   TrendingUp,
   Calendar,
   DollarSign,
-  BarChart2,
   History
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-function StandingsTable({ rows, columns }: { rows: any[]; columns: string[] }) {
-  const gridTemplate = `auto 1fr ${columns.map(() => 'auto').join(' ')}`;
-  return (
-    <Card>
-      <CardContent className="p-0">
-        <div
-          className="grid items-center px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b gap-x-4"
-          style={{ gridTemplateColumns: gridTemplate }}
-        >
-          <span>#</span>
-          <span>Player</span>
-          {columns.map(key => (
-            <span key={key} className="text-right">{STAT_DEFS[key].label}</span>
-          ))}
-        </div>
-        <div className="divide-y">
-          {rows.map((player, i) => (
-            <div
-              key={player.name}
-              className="grid items-center px-4 py-3 gap-x-4"
-              style={{ gridTemplateColumns: gridTemplate }}
-            >
-              <span className={`text-sm font-bold w-6 text-center ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-500' : 'text-muted-foreground'}`}>
-                {i + 1}
-              </span>
-              <span className="font-medium truncate">{player.name}</span>
-              {columns.map(key => (
-                <span key={key} className="font-mono text-right text-sm text-muted-foreground">
-                  {STAT_DEFS[key].fmt(player)}
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Stat column definitions — label + value extractor
-const STAT_DEFS: Record<string, { label: string; fmt: (p: any) => string | number }> = {
-  points:                { label: 'Pts',        fmt: p => p.points },
-  games:                 { label: 'Played',     fmt: p => p.tournaments },
-  averagePoints:         { label: 'Avg Pts',    fmt: p => p.averagePoints },
-  firstPlaceFinishes:    { label: '1st',        fmt: p => p.wins },
-  secondPlaceFinishes:   { label: '2nd',        fmt: p => p.secondPlaces },
-  thirdPlaceFinishes:    { label: '3rd',        fmt: p => p.thirdPlaces },
-  cashWinnings:          { label: 'Prize',      fmt: p => p.prize > 0 ? `£${p.prize}` : '—' },
-  averagePosition:       { label: 'Avg Pos',    fmt: p => p.averagePosition ?? '—' },
-  finalTableAppearances: { label: 'Finals',     fmt: p => p.finalTables },
-  hits:                  { label: 'Hits',       fmt: p => p.hits },
-  rebuys:                { label: 'Rebuys',     fmt: p => p.rebuys },
-  reEntries:             { label: 'Re-entries', fmt: p => p.reEntries },
-  addOns:                { label: 'Add-ons',    fmt: p => p.addOns },
-  winRate:               { label: 'Win %',      fmt: p => `${p.winRate}%` },
-  bestFinish:            { label: 'Best',       fmt: p => p.bestFinish ?? '—' },
-  worstFinish:           { label: 'Worst',      fmt: p => p.worstFinish ?? '—' },
-  itmPercentage:         { label: 'ITM %',      fmt: p => `${p.itmPercentage}%` },
-  biggestWin:            { label: 'Best Win',   fmt: p => p.biggestWin > 0 ? `£${p.biggestWin}` : '—' },
-  attendancePercent:     { label: 'Attend %',   fmt: p => p.attendancePercent != null ? `${p.attendancePercent}%` : '—' },
-  bountiesWon:           { label: 'Bounties',   fmt: p => p.bountiesWon },
-  totalInvested:         { label: 'Invested',   fmt: p => p.totalInvested > 0 ? `£${p.totalInvested}` : '—' },
-  profit:                { label: 'Profit',     fmt: p => p.profit !== 0 ? `£${p.profit}` : '—' },
-  roi:                   { label: 'ROI %',      fmt: p => p.totalInvested > 0 ? `${p.roi}%` : '—' },
-};
-
-function computeStats(results: any[], seasonTotalGames = 0) {
-  const tournaments = new Set(results.map(r => r.tournamentId)).size;
-  const wins = results.filter(r => r.position === 1).length;
-  const points = results.reduce((sum, r) => sum + (r.points || 0), 0);
-  const prize = results.reduce((sum, r) => sum + (r.cashWon ?? r.prizeMoney ?? 0), 0);
-  const secondPlaces = results.filter(r => r.position === 2).length;
-  const thirdPlaces = results.filter(r => r.position === 3).length;
-  const finalTables = results.filter(r => r.position && r.position <= 6).length;
-  const hits = results.reduce((sum, r) => sum + ((r as any).knockouts || 0), 0);
-  const rebuys = results.reduce((sum, r) => sum + ((r as any).rebuys || 0), 0);
-  const reEntries = results.reduce((sum, r) => sum + ((r as any).reEntries || 0), 0);
-  const addOns = results.reduce((sum, r) => sum + ((r as any).addons || 0), 0);
-  const bountiesWon = results.reduce((sum, r) => sum + ((r as any).bountiesWon || (r as any).bounties || 0), 0);
-  const posResults = results.filter(r => r.position);
-  const averagePosition = posResults.length > 0
-    ? Math.round((posResults.reduce((s, r) => s + r.position, 0) / posResults.length) * 10) / 10
-    : null;
-  const averagePoints = tournaments > 0 ? Math.round((points / tournaments) * 10) / 10 : 0;
-  const positions = posResults.map(r => r.position);
-  const bestFinish = positions.length > 0 ? Math.min(...positions) : null;
-  const worstFinish = positions.length > 0 ? Math.max(...positions) : null;
-  const winRate = tournaments > 0 ? Math.round((wins / tournaments) * 100) : 0;
-  const itmCount = results.filter(r => (r.cashWon ?? r.prizeMoney ?? 0) > 0).length;
-  const itmPercentage = tournaments > 0 ? Math.round((itmCount / tournaments) * 100) : 0;
-  const attendancePercent = seasonTotalGames > 0 ? Math.round((tournaments / seasonTotalGames) * 100) : null;
-  const biggestWin = results.length > 0 ? Math.max(...results.map(r => r.cashWon ?? r.prizeMoney ?? 0)) : 0;
-  const totalInvested = results.reduce((sum, r) => {
-    const buyIn = r.buyIn || (r as any).buyInAmount || 0;
-    const rebuyAmt = ((r as any).rebuys || 0) * ((r as any).rebuyAmount || buyIn);
-    const addonAmt = ((r as any).addons || 0) * ((r as any).addonAmount || buyIn);
-    return sum + buyIn + rebuyAmt + addonAmt;
-  }, 0);
-  const profit = prize - totalInvested;
-  const roi = totalInvested > 0 ? Math.round((profit / totalInvested) * 100 * 10) / 10 : 0;
-  return {
-    tournaments, wins, points, prize, secondPlaces, thirdPlaces, finalTables,
-    hits, rebuys, reEntries, addOns, bountiesWon, averagePosition, averagePoints,
-    bestFinish, worstFinish, winRate, itmPercentage, attendancePercent, biggestWin,
-    totalInvested, profit, roi,
-  };
-}
+// Note: a local StandingsTable, a STAT_DEFS label/format map and a computeStats
+// helper used to live here. All three were defined but never called — the only
+// standings actually rendered come from RealTimeLeagueTable. Removed along with
+// the other dead league components; RealTimeLeagueTable is now the single
+// standings renderer in the app.
 
 interface SeasonDashboardProps {
   tournament?: any;
