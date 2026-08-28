@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
+import { countGamesPlayed } from '@/lib/seasonProgress';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,7 @@ export default function SeasonDashboard({
 
   const seasonStats = useMemo(() => {
     const allResults = currentSeasonPlayers.flatMap(p => p.tournamentResults);
-    const uniqueTournaments = new Set(allResults.map(r => r.tournamentId)).size;
+    const uniqueTournaments = countGamesPlayed(currentSeason?.id, leaguePlayers);
     const totalPrizePool = allResults.reduce((sum, r) => sum + (r.cashWon ?? r.prizeMoney ?? 0), 0);
     const avgPlayersPerTournament = uniqueTournaments > 0
       ? Math.round(allResults.length / uniqueTournaments)

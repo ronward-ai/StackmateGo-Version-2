@@ -16,6 +16,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { isLeagueTournament } from '@/lib/tournamentMode';
+import { countGamesPlayed } from '@/lib/seasonProgress';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
@@ -162,17 +163,12 @@ function RealTimeLeagueTable({
     return rankings;
   }, [seasonFilteredPlayers]);
 
-  // Count unique tournaments in season
-  const totalTournaments = useMemo(() => {
-    const ids = new Set<string>();
-    seasonFilteredPlayers.forEach(player => {
-      (player.tournamentResults || []).forEach((r: any) => {
-        if (r.tournamentId) ids.add(String(r.tournamentId));
-        else if (r.id) ids.add(String(r.id));
-      });
-    });
-    return ids.size;
-  }, [seasonFilteredPlayers]);
+  // Distinct tournaments played in this season. Shares lib/seasonProgress with
+  // the game-number derivation so the two can never drift apart.
+  const totalTournaments = useMemo(
+    () => countGamesPlayed(seasonId, leaguePlayers),
+    [seasonId, leaguePlayers],
+  );
 
   // Get enabled stats from settings, sorted by user-defined column order
   const enabledStats = useMemo(() => {

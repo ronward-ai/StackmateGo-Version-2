@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trophy, ChevronDown, ChevronUp, Settings } from 'lucide-react';
@@ -6,6 +6,7 @@ import SeasonDashboard from '@/components/SeasonDashboard';
 import { LeagueSettingsDialog } from '@/components/LeagueSettingsDialog';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
+import { gameNumberFor } from '@/lib/seasonProgress';
 
 interface LeagueSectionProps {
   tournament?: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -35,22 +36,10 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
   const { league, leaguePlayers } = useLeague();
   const { currentSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
 
-  // Game number for the current season.
-  // NOTE: this derivation is duplicated in TournamentInfoCard and PokerTimer and
-  // the copies disagree about which season to count against. Consolidating them
-  // into one tested helper is a separate, planned change.
-  const gameNumber = useMemo(() => {
-    if (!currentSeason?.id || !leaguePlayers) return 1;
-    const ids = new Set<string>();
-    leaguePlayers.forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(currentSeason.id))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    const localGameId = tournament?.state?.details?.localGameId;
-    if (localGameId && ids.has(localGameId)) return ids.size;
-    return ids.size + 1;
-  }, [currentSeason?.id, leaguePlayers, tournament?.state?.details?.localGameId]);
+  const gameNumber = useMemo(
+    () => gameNumberFor(currentSeason?.id, leaguePlayers, tournament?.state?.details?.localGameId),
+    [currentSeason?.id, leaguePlayers, tournament?.state?.details?.localGameId],
+  );
 
   /** One line of context under the title: progress, then the date range. */
   const seasonSummary = useMemo(() => {
@@ -65,17 +54,11 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     return parts.join(' · ');
   }, [currentSeason, gameNumber, formatSeasonDateRange]);
 
-  // Keep season info in tournament settings so it syncs to Firestore and the
-  // participant view can show the season name and game number.
-  useEffect(() => {
-    if (!currentSeason?.id || !tournament?.updateSettings) return;
-    tournament.updateSettings({
-      seasonId: String(currentSeason.id),
-      seasonName: currentSeason.name,
-      numberOfGames: currentSeason.numberOfGames,
-      gameNumber,
-    });
-  }, [currentSeason?.id, gameNumber]);
+  // NOTE: this component deliberately does NOT write season info into tournament
+  // settings. It used to, from currentSeason, while PokerTimer wrote gameNumber
+  // from the *displayed* season — two writers of one field, disagreeing whenever
+  // a different season had been chosen for the next game. PokerTimer owns the
+  // tournament and is now the single writer.
 
   return (
     <>

@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { calculatePrizePool } from "@/lib/prizePool";
+import { gameNumberFor } from "@/lib/seasonProgress";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -76,18 +77,12 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
 
-  const gameNumber = useMemo(() => {
-    if (!isLeagueMode || !displaySeason) return null;
-    const ids = new Set<string>();
-    leaguePlayers.forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(displaySeason.id))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    const localGameId = state.details?.localGameId;
-    if (localGameId && ids.has(localGameId)) return ids.size;
-    return ids.size + 1;
-  }, [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gameNumber = useMemo(
+    () => (isLeagueMode && displaySeason
+      ? gameNumberFor(displaySeason.id, leaguePlayers, state.details?.localGameId)
+      : null),
+    [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const totalGames = displaySeason?.numberOfGames || 12;
 
   return (
@@ -171,32 +166,18 @@ export function TournamentNewButton({ tournament, league, userLeagues = [], swit
     }
   };
 
-  const gameNumber = useMemo(() => {
-    if (!isLeagueMode || !displaySeason) return null;
-    const ids = new Set<string>();
-    leaguePlayers.forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(displaySeason.id))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    const localGameId = state.details?.localGameId;
-    if (localGameId && ids.has(localGameId)) return ids.size;
-    return ids.size + 1;
-  }, [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gameNumber = useMemo(
+    () => (isLeagueMode && displaySeason
+      ? gameNumberFor(displaySeason.id, leaguePlayers, state.details?.localGameId)
+      : null),
+    [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const totalGames = displaySeason?.numberOfGames || 12;
 
   const dialogGameNumber = useMemo(() => {
     if (!dialogSeasonId) return gameNumber;
     if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) return null;
-    const ids = new Set<string>();
-    leaguePlayers.forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(dialogSeasonId))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    const localGameId = state.details?.localGameId;
-    if (localGameId && ids.has(localGameId)) return ids.size;
-    return ids.size + 1;
+    return gameNumberFor(dialogSeasonId, leaguePlayers, state.details?.localGameId);
   }, [dialogSeasonId, dialogLeagueId, league?.id, leaguePlayers, state.details?.localGameId, gameNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dialogTotalGames = useMemo(() => {

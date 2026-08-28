@@ -4,6 +4,7 @@ import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useCompletedTournaments } from '@/hooks/useCompletedTournaments';
+import { gameNumberFor, isRealSeasonId } from '@/lib/seasonProgress';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -136,6 +137,9 @@ function PokerTimerInner({
   const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);
   useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
+  // The season the UI displays — settings.seasonId when set, else currentSeason.
+  // Held in a ref so the elimination effect reads it without re-subscribing.
+  const displaySeasonRef = useRef<any>(null);
   const { user, isAnonymous } = useAuth();
   const { toast } = useToast();
 
@@ -145,29 +149,37 @@ function PokerTimerInner({
   const _displaySeason = _storedSeasonId
     ? ((seasons as any[]).find((s: any) => String(s.id) === String(_storedSeasonId)) ?? currentSeason)
     : currentSeason;
-  const gameNumber = useMemo(() => {
-    if (!_isLeagueMode || !_displaySeason) return null;
-    const ids = new Set<string>();
-    (leaguePlayers as any[]).forEach((player: any) => {
-      (player.tournamentResults || [])
-        .filter((r: any) => r.seasonId === String(_displaySeason.id))
-        .forEach((r: any) => { if (r.tournamentId) ids.add(String(r.tournamentId)); });
-    });
-    const localGameId = tournament.state.details?.localGameId;
-    if (localGameId && ids.has(localGameId)) return ids.size;
-    return ids.size + 1;
+  const gameNumber = useMemo(
+    () => (_isLeagueMode && _displaySeason
+      ? gameNumberFor(_displaySeason.id, leaguePlayers, tournament.state.details?.localGameId)
+      : null),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId]);
+  [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId]);
+  useEffect(() => { displaySeasonRef.current = _displaySeason; }, [_displaySeason]);
   const totalGames = _displaySeason?.numberOfGames || 12;
 
-  // Keep tournament.settings.gameNumber in sync so the participant (QR) view
-  // always shows the same value as the director view.
+  // Single writer for the season block in tournament settings, so the
+  // participant (QR) view shows exactly what the director sees. Guarded against
+  // redundant writes: _displaySeason is itself derived from settings.seasonId,
+  // so writing unconditionally would broadcast on every render.
   useEffect(() => {
-    if (gameNumber !== null && _isLeagueMode) {
-      tournament.updateSettings({ gameNumber });
-    }
+    if (!_isLeagueMode || !_displaySeason || gameNumber === null) return;
+    const st = tournament.state.settings || ({} as any);
+    const next = {
+      seasonId: String(_displaySeason.id),
+      seasonName: _displaySeason.name,
+      numberOfGames: _displaySeason.numberOfGames,
+      gameNumber,
+    };
+    const unchanged =
+      st.seasonId === next.seasonId &&
+      st.seasonName === next.seasonName &&
+      st.numberOfGames === next.numberOfGames &&
+      st.gameNumber === next.gameNumber;
+    if (unchanged) return;
+    tournament.updateSettings(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameNumber]);
+  }, [_isLeagueMode, _displaySeason?.id, gameNumber]);
 
   const processedEliminationsRef = useRef(new Set<string>());
   const [activeTab, setActiveTab] = useState('players');
@@ -380,7 +392,19 @@ function PokerTimerInner({
 
             // Record tournament result for this player
             const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
-            const seasonId = currentSeasonRef.current?.id ? String(currentSeasonRef.current.id) : undefined;
+            // Attribute results to the season the UI is showing.
+            //
+            // This read currentSeasonRef (the hook's resolved season) while every
+            // header labels the game from _displaySeason, which prefers the
+            // tournament's stored settings.seasonId. Starting a game for Season 2
+            // via the Next Game dialog therefore filed its results under Season 1
+            // while the screen said Season 2.
+            //
+            // isRealSeasonId also blocks the synthetic 'default-season' used
+            // before Firestore resolves — results tagged with it match no season
+            // and vanish from every season-filtered view.
+            const attributedSeason = displaySeasonRef.current?.id;
+            const seasonId = isRealSeasonId(attributedSeason) ? String(attributedSeason) : undefined;
             recordResultByName(
               player.name,
               player.position,
