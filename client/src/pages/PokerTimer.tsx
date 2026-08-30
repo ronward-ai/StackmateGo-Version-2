@@ -588,21 +588,6 @@ function PokerTimerInner({
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
               </div>
               <div className="flex items-center gap-2">
-                {/* Share is an ACTION (go live / QR), not a destination, so it sits
-                    with the other actions rather than among the setup tabs. Also
-                    keeps the tab bar from overflowing on a phone in portrait. */}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5"
-                  onClick={() => setActiveTab('qr')}
-                >
-                  <span className="relative flex items-center justify-center h-3 w-3 flex-shrink-0">
-                    <span className="radar-ring absolute inline-flex h-2 w-2 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-                  </span>
-                  <span className="text-xs">Share</span>
-                </Button>
                 <TournamentHistoryDialog />
                 <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
               </div>
@@ -621,6 +606,17 @@ function PokerTimerInner({
                   <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
                 )}
                 <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
+                <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="relative flex items-center justify-center h-3.5 w-3.5 flex-shrink-0">
+                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
+                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '1s' }} />
+                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '2s' }} />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    </span>
+                    Share
+                  </span>
+                </TabsTrigger>
               </TabsList>
               <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
             </div>
