@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, Download, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
@@ -22,7 +23,7 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer } = tournament;
+  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, updateSettings } = tournament;
   const { leaguePlayers } = useLeague();
   const tournamentLeagueId = (state.settings as any)?.leagueId
     ?? (state.details as any)?.leagueId
@@ -535,6 +536,19 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Belongs with players rather than two tabs away in Settings. */}
+      <div className="export-hide mt-4">
+        <SettingsGroup icon={Users} title="Player Options" color="text-teal-400">
+          <SettingRow
+            id="enableRecentPlayers"
+            label="Recent Players"
+            hint="Suggest names you have used before when adding players"
+            checked={state.settings.enableRecentPlayers || false}
+            onCheckedChange={(v) => updateSettings({ enableRecentPlayers: v })}
+          />
+        </SettingsGroup>
       </div>
 
       <div className="pt-4 space-y-4" ref={exportRef}>

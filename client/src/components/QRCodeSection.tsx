@@ -11,6 +11,8 @@ import { sanitizeForFirestore } from '@/lib/utils';
 import { doc, updateDoc, getDocs, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useLeague } from '@/hooks/useLeague';
+import { eventNameOf } from '@/lib/eventName';
 import { UpgradeModal } from '@/components/UpgradeModal';
 
 function generateSecureCode(length = 6): string {
@@ -97,6 +99,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
   const { toast } = useToast();
   const { user, isAnonymous } = useAuth();
   const { isPro } = useSubscription();
+  const { league } = useLeague();
   const [, setLocation] = useLocation();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -140,7 +143,8 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
             tableNames: ['Table 1']
           },
           branding: {
-            leagueName: state.settings.branding?.leagueName || '',
+            // Participants see the same name as the big screen, league fallback included.
+            leagueName: eventNameOf(state.settings, league?.name),
             logoUrl: state.settings.branding?.logoUrl || null,
             isVisible: state.settings.branding?.isVisible ?? true
           },

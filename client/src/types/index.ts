@@ -61,6 +61,17 @@ export interface Settings {
   };
   tableBackgrounds?: string[];
   branding?: {
+    /**
+     * Name shown on the big screen and in the participant view — the EVENT, not
+     * the league. A standalone tournament has one of these and no league at all.
+     *
+     * Distinct from `leagues/{id}.name`, which is the league entity and appears
+     * in the standings title. Both were previously called "league name", so
+     * renaming the league appeared to do nothing to the on-screen header.
+     */
+    eventName?: string;
+    /** @deprecated Former name for eventName. Read via eventNameOf() for
+     *  existing tournaments; never written to any more. */
     leagueName?: string;
     logoUrl?: string;
     isVisible?: boolean;

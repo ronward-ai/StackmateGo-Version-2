@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { SettingRow, SettingsGroup } from "@/components/ui/setting-row";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from "@/components/ui/select";
-import { ListOrdered, Coffee, Coins, Plus, Clock, Save, BookmarkPlus } from "lucide-react";
+import { ListOrdered, Coffee, Coins, Plus, Clock, Save, BookmarkPlus, Layers } from "lucide-react";
 
 interface BlindLevelsSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -70,7 +71,7 @@ function LevelInput({
 }
 
 export default function BlindLevelsSection({ tournament }: BlindLevelsSectionProps) {
-  const { state, updateBlindLevel, addBlindLevel, removeLevel, addBreak, setBlindLevels } = tournament;
+  const { state, updateBlindLevel, addBlindLevel, removeLevel, addBreak, setBlindLevels, updateSettings } = tournament;
   const { toast } = useToast();
   const { user } = useAuth();
   const { saveTemplate, templates: allTemplates } = useTournamentTemplates();
@@ -113,6 +114,34 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
 
   return (
     <div className="space-y-4">
+      {/* These options govern how blind levels behave, so they live with the
+          levels rather than two tabs away in Settings — this component already
+          reads bigBlindAnte and applyDurationToAll but previously could not set
+          them. */}
+      <SettingsGroup icon={Layers} title="Blind Levels" color="text-orange-400">
+        <SettingRow
+          id="pauseAfterBreak"
+          label="Pause After Break"
+          hint="Wait for you to press play when a break ends, instead of starting the next level automatically"
+          checked={state.settings.pauseAfterBreak !== false}
+          onCheckedChange={(v) => updateSettings({ pauseAfterBreak: v })}
+        />
+        <SettingRow
+          id="applyDurationToAll"
+          label="Sync Level Durations"
+          hint="Editing one level duration updates all levels"
+          checked={state.settings.applyDurationToAll || false}
+          onCheckedChange={(v) => updateSettings({ applyDurationToAll: v })}
+        />
+        <SettingRow
+          id="bigBlindAnte"
+          label="Big Blind Ante"
+          hint="BB posts the ante on behalf of the whole table"
+          checked={state.settings.bigBlindAnte || false}
+          onCheckedChange={(v) => updateSettings({ bigBlindAnte: v })}
+        />
+      </SettingsGroup>
+
       <Card className="card-glass-purple rounded-xl">
         <CardContent className="p-5">
 

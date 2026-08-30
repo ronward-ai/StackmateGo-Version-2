@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
 import { Image, X, Volume2, Mic, Eye, Layers, Users, RefreshCw, Settings2, Palette, FileText, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,57 +15,17 @@ interface SettingsSectionProps {
 }
 
 // Consistent toggle row — label on left, control on right
-function SettingRow({
-  id, label, hint, checked, onCheckedChange, children
-}: {
-  id: string; label: string; hint?: string;
-  checked?: boolean; onCheckedChange?: (v: boolean) => void;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-border/20 last:border-0">
-      <div className="flex-1 min-w-0">
-        <Label htmlFor={id} className="text-sm font-medium cursor-pointer">{label}</Label>
-        {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
-      </div>
-      <div className="flex-shrink-0 flex items-center gap-2">
-        {children}
-        {onCheckedChange !== undefined && (
-          <Checkbox
-            id={id}
-            checked={checked}
-            onCheckedChange={(c) => onCheckedChange(!!c)}
-            className="checkbox-nav-style h-5 w-5"
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
 // Grouped settings card
-function SettingsGroup({ icon: Icon, title, color, children }: {
-  icon: any; title: string; color: string; children: React.ReactNode;
-}) {
-  return (
-    <Card className="card-glass rounded-xl">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-1">
-          <Icon className={cn("h-4 w-4", color)} />
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
-        </div>
-        <div className="divide-y divide-border/20">
-          {children}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function SettingsSection({ tournament }: SettingsSectionProps) {
   const { state, updateSettings, updateNotes } = tournament;
   const [notes, setNotes] = useState(state?.notes || '');
-  const [leagueName, setLeagueName] = useState(state?.settings?.branding?.leagueName || '');
+  // Named eventName throughout: this is the EVENT shown on the big screen, not
+  // the league. Reads the legacy `leagueName` key so existing tournaments keep
+  // their value; only `eventName` is written from here on.
+  const [eventName, setEventName] = useState(
+    (state?.settings?.branding as any)?.eventName ?? state?.settings?.branding?.leagueName ?? ''
+  );
   const [logoUrl, setLogoUrl] = useState(state?.settings?.branding?.logoUrl || '');
   const [isApplying, setIsApplying] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
@@ -109,7 +70,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
     setIsApplying(true);
     try {
       updateSettings({
-        branding: { leagueName: leagueName.trim(), logoUrl: logoUrl || undefined, isVisible: true }
+        branding: { eventName: eventName.trim(), logoUrl: logoUrl || undefined, isVisible: true }
       });
       setJustApplied(true);
       setTimeout(() => setJustApplied(false), 2000);
@@ -184,39 +145,6 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                 />
               </SettingsGroup>
 
-              <SettingsGroup icon={Layers} title="Blind Levels" color="text-orange-400">
-                <SettingRow
-                  id="pauseAfterBreak"
-                  label="Pause After Break"
-                  hint="Wait for you to press play when a break ends, instead of starting the next level automatically"
-                  checked={localSettings.pauseAfterBreak !== false}
-                  onCheckedChange={(v) => setLocal({ pauseAfterBreak: v })}
-                />
-                <SettingRow
-                  id="applyDurationToAll"
-                  label="Sync Level Durations"
-                  hint="Editing one level duration updates all levels"
-                  checked={localSettings.applyDurationToAll || false}
-                  onCheckedChange={(v) => setLocal({ applyDurationToAll: v })}
-                />
-                <SettingRow
-                  id="bigBlindAnte"
-                  label="Big Blind Ante"
-                  hint="BB posts the ante on behalf of the whole table"
-                  checked={localSettings.bigBlindAnte || false}
-                  onCheckedChange={(v) => setLocal({ bigBlindAnte: v })}
-                />
-              </SettingsGroup>
-
-              <SettingsGroup icon={Users} title="Players" color="text-teal-400">
-                <SettingRow
-                  id="enableRecentPlayers"
-                  label="Recent Players"
-                  hint="Autocomplete & quick-add from past tournaments"
-                  checked={localSettings.enableRecentPlayers || false}
-                  onCheckedChange={(v) => setLocal({ enableRecentPlayers: v })}
-                />
-              </SettingsGroup>
 
               <Button
                 className="w-full h-10"
@@ -234,14 +162,19 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
               <Card className="card-glass rounded-xl">
                 <CardContent className="p-4 space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="leagueName" className="text-sm font-medium">Event Name</Label>
+                    <Label htmlFor="eventName" className="text-sm font-medium">Event Name</Label>
                     <Input
-                      id="leagueName"
-                      value={leagueName}
-                      onChange={(e) => setLeagueName(e.target.value)}
+                      id="eventName"
+                      value={eventName}
+                      onChange={(e) => setEventName(e.target.value)}
                       placeholder="e.g. Wednesday Night Poker"
                       className="h-10"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Shown on the big screen and to players. This is the event, not the league —
+                      leave it blank during a league game to use the league&rsquo;s own name, which
+                      you set in League &rarr; Manage League.
+                    </p>
                   </div>
 
                   <div className="space-y-1.5">
@@ -303,8 +236,8 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                       variant="destructive"
                       className="h-10 px-3"
                       onClick={() => {
-                        updateSettings({ branding: { leagueName: '', logoUrl: undefined, isVisible: false } });
-                        setLeagueName('');
+                        updateSettings({ branding: { eventName: '', logoUrl: undefined, isVisible: false } });
+                        setEventName('');
                         setLogoUrl('');
                       }}
                     >

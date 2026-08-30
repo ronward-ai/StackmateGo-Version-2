@@ -5,6 +5,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useCompletedTournaments } from '@/hooks/useCompletedTournaments';
 import { gameNumberFor, isRealSeasonId } from '@/lib/seasonProgress';
+import { eventNameOf } from '@/lib/eventName';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -157,6 +158,11 @@ function PokerTimerInner({
   [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId]);
   useEffect(() => { displaySeasonRef.current = _displaySeason; }, [_displaySeason]);
   const totalGames = _displaySeason?.numberOfGames || 12;
+
+  // The on-screen event name. Falls back to the league's own name in league mode
+  // when no event name is set, so renaming the league is visible here — these
+  // are two different fields and previously a rename changed nothing on screen.
+  const displayEventName = eventNameOf(tournament.state.settings, league?.name);
 
   // Single writer for the season block in tournament settings, so the
   // participant (QR) view shows exactly what the director sees. Guarded against
@@ -516,24 +522,24 @@ function PokerTimerInner({
           </div>
 
           {/* Event Branding */}
-          {tournament.state.settings.branding?.isVisible && (tournament.state.settings.branding?.leagueName || tournament.state.settings.branding?.logoUrl) && (
+          {tournament.state.settings.branding?.isVisible && (displayEventName || tournament.state.settings.branding?.logoUrl) && (
             <div className="mt-2 sm:mt-4 flex items-center justify-center gap-4">
               {tournament.state.settings.branding?.logoUrl && (
                 <img
                   src={tournament.state.settings.branding.logoUrl}
-                  alt={tournament.state.settings.branding?.leagueName || 'League Logo'}
+                  alt={displayEventName || 'Event Logo'}
                   className="h-10 sm:h-14 w-auto object-contain"
                 />
               )}
-              {tournament.state.settings.branding?.leagueName && (
+              {displayEventName && (
                 <h2 className="text-xl sm:text-3xl font-bold text-foreground tracking-wide truncate max-w-[60vw]">
-                  {tournament.state.settings.branding.leagueName}
+                  {displayEventName}
                 </h2>
               )}
               {tournament.state.settings.branding?.logoUrl && (
                 <img
                   src={tournament.state.settings.branding.logoUrl}
-                  alt={tournament.state.settings.branding?.leagueName || 'League Logo'}
+                  alt={displayEventName || 'Event Logo'}
                   className="h-10 sm:h-14 w-auto object-contain"
                 />
               )}
@@ -582,6 +588,21 @@ function PokerTimerInner({
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
               </div>
               <div className="flex items-center gap-2">
+                {/* Share is an ACTION (go live / QR), not a destination, so it sits
+                    with the other actions rather than among the setup tabs. Also
+                    keeps the tab bar from overflowing on a phone in portrait. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5"
+                  onClick={() => setActiveTab('qr')}
+                >
+                  <span className="relative flex items-center justify-center h-3 w-3 flex-shrink-0">
+                    <span className="radar-ring absolute inline-flex h-2 w-2 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                  </span>
+                  <span className="text-xs">Share</span>
+                </Button>
                 <TournamentHistoryDialog />
                 <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
               </div>
@@ -600,17 +621,6 @@ function PokerTimerInner({
                   <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
                 )}
                 <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
-                <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">
-                  <span className="flex items-center gap-1.5">
-                    <span className="relative flex items-center justify-center h-3.5 w-3.5 flex-shrink-0">
-                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
-                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '1s' }} />
-                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '2s' }} />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-                    </span>
-                    Share
-                  </span>
-                </TabsTrigger>
               </TabsList>
               <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
             </div>
