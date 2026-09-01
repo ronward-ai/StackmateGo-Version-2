@@ -6,14 +6,14 @@ import { Loader2, Shield, Copy, Radio, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
-import { db, projectId, databaseId, collections } from '@/lib/firebase';
+import { projectId, databaseId } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
-import { doc, updateDoc, getDocs, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useLeague } from '@/hooks/useLeague';
 import { eventNameOf } from '@/lib/eventName';
 import { UpgradeModal } from '@/components/UpgradeModal';
+import { apiFetch } from '@/lib/apiClient';
 
 function generateSecureCode(length = 6): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes confusable 0/O/1/I
@@ -200,35 +200,44 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
     }
   };
 
-  const generateTransferCode = () => {
+  const generateTransferCode = async () => {
     const tournamentId = state.details?.id || dbTournamentId;
     if (!tournamentId) {
       toast({ title: "Error", description: "Tournament must be saved first", variant: "destructive" });
       return;
     }
 
-    const code = generateSecureCode();
-    const expiresAt = new Date(Date.now() + 300000).toISOString();
+    // The code is generated and stored server-side, in a collection no client
+    // can read. It used to be written onto the tournament document — which is
+    // world-readable — so every participant who scanned the QR could read the
+    // code and take over the game.
+    try {
+      const res = await apiFetch('/api/transfer-code', { tournamentId });
+      const body = await res.json().catch(() => ({}));
 
-    // Show the code immediately — don't block on the Firestore write
-    setTransferCode(code);
-    setShowTransferCode(true);
-    toast({ title: "Code generated", description: "Share this code with the new director" });
+      if (!res.ok) {
+        toast({
+          title: res.status === 503 ? "Handover unavailable" : "Could not generate a code",
+          description: body?.error || "Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const timer = setTimeout(() => {
-      setTransferCode(null);
-      setShowTransferCode(false);
-    }, 300000);
+      setTransferCode(body.code);
+      setShowTransferCode(true);
+      toast({ title: "Code generated", description: "Share this code with the new director" });
 
-    // Write to Firestore in the background so a slow network doesn't block the UI
-    const docRef = doc(db, 'activeTournaments', String(tournamentId));
-    updateDoc(docRef, { transferCode: code, transferCodeExpiresAt: expiresAt }).catch(() => {
-      // Write failed — revoke the code so it can't be used, clear the display
-      clearTimeout(timer);
-      setTransferCode(null);
-      setShowTransferCode(false);
-      toast({ title: "Error", description: "Could not save transfer code — please try again.", variant: "destructive" });
-    });
+      const msLeft = body.expiresAt
+        ? new Date(body.expiresAt).getTime() - Date.now()
+        : 300000;
+      setTimeout(() => {
+        setTransferCode(null);
+        setShowTransferCode(false);
+      }, Math.max(0, msLeft));
+    } catch {
+      toast({ title: "Could not generate a code", description: "The server could not be reached.", variant: "destructive" });
+    }
   };
 
   const copyTransferCode = () => {
@@ -265,46 +274,26 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
 
     setIsSubmittingCode(true);
     try {
-      const q = query(collections.activeTournaments, where('transferCode', '==', trimmedCode));
-      const snapshot = await getDocs(q);
+      // Verified server-side. The old flow wrote `ownerId` straight to Firestore,
+      // which every activeTournaments update branch rejects by design — so
+      // handover never actually worked, it just reported a generic failure.
+      const res = await apiFetch('/api/claim-tournament', { code: trimmedCode });
+      const body = await res.json().catch(() => ({}));
 
-      if (snapshot.empty) {
+      if (!res.ok) {
         toast({
-          title: "Invalid code",
-          description: "Code is invalid or expired",
-          variant: "destructive"
+          title: res.status === 503 ? "Handover unavailable" : "Could not use that code",
+          description: body?.error || "Please check the code and try again.",
+          variant: "destructive",
         });
-        setIsSubmittingCode(false);
         return;
       }
-
-      const tournamentDoc = snapshot.docs[0];
-      const data = tournamentDoc.data();
-
-      // Check expiration
-      if (data.transferCodeExpiresAt && new Date(data.transferCodeExpiresAt).getTime() < Date.now()) {
-        toast({
-          title: "Expired code",
-          description: "This transfer code has expired",
-          variant: "destructive"
-        });
-        setIsSubmittingCode(false);
-        return;
-      }
-
-      // Update owner
-      await updateDoc(tournamentDoc.ref, {
-        ownerId: user.id,
-        transferCode: null,
-        transferCodeExpiresAt: null
-      });
 
       toast({ title: "Success!", description: "You now have director access to this tournament" });
       setInputCode('');
-
-      setLocation(`/tournament/${tournamentDoc.id}/director`);
+      setLocation(`/tournament/${body.tournamentId}/director`);
     } catch (error) {
-      toast({ title: "Error", description: "Failed to use transfer code", variant: "destructive" });
+      toast({ title: "Error", description: "The server could not be reached.", variant: "destructive" });
     } finally {
       setIsSubmittingCode(false);
     }

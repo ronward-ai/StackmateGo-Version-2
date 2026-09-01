@@ -204,6 +204,59 @@ describe('director handover', () => {
   it('still denies a handover director rewriting existing league standings', async () => {
     await assertFails(updateDoc(doc(stranger(), 'leaguePlayers', 'player-1'), { totalPoints: 1 }));
   });
+
+  // Transfer codes are the credential for taking over a live tournament, and
+  // activeTournaments is world-readable — so the code cannot live there. It is
+  // written and read only by the server's Admin SDK, which bypasses rules.
+  // Every client identity must be locked out completely.
+  describe('transfer codes are server-only', () => {
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled(async ctx => {
+        await setDoc(doc(ctx.firestore(), 'transferCodes', TOURNAMENT), {
+          code: 'ABC123',
+          tournamentId: TOURNAMENT,
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+          createdBy: DIRECTOR,
+        });
+      });
+    });
+
+    it('cannot be read by anyone — not even the tournament owner', async () => {
+      await assertFails(getDoc(doc(anon(), 'transferCodes', TOURNAMENT)));
+      await assertFails(getDoc(doc(anonAuth(), 'transferCodes', TOURNAMENT)));
+      await assertFails(getDoc(doc(stranger(), 'transferCodes', TOURNAMENT)));
+      await assertFails(getDoc(doc(director(), 'transferCodes', TOURNAMENT)));
+    });
+
+    it('cannot be listed, which would leak every live code at once', async () => {
+      await assertFails(getDocs(query(collection(anon(), 'transferCodes'))));
+      await assertFails(getDocs(query(collection(director(), 'transferCodes'))));
+    });
+
+    it('cannot be created, overwritten or deleted by any client', async () => {
+      await assertFails(setDoc(doc(stranger(), 'transferCodes', 'forged'), { code: 'HACKED' }));
+      await assertFails(setDoc(doc(director(), 'transferCodes', TOURNAMENT), { code: 'HACKED' }));
+      await assertFails(updateDoc(doc(director(), 'transferCodes', TOURNAMENT), { code: 'HACKED' }));
+      await assertFails(deleteDoc(doc(director(), 'transferCodes', TOURNAMENT)));
+    });
+  });
+
+  // The claim itself runs through /api/claim-tournament with the Admin SDK, so
+  // ownerId stays unwritable by clients. This is the rule that made the old
+  // client-side handover silently impossible; it is now load-bearing by design
+  // rather than by accident.
+  it('still denies any client writing ownerId directly', async () => {
+    await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { ownerId: OTHER_DIRECTOR }));
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { ownerId: 'anon-uid' }));
+  });
+
+  it('no longer lets a participant write transfer fields onto the tournament', async () => {
+    // These were in the participant hasOnly() list while the code lived on the
+    // tournament document. Nothing writes them from a client any more.
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+      transferCode: 'ABC123',
+    }));
+  });
 });
 
 describe('completed tournaments (history)', () => {

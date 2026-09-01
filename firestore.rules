@@ -122,7 +122,7 @@ service cloud.firestore {
     // - Any authenticated user can read (anonymous QR participants included)
     // - Only a registered owner can create
     // - Owner can change anything
-    // - Authenticated non-owners can update a restricted set of fields (timer/players/transfer)
+    // - Authenticated non-owners can update a restricted set of timer/player fields
     //   but cannot change ownerId — that would allow privilege escalation
     match /activeTournaments/{tournamentId} {
       allow read: if true;
@@ -136,8 +136,7 @@ service cloud.firestore {
         isAuthenticated() &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
-                    'targetEndTime', 'smallBlind', 'bigBlind', 'ante', 'blindLevels',
-                    'transferCode', 'transferCodeExpiresAt', 'transferCodeGeneratedBy'])
+                    'targetEndTime', 'smallBlind', 'bigBlind', 'ante', 'blindLevels'])
       ) || (
         // Unauthenticated player claiming (PlayerClaimView check-in via QR).
         // Only the players field may change, AND the array length must be
@@ -171,6 +170,21 @@ service cloud.firestore {
       allow update: if isRegistered() && isExistingDocUser()
         && request.resource.data.userId == resource.data.userId;
       allow delete: if isRegistered() && isExistingDocUser();
+    }
+
+    // Transfer Codes — server-only.
+    //
+    // Director handover codes. No client may read or write these: the code is
+    // the credential for taking over a tournament, and activeTournaments is
+    // world-readable, so keeping the code there meant every participant who
+    // scanned the QR could read it and seize control.
+    //
+    // Both halves of handover run through /api/transfer-code and
+    // /api/claim-tournament using the Admin SDK, which bypasses these rules.
+    // That is also why ownerId stays absent from every activeTournaments
+    // update branch below — clients never write it.
+    match /transferCodes/{tournamentId} {
+      allow read, write: if false;
     }
 
     // Completed Tournaments — private history, owner only.

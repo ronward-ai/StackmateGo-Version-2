@@ -12,7 +12,7 @@ React + TypeScript + Vite, Firestore for data, deployed on Railway.
 ```
 npm run dev         # local dev server
 npm run check       # tsc — MUST stay clean
-npm test            # vitest, ~82 unit tests
+npm test            # vitest, ~112 unit tests
 npm run test:rules  # Firestore rules tests against the emulator (needs Java)
 npm run build       # production build
 ```
@@ -68,6 +68,29 @@ They are genuinely different: a standalone tournament has an event name and no l
 resolve the display name through `lib/eventName.ts`, which reads the legacy `branding.leagueName`
 key for older tournaments and falls back to the league's name in league mode.
 
+### Director handover runs on the server, not in rules
+
+Passing director control mid-game goes through two Express routes, not a Firestore write:
+
+```
+POST /api/transfer-code     owner generates a code
+POST /api/claim-tournament  new director redeems it
+```
+
+Both authenticate with a Firebase ID token (`Authorization: Bearer …`, never a uid in the body) and
+use the Admin SDK, which bypasses rules. **`FIREBASE_SERVICE_ACCOUNT_JSON` must be set in Railway**
+or both routes return 503 and handover does not work. `server/index.ts` serves the built client, so
+`/api/*` is same-origin — `VITE_API_BASE_URL` is only for serving the client from elsewhere.
+
+Two reasons it cannot be done in rules, both learned the hard way:
+
+- **`ownerId` is unwritable by clients, deliberately.** Every `activeTournaments` update branch
+  excludes it. The old client wrote it directly, so handover had *never worked* — it only ever
+  showed "Failed to use transfer code".
+- **`activeTournaments` is world-readable.** The code used to be stored on that document, so every
+  participant who scanned the QR could read it and seize control. It now lives in `transferCodes`,
+  which no client can read or write (rules-tested).
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
@@ -90,6 +113,9 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tournamentMode.ts` | Whether a tournament is a league game. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
+| `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |
+| `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
+| `apiClient.ts` | POSTs to this app's own server with a verified Firebase ID token. |
 
 ### One shared listener per query
 
@@ -128,8 +154,20 @@ season, so the screen and the database cannot disagree.
   See the director-handover test in `tests/rules/firestore.rules.test.ts`.
 - **`leaguePlayers.totalPoints`** is a denormalised counter nothing reads — every table recomputes
   from results. It can only drift.
-- **The rake formula is copy-pasted at ~11 sites.** `prizePool.ts` is canonical and tested;
-  consolidating the rest is safe but touches money code in several components.
+- **The rake formula is copy-pasted at 9 sites**, and one of them disagrees.
+  `useTournament.ts` `completeTournament` subtracts rake from the pool where every other site keeps
+  it on top. It is exported but never called, so it is a landmine rather than a live loss.
+  `TournamentParticipantView` shows a house-fee figure that omits re-entry and rebuy rake, so it
+  disagrees with the director's screen; the pool itself is right, so payouts are unaffected.
+  `prizePool.ts` is canonical and tested; consolidating the rest is safe but touches money code in
+  several components.
+- **`users` can be written by its own owner** (`firestore.rules`), including `subscriptionStatus`.
+  Nothing in the client writes that collection at all — only the Stripe webhook, via the Admin SDK —
+  so the fix is to drop `create`/`update`. Dormant until payments are switched on, but it must be
+  done *before* that, not after. The webhook also reads `metadata.uid` off the subscription while
+  the checkout session sets it on the session, which Stripe does not propagate.
+- **League columns for Rebuys / Re-entries / Add-ons / Bounties display 0 forever.**
+  `RealTimeLeagueTable` reads those fields off `tournamentResults`; `useLeague` never writes them.
 
 ---
 

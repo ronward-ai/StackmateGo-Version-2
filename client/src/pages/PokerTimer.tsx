@@ -31,7 +31,6 @@ import BuyInSection from '@/components/BuyInSection';
 import QRCodeSection from '@/components/QRCodeSection';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
-import DirectorCoordinationPanel from '@/components/DirectorCoordinationPanel';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import { LiveBanner } from '@/components/LiveBanner';
 
