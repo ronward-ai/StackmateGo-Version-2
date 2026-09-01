@@ -6,6 +6,20 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
+/**
+ * This project's data does NOT live in the (default) Firestore database.
+ *
+ * The database was provisioned by Google AI Studio and carries a generated
+ * name; the client passes it explicitly to initializeFirestore (see
+ * client/src/lib/firebase.ts). getFirestore() with no argument talks to
+ * (default), which for this project is a different, empty database — so the
+ * server would silently find no tournaments and report "not found".
+ *
+ * Override with FIREBASE_DATABASE_ID if the database is ever moved.
+ */
+const KNOWN_DATABASE_ID = 'ai-studio-127bb0ae-6c5c-42d1-a030-fd85760f05b1';
+const DATABASE_ID = (process.env.FIREBASE_DATABASE_ID || '').trim() || KNOWN_DATABASE_ID;
+
 // Lazy-init Firebase Admin (only when env vars are present)
 function getAdminDb() {
   if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) return null;
@@ -14,7 +28,7 @@ function getAdminDb() {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
       initializeApp({ credential: cert(serviceAccount) });
     }
-    return getFirestore();
+    return getFirestore(DATABASE_ID);
   } catch {
     return null;
   }

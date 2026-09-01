@@ -79,7 +79,13 @@ POST /api/claim-tournament  new director redeems it
 
 Both authenticate with a Firebase ID token (`Authorization: Bearer …`, never a uid in the body) and
 use the Admin SDK, which bypasses rules. **`FIREBASE_SERVICE_ACCOUNT_JSON` must be set in Railway**
-or both routes return 503 and handover does not work. `server/index.ts` serves the built client, so
+or both routes return 503 and handover does not work.
+
+**The Admin SDK must name the database.** This project's data is not in `(default)` — it is in the
+AI-Studio-generated `ai-studio-127bb0ae-…`, which the client passes explicitly to
+`initializeFirestore`. A bare `getFirestore()` silently reads an empty `(default)` database and
+reports "not found" for everything. `server/routes.ts` passes it; override with
+`FIREBASE_DATABASE_ID` if the database ever moves. `server/index.ts` serves the built client, so
 `/api/*` is same-origin — `VITE_API_BASE_URL` is only for serving the client from elsewhere.
 
 Two reasons it cannot be done in rules, both learned the hard way:
