@@ -459,7 +459,8 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     prizeMoney: number = 0,
     buyInAmount?: number,
     tournamentId?: string,
-    seasonId?: string
+    seasonId?: string,
+    allowReplace: boolean = false
   ) => {
     try {
       const leagueId = await waitForLeague();
@@ -502,7 +503,13 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
       // Deduplicate: skip if a result already exists for this player+tournament.
       // Use ref to always read the latest results — cloudResults in closure may be stale.
-      if (tournamentId) {
+      //
+      // allowReplace bypasses this on the correction path, where the caller has
+      // just AWAITED a real deletion of the old result. The ref is fed by an
+      // onSnapshot and lags that deletion, so without the bypass a re-entry
+      // renumbering would delete the stale result, skip the re-record as a
+      // duplicate, and leave the player with no result at all.
+      if (tournamentId && !allowReplace) {
         const alreadyRecorded = cloudResultsRef.current.some(r =>
           r.leaguePlayerId === String(targetPlayer.id) && r.tournamentId === tournamentId
         );

@@ -191,6 +191,12 @@ function PokerTimerInner({
   // returning player, so a result already written can become stale and must
   // be rewritten — see lib/eliminationOrder.ts.
   const processedEliminationsRef = useRef(new Map<string, number>());
+
+  // The league sync runs one at a time. It awaits Firestore writes, and the
+  // effect re-fires on every players change, so overlapping runs could record a
+  // player twice, or delete a result while that same result's write was still
+  // in flight. A run that arrives while one is going waits and tries again.
+  const syncRunningRef = useRef(false);
   const [activeTab, setActiveTab] = useState('players');
 
   // Save finished tournaments to history. Standalone games are the point of
@@ -413,12 +419,16 @@ function PokerTimerInner({
         //    it. A re-entry shifts everyone who busted after the returning player
         //    one place worse, so their stored result is now wrong. Remove it and
         //    let step 3 re-record the corrected position.
+        const corrected = new Set<string>();
         for (const player of players) {
           const recorded = processedEliminationsRef.current.get(player.id);
           if (recorded === undefined || recorded === player.position) continue;
           try {
             processedEliminationsRef.current.delete(player.id);
-            if (gameId) await removeTournamentResultForPlayer(player.name, gameId);
+            if (gameId) {
+              await removeTournamentResultForPlayer(player.name, gameId);
+              corrected.add(player.id);
+            }
           } catch (shiftError) {
             console.error('Error clearing a stale league result:', player.name, shiftError);
           }
@@ -450,11 +460,16 @@ function PokerTimerInner({
           const attributedSeason = displaySeasonRef.current?.id;
           const seasonId = isRealSeasonId(attributedSeason) ? String(attributedSeason) : undefined;
 
+          // Claim the slot BEFORE awaiting. The effect re-runs on every players
+          // change, so without a synchronous claim a second run could start
+          // recording the same player while the first is still in flight.
+          processedEliminationsRef.current.set(player.id, player.position);
+
           try {
             // Awaited deliberately. This used to be fire-and-forget inside a
             // forEach, with the player marked processed regardless — so a
             // permission or network failure lost that result silently and it
-            // was never retried. Mark processed only once the write lands.
+            // was never retried. The claim above is released again on failure.
             await recordResultByName(
               player.name,
               player.position,
@@ -463,17 +478,22 @@ function PokerTimerInner({
               player.prizeMoney || 0,
               tournament.state.prizeStructure?.buyIn || 10,
               gameId,
-              seasonId
+              seasonId,
+              // On the correction path the old result has just been deleted, and
+              // recordResultByName's own duplicate check reads a snapshot that
+              // lags that deletion — it would skip the write and leave the player
+              // with no result at all.
+              corrected.has(player.id),
             );
-            processedEliminationsRef.current.set(player.id, player.position);
           } catch (playerError) {
             console.error('Error recording individual player to league:', player.name, playerError);
+            processedEliminationsRef.current.delete(player.id);
             toast({
               title: 'League result not saved',
               description: `${player.name}'s result could not be saved to the league. It will be retried automatically.`,
               variant: 'destructive',
             });
-            // Left unprocessed on purpose, so the next pass retries it.
+            // Claim released, so the next pass retries it.
           }
         }
       } catch (effectError) {
@@ -482,8 +502,30 @@ function PokerTimerInner({
       }
     };
 
-    syncLeagueResults();
-    return () => { cancelled = true; };
+    // Retry from THIS closure rather than chaining a re-run off the finishing
+    // one: the finishing run belongs to an older effect whose `cancelled` is
+    // already set, so its re-run would be dropped on the floor.
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const runExclusively = async () => {
+      if (cancelled) return;
+      if (syncRunningRef.current) {
+        retryTimer = setTimeout(() => { void runExclusively(); }, 250);
+        return;
+      }
+      syncRunningRef.current = true;
+      try {
+        await syncLeagueResults();
+      } finally {
+        syncRunningRef.current = false;
+      }
+    };
+
+    void runExclusively();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer]);
 
