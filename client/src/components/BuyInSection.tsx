@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { calculatePrizePool } from "@/lib/prizePool";
+import { topPercentPayouts } from '@/lib/payoutTemplates';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -564,16 +565,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
               };
               if (templates[v]) setManualPayouts(templates[v]);
               else if (v === 'top-10pct') {
-                const n = Math.max(1, Math.ceil((state.players.length || 10) * 0.1));
-                const pts = [40, 25, 15, 10, 6, 4];
-                const payouts = Array.from({ length: n }, (_, i) => ({
-                  position: i + 1,
-                  percentage: i < pts.length - 1 ? pts[i] : Math.max(1, Math.floor(100 / n))
-                }));
-                // normalise to 100
-                const sum = payouts.reduce((s, p) => s + p.percentage, 0);
-                payouts[payouts.length - 1].percentage += 100 - sum;
-                setManualPayouts(payouts);
+                setManualPayouts(topPercentPayouts(state.players.length || 10));
               }
             }}>
               <SelectTrigger className="h-8 w-40 text-xs">

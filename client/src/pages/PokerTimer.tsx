@@ -187,7 +187,11 @@ function PokerTimerInner({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_isLeagueMode, _displaySeason?.id, gameNumber]);
 
-  const processedEliminationsRef = useRef(new Set<string>());
+  // playerId -> the finishing position we recorded for them. A Map rather than
+  // a Set because a re-entry renumbers the players who busted after the
+  // returning player, so a result already written can become stale and must
+  // be rewritten — see lib/eliminationOrder.ts.
+  const processedEliminationsRef = useRef(new Map<string, number>());
   const [activeTab, setActiveTab] = useState('players');
 
   // Save finished tournaments to history. Standalone games are the point of
@@ -219,10 +223,34 @@ function PokerTimerInner({
       details?.localGameId ?? details?.id ?? `anon:${players.length}:${winnerId}`
     );
     if (savedHistoryRef.current === gameKey) return;
+
+    // Signed-out directors have nowhere to save history to; saveCompletedTournament
+    // returns null for that case just as it does for a real failure, so guard here
+    // rather than reporting a failure that is really "not applicable".
+    if (!user?.id) return;
+
     savedHistoryRef.current = gameKey;
-    saveCompletedTournament(tournament.state);
+
+    // Clear the dedupe key again if the save fails, so the next pass retries.
+    // Setting it before the call and never unsetting it meant a failed save was
+    // never retried — and the failure toast tells the director to go and check
+    // Tournament History, which is exactly what would be missing.
+    saveCompletedTournament(tournament.state)
+      .then(saved => {
+        if (saved) return;
+        savedHistoryRef.current = null;
+        toast({
+          title: 'Tournament history not saved',
+          description: 'This game could not be added to your history. It will be retried.',
+          variant: 'destructive',
+        });
+      })
+      .catch(err => {
+        console.error('Error saving completed tournament:', err);
+        savedHistoryRef.current = null;
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament.state.players, saveCompletedTournament]);
+  }, [tournament.state.players, saveCompletedTournament, user?.id]);
 
   // The League tab is only meaningful for a league game. Hiding it in standalone
   // also keeps the tab bar from overflowing on a phone in portrait, where it was
@@ -352,110 +380,111 @@ function PokerTimerInner({
 
   // Auto-record eliminated players to league when season mode is enabled
   useEffect(() => {
-    // Wrap the entire effect in a try-catch to prevent crashes
-    try {
-      const isSeasonTournament =
-        tournament?.state?.details?.type === 'season' ||
-        tournament?.state?.settings?.isSeasonTournament === true;
+    let cancelled = false;
 
-      if (!isSeasonTournament) {
-        return;
-      }
+    const syncLeagueResults = async () => {
+      try {
+        const isSeasonTournament =
+          tournament?.state?.details?.type === 'season' ||
+          tournament?.state?.settings?.isSeasonTournament === true;
 
-      // Get players to record - if tournament is finished, record all players, otherwise just newly eliminated
-      const activePlayers = tournament?.state?.players?.filter(p => p.isActive !== false) || [];
-      const isFinished = activePlayers.length <= 1 && tournament?.state?.players && tournament.state.players.length > 1;
-
-      const eliminatedPlayers = tournament?.state?.players?.filter(p => {
-        if (isFinished) {
-          // Tournament finished - record all players with positions who haven't been processed
-          return p.position && p.position > 0 && !processedEliminationsRef.current.has(p.id);
-        } else {
-          // Tournament ongoing - only record eliminated players
-          return p.isActive === false &&
-                 p.position &&
-                 p.position > 0 &&
-                 !processedEliminationsRef.current.has(p.id);
+        if (!isSeasonTournament) {
+          return;
         }
-      }) || [];
 
-      if (eliminatedPlayers.length > 0) {
-        // Process each player with individual error handling
-        const processedPlayerIds: string[] = [];
+        const players = tournament?.state?.players || [];
+        const activePlayers = players.filter(p => p.isActive !== false);
+        const isFinished = activePlayers.length <= 1 && players.length > 1;
+        const rawGameId = tournament.state.details?.localGameId || tournament.state.details?.id;
+        const gameId = rawGameId ? String(rawGameId) : undefined;
 
-        eliminatedPlayers.forEach(player => {
-          try {
-            // Validate player data before processing
-            if (!player.name || !player.position || !tournament?.state?.players?.length) {
-              return;
-            }
-
-            // Calculate eliminations for this player - use knockouts field
-            const eliminationsCount = player.knockouts || 0;
-
-            // Get prize money for this player
-            const prizeMoney = player.prizeMoney || 0;
-
-            // Record tournament result for this player
-            const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
-            // Attribute results to the season the UI is showing.
-            //
-            // This read currentSeasonRef (the hook's resolved season) while every
-            // header labels the game from _displaySeason, which prefers the
-            // tournament's stored settings.seasonId. Starting a game for Season 2
-            // via the Next Game dialog therefore filed its results under Season 1
-            // while the screen said Season 2.
-            //
-            // isRealSeasonId also blocks the synthetic 'default-season' used
-            // before Firestore resolves — results tagged with it match no season
-            // and vanish from every season-filtered view.
-            const attributedSeason = displaySeasonRef.current?.id;
-            const seasonId = isRealSeasonId(attributedSeason) ? String(attributedSeason) : undefined;
-            recordResultByName(
-              player.name,
-              player.position,
-              tournament.state.players.length,
-              eliminationsCount,
-              prizeMoney,
-              tournament.state.prizeStructure?.buyIn || 10,
-              gameId ? String(gameId) : undefined,
-              seasonId
-            );
-
-            // Track successful processing
-            processedPlayerIds.push(player.id);
-          } catch (playerError) {
-            console.error('Error recording individual player to league:', player.name, playerError);
-            // Continue processing other players even if one fails
-          }
-        });
-
-        // Update processed eliminations only for successfully processed players
-        if (processedPlayerIds.length > 0) {
-          processedPlayerIds.forEach(id => processedEliminationsRef.current.add(id));
-        }
-      }
-
-      // Handle Rebuys: If a player is active again but was previously processed as eliminated,
-      // remove their premature league result and allow re-recording when they're eliminated again.
-      const rebuysToProcess = activePlayers.filter(p => processedEliminationsRef.current.has(p.id));
-      if (rebuysToProcess.length > 0) {
-        rebuysToProcess.forEach(player => {
+        // 1. A player who is back in the game but already has a result: drop it.
+        //    They will be recorded again when they are eliminated for good.
+        for (const player of activePlayers) {
+          if (!processedEliminationsRef.current.has(player.id)) continue;
           try {
             processedEliminationsRef.current.delete(player.id);
-            const gameId = tournament.state.details?.localGameId || tournament.state.details?.id;
-            if (gameId) {
-              removeTournamentResultForPlayer(player.name, String(gameId));
-            }
+            if (gameId) await removeTournamentResultForPlayer(player.name, gameId);
           } catch (rebuyError) {
             console.error('Error handling rebuy for league tracking:', player.name, rebuyError);
           }
+        }
+
+        // 2. A player still out, but whose position has changed since we recorded
+        //    it. A re-entry shifts everyone who busted after the returning player
+        //    one place worse, so their stored result is now wrong. Remove it and
+        //    let step 3 re-record the corrected position.
+        for (const player of players) {
+          const recorded = processedEliminationsRef.current.get(player.id);
+          if (recorded === undefined || recorded === player.position) continue;
+          try {
+            processedEliminationsRef.current.delete(player.id);
+            if (gameId) await removeTournamentResultForPlayer(player.name, gameId);
+          } catch (shiftError) {
+            console.error('Error clearing a stale league result:', player.name, shiftError);
+          }
+        }
+
+        // 3. Record anyone eliminated who is not already recorded. When the
+        //    tournament is over that includes the winner.
+        const toRecord = players.filter(p => {
+          if (!p.position || p.position <= 0) return false;
+          if (processedEliminationsRef.current.has(p.id)) return false;
+          return isFinished ? true : p.isActive === false;
         });
+
+        for (const player of toRecord) {
+          if (cancelled) return;
+          if (!player.name || !player.position || !players.length) continue;
+
+          // Attribute results to the season the UI is showing.
+          //
+          // This read currentSeasonRef (the hook's resolved season) while every
+          // header labels the game from _displaySeason, which prefers the
+          // tournament's stored settings.seasonId. Starting a game for Season 2
+          // via the Next Game dialog therefore filed its results under Season 1
+          // while the screen said Season 2.
+          //
+          // isRealSeasonId also blocks the synthetic 'default-season' used
+          // before Firestore resolves — results tagged with it match no season
+          // and vanish from every season-filtered view.
+          const attributedSeason = displaySeasonRef.current?.id;
+          const seasonId = isRealSeasonId(attributedSeason) ? String(attributedSeason) : undefined;
+
+          try {
+            // Awaited deliberately. This used to be fire-and-forget inside a
+            // forEach, with the player marked processed regardless — so a
+            // permission or network failure lost that result silently and it
+            // was never retried. Mark processed only once the write lands.
+            await recordResultByName(
+              player.name,
+              player.position,
+              players.length,
+              player.knockouts || 0,
+              player.prizeMoney || 0,
+              tournament.state.prizeStructure?.buyIn || 10,
+              gameId,
+              seasonId
+            );
+            processedEliminationsRef.current.set(player.id, player.position);
+          } catch (playerError) {
+            console.error('Error recording individual player to league:', player.name, playerError);
+            toast({
+              title: 'League result not saved',
+              description: `${player.name}'s result could not be saved to the league. It will be retried automatically.`,
+              variant: 'destructive',
+            });
+            // Left unprocessed on purpose, so the next pass retries it.
+          }
+        }
+      } catch (effectError) {
+        console.error('Critical error in league recording effect:', effectError);
+        toast({ title: 'League recording error', description: 'Some results may not have been saved to the league. Please check Tournament History.', variant: 'destructive' });
       }
-    } catch (effectError) {
-      console.error('Critical error in league recording effect:', effectError);
-      toast({ title: 'League recording error', description: 'Some results may not have been saved to the league. Please check Tournament History.', variant: 'destructive' });
-    }
+    };
+
+    syncLeagueResults();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer]);
 
@@ -466,7 +495,7 @@ function PokerTimerInner({
     const allActive = players.length > 0 && players.every(p => p.isActive !== false);
     const noPositions = !players.some(p => (p.position || 0) > 0);
     if (allActive && noPositions) {
-      processedEliminationsRef.current = new Set();
+      processedEliminationsRef.current = new Map();
     }
   }, [tournament?.state?.players]);
 

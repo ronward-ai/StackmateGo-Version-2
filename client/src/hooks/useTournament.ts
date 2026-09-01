@@ -14,6 +14,7 @@ import { doc, onSnapshot, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { sanitizeForFirestore } from '../lib/utils';
 
 import { useAuth } from './useAuth';
+import { nextEliminationPosition, positionsAfterReEntry } from '@/lib/eliminationOrder';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -975,9 +976,9 @@ export function useTournament(tournamentId?: string) {
         return prev;
       }
 
-      // Count current active players to determine position
-      const alreadyPositioned = prev.players.filter(p => p.isActive === false && p.position).length;
-      const newPosition = prev.players.length - alreadyPositioned;
+      // Single derivation, shared with the re-entry renumbering — see
+      // lib/eliminationOrder.ts for why counting alone was not enough.
+      const newPosition = nextEliminationPosition(prev.players);
 
       // Calculate points (simplified system)
       const totalPlayers = prev.players.length;
@@ -1181,8 +1182,13 @@ export function useTournament(tournamentId?: string) {
         return prev;
       }
 
+      // Renumber first: a re-entry vacates this player's finishing position, so
+      // everyone who busted after them moves one place worse. Without this the
+      // next elimination is handed a position another player already holds.
+      const renumbered = positionsAfterReEntry(prev.players, playerId);
+
       // Update player to active status and increment re-entry count
-      const updatedPlayers = prev.players.map(p =>
+      const updatedPlayers = renumbered.map(p =>
         p.id === playerId
           ? {
               ...p,
@@ -1228,8 +1234,12 @@ export function useTournament(tournamentId?: string) {
         return prev;
       }
 
+      // Same renumbering as a re-entry — a rebuy by an eliminated player
+      // vacates their finishing position.
+      const renumbered = positionsAfterReEntry(prev.players, playerId);
+
       // Update player to active status and increment rebuy count
-      const updatedPlayers = prev.players.map(p =>
+      const updatedPlayers = renumbered.map(p =>
         p.id === playerId
           ? {
               ...p,

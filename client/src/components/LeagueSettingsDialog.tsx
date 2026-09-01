@@ -196,8 +196,11 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
     setError(null);
 
     try {
-      await deleteSettingsFromDatabase(parseInt(id));
-      console.log('Template deleted successfully');
+      // Pass the id through unchanged. These are Firestore auto-ids, so
+      // parseInt() yielded NaN and deleted a document literally named "NaN" —
+      // which resolves successfully, so the dialog reported success while the
+      // formula stayed exactly where it was.
+      await deleteSettingsFromDatabase(id);
       await loadSavedFormulas(); // Reload formulas after deleting
     } catch (error) {
       console.error('Error deleting template:', error);
