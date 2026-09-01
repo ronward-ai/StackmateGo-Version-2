@@ -182,7 +182,7 @@ service cloud.firestore {
     // Both halves of handover run through /api/transfer-code and
     // /api/claim-tournament using the Admin SDK, which bypasses these rules.
     // That is also why ownerId stays absent from every activeTournaments
-    // update branch below — clients never write it.
+    // update branch above — clients never write it.
     match /transferCodes/{tournamentId} {
       allow read, write: if false;
     }
