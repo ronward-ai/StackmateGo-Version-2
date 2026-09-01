@@ -39,17 +39,32 @@ export function SettingRow({
   );
 }
 
+/**
+ * The icon + title header a settings section carries.
+ *
+ * Exported separately because Branding and Notes need the same header but hold
+ * a text field and a textarea rather than SettingRows, and duplicating these
+ * classes in three places is how they drift apart.
+ */
+export function SettingsGroupHeader({ icon: Icon, title, color }: {
+  icon: any; title: string; color: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-1">
+      <Icon className={cn("h-4 w-4", color)} />
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
+    </div>
+  );
+}
+
 /** A titled card grouping related SettingRows. */
-export function SettingsGroup({ icon: Icon, title, color, children }: {
+export function SettingsGroup({ icon, title, color, children }: {
   icon: any; title: string; color: string; children: React.ReactNode;
 }) {
   return (
     <Card className="card-glass rounded-xl">
       <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-1">
-          <Icon className={cn("h-4 w-4", color)} />
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</span>
-        </div>
+        <SettingsGroupHeader icon={icon} title={title} color={color} />
         <div className="divide-y divide-border/20">
           {children}
         </div>
