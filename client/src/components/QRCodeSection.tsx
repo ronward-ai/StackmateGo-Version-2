@@ -13,7 +13,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { useLeague } from '@/hooks/useLeague';
 import { eventNameOf } from '@/lib/eventName';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import { apiFetch } from '@/lib/apiClient';
+import { createTransferCode as requestTransferCode, claimTournament } from '@/lib/handover';
 
 function generateSecureCode(length = 6): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes confusable 0/O/1/I
@@ -212,31 +212,23 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
     // world-readable — so every participant who scanned the QR could read the
     // code and take over the game.
     try {
-      const res = await apiFetch('/api/transfer-code', { tournamentId });
-      const body = await res.json().catch(() => ({}));
+      const { code, expiresAt } = await requestTransferCode(String(tournamentId));
 
-      if (!res.ok) {
-        toast({
-          title: res.status === 503 ? "Handover unavailable" : "Could not generate a code",
-          description: body?.error || "Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setTransferCode(body.code);
+      setTransferCode(code);
       setShowTransferCode(true);
       toast({ title: "Code generated", description: "Share this code with the new director" });
 
-      const msLeft = body.expiresAt
-        ? new Date(body.expiresAt).getTime() - Date.now()
-        : 300000;
+      const msLeft = expiresAt ? new Date(expiresAt).getTime() - Date.now() : 300000;
       setTimeout(() => {
         setTransferCode(null);
         setShowTransferCode(false);
       }, Math.max(0, msLeft));
-    } catch {
-      toast({ title: "Could not generate a code", description: "The server could not be reached.", variant: "destructive" });
+    } catch (err: any) {
+      toast({
+        title: "Could not generate a code",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -277,23 +269,17 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       // Verified server-side. The old flow wrote `ownerId` straight to Firestore,
       // which every activeTournaments update branch rejects by design — so
       // handover never actually worked, it just reported a generic failure.
-      const res = await apiFetch('/api/claim-tournament', { code: trimmedCode });
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        toast({
-          title: res.status === 503 ? "Handover unavailable" : "Could not use that code",
-          description: body?.error || "Please check the code and try again.",
-          variant: "destructive",
-        });
-        return;
-      }
+      const tournamentId = await claimTournament(trimmedCode);
 
       toast({ title: "Success!", description: "You now have director access to this tournament" });
       setInputCode('');
-      setLocation(`/tournament/${body.tournamentId}/director`);
-    } catch (error) {
-      toast({ title: "Error", description: "The server could not be reached.", variant: "destructive" });
+      setLocation(`/tournament/${tournamentId}/director`);
+    } catch (err: any) {
+      toast({
+        title: "Could not use that code",
+        description: err?.message || "Please check the code and try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmittingCode(false);
     }

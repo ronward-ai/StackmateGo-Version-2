@@ -68,27 +68,37 @@ They are genuinely different: a standalone tournament has an event name and no l
 resolve the display name through `lib/eventName.ts`, which reads the legacy `branding.leagueName`
 key for older tournaments and falls back to the league's name in league mode.
 
-### Director handover runs on the server, not in rules
+### Director handover runs in a Cloud Function
 
-Passing director control mid-game goes through two Express routes, not a Firestore write:
+Passing director control mid-game is two callable functions in `functions/src/index.ts`, not a
+Firestore write:
 
 ```
-POST /api/transfer-code     owner generates a code
-POST /api/claim-tournament  new director redeems it
+createTransferCode({ tournamentId })   owner generates a code
+claimTournament({ code })              new director redeems it
 ```
 
-Both authenticate with a Firebase ID token (`Authorization: Bearer …`, never a uid in the body) and
-use the Admin SDK, which bypasses rules. **`FIREBASE_SERVICE_ACCOUNT_JSON` must be set in Railway**
-or both routes return 503 and handover does not work.
+Deploy them separately from the app — Railway does not host these:
 
-**The Admin SDK must name the database.** This project's data is not in `(default)` — it is in the
-AI-Studio-generated `ai-studio-127bb0ae-…`, which the client passes explicitly to
-`initializeFirestore`. A bare `getFirestore()` silently reads an empty `(default)` database and
-reports "not found" for everything. `server/routes.ts` passes it; override with
-`FIREBASE_DATABASE_ID` if the database ever moves. `server/index.ts` serves the built client, so
-`/api/*` is same-origin — `VITE_API_BASE_URL` is only for serving the client from elsewhere.
+```
+npx firebase deploy --only functions --project project-4d166fd9-5ce4-482d-924
+```
 
-Two reasons it cannot be done in rules, both learned the hard way:
+**Why a Cloud Function and not the Express server.** The server would need a service account key,
+and the project inherits a Google organisation policy (`iam.disableServiceAccountKeyCreation`)
+forbidding key creation, which is not ours to lift. Code running on Google's infrastructure gets
+admin credentials from the runtime, so there is no key. Nothing needs setting in Railway.
+
+**Callable, not HTTP.** The Firebase SDK attaches and verifies the caller's ID token, so the uid
+never travels in the payload — a client that could name its own uid could hand itself any
+tournament. `client/src/lib/handover.ts` is the only caller.
+
+**The function must name the database.** This project's data is not in `(default)` — it is in the
+AI-Studio-generated `ai-studio-127bb0ae-…`. A bare `getFirestore()` silently reads an empty
+`(default)` database and reports "not found" for everything. Both the function and
+`server/routes.ts` pass it; override with `FIREBASE_DATABASE_ID`.
+
+Two reasons handover cannot be done in rules, both learned the hard way:
 
 - **`ownerId` is unwritable by clients, deliberately.** Every `activeTournaments` update branch
   excludes it. The old client wrote it directly, so handover had *never worked* — it only ever
@@ -121,7 +131,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
 | `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
-| `apiClient.ts` | POSTs to this app's own server with a verified Firebase ID token. |
+| `handover.ts` | Calls the handover Cloud Functions; maps their errors to readable text. |
 
 ### One shared listener per query
 

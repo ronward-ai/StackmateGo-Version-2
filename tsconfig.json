@@ -26,5 +26,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["backup-files", "node_modules", "dist"]
+  "exclude": ["backup-files", "node_modules", "dist", "functions"]
 }
