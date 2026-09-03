@@ -159,6 +159,9 @@ season, so the screen and the database cannot disagree.
   reverted: it silently denied handover directors mid-game, losing results with no error on screen.
   Update and delete remain owner-scoped. The proper fix is authorising by tournament, not league.
   See the director-handover test in `tests/rules/firestore.rules.test.ts`.
+- **`useAuth` reads an `anonymousUser` localStorage key that nothing writes.** `getAnonymousUser()`
+  feeds `effectiveUser`, so a stale value left by an older build would keep `user` non-null after a
+  logout. Harmless today because no code path sets it; delete the fallback when next in that file.
 - **`leaguePlayers.totalPoints`** is a denormalised counter nothing reads — every table recomputes
   from results. It can only drift.
 - **The rake formula is copy-pasted at 9 sites**, and one of them disagrees.

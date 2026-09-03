@@ -3,7 +3,7 @@ import { useParams, useLocation } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home } from 'lucide-react';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
@@ -437,6 +437,24 @@ function TournamentParticipantView() {
             </div>
             <h1 className="text-xl font-bold text-white leading-tight">{tournament?.name || 'Tournament'}</h1>
           </div>
+
+          {/* A way back into the app.
+              This screen used to be a dead end: "Go Home" existed only in the
+              error branch, so a tournament that loaded successfully offered no
+              route anywhere. A director who signed out was redirected here and
+              left looking at their own game with nothing to click. It is also
+              the only exit for a player who arrived by QR and wants to run a
+              game of their own.
+
+              A deliberate labelled control rather than a clickable logo, so
+              nobody taps it by accident while watching a live game. */}
+          <a
+            href="/"
+            className="flex-shrink-0 flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors"
+          >
+            <Home className="h-3.5 w-3.5" />
+            <span>StackMate Go</span>
+          </a>
         </div>
 
         {/* Tournament Over Banner */}

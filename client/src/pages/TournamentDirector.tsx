@@ -1,19 +1,37 @@
-
 import { useState, useEffect } from 'react';
-import { useParams } from 'wouter';
+import { useParams, useLocation } from 'wouter';
 import PokerTimer from './PokerTimer';
 import { useAuth } from '@/hooks/useAuth';
+import { AuthModal } from '@/components/AuthModal';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LogIn, Eye } from 'lucide-react';
 
+/**
+ * The director view of a specific tournament.
+ *
+ * Signing out used to hard-redirect here to the participant view after a
+ * three-second countdown. That screen shows the same tournament read-only and
+ * has no sign-in control — participants never sign in — so the director was
+ * left looking at their own game with no way back into the app, which read as
+ * "I logged out and nothing happened". Being signed out now offers a way back
+ * in instead of moving you somewhere you did not ask to go.
+ */
 function TournamentDirector() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
   const id = params.tournamentId || params.id;
+  const [, setLocation] = useLocation();
   const { user, isLoading, isAnonymous } = useAuth();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const [isAuthorised, setIsAuthorised] = useState(false);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const participantPath = id ? `/tournament/${id}` : '/';
+
   useEffect(() => {
-    const authenticateDirector = async () => {
+    const authoriseDirector = async () => {
       if (!id) {
         setError('Invalid tournament ID');
         return;
@@ -21,62 +39,97 @@ function TournamentDirector() {
 
       if (isLoading) return;
 
+      // Not signed in: offer the way back in rather than navigating away. The
+      // effect re-runs when the user signs in, so the director view loads with
+      // no page reload and the tournament state already in hand.
+      if (!user || isAnonymous) {
+        setNeedsSignIn(true);
+        setIsAuthorised(false);
+        setError(null);
+        return;
+      }
+
+      setNeedsSignIn(false);
+
       try {
-        // Check if user is logged in and not anonymous
-        if (!user || isAnonymous) {
-          setError('Please login to access director controls');
-          setTimeout(() => {
-            window.location.href = `/tournament/${id}`;
-          }, 3000);
+        const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const snap = await getDoc(doc(db, 'activeTournaments', String(id)));
+
+        // Signed in, but this is someone else's game. There is nothing to sign
+        // into here, so the participant view is genuinely where they belong —
+        // sent straight there rather than after a spinner pretending to work.
+        if (snap.exists() && snap.data().ownerId !== user.id) {
+          setLocation(participantPath);
           return;
         }
 
-        if (typeof window !== 'undefined') {
-            const { doc, getDoc } = await import('firebase/firestore');
-            const { db } = await import('@/lib/firebase');
-            const docRef = doc(db, 'activeTournaments', id.toString());
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists() && docSnap.data().ownerId !== user.id) {
-              setError('You do not have permission to access this tournament as a director.');
-              setTimeout(() => { window.location.href = `/tournament/${id}`; }, 3000);
-              return;
-            }
-          }
-
-        setIsAuthenticated(true);
+        setIsAuthorised(true);
         setError(null);
-      } catch (error) {
-        console.error('Director authentication failed:', error);
-        setError('Could not verify tournament access. Redirecting to participant view...');
-        
-        // Redirect back to participant view after 3 seconds
-        setTimeout(() => {
-          window.location.href = `/tournament/${id}`;
-        }, 3000);
+      } catch (err) {
+        console.error('Director authorisation failed:', err);
+        setError('Could not check whether you direct this tournament.');
       }
     };
 
-    authenticateDirector();
-  }, [id, user, isLoading]);
+    authoriseDirector();
+  }, [id, user, isAnonymous, isLoading, setLocation, participantPath]);
+
+  const Shell = ({ children }: { children: React.ReactNode }) => (
+    <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center px-6">
+      <div className="text-center max-w-sm w-full">
+        <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 rounded-xl shadow-lg mb-6">
+          <h1 className="text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 rounded-xl shadow-lg mb-4">
-            <h1 className="text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
-          </div>
-          <div className="space-y-2">
-            <p className="text-red-400">{error}</p>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+      <Shell>
+        <div className="space-y-4">
+          <p className="text-red-400">{error}</p>
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => window.location.reload()}>Try again</Button>
+            <Button variant="outline" onClick={() => setLocation(participantPath)}>
+              View as participant
+            </Button>
           </div>
         </div>
-      </div>
+      </Shell>
     );
   }
 
-  if (!isAuthenticated) {
+  if (needsSignIn) {
+    return (
+      <Shell>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <p className="text-lg font-medium">Sign in to run this tournament</p>
+            <p className="text-sm text-muted-foreground">
+              Director controls need the account that owns the game. You can still watch it as a
+              player without signing in.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button className="gap-2" onClick={() => setShowAuthModal(true)}>
+              <LogIn className="h-4 w-4" />
+              Sign in
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setLocation(participantPath)}>
+              <Eye className="h-4 w-4" />
+              View as participant
+            </Button>
+          </div>
+        </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      </Shell>
+    );
+  }
+
+  if (!isAuthorised) {
     return (
       <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center">
         <div className="w-full max-w-4xl mx-auto p-4 space-y-6">
@@ -94,7 +147,6 @@ function TournamentDirector() {
     );
   }
 
-  // Once authenticated, show the full PokerTimer interface with tournament context
   return <PokerTimer params={{ tournamentId: id }} />;
 }
 
