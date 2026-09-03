@@ -25,6 +25,7 @@ function TournamentDirector() {
 
   const [isAuthorised, setIsAuthorised] = useState(false);
   const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [notMine, setNotMine] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,17 +51,30 @@ function TournamentDirector() {
       }
 
       setNeedsSignIn(false);
+      setNotMine(false);
 
       try {
         const { doc, getDoc } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');
         const snap = await getDoc(doc(db, 'activeTournaments', String(id)));
 
-        // Signed in, but this is someone else's game. There is nothing to sign
-        // into here, so the participant view is genuinely where they belong —
-        // sent straight there rather than after a spinner pretending to work.
+        // Signed in, but this game belongs to another account — after handing it
+        // over, typically.
+        //
+        // Clearing the pin is what stops the app wedging. `/` redirects to
+        // whatever activeDirectorTournamentId names (PokerTimer), so a
+        // tournament you have given away kept sending you here, here kept
+        // sending you to the player view, and its home button sent you back to
+        // `/`. From the outside that is indistinguishable from the page
+        // refreshing and there was no way out of it.
         if (snap.exists() && snap.data().ownerId !== user.id) {
-          setLocation(participantPath);
+          try {
+            if (localStorage.getItem('activeDirectorTournamentId') === String(id)) {
+              localStorage.removeItem('activeDirectorTournamentId');
+            }
+          } catch {}
+          setNotMine(true);
+          setIsAuthorised(false);
           return;
         }
 
@@ -95,6 +109,31 @@ function TournamentDirector() {
             <Button onClick={() => window.location.reload()}>Try again</Button>
             <Button variant="outline" onClick={() => setLocation(participantPath)}>
               View as participant
+            </Button>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (notMine) {
+    return (
+      <Shell>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <p className="text-lg font-medium">This game is run from another account</p>
+            <p className="text-sm text-muted-foreground">
+              Director control was passed on, so you can watch it but not change it. Your own app is
+              unaffected.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button className="gap-2" onClick={() => setLocation(participantPath)}>
+              <Eye className="h-4 w-4" />
+              Watch as a player
+            </Button>
+            <Button variant="outline" onClick={() => setLocation('/')}>
+              Go to my app
             </Button>
           </div>
         </div>

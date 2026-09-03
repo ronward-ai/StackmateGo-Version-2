@@ -229,24 +229,26 @@ function PokerTimerInner({
 
   // Another DEVICE has taken control.
   //
-  // Separate from the ownership check above: with both directors sharing one
-  // login, ownerId matches on both devices and cannot tell them apart. The same
-  // outcome either way — this screen would appear to work while changing
-  // nothing — so step back to the view that is honestly read-only, which offers
-  // Take control to come back.
-  const lostControlRef = useRef(false);
-  useEffect(() => {
-    const liveId = tournament.state.details?.id;
-    if (!liveId || tournament.state.details?.type !== 'database') return;
-    if (tournament.hasControl || lostControlRef.current) return;
+  // Shown in place, never by navigating away. An earlier version redirected to
+  // the participant view, which is how a director ends up somewhere with no
+  // route back — the exact trap this change exists to remove. The protection
+  // against double input is the broadcast guard in useTournament, which already
+  // stands down for a device without control; moving the screen as well buys
+  // nothing and can strand someone.
+  const [takingControl, setTakingControl] = useState(false);
+  const showControlBanner =
+    tournament.state.details?.type === 'database' &&
+    !!tournament.state.details?.id &&
+    !tournament.hasControl;
 
-    lostControlRef.current = true;
-    toast({
-      title: 'Another device is running this game',
-      description: 'This screen is now view only. You can take control back from there.',
-    });
-    setLocation(`/tournament/${liveId}`);
-  }, [tournament.hasControl, tournament.state.details?.id, tournament.state.details?.type, toast, setLocation]);
+  const handleTakeControl = async () => {
+    setTakingControl(true);
+    const ok = await tournament.claimControl();
+    setTakingControl(false);
+    toast(ok
+      ? { title: 'You have control', description: 'This device is running the tournament again.' }
+      : { title: 'Could not take control', description: 'Check your connection and try again.', variant: 'destructive' });
+  };
 
   const processedEliminationsRef = useRef(new Map<string, number>());
 
@@ -630,6 +632,25 @@ function PokerTimerInner({
     <div className="min-h-screen bg-background text-foreground font-sans">
       <div className="container mx-auto px-4 py-3 sm:py-6 max-w-4xl">
         {/* Header — row 1: logo + user menu | row 2: mode toggle */}
+        {showControlBanner && (
+          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-amber-200">Another device is running this game</p>
+              <p className="text-xs text-amber-200/70">
+                Your changes here will not be saved until you take control back.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="flex-shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={takingControl}
+              onClick={handleTakeControl}
+            >
+              {takingControl ? 'Taking…' : 'Take control'}
+            </Button>
+          </div>
+        )}
+
         <header className="mb-3 sm:mb-5">
           {/* Row 1: logo left, user menu right */}
           <div className="flex items-center justify-between mb-2">
@@ -795,6 +816,9 @@ function PokerTimerInner({
 
         <footer className="mt-8 text-center text-muted-foreground text-sm py-4">
           <p>StackMateGo &copy; {new Date().getFullYear()}</p>
+          {/* Which build is live. Answers "has Railway deployed it yet?" without
+              guesswork — see vite.config.ts. */}
+          <p className="text-xs opacity-40 mt-1">build {__BUILD_ID__}</p>
         </footer>
       </div>
     </div>

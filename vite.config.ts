@@ -1,9 +1,28 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { execSync } from "child_process";
+
+/**
+ * A short, human-checkable marker for "which build is this?".
+ *
+ * Whether a change had actually reached Railway came up repeatedly while
+ * debugging, and guessing cost more than showing it does. Falls back to the
+ * build date when git is unavailable, as it is in some deploy images.
+ */
+function buildId(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    return new Date().toISOString().slice(0, 16).replace("T", " ");
+  }
+}
 
 export default defineConfig(async (): Promise<any> => {
   return {
+    define: {
+      __BUILD_ID__: JSON.stringify(buildId()),
+    },
     plugins: [
       react(),
     ],
