@@ -12,7 +12,7 @@ React + TypeScript + Vite, Firestore for data, deployed on Railway.
 ```
 npm run dev         # local dev server
 npm run check       # tsc — MUST stay clean
-npm test            # vitest, ~112 unit tests
+npm test            # vitest, ~121 unit tests
 npm run test:rules  # Firestore rules tests against the emulator (needs Java)
 npm run build       # production build
 ```
@@ -68,44 +68,35 @@ They are genuinely different: a standalone tournament has an event name and no l
 resolve the display name through `lib/eventName.ts`, which reads the legacy `branding.leagueName`
 key for older tournaments and falls back to the league's name in league mode.
 
-### Director handover runs in a Cloud Function
+### Director handover runs in the security rules
 
-Passing director control mid-game is two callable functions in `functions/src/index.ts`, not a
-Firestore write:
+Passing director control mid-game is `client/src/lib/handover.ts` plus two rules blocks. There is no
+server involved, and nothing to deploy but the rules.
 
-```
-createTransferCode({ tournamentId })   owner generates a code
-claimTournament({ code })              new director redeems it
-```
+**Why not a Cloud Function.** One was written and worked, but could not be deployed: it needs a
+service account key, and the project inherits a Google organisation policy
+(`iam.disableServiceAccountKeyCreation`) forbidding key creation, which is not ours to lift. The
+Express alternative needs the same key. Rules are the only thing this project can actually ship —
+they go out by pasting into the Firebase console.
 
-Deploy them separately from the app — Railway does not host these:
+**The code is the document id.** `transferCodes/{CODE}` holds `{ tournamentId, expiresAtMs }`.
+`get` is open and `list` is denied, so the document can only be read by someone who already knows the
+six characters. **Do not put the code on the tournament document** — `activeTournaments` is
+world-readable, so every participant who scans the QR could read it and seize control. That is how it
+was originally built.
 
-```
-npx firebase deploy --only functions --project project-4d166fd9-5ce4-482d-924
-```
+**Claiming is one batch**: take ownership and delete the code together, so a code cannot be used
+twice. The submitted code has to be written to `claimCode` for the rules to see it at all — rules can
+only read the request — and the new owner clears it immediately afterwards. That is safe because the
+batch destroys the code document, so the briefly visible code already unlocks nothing.
 
-**Why a Cloud Function and not the Express server.** The server would need a service account key,
-and the project inherits a Google organisation policy (`iam.disableServiceAccountKeyCreation`)
-forbidding key creation, which is not ours to lift. Code running on Google's infrastructure gets
-admin credentials from the runtime, so there is no key. Nothing needs setting in Railway.
+`transferCodes` delete only requires `isRegistered()`, deliberately: at the instant of the batch the
+claimer does not own the tournament yet, so an owner-scoped rule would reject the delete and leave
+the code live after a successful handover.
 
-**Callable, not HTTP.** The Firebase SDK attaches and verifies the caller's ID token, so the uid
-never travels in the payload — a client that could name its own uid could hand itself any
-tournament. `client/src/lib/handover.ts` is the only caller.
-
-**The function must name the database.** This project's data is not in `(default)` — it is in the
-AI-Studio-generated `ai-studio-127bb0ae-…`. A bare `getFirestore()` silently reads an empty
-`(default)` database and reports "not found" for everything. Both the function and
-`server/routes.ts` pass it; override with `FIREBASE_DATABASE_ID`.
-
-Two reasons handover cannot be done in rules, both learned the hard way:
-
-- **`ownerId` is unwritable by clients, deliberately.** Every `activeTournaments` update branch
-  excludes it. The old client wrote it directly, so handover had *never worked* — it only ever
-  showed "Failed to use transfer code".
-- **`activeTournaments` is world-readable.** The code used to be stored on that document, so every
-  participant who scanned the QR could read it and seize control. It now lives in `transferCodes`,
-  which no client can read or write (rules-tested).
+The claim branch is the **only** thing that may change `ownerId`. Ten rules tests cover it, including
+that the old behaviour — writing `ownerId` with no code — is still refused. Mutation-tested: removing
+the code and expiry checks fails three of them.
 
 ### `'default-season'`
 
@@ -131,7 +122,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
 | `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
-| `handover.ts` | Calls the handover Cloud Functions; maps their errors to readable text. |
+| `handover.ts` | Director handover: issuing, redeeming and burning transfer codes. |
 
 ### One shared listener per query
 

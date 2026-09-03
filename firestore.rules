@@ -41,6 +41,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/leagues/$(leagueId)).data.ownerId == request.auth.uid;
     }
 
+    // Is the caller the current director of this tournament?
+    function ownsTournament(tournamentId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/activeTournaments/$(tournamentId)).data.ownerId == request.auth.uid;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
@@ -123,7 +129,8 @@ service cloud.firestore {
     // - Only a registered owner can create
     // - Owner can change anything
     // - Authenticated non-owners can update a restricted set of timer/player fields
-    //   but cannot change ownerId — that would allow privilege escalation
+    //   but cannot change ownerId, except through the handover branch below,
+    //   which requires presenting a valid unexpired transfer code
     match /activeTournaments/{tournamentId} {
       allow read: if true;
       allow create: if isRegistered() && isDocOwner();
@@ -137,6 +144,27 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
                     'targetEndTime', 'smallBlind', 'bigBlind', 'ante', 'blindLevels'])
+      ) || (
+        // Director handover: taking ownership by presenting a valid transfer code.
+        //
+        // This is the ONLY branch that lets ownerId change, and it is narrow:
+        // the caller must name themselves as the new owner, submit a code whose
+        // document names THIS tournament, and that code must not have expired.
+        // Nothing else on the document may move in the same write.
+        //
+        // The submitted code has to be written to be checked — rules can only
+        // read the request. It lands in `claimCode` and is cleared immediately
+        // afterwards by the new owner. That leaves the code briefly visible on a
+        // world-readable document, which is harmless because the claim burns the
+        // code document in the same batch: by the time anyone could read it, it
+        // unlocks nothing.
+        isRegistered() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId', 'claimCode']) &&
+        request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.claimCode is string &&
+        exists(/databases/$(database)/documents/transferCodes/$(request.resource.data.claimCode)) &&
+        get(/databases/$(database)/documents/transferCodes/$(request.resource.data.claimCode)).data.tournamentId == tournamentId &&
+        request.time.toMillis() < get(/databases/$(database)/documents/transferCodes/$(request.resource.data.claimCode)).data.expiresAtMs
       ) || (
         // Unauthenticated player claiming (PlayerClaimView check-in via QR).
         // Only the players field may change, AND the array length must be
@@ -172,19 +200,36 @@ service cloud.firestore {
       allow delete: if isRegistered() && isExistingDocUser();
     }
 
-    // Transfer Codes — server-only.
+    // Transfer Codes — director handover.
     //
-    // Director handover codes. No client may read or write these: the code is
-    // the credential for taking over a tournament, and activeTournaments is
-    // world-readable, so keeping the code there meant every participant who
-    // scanned the QR could read it and seize control.
+    // Keyed by the CODE, holding the tournament it unlocks. The code is the
+    // credential, so knowing it is what grants access:
     //
-    // Both halves of handover run through /api/transfer-code and
-    // /api/claim-tournament using the Admin SDK, which bypasses these rules.
-    // That is also why ownerId stays absent from every activeTournaments
-    // update branch above — clients never write it.
-    match /transferCodes/{tournamentId} {
-      allow read, write: if false;
+    //   get  is open, because you can only read a document whose id you already
+    //        know, and the id IS the six-character code. Guessing means finding
+    //        one of 32^6 ids through individually billed reads.
+    //   list is denied, which is the whole point — it would hand over every live
+    //        code at once and make the get rule meaningless.
+    //
+    // The code deliberately does NOT live on the tournament document: that is
+    // world-readable, so every participant who scanned the QR could have read
+    // the code and seized control.
+    //
+    // delete needs only isRegistered(), because the claimer must burn the code
+    // in the same batch as taking ownership — at that instant they do not own
+    // the tournament yet, so an owner-scoped rule would reject it and leave the
+    // code live. Knowing the id is the credential here too; the worst a stranger
+    // who has learnt a code can do is cancel a handover that is already theirs
+    // to complete.
+    match /transferCodes/{code} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isRegistered()
+        && request.resource.data.tournamentId is string
+        && request.resource.data.expiresAtMs is number
+        && ownsTournament(request.resource.data.tournamentId);
+      allow update: if false;
+      allow delete: if isRegistered();
     }
 
     // Completed Tournaments — private history, owner only.

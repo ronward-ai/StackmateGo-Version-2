@@ -205,57 +205,144 @@ describe('director handover', () => {
     await assertFails(updateDoc(doc(stranger(), 'leaguePlayers', 'player-1'), { totalPoints: 1 }));
   });
 
-  // Transfer codes are the credential for taking over a live tournament, and
-  // activeTournaments is world-readable — so the code cannot live there. It is
-  // written and read only by the server's Admin SDK, which bypasses rules.
-  // Every client identity must be locked out completely.
-  describe('transfer codes are server-only', () => {
+  // Handover runs in the rules: the code is the id of a transferCodes document,
+  // and claiming is the only branch that may change ownerId.
+  describe('transfer codes', () => {
+    const CODE = 'ABC123';
+    const codeDoc = (overrides: Record<string, unknown> = {}) => ({
+      tournamentId: TOURNAMENT,
+      expiresAtMs: Date.now() + 60000,
+      createdBy: DIRECTOR,
+      ...overrides,
+    });
+
     beforeEach(async () => {
       await testEnv.withSecurityRulesDisabled(async ctx => {
-        await setDoc(doc(ctx.firestore(), 'transferCodes', TOURNAMENT), {
-          code: 'ABC123',
-          tournamentId: TOURNAMENT,
-          expiresAt: new Date(Date.now() + 60000).toISOString(),
-          createdBy: DIRECTOR,
-        });
+        await setDoc(doc(ctx.firestore(), 'transferCodes', CODE), codeDoc());
       });
     });
 
-    it('cannot be read by anyone — not even the tournament owner', async () => {
-      await assertFails(getDoc(doc(anon(), 'transferCodes', TOURNAMENT)));
-      await assertFails(getDoc(doc(anonAuth(), 'transferCodes', TOURNAMENT)));
-      await assertFails(getDoc(doc(stranger(), 'transferCodes', TOURNAMENT)));
-      await assertFails(getDoc(doc(director(), 'transferCodes', TOURNAMENT)));
-    });
-
-    it('cannot be listed, which would leak every live code at once', async () => {
+    it('can be read only by someone who already knows the code', async () => {
+      // The id IS the secret, so a get is safe; a list would hand over every
+      // live code at once and make that meaningless.
+      await assertSucceeds(getDoc(doc(anon(), 'transferCodes', CODE)));
       await assertFails(getDocs(query(collection(anon(), 'transferCodes'))));
       await assertFails(getDocs(query(collection(director(), 'transferCodes'))));
     });
 
-    it('cannot be created, overwritten or deleted by any client', async () => {
-      await assertFails(setDoc(doc(stranger(), 'transferCodes', 'forged'), { code: 'HACKED' }));
-      await assertFails(setDoc(doc(director(), 'transferCodes', TOURNAMENT), { code: 'HACKED' }));
-      await assertFails(updateDoc(doc(director(), 'transferCodes', TOURNAMENT), { code: 'HACKED' }));
-      await assertFails(deleteDoc(doc(director(), 'transferCodes', TOURNAMENT)));
+    it('can only be created by the current director of that tournament', async () => {
+      await assertSucceeds(setDoc(doc(director(), 'transferCodes', 'NEWONE'), codeDoc()));
+      await assertFails(setDoc(doc(stranger(), 'transferCodes', 'FORGED'), codeDoc()));
+      await assertFails(setDoc(doc(anonAuth(), 'transferCodes', 'FORGED2'), codeDoc()));
+      await assertFails(setDoc(doc(anon(), 'transferCodes', 'FORGED3'), codeDoc()));
+    });
+
+    it('cannot be edited to point at a different tournament', async () => {
+      await assertFails(updateDoc(doc(director(), 'transferCodes', CODE), {
+        tournamentId: 'someone-elses-tournament',
+      }));
+    });
+
+    it('cannot be created without an expiry, which the claim rule relies on', async () => {
+      await assertFails(setDoc(doc(director(), 'transferCodes', 'NOEXPIRY'), {
+        tournamentId: TOURNAMENT,
+        createdBy: DIRECTOR,
+      }));
     });
   });
 
-  // The claim itself runs through /api/claim-tournament with the Admin SDK, so
-  // ownerId stays unwritable by clients. This is the rule that made the old
-  // client-side handover silently impossible; it is now load-bearing by design
-  // rather than by accident.
-  it('still denies any client writing ownerId directly', async () => {
-    await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { ownerId: OTHER_DIRECTOR }));
-    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { ownerId: 'anon-uid' }));
-  });
+  describe('claiming a tournament with a code', () => {
+    const CODE = 'ABC123';
 
-  it('no longer lets a participant write transfer fields onto the tournament', async () => {
-    // These were in the participant hasOnly() list while the code lived on the
-    // tournament document. Nothing writes them from a client any more.
-    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      transferCode: 'ABC123',
-    }));
+    const seedCode = async (overrides: Record<string, unknown> = {}) => {
+      await testEnv.withSecurityRulesDisabled(async ctx => {
+        await setDoc(doc(ctx.firestore(), 'transferCodes', CODE), {
+          tournamentId: TOURNAMENT,
+          expiresAtMs: Date.now() + 60000,
+          createdBy: DIRECTOR,
+          ...overrides,
+        });
+      });
+    };
+
+    // Wrapped, not passed by reference: beforeEach hands the callback a test
+    // context, which would land in the overrides object and be written.
+    beforeEach(() => seedCode());
+
+    it('lets a registered user take ownership with a valid code', async () => {
+      await assertSucceeds(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+        ownerId: OTHER_DIRECTOR,
+        claimCode: CODE,
+      }));
+    });
+
+    it('rejects a wrong code', async () => {
+      await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+        ownerId: OTHER_DIRECTOR,
+        claimCode: 'WRONG1',
+      }));
+    });
+
+    it('rejects taking ownership with no code at all', async () => {
+      // The bug this whole feature had: the old client just wrote ownerId.
+      await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+        ownerId: OTHER_DIRECTOR,
+      }));
+    });
+
+    it('rejects an expired code', async () => {
+      await seedCode({ expiresAtMs: Date.now() - 1000 });
+      await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+        ownerId: OTHER_DIRECTOR,
+        claimCode: CODE,
+      }));
+    });
+
+    it('rejects a code issued for a different tournament', async () => {
+      await seedCode({ tournamentId: 'a-different-tournament' });
+      await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+        ownerId: OTHER_DIRECTOR,
+        claimCode: CODE,
+      }));
+    });
+
+    it('rejects naming someone else as the new owner', async () => {
+      await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+        ownerId: 'somebody-else',
+        claimCode: CODE,
+      }));
+    });
+
+    it('rejects an anonymous participant claiming, code or not', async () => {
+      await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+        ownerId: 'anon-uid',
+        claimCode: CODE,
+      }));
+      await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+        ownerId: 'nobody',
+        claimCode: CODE,
+      }));
+    });
+
+    it('rejects smuggling other changes through the claim', async () => {
+      // A claim may move ownerId and claimCode, nothing else.
+      await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+        ownerId: OTHER_DIRECTOR,
+        claimCode: CODE,
+        players: [],
+      }));
+    });
+
+    it('lets the claimer burn the code in the same breath as claiming', async () => {
+      // Deletion cannot be owner-scoped: at the moment of the batch the claimer
+      // does not own the tournament yet, so an owner-only rule would leave the
+      // code live after a successful handover.
+      await assertSucceeds(deleteDoc(doc(stranger(), 'transferCodes', CODE)));
+    });
+
+    it('stops an unauthenticated visitor deleting a code', async () => {
+      await assertFails(deleteDoc(doc(anon(), 'transferCodes', CODE)));
+    });
   });
 });
 
