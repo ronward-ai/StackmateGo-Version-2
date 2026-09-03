@@ -100,6 +100,29 @@ console at all when nobody is signed in; standalone games stay usable offline.
 clears the pin. New Tournament navigates there for exactly that reason — plain `/` would reopen the
 game it just finished.
 
+### A local game is persisted; a live one is not
+
+`tournamentLocalProgress` holds the players and clock of a game that has **not** gone live, keyed by
+`localGameId`. Restored only when `details.type !== 'database'`.
+
+Players were never persisted, so a refresh always lost the roster of a local game — and once logging
+out became a full page load, an ordinary action destroyed one. **Never restore this into a live
+tournament:** its truth is Firestore, and seeding it from localStorage is the same hazard
+`hasLoadedRemoteState` exists to prevent.
+
+The clock is deliberately restored paused. The page was away for an unknown time, so resuming a
+running timer would silently be wrong.
+
+### Resume only reopens a game that is plausibly current
+
+Nothing deletes an `activeTournaments` document, so every game an account has ever taken live is a
+resume candidate. Selection therefore skips anything marked `status: 'completed'` and anything not
+touched in the last 12 hours, and sorts on a *parsed* timestamp — `String(value)` put a Firestore
+Timestamp's `"[object Object]"` above every ISO string, so an old test could outrank tonight's game.
+
+`updatedAt` is written on every player sync so "most recently active" is real rather than "most
+recently created".
+
 ### A device must never write to a tournament it has not read
 
 `PokerTimer` has three direct `updateDoc` sync effects that bypass the broadcast chain by design.

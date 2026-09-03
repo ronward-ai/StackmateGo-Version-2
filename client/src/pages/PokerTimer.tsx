@@ -108,6 +108,26 @@ function UserMenu() {
   );
 }
 
+/**
+ * A Firestore field that might be an ISO string, a Timestamp, or missing, as a
+ * number of milliseconds. 0 when it cannot be read.
+ *
+ * Not decorative: sorting `String(value)` put "[object Object]" — a Timestamp —
+ * above every ISO string, so an old document could outrank tonight's game.
+ */
+function timestampMs(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (value && typeof value === 'object' && 'seconds' in (value as any)) {
+    const seconds = Number((value as any).seconds);
+    return Number.isFinite(seconds) ? seconds * 1000 : 0;
+  }
+  return 0;
+}
+
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
   const [, setLocation] = useLocation();
@@ -183,12 +203,29 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         );
         if (cancelled || snap.empty) return;
 
-        // Most recently created wins, so an old abandoned game never outranks
-        // tonight's. createdAt is an ISO string written at go-live.
-        const newest = snap.docs
-          .map(d => ({ id: d.id, createdAt: String(d.data().createdAt ?? '') }))
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+        // Only a game that is plausibly the one being run right now.
+        //
+        // Nothing deletes an activeTournaments document, so every game this
+        // account has ever taken live is a candidate. Picking "newest ever
+        // created" reopened a test tournament from months earlier when there was
+        // no current game — which is worse than reopening nothing.
+        const RECENT_MS = 12 * 60 * 60 * 1000; // a poker night does not span longer
+        const now = Date.now();
 
+        const candidates = snap.docs
+          .map(d => {
+            const data = d.data();
+            return {
+              id: d.id,
+              status: String(data.status ?? ''),
+              at: Math.max(timestampMs(data.updatedAt), timestampMs(data.createdAt)),
+            };
+          })
+          .filter(c => c.status !== 'completed')
+          .filter(c => c.at > 0 && now - c.at < RECENT_MS)
+          .sort((a, b) => b.at - a.at);
+
+        const newest = candidates[0];
         if (newest) {
           localStorage.setItem('activeDirectorTournamentId', newest.id);
           setLocation(`/tournament/${newest.id}/director`);
@@ -401,6 +438,24 @@ function PokerTimerInner({
 
     savedHistoryRef.current = gameKey;
 
+    // Mark the live document finished so it stops being a resume candidate.
+    // Recency is a heuristic; a finished flag is a fact. Best effort — history
+    // is the thing that matters here, and the recency window covers the rest.
+    if (details?.id) {
+      (async () => {
+        try {
+          const { doc, updateDoc } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
+          await updateDoc(doc(db, 'activeTournaments', String(details.id)), {
+            status: 'completed',
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.error('Could not mark the tournament finished:', err);
+        }
+      })();
+    }
+
     // Clear the dedupe key again if the save fails, so the next pass retries.
     // Setting it before the call and never unsetting it meant a failed save was
     // never retried — and the failure toast tells the director to go and check
@@ -461,7 +516,13 @@ function PokerTimerInner({
       try {
         await updateDoc(
           doc(db, 'activeTournaments', dbTournamentId),
-          sanitizeForFirestore({ players: tournament.state.players })
+          // updatedAt makes "which game am I running?" answerable on another
+          // device: resume picks the most recently ACTIVE tournament, not the
+          // most recently created one.
+          sanitizeForFirestore({
+            players: tournament.state.players,
+            updatedAt: new Date().toISOString(),
+          })
         );
       } catch (e) {
         console.error('Player sync to Firestore failed:', e);

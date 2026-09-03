@@ -193,6 +193,48 @@ const broadcastParticipantUpdate = async (tournamentId: number | string) => {
   }
 };
 
+/**
+ * The live part of a local game — everything the settings/levels/prize-structure
+ * keys do not already cover.
+ *
+ * Players were never persisted, so a refresh has always lost the roster of a game
+ * that had not gone live, and logging out (a full page load since d95771a) made
+ * that reachable by an ordinary action: six players and two bust-outs, gone.
+ *
+ * Keyed by localGameId so starting a new game never inherits the last one's
+ * roster.
+ */
+const LOCAL_PROGRESS_KEY = 'tournamentLocalProgress';
+
+interface LocalProgress {
+  localGameId: string;
+  players: Player[];
+  currentLevel: number;
+  secondsLeft: number;
+  isRunning: boolean;
+  targetEndTime?: number;
+  isFinalTable?: boolean;
+}
+
+function loadLocalProgress(localGameId?: string): LocalProgress | null {
+  if (!localGameId) return null;
+  try {
+    const raw = localStorage.getItem(LOCAL_PROGRESS_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as LocalProgress;
+    if (saved?.localGameId !== localGameId || !Array.isArray(saved.players)) return null;
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalProgress(progress: LocalProgress) {
+  try {
+    localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(progress));
+  } catch {}
+}
+
 export function useTournament(tournamentId?: string) {
   const { user } = useAuth();
   // Load saved settings and merge with defaults
@@ -213,16 +255,26 @@ export function useTournament(tournamentId?: string) {
 
   // Create an initial state with saved preferences
   const savedLevels = loadSavedBlindLevels();
+
+  // Restore a local game in progress. NEVER for a database tournament: its truth
+  // is Firestore, and seeding it from localStorage is the same hazard the
+  // hasLoadedRemoteState latch exists to prevent — a device writing its own idea
+  // of the roster over the real game.
+  const restored = tournamentId ? null : loadLocalProgress(getOrCreateLocalGameId());
+
   const initialState: TournamentState = {
     levels: savedLevels,
-    players: [],
-    currentLevel: 0,
-    secondsLeft: savedLevels[0]?.duration || 900, // Default to 15 minutes if no levels
+    players: restored?.players ?? [],
+    currentLevel: restored?.currentLevel ?? 0,
+    secondsLeft: restored?.secondsLeft ?? (savedLevels[0]?.duration || 900), // Default to 15 minutes if no levels
+    targetEndTime: restored?.targetEndTime,
+    // Never restore a running clock: the page was away for an unknown time, so
+    // resuming paused is honest and the director presses play.
     isRunning: false,
     settings: mergedSettings,
     bestLosingHand: undefined,
     prizeStructure: loadSavedPrizeStructure(),
-    isFinalTable: false,
+    isFinalTable: restored?.isFinalTable ?? false,
     details: tournamentId ? {
       type: 'database',
       id: tournamentId
@@ -352,6 +404,37 @@ export function useTournament(tournamentId?: string) {
       }
     };
   }, []);
+
+  // Persist a local game as it changes, so logging out or refreshing does not
+  // lose the roster. Only for games that have not gone live — a database
+  // tournament lives in Firestore and must not be seeded from here.
+  useEffect(() => {
+    if (state.details?.type === 'database') return;
+
+    // A standalone game carries no localGameId on details — only league games do
+    // — so fall back to the stored id, which exists for every local game.
+    const localGameId = state.details?.localGameId ?? getOrCreateLocalGameId();
+    if (!localGameId) return;
+
+    saveLocalProgress({
+      localGameId: String(localGameId),
+      players: state.players,
+      currentLevel: state.currentLevel,
+      secondsLeft: state.secondsLeft,
+      isRunning: state.isRunning,
+      targetEndTime: state.targetEndTime,
+      isFinalTable: state.isFinalTable,
+    });
+  }, [
+    state.players,
+    state.currentLevel,
+    state.secondsLeft,
+    state.isRunning,
+    state.targetEndTime,
+    state.isFinalTable,
+    state.details?.type,
+    state.details?.localGameId,
+  ]);
 
   // Set up Firestore listener for real-time tournament synchronization
   useEffect(() => {
