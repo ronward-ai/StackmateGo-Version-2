@@ -68,63 +68,31 @@ They are genuinely different: a standalone tournament has an event name and no l
 resolve the display name through `lib/eventName.ts`, which reads the legacy `branding.leagueName`
 key for older tournaments and falls back to the league's name in league mode.
 
-### Director handover runs in the security rules
+### Handing over is logging out — there is no handover mechanism
 
-Passing director control mid-game is `client/src/lib/handover.ts` plus two rules blocks. There is no
-server involved, and nothing to deploy but the rules.
+Two were built and both removed. **Do not build a third without reading this.**
 
-**Why not a Cloud Function.** One was written and worked, but could not be deployed: it needs a
-service account key, and the project inherits a Google organisation policy
-(`iam.disableServiceAccountKeyCreation`) forbidding key creation, which is not ours to lift. The
-Express alternative needs the same key. Rules are the only thing this project can actually ship —
-they go out by pasting into the Firebase console.
+A **transfer code** moved `ownerId` between two different accounts. It worked, but the receiving
+director's device then resolved the league from `where('ownerId', '==', <signed-in user>)`
+(`useLeague.ts`) and the points formula from that user's settings — so their half of the night was
+recorded into *their own* league with *their own* scoring, silently.
 
-**The code is the document id.** `transferCodes/{CODE}` holds `{ tournamentId, expiresAtMs }`.
-`get` is open and `list` is denied, so the document can only be read by someone who already knows the
-six characters. **Do not put the code on the tournament document** — `activeTournaments` is
-world-readable, so every participant who scans the QR could read it and seize control. That is how it
-was originally built.
+A **device lock** (`activeDeviceId`) then tried to give one device control under a shared login. It
+was only half-enforced: `broadcastTournamentState` stood down, but the three direct `updateDoc`
+writers in `PokerTimer.tsx` bypass the broadcast chain by design and kept writing. The device without
+control still wrote the players array on every local change, so its stale copy overwrote the other
+device's rebuys — bust-outs worked, rebuys silently reverted.
 
-**Only the owner may change a live game.** There was a rules branch letting any `isAuthenticated()`
-caller write the timer, blinds and player list. That includes ANONYMOUS sessions, and the
-participant view signs every QR visitor in anonymously — so any player could pause the clock. It
-also meant handover *shared* control: the previous director kept writing. Both are closed; the
-client mirrors it by refreshing `details.ownerId` from the live snapshot, so the existing
-`broadcastTournamentState` guard engages and the former director is moved to the participant view.
+What replaced both: **one director at a time, handing over by logging out.** The next person signs in
+with the same account, and `PokerTimer` restores the pin from that user's most recent
+`activeTournaments` document, so the game resumes on any device with no URL and no code. League,
+season and points are correct by construction because it is the same account throughout.
 
-**Two directors, two different mechanisms.** Do not merge them; they solve different problems.
+`ownerId` is unwritable by clients again, and only the owner may change a live game.
 
-| | Transfer code | Device lock |
-|---|---|---|
-| For | Two **different** accounts | One **shared** account |
-| Moves | `ownerId` on the tournament | `activeDeviceId` on the tournament |
-| Enforced by | Firestore rules | The app |
-| Deploy | Rules, by hand | Nothing |
-
-The device lock exists because a shared login makes both devices the owner, so the rules cannot tell
-them apart — `getDeviceId()` (`lib/deviceId.ts`) can. It is cooperative by construction: fine between
-two people running a game together, not protection against someone hostile. Absent `activeDeviceId`
-means nobody has claimed control, which is every pre-existing game and the ordinary single-device
-case, so it must stay permitted.
-
-**Prefer the shared login for a league night.** With separate accounts, `useLeague` resolves the
-current league from `where('ownerId', '==', <signed-in user>)` and the points formula from that
-user's settings — so director 2 would record results into *their own* league with *their own*
-scoring, silently. Fixing that needs the league to be resolved from the tournament document rather
-than the signed-in user; until then, share the login.
-
-**Claiming is one batch**: take ownership and delete the code together, so a code cannot be used
-twice. The submitted code has to be written to `claimCode` for the rules to see it at all — rules can
-only read the request — and the new owner clears it immediately afterwards. That is safe because the
-batch destroys the code document, so the briefly visible code already unlocks nothing.
-
-`transferCodes` delete only requires `isRegistered()`, deliberately: at the instant of the batch the
-claimer does not own the tournament yet, so an owner-scoped rule would reject the delete and leave
-the code live after a successful handover.
-
-The claim branch is the **only** thing that may change `ownerId`. Ten rules tests cover it, including
-that the old behaviour — writing `ownerId` with no code — is still refused. Mutation-tested: removing
-the code and expiry checks fails three of them.
+**`?home=1`** means "I asked to be here": it suppresses both the pin redirect and the resume, and
+clears the pin. New Tournament navigates there for exactly that reason — plain `/` would reopen the
+game it just finished.
 
 ### `isAnonymous` means the FIREBASE anonymous session
 
@@ -223,9 +191,9 @@ season, so the screen and the database cannot disagree.
   blocks deletion and injection but not editing an existing entry. Closing it means authenticating
   the write — see the note in `PlayerClaimView.tsx`.
 - **Anyone registered can create league documents.** Scoping create to `ownsLeague()` was tried and
-  reverted: it silently denied handover directors mid-game, losing results with no error on screen.
-  Update and delete remain owner-scoped. The proper fix is authorising by tournament, not league.
-  See the director-handover test in `tests/rules/firestore.rules.test.ts`.
+  reverted when it silently denied a handover director mid-game. Handover between accounts no longer
+  exists, so that rationale has expired — this can probably be tightened now, but do it deliberately
+  and with rules tests rather than as a drive-by. Update and delete remain owner-scoped.
 - **`leaguePlayers.totalPoints`** is a denormalised counter nothing reads — every table recomputes
   from results. It can only drift.
 - **The rake formula is copy-pasted at 9 sites**, and one of them disagrees.

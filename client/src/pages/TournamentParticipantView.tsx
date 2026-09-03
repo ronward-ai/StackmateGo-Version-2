@@ -85,60 +85,9 @@ function TournamentParticipantView() {
   const [, setLocation] = useLocation();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [signInRequested, setSignInRequested] = useState(false);
-  const [takingControl, setTakingControl] = useState(false);
-
-  // Only the account that owns the tournament is offered control. Players
-  // watching by QR never see it.
-  const ownsThisTournament = !!user?.id && !isAnonymous && tournament?.ownerId === user.id;
 
   // `user` is a union with the legacy anonymous shape, which carries no email.
   const accountLabel = user && 'email' in user ? user.email : undefined;
-
-  /**
-   * Take the game back onto this device.
-   *
-   * Both directors can share one login, so the tournament records which DEVICE
-   * is driving — see lib/deviceId.ts. Confirmed first, because it stops the
-   * other device mid-game.
-   */
-  const takeControl = async () => {
-    if (!id || takingControl) return;
-    const ok = window.confirm(
-      'Take control of this tournament?\n\nThe device currently running it will stop being able to make changes.',
-    );
-    if (!ok) return;
-
-    setTakingControl(true);
-    try {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      const { getDeviceId } = await import('@/lib/deviceId');
-      await updateDoc(doc(db, 'activeTournaments', String(id)), {
-        activeDeviceId: getDeviceId(),
-        activeDeviceAt: new Date().toISOString(),
-      });
-      setLocation(`/tournament/${id}/director`);
-    } catch (error) {
-      console.error('Could not take control:', error);
-      window.alert('Could not take control. Check your connection and try again.');
-    } finally {
-      setTakingControl(false);
-    }
-  };
-
-  /**
-   * Signing in from this screen should hand the director back their tournament.
-   *
-   * The Sign In button used to authenticate and leave you standing here, on the
-   * read-only player view — so for a director who had logged out, signing back
-   * in looked like it did nothing.
-   *
-   * AuthModal closes on both success and cancel, so the close is not the signal;
-   * isAuthenticated turning true is. TournamentDirector re-checks ownership
-   * against Firestore and bounces a non-owner straight back, so the ownerId
-   * check here only spares an ordinary player a pointless round trip — it is not
-   * the security boundary. The rules are.
-   */
   useEffect(() => {
     if (!signInRequested || !isAuthenticated || isAnonymous || !id) return;
 
@@ -516,19 +465,6 @@ function TournamentParticipantView() {
               A deliberate labelled control rather than a clickable logo, so
               nobody taps it by accident while watching a live game. */}
           <div className="flex-shrink-0 flex items-center gap-2">
-            {ownsThisTournament && (
-              <button
-                onClick={takeControl}
-                disabled={takingControl}
-                className="flex items-center gap-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 rounded-lg px-3 py-2 transition-colors"
-              >
-                <Shield className="h-3.5 w-3.5" />
-                <span>{takingControl ? 'Taking…' : 'Take control'}</span>
-              </button>
-            )}
-            {/* Only when nobody is signed in: a player who arrived by QR should
-                not be nagged to make an account, and a signed-in director does
-                not need it. A director who logged out and landed here does. */}
             {/* An account control in BOTH states.
                 This used to offer Sign In only when signed out, so a director who
                 landed here signed in as the wrong account had nothing to press —

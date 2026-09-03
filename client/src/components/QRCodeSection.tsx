@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Loader2, Shield, Copy, Radio, Smartphone } from 'lucide-react';
+import { Loader2, Radio, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { useLocation } from 'wouter';
 import { projectId, databaseId } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { getAuth } from 'firebase/auth';
@@ -13,8 +11,6 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { useLeague } from '@/hooks/useLeague';
 import { eventNameOf } from '@/lib/eventName';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import { createTransferCode as requestTransferCode, claimTournament } from '@/lib/handover';
-import { getDeviceId } from '@/lib/deviceId';
 
 function generateSecureCode(length = 6): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes confusable 0/O/1/I
@@ -101,14 +97,9 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
   const { user, isAnonymous } = useAuth();
   const { isPro } = useSubscription();
   const { league } = useLeague();
-  const [, setLocation] = useLocation();
 
   const [isCreating, setIsCreating] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
-  const [transferCode, setTransferCode] = useState<string | null>(null);
-  const [showTransferCode, setShowTransferCode] = useState(false);
-  const [inputCode, setInputCode] = useState('');
-  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
 
   const createTournament = async () => {
     if (!user || isAnonymous) {
@@ -176,11 +167,6 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       const docId = await Promise.race([
         createDocViaRest(projectId, databaseId, 'activeTournaments', {
           ...newTournamentData,
-          // The device going live starts in control. Both directors may share a
-          // login, so ownership cannot tell their devices apart — see
-          // lib/deviceId.ts and hasControl in useTournament.
-          activeDeviceId: getDeviceId(),
-          activeDeviceAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }, idToken, localGameId),
@@ -203,91 +189,6 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  const generateTransferCode = async () => {
-    const tournamentId = state.details?.id || dbTournamentId;
-    if (!tournamentId) {
-      toast({ title: "Error", description: "Tournament must be saved first", variant: "destructive" });
-      return;
-    }
-
-    // The code is generated and stored server-side, in a collection no client
-    // can read. It used to be written onto the tournament document — which is
-    // world-readable — so every participant who scanned the QR could read the
-    // code and take over the game.
-    try {
-      const { code, expiresAt } = await requestTransferCode(String(tournamentId));
-
-      setTransferCode(code);
-      setShowTransferCode(true);
-      toast({ title: "Code generated", description: "Share this code with the new director" });
-
-      const msLeft = expiresAt ? new Date(expiresAt).getTime() - Date.now() : 300000;
-      setTimeout(() => {
-        setTransferCode(null);
-        setShowTransferCode(false);
-      }, Math.max(0, msLeft));
-    } catch (err: any) {
-      toast({
-        title: "Could not generate a code",
-        description: err?.message || "Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const copyTransferCode = () => {
-    if (transferCode) {
-      navigator.clipboard.writeText(transferCode);
-      toast({ title: "Copied!", description: "Transfer code copied to clipboard" });
-    }
-  };
-
-  const isValidCode = (code: string): boolean => {
-    return /^[A-Z0-9]{6}$/.test(code.trim().toUpperCase());
-  };
-
-  const handleUseCode = async () => {
-    const trimmedCode = inputCode.trim().toUpperCase();
-
-    if (!isValidCode(trimmedCode)) {
-      toast({
-        title: "Invalid code",
-        description: "Code must be exactly 6 characters (letters and numbers)",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!user) {
-      toast({
-        title: "Login required",
-        description: "You must be logged in to use a transfer code",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSubmittingCode(true);
-    try {
-      // Verified server-side. The old flow wrote `ownerId` straight to Firestore,
-      // which every activeTournaments update branch rejects by design — so
-      // handover never actually worked, it just reported a generic failure.
-      const tournamentId = await claimTournament(trimmedCode);
-
-      toast({ title: "Success!", description: "You now have director access to this tournament" });
-      setInputCode('');
-      setLocation(`/tournament/${tournamentId}/director`);
-    } catch (err: any) {
-      toast({
-        title: "Could not use that code",
-        description: err?.message || "Please check the code and try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingCode(false);
     }
   };
 
@@ -350,77 +251,6 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
               </div>
             </div>
 
-            {/* Director handoff */}
-            <div className="bg-gradient-to-r from-purple-600/10 to-pink-600/10 border border-purple-500/20 rounded-xl p-4">
-              <h3 className="font-semibold mb-3 flex items-center gap-2 text-purple-300 text-sm">
-                <Shield className="h-4 w-4" />
-                Director Handoff
-              </h3>
-
-              <div className="space-y-3">
-                <div className="p-3 bg-purple-900/20 border border-purple-700/30 rounded-lg">
-                  <p className="text-sm text-gray-300 mb-3">
-                    <strong>Share control</strong> — generate a code to hand this tournament to another director
-                  </p>
-                  {!showTransferCode ? (
-                    <Button
-                      onClick={generateTransferCode}
-                      size="sm"
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                      data-testid="button-generate-transfer-code"
-                    >
-                      Generate Transfer Code
-                    </Button>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 p-2 bg-purple-800/30 border border-purple-600/50 rounded">
-                        <code className="flex-1 text-xl font-mono text-purple-200 text-center tracking-widest" data-testid="text-transfer-code">
-                          {transferCode}
-                        </code>
-                        <Button
-                          onClick={copyTransferCode}
-                          variant="outline"
-                          size="sm"
-                          className="border-purple-600"
-                          data-testid="button-copy-transfer-code"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-purple-400 text-center">Expires in 5 minutes</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 bg-green-900/20 border border-green-700/30 rounded-lg">
-                  <p className="text-sm text-gray-300 mb-3">
-                    <strong>Take control</strong> — enter a code received from another director
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      placeholder="6-character code"
-                      value={inputCode}
-                      onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                      maxLength={6}
-                      className="font-mono text-center tracking-widest uppercase"
-                      data-testid="input-transfer-code"
-                    />
-                    <Button
-                      onClick={handleUseCode}
-                      disabled={!isValidCode(inputCode) || isSubmittingCode || !user}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      data-testid="button-use-transfer-code"
-                    >
-                      {isSubmittingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Use"}
-                    </Button>
-                  </div>
-                  {!user && (
-                    <p className="text-xs text-amber-400 mt-2">Log in to use a transfer code</p>
-                  )}
-                </div>
-              </div>
-            </div>
           </>
         ) : (
           /* Not yet live */

@@ -113,6 +113,50 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   // Waiting for authLoading matters. useAuth starts with no user, so checking
   // without it would skip the redirect on every cold load and break the case
   // this effect exists for.
+  // Resume the live game after signing in, on ANY device.
+  //
+  // This is what replaces transfer codes and the device lock: handing over means
+  // logging out so the next director signs in with the same account, and their
+  // device then finds the game by itself. Without this they would need the URL.
+  //
+  // Only fills the pin when it is empty, so it never overrides a game the
+  // director is already looking at.
+  useEffect(() => {
+    if (tournamentId || authLoading) return;
+    if (!user || isAnonymous) return;
+
+    let cancelled = false;
+    const restorePin = async () => {
+      try {
+        if (localStorage.getItem('activeDirectorTournamentId')) return;
+        if (new URLSearchParams(window.location.search).has('home')) return;
+
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const snap = await getDocs(
+          query(collection(db, 'activeTournaments'), where('ownerId', '==', user.id)),
+        );
+        if (cancelled || snap.empty) return;
+
+        // Most recently created wins, so an old abandoned game never outranks
+        // tonight's. createdAt is an ISO string written at go-live.
+        const newest = snap.docs
+          .map(d => ({ id: d.id, createdAt: String(d.data().createdAt ?? '') }))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+
+        if (newest) {
+          localStorage.setItem('activeDirectorTournamentId', newest.id);
+          setLocation(`/tournament/${newest.id}/director`);
+        }
+      } catch (err) {
+        console.error('Could not restore the live tournament:', err);
+      }
+    };
+
+    restorePin();
+    return () => { cancelled = true; };
+  }, [tournamentId, authLoading, user, isAnonymous, setLocation]);
+
   useEffect(() => {
     if (tournamentId || authLoading) return;
 
@@ -214,54 +258,6 @@ function PokerTimerInner({
   // a Set because a re-entry renumbers the players who busted after the
   // returning player, so a result already written can become stale and must
   // be rewritten — see lib/eliminationOrder.ts.
-  // Handing over makes this device a spectator.
-  //
-  // The rules now allow only the tournament's owner to change a live game, so
-  // after a handover this screen's controls would appear to work and silently
-  // change nothing. Say so, and move to the view that is honestly read-only.
-  //
-  // Guarded on ownerId actually being present: a snapshot without the field must
-  // never eject a director mid-game. Fires once — handedOverRef stops a repeat
-  // on every subsequent snapshot.
-  const handedOverRef = useRef(false);
-  useEffect(() => {
-    const ownerId = tournament.state.details?.ownerId;
-    const liveId = tournament.state.details?.id;
-    if (!liveId || typeof ownerId !== 'string' || !ownerId) return;
-    if (!user?.id || isAnonymous) return;
-    if (ownerId === user.id || handedOverRef.current) return;
-
-    handedOverRef.current = true;
-    toast({
-      title: 'Director control passed on',
-      description: 'Another device is running this tournament now. You can still watch it.',
-    });
-    setLocation(`/tournament/${liveId}`);
-  }, [tournament.state.details?.ownerId, tournament.state.details?.id, user?.id, isAnonymous, toast, setLocation]);
-
-  // Another DEVICE has taken control.
-  //
-  // Shown in place, never by navigating away. An earlier version redirected to
-  // the participant view, which is how a director ends up somewhere with no
-  // route back — the exact trap this change exists to remove. The protection
-  // against double input is the broadcast guard in useTournament, which already
-  // stands down for a device without control; moving the screen as well buys
-  // nothing and can strand someone.
-  const [takingControl, setTakingControl] = useState(false);
-  const showControlBanner =
-    tournament.state.details?.type === 'database' &&
-    !!tournament.state.details?.id &&
-    !tournament.hasControl;
-
-  const handleTakeControl = async () => {
-    setTakingControl(true);
-    const ok = await tournament.claimControl();
-    setTakingControl(false);
-    toast(ok
-      ? { title: 'You have control', description: 'This device is running the tournament again.' }
-      : { title: 'Could not take control', description: 'Check your connection and try again.', variant: 'destructive' });
-  };
-
   const processedEliminationsRef = useRef(new Map<string, number>());
 
   // The league sync runs one at a time. It awaits Firestore writes, and the
@@ -644,25 +640,6 @@ function PokerTimerInner({
     <div className="min-h-screen bg-background text-foreground font-sans">
       <div className="container mx-auto px-4 py-3 sm:py-6 max-w-4xl">
         {/* Header — row 1: logo + user menu | row 2: mode toggle */}
-        {showControlBanner && (
-          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-amber-200">Another device is running this game</p>
-              <p className="text-xs text-amber-200/70">
-                Your changes here will not be saved until you take control back.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              className="flex-shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
-              disabled={takingControl}
-              onClick={handleTakeControl}
-            >
-              {takingControl ? 'Taking…' : 'Take control'}
-            </Button>
-          </div>
-        )}
-
         <header className="mb-3 sm:mb-5">
           {/* Row 1: logo left, user menu right */}
           <div className="flex items-center justify-between mb-2">

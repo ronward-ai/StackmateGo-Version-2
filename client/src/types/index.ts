@@ -202,16 +202,6 @@ export interface TournamentDetails {
   createdAt?: string;
   createdBy?: string;
   ownerId?: string;
-  /**
-   * Which device is currently driving this tournament.
-   *
-   * Both directors can share one login, in which case Firestore cannot tell
-   * their devices apart — they authenticate identically — so exclusivity is
-   * held here and enforced in the app. Absent means nobody has claimed control,
-   * which is every existing game and the ordinary single-device case.
-   */
-  activeDeviceId?: string;
-  activeDeviceAt?: string;
   directorCode?: string;
   participantCode?: string;
 }

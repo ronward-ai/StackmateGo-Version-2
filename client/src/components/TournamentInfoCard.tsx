@@ -144,7 +144,10 @@ export function TournamentNewButton({ tournament, league, userLeagues = [], swit
   const handleNewTournament = (keepStructure: boolean) => {
     try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
     resetTournament({ keepStructure });
-    setLocation('/');
+    // ?home=1, not "/": PokerTimer restores the pin from the signed-in user's
+    // most recent live tournament, which would otherwise reopen the very game
+    // this button just finished with. The flag means "I asked to be here".
+    setLocation('/?home=1');
   };
 
   const handleLeagueNewGame = (seasonId: string | number | null) => {
