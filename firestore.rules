@@ -84,19 +84,21 @@ service cloud.firestore {
     // completes. Update and delete are owner-scoped via ownsLeague().
     //
     // KNOWN GAP: create checks only isRegistered(), so any account that learns a
-    // leagueId can add documents to that league. Tightening this to ownsLeague()
-    // was tried and reverted: after a transfer-code handover the new director is
-    // registered but does not own the league, yet useLeague still resolves
-    // currentLeagueId from the tournament's stored leagueId — so their result
-    // writes were denied, silently, with results simply never recorded.
+    // leagueId can add documents to that league.
     //
-    // Silent data loss during a live game is worse than the forged-write risk,
-    // which needs an authenticated attacker who has gone looking for a leagueId.
-    // The proper fix is to authorise by tournament rather than by league: results
-    // already carry tournamentId, so a rule can verify the writer is the current
-    // director of a tournament belonging to that league. leaguePlayers writes
-    // need a tournamentId adding before that can cover them too.
-    // See the director-handover test in tests/rules/firestore.rules.test.ts.
+    // Tightening this to ownsLeague() was tried and reverted once, because it
+    // silently denied a director who had received a tournament from another
+    // account mid-game — results simply never recorded, with nothing on screen.
+    // That flow no longer exists: handing a game over now means logging out so
+    // the next director signs in with the SAME account, which always owns the
+    // league. The original objection has therefore expired and this can probably
+    // be tightened — but do it deliberately, with rules tests, not as a
+    // drive-by, since the failure mode is silent data loss during a live game.
+    //
+    // The thorough fix is to authorise by tournament rather than by league:
+    // results already carry tournamentId, so a rule can verify the writer is the
+    // current director of a tournament belonging to that league. leaguePlayers
+    // writes need a tournamentId adding before that can cover them too.
     match /seasons/{seasonId} {
       allow read: if true;
       allow create: if isRegistered() && request.resource.data.leagueId is string;
