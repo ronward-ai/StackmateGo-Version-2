@@ -153,6 +153,18 @@ so caching them hard is safe, while the one uncached document guarantees a reloa
 deploy. Without it a browser can hold an old `index.html`, keep requesting the old chunks, and sit on
 a stale build indefinitely while other devices move on. That happened, and it presented as an app bug.
 
+### Every screen needs a way out, and a way to change account
+
+`/` redirects to whatever `activeDirectorTournamentId` names, so a plain "go home" cannot escape a
+wedged state — the home control on the participant view links to **`/?home=1`**, which skips that
+redirect and clears the pin. Use it wherever "get me out" is meant.
+
+The participant view shows the signed-in account with a **Sign out**, not just a Sign In for
+signed-out visitors. Without it, a director signed in as the wrong account had nothing to press on
+that screen — no sign-out, and no Take control because they did not own the game — and the only
+escape was clearing site cookies from browser settings. Naming the account is load-bearing too:
+"which login is this?" was the unanswered question behind several rounds of debugging.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season

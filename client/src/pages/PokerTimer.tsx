@@ -115,6 +115,18 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   // this effect exists for.
   useEffect(() => {
     if (tournamentId || authLoading) return;
+
+    // ?home=1 is a deliberate "get me out". Every trap in this area has ended
+    // with someone unable to reach the home screen, because a plain "/" is
+    // redirected straight back to the pinned game. Clearing the pin makes the
+    // escape permanent rather than lasting one page load.
+    try {
+      if (new URLSearchParams(window.location.search).has('home')) {
+        localStorage.removeItem('activeDirectorTournamentId');
+        return;
+      }
+    } catch {}
+
     if (!user || isAnonymous) return;
     try {
       const saved = localStorage.getItem('activeDirectorTournamentId');

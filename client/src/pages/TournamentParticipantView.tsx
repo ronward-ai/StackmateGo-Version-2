@@ -3,7 +3,7 @@ import { useParams, useLocation } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogIn } from 'lucide-react';
+import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogIn, LogOut } from 'lucide-react';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
@@ -81,7 +81,7 @@ function TournamentParticipantView() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notesExpanded, setNotesExpanded] = useState(true);
-  const { user, isAuthenticated, isAnonymous, isLoading, signInAnonymously } = useAuth();
+  const { user, isAuthenticated, isAnonymous, isLoading, signInAnonymously, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [signInRequested, setSignInRequested] = useState(false);
@@ -90,6 +90,9 @@ function TournamentParticipantView() {
   // Only the account that owns the tournament is offered control. Players
   // watching by QR never see it.
   const ownsThisTournament = !!user?.id && !isAnonymous && tournament?.ownerId === user.id;
+
+  // `user` is a union with the legacy anonymous shape, which carries no email.
+  const accountLabel = user && 'email' in user ? user.email : undefined;
 
   /**
    * Take the game back onto this device.
@@ -526,7 +529,18 @@ function TournamentParticipantView() {
             {/* Only when nobody is signed in: a player who arrived by QR should
                 not be nagged to make an account, and a signed-in director does
                 not need it. A director who logged out and landed here does. */}
-            {(!isAuthenticated || isAnonymous) && (
+            {/* An account control in BOTH states.
+                This used to offer Sign In only when signed out, so a director who
+                landed here signed in as the wrong account had nothing to press —
+                no sign-out, and no Take control because they did not own the
+                game. The only escape was clearing site cookies from browser
+                settings, which is what actually happened.
+
+                The account is named on purpose rather than decoratively: seeing
+                WHICH login is in use would have made that whole episode a
+                glance. Players arriving by QR are anonymous, so they only ever
+                see Sign in. */}
+            {(!isAuthenticated || isAnonymous) ? (
               <button
                 onClick={() => { setSignInRequested(true); setShowAuthModal(true); }}
                 className="flex items-center gap-1.5 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg px-3 py-2 transition-colors"
@@ -534,9 +548,21 @@ function TournamentParticipantView() {
                 <LogIn className="h-3.5 w-3.5" />
                 <span>Sign in</span>
               </button>
+            ) : (
+              <button
+                onClick={() => { logout().catch(err => console.error('Sign out failed:', err)); }}
+                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors max-w-[190px]"
+                title={accountLabel ? `Signed in as ${accountLabel}` : 'Sign out'}
+              >
+                <LogOut className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{accountLabel || 'Sign out'}</span>
+              </button>
             )}
+            {/* ?home=1 makes this a guaranteed way out. A plain "/" is redirected
+                straight back to the pinned live game by PokerTimer, so from a
+                wedged state the home button could not actually get you home. */}
             <a
-              href="/"
+              href="/?home=1"
               className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors"
             >
               <Home className="h-3.5 w-3.5" />
