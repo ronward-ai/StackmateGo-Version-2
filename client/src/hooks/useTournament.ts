@@ -14,7 +14,7 @@ import { doc, onSnapshot, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { sanitizeForFirestore } from '../lib/utils';
 
 import { useAuth } from './useAuth';
-import { nextEliminationPosition, positionsAfterReEntry } from '@/lib/eliminationOrder';
+import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -1170,6 +1170,33 @@ export function useTournament(tournamentId?: string) {
     });
   }, [broadcastTournamentAction]);
 
+  /**
+   * One step of undo for a rebuy or re-entry.
+   *
+   * Holds the players array as it was BEFORE the action, plus the array the
+   * action produced. Restoring the whole array rather than reversing each field
+   * is deliberate: a return to the table changes isActive, position, prizeMoney,
+   * the rebuy/re-entry count, seating, table assignment and bounty on that
+   * player — and position on everyone who busted after them, via
+   * positionsAfterReEntry. Reversing that by hand is a bug farm.
+   *
+   * `resulting` is what makes a stale undo safe: any later action replaces the
+   * array, so reference equality tells us whether anything has happened since.
+   */
+  const playerReturnUndoRef = useRef<{
+    label: string;
+    previous: Player[];
+    resulting: Player[];
+  } | null>(null);
+
+  // Mirrors the latest players array. undoPlayerReturn is handed to a toast
+  // action button, which captures it from the render in which the rebuy was
+  // confirmed — a render whose `state` still holds the PRE-rebuy array. Reading
+  // that closure would make every undo look stale and refuse. A ref is always
+  // current, and keeps the callback stable.
+  const latestPlayersRef = useRef<Player[]>(state.players);
+  latestPlayersRef.current = state.players;
+
   // Process a re-entry for an eliminated player
   const processReEntry = useCallback((playerId: string) => {
     setState(prev => {
@@ -1209,6 +1236,12 @@ export function useTournament(tournamentId?: string) {
       const newState = {
         ...prev,
         players: updatedPlayers
+      };
+
+      playerReturnUndoRef.current = {
+        label: `${player.name} — re-entry #${(player.reEntries || 0) + 1}`,
+        previous: prev.players,
+        resulting: updatedPlayers,
       };
 
       // Broadcast re-entry
@@ -1257,10 +1290,51 @@ export function useTournament(tournamentId?: string) {
           : p
       );
 
+      playerReturnUndoRef.current = {
+        label: `${player.name} — rebuy #${currentRebuys + 1}`,
+        previous: prev.players,
+        resulting: updatedPlayers,
+      };
+
       const newState = { ...prev, players: updatedPlayers };
       broadcastTournamentAction('player_rebuy', newState);
       return newState;
     });
+  }, [broadcastTournamentAction]);
+
+  /**
+   * Reverse the last rebuy or re-entry.
+   *
+   * Returns the label of what was undone, or null if there is nothing to undo or
+   * the roster has moved on since. Refusing in that case is the point: the undo
+   * restores a whole players array, so applying it after a later elimination
+   * would silently discard that elimination too.
+   *
+   * The league standings need no separate repair. The sync in PokerTimer already
+   * re-records a player who is eliminated again and corrects anyone whose
+   * position no longer matches what was written, and restoring the array is
+   * exactly that situation.
+   */
+  const undoPlayerReturn = useCallback((): string | null => {
+    const snapshot = playerReturnUndoRef.current;
+    if (!snapshot) return null;
+
+    // Decide here, not inside the updater: a setState updater may not run before
+    // this function returns, so a flag set inside it cannot be read out.
+    if (!rostersMatchForUndo(latestPlayersRef.current, snapshot.resulting)) return null;
+
+    playerReturnUndoRef.current = null;
+    setState(prev => {
+      // Belt and braces: the state may have advanced between the check above and
+      // the updater running.
+      if (!rostersMatchForUndo(prev.players, snapshot.resulting)) return prev;
+
+      const newState = { ...prev, players: snapshot.previous };
+      broadcastTournamentAction('undo_player_return', newState);
+      return newState;
+    });
+
+    return snapshot.label;
   }, [broadcastTournamentAction]);
 
   // Process addon
@@ -2121,6 +2195,7 @@ export function useTournament(tournamentId?: string) {
     isBreak,
     completeTournament,
     undoBustOut,
+    undoPlayerReturn,
     resetAllPlayersToActive,
     processRebuy,
     processReEntry,

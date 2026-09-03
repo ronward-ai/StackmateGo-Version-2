@@ -12,6 +12,8 @@ import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
 import { Player } from '@/types';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
+import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 interface RecentPlayer {
   name: string;
@@ -23,7 +25,43 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, updateSettings } = tournament;
+  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, updateSettings, undoPlayerReturn } = tournament;
+  const { toast } = useToast();
+
+  /**
+   * Put a player back in, and offer one tap to take it back.
+   *
+   * A misfired rebuy used to be unrecoverable without removing the player from
+   * the tournament altogether — and since a return renumbers everyone who
+   * busted after them, it is not a one-player mistake.
+   */
+  const returnPlayerToTable = (action: 'rebuy' | 'reentry', playerId: string) => {
+    if (action === 'rebuy') processRebuy(playerId);
+    else tournament.processReEntry(playerId);
+
+    const name = state.players.find(p => p.id === playerId)?.name ?? 'Player';
+    toast({
+      title: action === 'rebuy' ? `${name} bought back in` : `${name} re-entered`,
+      description: 'Back in the tournament.',
+      action: (
+        <ToastAction
+          altText="Undo"
+          onClick={() => {
+            const undone = undoPlayerReturn();
+            toast(undone
+              ? { title: 'Undone', description: `Reversed ${undone}.` }
+              : {
+                  title: 'Too late to undo',
+                  description: 'The tournament has moved on since. Undo it by hand instead.',
+                  variant: 'destructive' as const,
+                });
+          }}
+        >
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
   const { leaguePlayers } = useLeague();
   const tournamentLeagueId = (state.settings as any)?.leagueId
     ?? (state.details as any)?.leagueId
@@ -936,7 +974,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => processRebuy(player.id)}>Confirm Re-buy</AlertDialogAction>
+                            <AlertDialogAction onClick={() => returnPlayerToTable('rebuy', player.id)}>Confirm Re-buy</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -969,7 +1007,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => tournament.processReEntry(player.id)}>Confirm Re-entry</AlertDialogAction>
+                            <AlertDialogAction onClick={() => returnPlayerToTable('reentry', player.id)}>Confirm Re-entry</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -1013,81 +1051,14 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           })()}
         </div>
 
-        {/* Rebuy Section - Compact - Only show when rebuys are enabled */}
-        {state.prizeStructure?.allowRebuys && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <span className="material-icons text-sm">refresh</span>
-                <span>Rebuys ({state.players.filter(p => p.isActive === false).length} out)</span>
-              </h4>
-              <span className="text-xs text-green-400">Available</span>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {state.players.filter(p => p.isActive === false).map((player) => {
-                const canRebuy = state.prizeStructure?.allowRebuys &&
-                  (player.rebuys || 0) < (state.prizeStructure?.maxRebuys || 3);
-
-                return (
-                  <Button
-                    key={player.id}
-                    variant="outline"
-                    size="sm"
-                    disabled={!canRebuy}
-                    onClick={() => canRebuy && processRebuy(player.id)}
-                    className={`text-xs flex items-center gap-1 ${
-                      canRebuy
-                        ? 'bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10'
-                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                    }`}
-                  >
-                    <span className="material-icons text-sm">refresh</span>
-                    {player.name} ({player.rebuys || 0})
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Re-entry Section - Compact - Only show when re-entries are enabled */}
-        {state.prizeStructure?.allowReEntry && state.players.filter(p => p.isActive === false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <span className="material-icons text-sm">login</span>
-                <span>Re-entries ({state.players.filter(p => p.isActive === false).length} out)</span>
-              </h4>
-              <span className="text-xs text-green-400">Available</span>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {state.players.filter(p => p.isActive === false).map((player) => {
-                const maxReEntries = state.prizeStructure?.maxReEntries ?? 99;
-                const canReEnter = (player.reEntries || 0) < maxReEntries;
-
-                return (
-                  <Button
-                    key={player.id}
-                    variant="outline"
-                    size="sm"
-                    disabled={!canReEnter}
-                    onClick={() => canReEnter && tournament.processReEntry(player.id)}
-                    className={`text-xs flex items-center gap-1 ${
-                      canReEnter
-                        ? 'bg-card border border-blue-500 text-blue-400 hover:bg-blue-500/10'
-                        : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                    }`}
-                  >
-                    <span className="material-icons text-sm">login</span>
-                    {player.name} ({player.reEntries || 0})
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* The standalone Rebuys and Re-entries lists that used to sit here are
+            gone. Eliminated players already carry both actions on their own row,
+            behind a dialog showing the cost — these duplicated them as bare
+            name-buttons that fired on a single tap with no confirmation, which is
+            how a player got put back into a live game by accident. An accidental
+            rebuy also renumbers everyone who busted after them, so it is not a
+            one-player mistake. The Add-on section below stays: add-ons apply to
+            active players, who have no row button, and it already confirms. */}
 
         {/* Add-on Section - Compact - Only show when add-ons are enabled and level reached */}
         {state.prizeStructure?.allowAddons &&

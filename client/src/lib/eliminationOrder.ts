@@ -33,6 +33,9 @@ export interface PositionedPlayer {
   id: string;
   isActive?: boolean;
   position?: number;
+  rebuys?: number;
+  reEntries?: number;
+  knockouts?: number;
 }
 
 /** True when a player has been eliminated and holds a finishing position. */
@@ -104,4 +107,33 @@ export function playersShiftedByReEntry<T extends PositionedPlayer>(
   return players
     .filter(p => p.id !== playerId && isFinished(p) && (p.position as number) < vacated)
     .map(p => p.id);
+}
+
+/**
+ * Do these two rosters agree on everything an undo depends on?
+ *
+ * Undoing a rebuy or re-entry restores a whole players array, so it must only
+ * be applied while nothing else has happened since.
+ *
+ * Reference equality is too strict: the tournament syncs through Firestore, so
+ * an echo of the director's own write can replace the array with a new but
+ * identical one, which would make a valid undo refuse. Comparing nothing is too
+ * weak — undoing after a genuine change would discard that change silently.
+ *
+ * So compare the fields a return to the table actually moves. A later
+ * elimination, knockout, rebuy, re-entry or roster edit changes at least one.
+ */
+export function rostersMatchForUndo(a: PositionedPlayer[], b: PositionedPlayer[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((p, i) => {
+    const q = b[i];
+    return !!q
+      && p.id === q.id
+      && p.isActive === q.isActive
+      && p.position === q.position
+      && (p.rebuys || 0) === (q.rebuys || 0)
+      && (p.reEntries || 0) === (q.reEntries || 0)
+      && (p.knockouts || 0) === (q.knockouts || 0);
+  });
 }

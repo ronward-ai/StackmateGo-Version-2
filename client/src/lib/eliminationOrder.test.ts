@@ -3,6 +3,7 @@ import {
   nextEliminationPosition,
   positionsAfterReEntry,
   playersShiftedByReEntry,
+  rostersMatchForUndo,
   type PositionedPlayer,
 } from './eliminationOrder';
 
@@ -184,5 +185,68 @@ describe('playersShiftedByReEntry', () => {
       .sort();
 
     expect(named).toEqual(actuallyChanged);
+  });
+});
+
+describe('rostersMatchForUndo', () => {
+  const base: PositionedPlayer[] = [
+    { id: 'p1', isActive: false, position: 3, rebuys: 1 },
+    { id: 'p2', isActive: true },
+    { id: 'p3', isActive: true, knockouts: 2 },
+  ];
+  const clone = (ps: PositionedPlayer[]) => ps.map(p => ({ ...p }));
+
+  it('accepts the same array', () => {
+    expect(rostersMatchForUndo(base, base)).toBe(true);
+  });
+
+  // The Firestore echo case: a new array, identical content. Reference equality
+  // would refuse a perfectly valid undo here.
+  it('accepts a structurally identical copy', () => {
+    expect(rostersMatchForUndo(base, clone(base))).toBe(true);
+  });
+
+  it('treats a missing count as zero', () => {
+    const withZeros = clone(base).map(p => ({ rebuys: 0, reEntries: 0, knockouts: 0, ...p }));
+    expect(rostersMatchForUndo(base, withZeros)).toBe(true);
+  });
+
+  it('rejects a later elimination', () => {
+    const after = clone(base);
+    after[1] = { ...after[1], isActive: false, position: 2 };
+    expect(rostersMatchForUndo(base, after)).toBe(false);
+  });
+
+  it('rejects a later knockout', () => {
+    const after = clone(base);
+    after[2] = { ...after[2], knockouts: 3 };
+    expect(rostersMatchForUndo(base, after)).toBe(false);
+  });
+
+  it('rejects a later rebuy or re-entry', () => {
+    const rebought = clone(base);
+    rebought[0] = { ...rebought[0], rebuys: 2 };
+    expect(rostersMatchForUndo(base, rebought)).toBe(false);
+
+    const reentered = clone(base);
+    reentered[0] = { ...reentered[0], reEntries: 1 };
+    expect(rostersMatchForUndo(base, reentered)).toBe(false);
+  });
+
+  it('rejects a renumbered position', () => {
+    const after = clone(base);
+    after[0] = { ...after[0], position: 4 };
+    expect(rostersMatchForUndo(base, after)).toBe(false);
+  });
+
+  it('rejects a player being added or removed', () => {
+    expect(rostersMatchForUndo(base, [...clone(base), { id: 'p4', isActive: true }])).toBe(false);
+    expect(rostersMatchForUndo(base, clone(base).slice(0, 2))).toBe(false);
+  });
+
+  it('rejects a reordered roster, since positions are read by index', () => {
+    const swapped = clone(base);
+    [swapped[0], swapped[1]] = [swapped[1], swapped[0]];
+    expect(rostersMatchForUndo(base, swapped)).toBe(false);
   });
 });
