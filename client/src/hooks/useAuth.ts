@@ -144,7 +144,17 @@ export function useAuth() {
     user: effectiveUser,
     isLoading,
     isAuthenticated: !!firebaseUser,
-    isAnonymous: !!anonymousUser && !user,
+    // Firebase's own flag is the authority. This used to read only the legacy
+    // `anonymousUser` localStorage key — which nothing writes — so isAnonymous
+    // was ALWAYS false, including for a genuine Firebase anonymous session.
+    //
+    // That broke every consumer that uses it to mean "not properly signed in".
+    // TournamentParticipantView signs visitors in anonymously on arrival, so
+    // after a logout the app believed you were signed in: no Sign In button in
+    // the header, the home page redirecting back into the tournament, and the
+    // director route letting you through to an ownership check you could not
+    // pass. The legacy key is still honoured for anyone holding stale data.
+    isAnonymous: firebaseUser ? firebaseUser.isAnonymous : !!anonymousUser,
     login,
     loginWithEmail,
     register,

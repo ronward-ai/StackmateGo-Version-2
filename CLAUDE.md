@@ -98,6 +98,21 @@ The claim branch is the **only** thing that may change `ownerId`. Ten rules test
 that the old behaviour — writing `ownerId` with no code — is still refused. Mutation-tested: removing
 the code and expiry checks fails three of them.
 
+### `isAnonymous` means the FIREBASE anonymous session
+
+`TournamentParticipantView` signs every visitor in anonymously on arrival, so `isAuthenticated`
+(`!!firebaseUser`) is true for people who have not signed in at all. The thing that distinguishes a
+real account is `isAnonymous`, and every consumer spells the test `!user || isAnonymous`.
+
+It used to be derived as `!!anonymousUser && !user` from a legacy `anonymousUser` localStorage key
+**that nothing writes** — so it was permanently `false`, and a Firebase anonymous session looked
+like a signed-in director everywhere. That is what made logging out appear to do nothing: no Sign In
+button in any header, `/` redirecting back into the tournament, and the director route admitting the
+anonymous user as far as an ownership check it could never pass.
+
+It now reads `firebaseUser.isAnonymous`, honouring the legacy key only for stale data. **Check
+`isAnonymous`, never `isAuthenticated` alone**, when you mean "signed in for real".
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
@@ -159,9 +174,6 @@ season, so the screen and the database cannot disagree.
   reverted: it silently denied handover directors mid-game, losing results with no error on screen.
   Update and delete remain owner-scoped. The proper fix is authorising by tournament, not league.
   See the director-handover test in `tests/rules/firestore.rules.test.ts`.
-- **`useAuth` reads an `anonymousUser` localStorage key that nothing writes.** `getAnonymousUser()`
-  feeds `effectiveUser`, so a stale value left by an older build would keep `user` non-null after a
-  logout. Harmless today because no code path sets it; delete the fallback when next in that file.
 - **`leaguePlayers.totalPoints`** is a denormalised counter nothing reads — every table recomputes
   from results. It can only drift.
 - **The rake formula is copy-pasted at 9 sites**, and one of them disagrees.

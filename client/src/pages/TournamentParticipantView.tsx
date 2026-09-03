@@ -81,8 +81,33 @@ function TournamentParticipantView() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notesExpanded, setNotesExpanded] = useState(true);
-  const { user, isAuthenticated, isLoading, signInAnonymously } = useAuth();
+  const { user, isAuthenticated, isAnonymous, isLoading, signInAnonymously } = useAuth();
+  const [, setLocation] = useLocation();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [signInRequested, setSignInRequested] = useState(false);
+
+  /**
+   * Signing in from this screen should hand the director back their tournament.
+   *
+   * The Sign In button used to authenticate and leave you standing here, on the
+   * read-only player view — so for a director who had logged out, signing back
+   * in looked like it did nothing.
+   *
+   * AuthModal closes on both success and cancel, so the close is not the signal;
+   * isAuthenticated turning true is. TournamentDirector re-checks ownership
+   * against Firestore and bounces a non-owner straight back, so the ownerId
+   * check here only spares an ordinary player a pointless round trip — it is not
+   * the security boundary. The rules are.
+   */
+  useEffect(() => {
+    if (!signInRequested || !isAuthenticated || isAnonymous || !id) return;
+
+    const ownerId = tournament?.ownerId;
+    const mayDirect = !ownerId || ownerId === user?.id;
+
+    setSignInRequested(false);
+    if (mayDirect) setLocation(`/tournament/${id}/director`);
+  }, [signInRequested, isAuthenticated, isAnonymous, id, tournament?.ownerId, user?.id, setLocation]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -454,9 +479,9 @@ function TournamentParticipantView() {
             {/* Only when nobody is signed in: a player who arrived by QR should
                 not be nagged to make an account, and a signed-in director does
                 not need it. A director who logged out and landed here does. */}
-            {!isAuthenticated && (
+            {(!isAuthenticated || isAnonymous) && (
               <button
-                onClick={() => setShowAuthModal(true)}
+                onClick={() => { setSignInRequested(true); setShowAuthModal(true); }}
                 className="flex items-center gap-1.5 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg px-3 py-2 transition-colors"
               >
                 <LogIn className="h-3.5 w-3.5" />
