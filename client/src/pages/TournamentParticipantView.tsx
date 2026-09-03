@@ -123,6 +123,19 @@ function TournamentParticipantView() {
 
     const applySnapshot = (data: any) => {
       if (!mounted) return;
+
+      // A saved-but-unpublished game is the director's own working copy: every
+      // tournament is now saved to their account as soon as it has players,
+      // while "Go Live" is what decides players may watch it.
+      //
+      // Absent means published — every document written before isPublished
+      // existed was created by Go Live, and those QR links must keep working.
+      if (data.isPublished === false) {
+        setError('This tournament is not being shared yet. Ask the director to go live.');
+        setIsConnected(false);
+        return;
+      }
+
       if (data.blindLevels) {
         data.blindLevels = data.blindLevels.map((level: any) => ({
           ...level,

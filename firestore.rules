@@ -136,7 +136,14 @@ service cloud.firestore {
     //   signs in with the same account, which keeps the league, season and
     //   points system correct by construction.
     match /activeTournaments/{tournamentId} {
-      allow read: if true;
+      // get vs list, split like leagues above. A participant arriving by QR knows
+      // the tournament id and must be able to read that one document. Listing is
+      // the owner's own query for resuming their live game — `read: if true`
+      // covered list as well as get, so anyone could enumerate every tournament
+      // in the database, which matters more now that every game is saved rather
+      // than only published ones.
+      allow get: if true;
+      allow list: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
       allow create: if isRegistered() && isDocOwner();
       allow update: if (
         // Owner can change anything

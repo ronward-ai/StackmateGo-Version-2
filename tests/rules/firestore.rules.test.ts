@@ -152,6 +152,34 @@ describe('only the director may change a live game', () => {
   });
 });
 
+describe('listing tournaments', () => {
+  // `read: if true` covered list as well as get, so any client could enumerate
+  // every tournament in the database. Participants only ever need one by id.
+  it('lets an owner list their own tournaments, which is how resume works', async () => {
+    await assertSucceeds(getDocs(query(
+      collection(director(), 'activeTournaments'),
+      where('ownerId', '==', DIRECTOR),
+    )));
+  });
+
+  it('stops anyone enumerating tournaments', async () => {
+    await assertFails(getDocs(query(collection(anon(), 'activeTournaments'))));
+    await assertFails(getDocs(query(collection(anonAuth(), 'activeTournaments'))));
+    await assertFails(getDocs(query(collection(director(), 'activeTournaments'))));
+  });
+
+  it("stops a stranger listing someone else's tournaments", async () => {
+    await assertFails(getDocs(query(
+      collection(stranger(), 'activeTournaments'),
+      where('ownerId', '==', DIRECTOR),
+    )));
+  });
+
+  it('still lets a QR participant read one tournament by id', async () => {
+    await assertSucceeds(getDoc(doc(anon(), 'activeTournaments', TOURNAMENT)));
+  });
+});
+
 describe('player check-in', () => {
   it('allows an unauthenticated claim that only marks claimedBy', async () => {
     await assertSucceeds(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {

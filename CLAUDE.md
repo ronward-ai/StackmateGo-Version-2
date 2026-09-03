@@ -100,6 +100,22 @@ console at all when nobody is signed in; standalone games stay usable offline.
 clears the pin. New Tournament navigates there for exactly that reason — plain `/` would reopen the
 game it just finished.
 
+### Saving a game and publishing it are different things
+
+Every tournament a signed-in director starts is saved to their account as soon as it has players
+(`PokerTimer`, via `lib/tournamentDocument.ts`). **"Go Live" only publishes** — it sets
+`isPublished: true` and reveals the QR.
+
+They used to be the same action, which meant a director who never showed a QR code had no cloud copy:
+the game could not be resumed on another device and was lost on logging out. That is how a live test
+game disappeared.
+
+`isPublished === false` hides a game from the participant view. **Absent means published** — every
+document written before the field existed came from Go Live, and those QR links must keep working.
+
+`lib/tournamentDocument.ts` is the single creation path. Two ways to create a tournament is the trap
+the removed handover code set.
+
 ### A local game is persisted; a live one is not
 
 `tournamentLocalProgress` holds the players and clock of a game that has **not** gone live, keyed by

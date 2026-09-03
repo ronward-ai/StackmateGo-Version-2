@@ -341,7 +341,7 @@ function PokerTimerInner({
   // The season the UI displays — settings.seasonId when set, else currentSeason.
   // Held in a ref so the elimination effect reads it without re-subscribing.
   const displaySeasonRef = useRef<any>(null);
-  const { user, isAnonymous } = useAuth();
+  const { user, isAnonymous, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -490,6 +490,42 @@ function PokerTimerInner({
   }, [isLeagueMode, activeTab]);
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
   const lastSyncedPlayersRef = useRef<string>('');
+
+  // Save the game to the director's account as soon as there IS one.
+  //
+  // Creating the document used to happen only at "Go Live", which quietly made
+  // publishing to players the thing that decided whether a game was saved at
+  // all: a director who never showed a QR code had no cloud copy, could not
+  // resume on another device, and lost the game on logging out. Saving and
+  // publishing are separate concerns and are now separate actions.
+  //
+  // Guarded like the sync effects: signed in, has players, not already saved,
+  // and once only — creatingRef stops a second attempt while the first is in
+  // flight, which would otherwise write the document twice.
+  const creatingRef = useRef(false);
+  useEffect(() => {
+    if (authLoading || !user?.id || isAnonymous) return;
+    if (dbTournamentId || creatingRef.current) return;
+    if (tournament.state.details?.type === 'database') return;
+    if ((tournament.state.players?.length ?? 0) === 0) return;
+
+    creatingRef.current = true;
+    (async () => {
+      try {
+        const { createTournamentDocument } = await import('@/lib/tournamentDocument');
+        const docId = await createTournamentDocument(tournament.state, user.id, league?.name, false);
+        setDbTournamentId(docId);
+        tournament.updateTournamentDetails({ id: docId, type: 'database' });
+        try { localStorage.setItem('activeDirectorTournamentId', docId); } catch {}
+      } catch (err) {
+        // Not fatal: the game keeps running locally and is persisted there. Let
+        // it try again rather than latching the failure.
+        console.error('Could not save the tournament to your account:', err);
+        creatingRef.current = false;
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, isAnonymous, dbTournamentId, tournament.state.players?.length, tournament.state.details?.type, league?.name]);
 
   // Tournament creation is explicit — "Go Live" in QRCodeSection.
   //
