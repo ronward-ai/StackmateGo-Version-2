@@ -100,16 +100,27 @@ function UserMenu() {
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
   const [, setLocation] = useLocation();
+  const { user, isAnonymous, isLoading: authLoading } = useAuth();
 
   // If returning to the home page after previously going live, redirect back to the
   // live director view so Firestore state is fully restored from the database.
+  //
+  // Only while someone is actually signed in to be that director. This used to
+  // fire regardless, which pinned the app to the tournament: every visit to /
+  // bounced straight back into a game the signed-out user could not direct, and
+  // the home screen — the only place with a Sign In button — became unreachable.
+  //
+  // Waiting for authLoading matters. useAuth starts with no user, so checking
+  // without it would skip the redirect on every cold load and break the case
+  // this effect exists for.
   useEffect(() => {
-    if (tournamentId) return;
+    if (tournamentId || authLoading) return;
+    if (!user || isAnonymous) return;
     try {
       const saved = localStorage.getItem('activeDirectorTournamentId');
       if (saved) setLocation(`/tournament/${saved}/director`);
     } catch {}
-  }, []);
+  }, [tournamentId, authLoading, user, isAnonymous, setLocation]);
 
   const tournament = useTournament(tournamentId);
 

@@ -106,6 +106,15 @@ export function useAuth() {
   };
 
   const logout = async () => {
+    // Un-pin the live tournament. PokerTimer redirects / straight to
+    // /tournament/{id}/director whenever activeDirectorTournamentId is set, so
+    // leaving it behind meant the app reopened the game you had just signed out
+    // of — and the home screen, with its Sign In button, became unreachable.
+    //
+    // Only the "reopen this automatically" pointer goes. The saved tournament,
+    // blind structure and prize settings stay, so signing back in resumes where
+    // you left off.
+    try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
     await signOut(auth);
   };
 

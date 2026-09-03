@@ -3,12 +3,13 @@ import { useParams, useLocation } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home } from 'lucide-react';
+import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogIn } from 'lucide-react';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Button } from '@/components/ui/button'; // Assuming Button component is available
 import { useAuth } from '@/hooks/useAuth';
+import { AuthModal } from '@/components/AuthModal';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
 
@@ -81,6 +82,7 @@ function TournamentParticipantView() {
   const [error, setError] = useState<string | null>(null);
   const [notesExpanded, setNotesExpanded] = useState(true);
   const { user, isAuthenticated, isLoading, signInAnonymously } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -448,13 +450,27 @@ function TournamentParticipantView() {
 
               A deliberate labelled control rather than a clickable logo, so
               nobody taps it by accident while watching a live game. */}
-          <a
-            href="/"
-            className="flex-shrink-0 flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors"
-          >
-            <Home className="h-3.5 w-3.5" />
-            <span>StackMate Go</span>
-          </a>
+          <div className="flex-shrink-0 flex items-center gap-2">
+            {/* Only when nobody is signed in: a player who arrived by QR should
+                not be nagged to make an account, and a signed-in director does
+                not need it. A director who logged out and landed here does. */}
+            {!isAuthenticated && (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="flex items-center gap-1.5 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg px-3 py-2 transition-colors"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Sign in</span>
+              </button>
+            )}
+            <a
+              href="/"
+              className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors"
+            >
+              <Home className="h-3.5 w-3.5" />
+              <span>StackMate Go</span>
+            </a>
+          </div>
         </div>
 
         {/* Tournament Over Banner */}
@@ -951,6 +967,8 @@ function TournamentParticipantView() {
           <p>StackMate Go &copy; {new Date().getFullYear()}</p>
         </footer>
       </div>
+
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   );
 }
