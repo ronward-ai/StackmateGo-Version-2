@@ -152,6 +152,7 @@ function PokerTimerInner({
   // Held in a ref so the elimination effect reads it without re-subscribing.
   const displaySeasonRef = useRef<any>(null);
   const { user, isAnonymous } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   // Compute game number once here so TournamentInfoCard and TournamentModeToggle always show the same value.
@@ -201,6 +202,31 @@ function PokerTimerInner({
   // a Set because a re-entry renumbers the players who busted after the
   // returning player, so a result already written can become stale and must
   // be rewritten — see lib/eliminationOrder.ts.
+  // Handing over makes this device a spectator.
+  //
+  // The rules now allow only the tournament's owner to change a live game, so
+  // after a handover this screen's controls would appear to work and silently
+  // change nothing. Say so, and move to the view that is honestly read-only.
+  //
+  // Guarded on ownerId actually being present: a snapshot without the field must
+  // never eject a director mid-game. Fires once — handedOverRef stops a repeat
+  // on every subsequent snapshot.
+  const handedOverRef = useRef(false);
+  useEffect(() => {
+    const ownerId = tournament.state.details?.ownerId;
+    const liveId = tournament.state.details?.id;
+    if (!liveId || typeof ownerId !== 'string' || !ownerId) return;
+    if (!user?.id || isAnonymous) return;
+    if (ownerId === user.id || handedOverRef.current) return;
+
+    handedOverRef.current = true;
+    toast({
+      title: 'Director control passed on',
+      description: 'Another device is running this tournament now. You can still watch it.',
+    });
+    setLocation(`/tournament/${liveId}`);
+  }, [tournament.state.details?.ownerId, tournament.state.details?.id, user?.id, isAnonymous, toast, setLocation]);
+
   const processedEliminationsRef = useRef(new Map<string, number>());
 
   // The league sync runs one at a time. It awaits Firestore writes, and the

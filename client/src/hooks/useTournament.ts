@@ -417,6 +417,22 @@ export function useTournament(tournamentId?: string) {
                 updatedState.isRunning = data.isRunning;
               }
 
+              // Keep ownerId current. It was set only on the initial load, so a
+              // device that handed the tournament over went on believing it was
+              // still the owner — broadcastTournamentState guards on
+              // `ownerId !== userId` and that guard never engaged, which is why
+              // both devices could drive the same game after a handover.
+              //
+              // Only when it is actually present: a snapshot without the field
+              // must not make a working director look like they have lost the
+              // game.
+              if (typeof data.ownerId === 'string' && data.ownerId) {
+                updatedState.details = {
+                  ...updatedState.details,
+                  ownerId: data.ownerId,
+                } as typeof updatedState.details;
+              }
+
               return updatedState;
             } catch (error) {
               console.error('Error processing tournament update:', error);

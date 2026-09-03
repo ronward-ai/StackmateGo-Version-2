@@ -128,22 +128,20 @@ service cloud.firestore {
     // - Any authenticated user can read (anonymous QR participants included)
     // - Only a registered owner can create
     // - Owner can change anything
-    // - Authenticated non-owners can update a restricted set of timer/player fields
-    //   but cannot change ownerId, except through the handover branch below,
-    //   which requires presenting a valid unexpired transfer code
+    // - Nobody else can change a live game. There used to be a branch letting any
+    //   isAuthenticated() caller write players, the timer, the blinds and the
+    //   level structure. isAuthenticated() includes ANONYMOUS sessions, and the
+    //   participant view signs every QR visitor in anonymously — so any player
+    //   who scanned the code could pause the clock or change the blinds. It also
+    //   meant handover shared control instead of transferring it: the previous
+    //   director kept writing after giving the game away.
+    // - ownerId moves only through the handover branch, on a valid unexpired code
     match /activeTournaments/{tournamentId} {
       allow read: if true;
       allow create: if isRegistered() && isDocOwner();
       allow update: if (
         // Owner can change anything
         isAuthenticated() && isExistingDocOwner()
-      ) || (
-        // Authenticated participants can update timer/player/transfer fields only.
-        // ownerId is intentionally excluded to prevent privilege escalation.
-        isAuthenticated() &&
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['players', 'currentLevel', 'secondsLeft', 'isRunning', 'notes',
-                    'targetEndTime', 'smallBlind', 'bigBlind', 'ante', 'blindLevels'])
       ) || (
         // Director handover: taking ownership by presenting a valid transfer code.
         //

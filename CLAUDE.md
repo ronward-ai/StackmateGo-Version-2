@@ -85,6 +85,13 @@ six characters. **Do not put the code on the tournament document** — `activeTo
 world-readable, so every participant who scans the QR could read it and seize control. That is how it
 was originally built.
 
+**Only the owner may change a live game.** There was a rules branch letting any `isAuthenticated()`
+caller write the timer, blinds and player list. That includes ANONYMOUS sessions, and the
+participant view signs every QR visitor in anonymously — so any player could pause the clock. It
+also meant handover *shared* control: the previous director kept writing. Both are closed; the
+client mirrors it by refreshing `details.ownerId` from the live snapshot, so the existing
+`broadcastTournamentState` guard engages and the former director is moved to the participant view.
+
 **Claiming is one batch**: take ownership and delete the code together, so a code cannot be used
 twice. The submitted code has to be written to `claimCode` for the rules to see it at all — rules can
 only read the request — and the new owner clears it immediately afterwards. That is safe because the

@@ -97,6 +97,61 @@ describe('participant reads (QR flow)', () => {
   });
 });
 
+describe('only the director may change a live game', () => {
+  // A branch used to allow any isAuthenticated() caller to write the timer,
+  // blinds and player list. isAuthenticated() includes anonymous sessions, and
+  // the participant view signs every QR visitor in anonymously — so any player
+  // could have paused the clock. It also meant handover shared control rather
+  // than transferring it.
+
+  it('lets the owner change the timer, blinds and players', async () => {
+    const db = director();
+    await assertSucceeds(updateDoc(doc(db, 'activeTournaments', TOURNAMENT), { isRunning: true }));
+    await assertSucceeds(updateDoc(doc(db, 'activeTournaments', TOURNAMENT), { secondsLeft: 300 }));
+    await assertSucceeds(updateDoc(doc(db, 'activeTournaments', TOURNAMENT), { smallBlind: 50, bigBlind: 100 }));
+  });
+
+  it('stops an anonymous participant running the clock', async () => {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { isRunning: true }));
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { secondsLeft: 1 }));
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { currentLevel: 5 }));
+  });
+
+  it('stops an anonymous participant changing the blinds or structure', async () => {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { smallBlind: 1, bigBlind: 2 }));
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { blindLevels: [] }));
+  });
+
+  it('stops a registered non-owner — the previous director after a handover', async () => {
+    // Values that genuinely differ from the seed. Writing a field its existing
+    // value produces an EMPTY diff, and hasOnly([...]) is trivially true for an
+    // empty set, so a no-op write slips through the check-in branch. Harmless —
+    // nothing changes — but it makes for a test that proves nothing.
+    await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { isRunning: true }));
+    await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { currentLevel: 9 }));
+  });
+
+  it('still lets a participant check in, which is a different branch', async () => {
+    // Guards against tightening this so far that the QR flow breaks.
+    await assertSucceeds(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+      players: [
+        { id: 'p1', name: 'Alice', isActive: true, claimedBy: 'device-abc' },
+        { id: 'p2', name: 'Bob', isActive: true },
+      ],
+    }));
+  });
+
+  it('stops an anonymous participant editing players alongside anything else', async () => {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+      players: [
+        { id: 'p1', name: 'Alice', isActive: true },
+        { id: 'p2', name: 'Bob', isActive: true },
+      ],
+      isRunning: true,
+    }));
+  });
+});
+
 describe('player check-in', () => {
   it('allows an unauthenticated claim that only marks claimedBy', async () => {
     await assertSucceeds(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
