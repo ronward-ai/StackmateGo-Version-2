@@ -486,7 +486,13 @@ function TournamentParticipantView() {
               </button>
             ) : (
               <button
-                onClick={() => { logout().catch(err => console.error('Sign out failed:', err)); }}
+                onClick={() => {
+                  // Full page load, matching the director header — see the note
+                  // on handleLogout in PokerTimer.
+                  logout()
+                    .catch(err => console.error('Sign out failed:', err))
+                    .finally(() => { window.location.href = '/?home=1'; });
+                }}
                 className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors max-w-[190px]"
                 title={accountLabel ? `Signed in as ${accountLabel}` : 'Sign out'}
               >

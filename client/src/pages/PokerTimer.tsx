@@ -43,6 +43,17 @@ function UserMenu() {
       await logout();
     } catch (error) {
       console.error('Logout failed:', error);
+    } finally {
+      // A full page load, deliberately. Logging out is how a game is handed on,
+      // so nothing of this director's session may survive it: the console runs
+      // from in-memory state that logging out does not clear, and on signing
+      // back in the player-sync effect would push that stale state over
+      // whatever the next director had done.
+      //
+      // ?home=1 then suppresses the pin redirect and the resume, so the device
+      // lands on a clean home screen. The game itself is safe in Firestore and
+      // comes back on the next sign-in.
+      window.location.href = '/?home=1';
     }
   };
 
@@ -190,7 +201,59 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     );
   }
 
+  // A LIVE game needs a signed-in owner to be driven.
+  //
+  // Belt and braces for the paths a navigation cannot cover — a refresh while
+  // signed out, or state restored from localStorage. Without it the console
+  // keeps working after a logout: writes are already blocked, so the other
+  // director's game is safe, but the local state drifts and would be pushed
+  // over theirs on the next sign-in.
+  //
+  // Only for database tournaments. A standalone local game must stay usable
+  // signed out — the timer being offline-first is deliberate.
+  const isLiveGame = tournament.state.details?.type === 'database';
+  if (!authLoading && isLiveGame && (!user || isAnonymous)) {
+    return <SignInToContinue tournamentId={tournament.state.details?.id} />;
+  }
+
   return <PokerTimerInner tournament={tournament} tournamentId={tournamentId} />;
+}
+
+/** Shown when a live tournament is loaded but nobody is signed in to run it. */
+function SignInToContinue({ tournamentId }: { tournamentId?: string | number }) {
+  const [, setLocation] = useLocation();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  return (
+    <div className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center px-6">
+      <div className="text-center max-w-sm w-full">
+        <div className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 rounded-xl shadow-lg mb-6">
+          <h1 className="text-3xl font-bold text-white tracking-tight">StackMate Go</h1>
+        </div>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <p className="text-lg font-medium">Sign in to run this game</p>
+            <p className="text-sm text-muted-foreground">
+              This tournament is live. Signing in brings it back exactly where it is now — nothing
+              has been lost.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button className="gap-2" onClick={() => setShowAuthModal(true)}>
+              <User className="h-4 w-4" />
+              Sign in
+            </Button>
+            {tournamentId && (
+              <Button variant="outline" onClick={() => setLocation(`/tournament/${tournamentId}`)}>
+                View as player
+              </Button>
+            )}
+          </div>
+        </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      </div>
+    </div>
+  );
 }
 
 function PokerTimerInner({

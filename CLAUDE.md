@@ -90,6 +90,12 @@ season and points are correct by construction because it is the same account thr
 
 `ownerId` is unwritable by clients again, and only the owner may change a live game.
 
+**Logging out does a full page load to `/?home=1`.** That is load-bearing, not laziness: the console
+runs from in-memory state that signing out does not clear, so the screen kept working after a logout
+— and on signing back in the player-sync effect would push that stale state over whatever the next
+director had done. A hard navigation discards it. A live tournament also refuses to render the
+console at all when nobody is signed in; standalone games stay usable offline.
+
 **`?home=1`** means "I asked to be here": it suppresses both the pin redirect and the resume, and
 clears the pin. New Tournament navigates there for exactly that reason — plain `/` would reopen the
 game it just finished.
