@@ -141,6 +141,18 @@ anonymous user as far as an ownership check it could never pass.
 It now reads `firebaseUser.isAnonymous`, honouring the legacy key only for stale data. **Check
 `isAnonymous`, never `isAuthenticated` alone**, when you mean "signed in for real".
 
+### The footer shows the build, and `index.html` is never cached
+
+`vite.config.ts` defines `__BUILD_ID__` from the git short SHA and `PokerTimer`'s footer renders it.
+Check it before chasing any bug reported from a device: whether a change had reached Railway came up
+three separate times, and each cost more than showing it does.
+
+`serveStatic` (`server/vite.ts`) sends `index.html` as `no-cache` and everything under `/assets/` as
+`immutable`. That pairing is deliberate — the hashed asset names make a changed file a changed URL,
+so caching them hard is safe, while the one uncached document guarantees a reload picks up a new
+deploy. Without it a browser can hold an old `index.html`, keep requesting the old chunks, and sit on
+a stale build indefinitely while other devices move on. That happened, and it presented as an app bug.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season

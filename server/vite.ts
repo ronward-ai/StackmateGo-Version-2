@@ -81,10 +81,30 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Cache headers decide whether a device ever sees a new deploy.
+  //
+  // index.html names every hashed asset, so a browser holding an old copy keeps
+  // requesting the old chunks and stays on the old app indefinitely. That is how
+  // one device sat on a build from several deploys earlier while another had
+  // moved on — and it looked like a bug in the app rather than a stale bundle.
+  //
+  // Assets are safe to cache hard because Vite puts a content hash in each
+  // filename: a changed file is a changed URL. That is also what makes the
+  // no-cache index cheap — a returning visitor revalidates one small document
+  // and reuses everything else.
+  app.use(express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
