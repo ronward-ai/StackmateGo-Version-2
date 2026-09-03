@@ -243,6 +243,22 @@ export function useTournament(tournamentId?: string) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  /**
+   * Has this tournament ever been READ from Firestore on this device?
+   *
+   * A latch, not a connection flag. Local state starts with an empty players
+   * array, and the direct sync effects in PokerTimer write whatever they see —
+   * so a device arriving at a live tournament it has never loaded would push
+   * `players: []` straight over the real game. That could not happen while the
+   * only way to hold a tournament id was to have gone live on that device; it
+   * became reachable when signing in started resuming a game on any device.
+   *
+   * Deliberately not `isConnected`, which flips back to false on a listener
+   * error or teardown. What the sync effects need is "have we ever read this",
+   * which only ever goes one way — until the tournament id changes.
+   */
+  const [hasLoadedRemoteState, setHasLoadedRemoteState] = useState(false);
+
   // Load tournament data from database if tournamentId is provided
   useEffect(() => {
     if (tournamentId) {
@@ -339,6 +355,10 @@ export function useTournament(tournamentId?: string) {
 
   // Set up Firestore listener for real-time tournament synchronization
   useEffect(() => {
+    // Reset the latch: a different tournament has not been read yet, whatever
+    // we may have read before.
+    setHasLoadedRemoteState(false);
+
     // Only establish Firestore connection for database tournaments
     if (state.details?.type === 'database' && state.details?.id) {
       const docRef = doc(db, 'activeTournaments', state.details.id.toString());
@@ -347,6 +367,7 @@ export function useTournament(tournamentId?: string) {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setIsConnected(true);
+          setHasLoadedRemoteState(true);
           
           setState(currentState => {
             try {
@@ -2216,6 +2237,7 @@ export function useTournament(tournamentId?: string) {
     isComplete: (state.players.filter(p => p.isActive === false).length >= state.players.length - 1 && state.players.length > 1) || state.currentLevel >= state.levels.length,
 
     // Real-time sync status
-    isConnected
+    isConnected,
+    hasLoadedRemoteState
   };
 }

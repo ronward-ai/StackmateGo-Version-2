@@ -100,6 +100,21 @@ console at all when nobody is signed in; standalone games stay usable offline.
 clears the pin. New Tournament navigates there for exactly that reason — plain `/` would reopen the
 game it just finished.
 
+### A device must never write to a tournament it has not read
+
+`PokerTimer` has three direct `updateDoc` sync effects that bypass the broadcast chain by design.
+They wait on `tournament.hasLoadedRemoteState` — a latch set by the first Firestore snapshot for the
+current tournament id. **Do not remove it.**
+
+Local state starts with an empty players array. Being guarded on `dbTournamentId` alone was enough
+only while the sole way to hold a tournament id was to have gone live on that device, so its state
+was necessarily correct. Once signing in began resuming a live game on *any* device, a device that
+had not read the tournament yet would write `players: []` straight over the real game — the roster
+gone mid-night, on every device.
+
+Deliberately not `isConnected`, which flips back to false on a listener error or teardown. The
+question is "have we ever read this", which only goes one way.
+
 ### `isAnonymous` means the FIREBASE anonymous session
 
 `TournamentParticipantView` signs every visitor in anonymously on arrival, so `isAuthenticated`

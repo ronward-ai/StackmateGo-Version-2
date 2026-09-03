@@ -124,6 +124,32 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   // Waiting for authLoading matters. useAuth starts with no user, so checking
   // without it would skip the redirect on every cold load and break the case
   // this effect exists for.
+  // Did the user sign in during THIS page's lifetime?
+  //
+  // Distinct from "is signed in": arriving already-signed-in must not count, or
+  // the ?home=1 escape would be ignored on every cold load and send the director
+  // straight back into the game they were trying to leave. The first resolution
+  // of auth records who is there and is deliberately not treated as a sign-in.
+  const authSettledRef = useRef(false);
+  const previousUserRef = useRef<string | null>(null);
+  const justSignedInRef = useRef(false);
+
+  useEffect(() => {
+    if (authLoading) return;
+    const current = (!user || isAnonymous) ? null : user.id;
+
+    if (!authSettledRef.current) {
+      authSettledRef.current = true;
+      previousUserRef.current = current;
+      return;
+    }
+
+    if (previousUserRef.current === null && current !== null) {
+      justSignedInRef.current = true;
+    }
+    previousUserRef.current = current;
+  }, [authLoading, user, isAnonymous]);
+
   // Resume the live game after signing in, on ANY device.
   //
   // This is what replaces transfer codes and the device lock: handing over means
@@ -136,11 +162,19 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     if (tournamentId || authLoading) return;
     if (!user || isAnonymous) return;
 
+    // ?home=1 means "do not auto-open a game on arrival" — that is how the home
+    // control and New Tournament avoid reopening the one you just left. It must
+    // NOT mean "never open again": logging out leaves the device sitting on
+    // exactly that URL, so signing back in there would otherwise show a default
+    // tournament and look like the live game had been lost.
+    const justSignedIn = justSignedInRef.current;
+
     let cancelled = false;
     const restorePin = async () => {
       try {
         if (localStorage.getItem('activeDirectorTournamentId')) return;
-        if (new URLSearchParams(window.location.search).has('home')) return;
+        if (!justSignedIn && new URLSearchParams(window.location.search).has('home')) return;
+        justSignedInRef.current = false;
 
         const { collection, query, where, getDocs } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');
@@ -402,13 +436,21 @@ function PokerTimerInner({
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
   const lastSyncedPlayersRef = useRef<string>('');
 
-  // Tournament creation is now explicit — triggered by "Go Live" in QRCodeSection (Pro feature).
-  // The sync effects below are already guarded on dbTournamentId so they naturally no-op until live.
+  // Tournament creation is explicit — "Go Live" in QRCodeSection.
+  //
+  // The sync effects below also wait for tournament.hasLoadedRemoteState. Being
+  // guarded on dbTournamentId alone was enough only while the sole way to hold a
+  // tournament id was to have gone live on this very device, so local state was
+  // necessarily correct. Signing in now resumes a live game on ANY device, and a
+  // device that has not read the tournament yet holds an EMPTY players array —
+  // which these effects would happily write straight over the real game.
+  // Do not remove the latch.
 
   // Directly sync players to Firestore whenever they change.
   // This is a reliable belt-and-suspenders sync that bypasses the broadcast chain.
   useEffect(() => {
     if (!dbTournamentId || !user || isAnonymous) return;
+    if (!tournament.hasLoadedRemoteState) return;
     const sync = async () => {
       const serialised = JSON.stringify(tournament.state.players);
       if (serialised === lastSyncedPlayersRef.current) return;
@@ -427,11 +469,12 @@ function PokerTimerInner({
       }
     };
     sync();
-  }, [tournament.state.players, dbTournamentId, user, isAnonymous]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.players, dbTournamentId, user, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {
     if (!dbTournamentId || !user || isAnonymous) return;
+    if (!tournament.hasLoadedRemoteState) return;
     const sync = async () => {
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
@@ -466,11 +509,13 @@ function PokerTimerInner({
     dbTournamentId,
     user,
     isAnonymous,
+    tournament.hasLoadedRemoteState,
   ]);
 
   // Directly sync prizeStructure and settings to Firestore whenever they change.
   useEffect(() => {
     if (!dbTournamentId || !user || isAnonymous) return;
+    if (!tournament.hasLoadedRemoteState) return;
     const sync = async () => {
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
@@ -493,7 +538,7 @@ function PokerTimerInner({
       }
     };
     sync();
-  }, [tournament.state.prizeStructure, tournament.state.settings, dbTournamentId, user, isAnonymous]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.prizeStructure, tournament.state.settings, dbTournamentId, user, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Setup Socket.IO connection for real-time updates removed
 
