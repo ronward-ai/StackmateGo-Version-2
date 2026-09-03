@@ -15,6 +15,7 @@ import { sanitizeForFirestore } from '../lib/utils';
 
 import { useAuth } from './useAuth';
 import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
+import { getDeviceId } from '@/lib/deviceId';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -136,6 +137,14 @@ const savePrizeStructure = (prizeStructure: PrizeStructure) => {
 // Function to broadcast tournament state to server for real-time updates
 const broadcastTournamentState = async (tournamentId: number | string, state: any, ownerId?: string, userId?: string) => {
   if (!tournamentId || ownerId !== userId) return;
+
+  // With both directors on one shared login, ownerId === userId on BOTH devices,
+  // so ownership alone cannot decide who may write. The tournament records which
+  // device is driving; a device that is not it stands down. Absent means nobody
+  // has claimed control — every existing game, and the ordinary single-device
+  // case — so that must stay permitted.
+  const activeDeviceId = state?.details?.activeDeviceId;
+  if (activeDeviceId && activeDeviceId !== getDeviceId()) return;
 
   try {
     const docRef = doc(db, 'activeTournaments', tournamentId.toString());
@@ -432,6 +441,15 @@ export function useTournament(tournamentId?: string) {
                   ownerId: data.ownerId,
                 } as typeof updatedState.details;
               }
+
+              // Which device is driving. Mirrored into details so the broadcast
+              // guard above sees it, and so the UI can offer to take over.
+              // Tracked as null when cleared, not dropped, so a device that has
+              // handed control on notices.
+              updatedState.details = {
+                ...updatedState.details,
+                activeDeviceId: typeof data.activeDeviceId === 'string' ? data.activeDeviceId : undefined,
+              } as typeof updatedState.details;
 
               return updatedState;
             } catch (error) {
@@ -1331,6 +1349,39 @@ export function useTournament(tournamentId?: string) {
    * position no longer matches what was written, and restoring the array is
    * exactly that situation.
    */
+  /**
+   * Does THIS device hold control of the live tournament?
+   *
+   * True when nobody has claimed it — every existing game and the ordinary
+   * single-device case — or when the claim is ours.
+   */
+  const hasControl = (() => {
+    const active = state.details?.activeDeviceId;
+    return !active || active === getDeviceId();
+  })();
+
+  /**
+   * Take control of the live tournament for this device.
+   *
+   * Only meaningful for a database tournament: a local game has no second
+   * device to contend with. Writes as the owner, so no rules change is needed —
+   * both directors share the login and both are the owner.
+   */
+  const claimControl = useCallback(async (): Promise<boolean> => {
+    const id = state.details?.id;
+    if (!id || state.details?.type !== 'database') return false;
+    try {
+      await updateDoc(doc(db, 'activeTournaments', String(id)), {
+        activeDeviceId: getDeviceId(),
+        activeDeviceAt: new Date().toISOString(),
+      });
+      return true;
+    } catch (error) {
+      console.error('Could not take control of the tournament:', error);
+      return false;
+    }
+  }, [state.details?.id, state.details?.type]);
+
   const undoPlayerReturn = useCallback((): string | null => {
     const snapshot = playerReturnUndoRef.current;
     if (!snapshot) return null;
@@ -2212,6 +2263,8 @@ export function useTournament(tournamentId?: string) {
     completeTournament,
     undoBustOut,
     undoPlayerReturn,
+    hasControl,
+    claimControl,
     resetAllPlayersToActive,
     processRebuy,
     processReEntry,

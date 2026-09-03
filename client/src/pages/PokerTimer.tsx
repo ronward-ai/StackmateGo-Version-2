@@ -227,6 +227,27 @@ function PokerTimerInner({
     setLocation(`/tournament/${liveId}`);
   }, [tournament.state.details?.ownerId, tournament.state.details?.id, user?.id, isAnonymous, toast, setLocation]);
 
+  // Another DEVICE has taken control.
+  //
+  // Separate from the ownership check above: with both directors sharing one
+  // login, ownerId matches on both devices and cannot tell them apart. The same
+  // outcome either way — this screen would appear to work while changing
+  // nothing — so step back to the view that is honestly read-only, which offers
+  // Take control to come back.
+  const lostControlRef = useRef(false);
+  useEffect(() => {
+    const liveId = tournament.state.details?.id;
+    if (!liveId || tournament.state.details?.type !== 'database') return;
+    if (tournament.hasControl || lostControlRef.current) return;
+
+    lostControlRef.current = true;
+    toast({
+      title: 'Another device is running this game',
+      description: 'This screen is now view only. You can take control back from there.',
+    });
+    setLocation(`/tournament/${liveId}`);
+  }, [tournament.hasControl, tournament.state.details?.id, tournament.state.details?.type, toast, setLocation]);
+
   const processedEliminationsRef = useRef(new Map<string, number>());
 
   // The league sync runs one at a time. It awaits Firestore writes, and the

@@ -14,6 +14,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { eventNameOf } from '@/lib/eventName';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { createTransferCode as requestTransferCode, claimTournament } from '@/lib/handover';
+import { getDeviceId } from '@/lib/deviceId';
 
 function generateSecureCode(length = 6): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes confusable 0/O/1/I
@@ -175,6 +176,11 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       const docId = await Promise.race([
         createDocViaRest(projectId, databaseId, 'activeTournaments', {
           ...newTournamentData,
+          // The device going live starts in control. Both directors may share a
+          // login, so ownership cannot tell their devices apart — see
+          // lib/deviceId.ts and hasControl in useTournament.
+          activeDeviceId: getDeviceId(),
+          activeDeviceAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }, idToken, localGameId),

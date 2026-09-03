@@ -92,6 +92,27 @@ also meant handover *shared* control: the previous director kept writing. Both a
 client mirrors it by refreshing `details.ownerId` from the live snapshot, so the existing
 `broadcastTournamentState` guard engages and the former director is moved to the participant view.
 
+**Two directors, two different mechanisms.** Do not merge them; they solve different problems.
+
+| | Transfer code | Device lock |
+|---|---|---|
+| For | Two **different** accounts | One **shared** account |
+| Moves | `ownerId` on the tournament | `activeDeviceId` on the tournament |
+| Enforced by | Firestore rules | The app |
+| Deploy | Rules, by hand | Nothing |
+
+The device lock exists because a shared login makes both devices the owner, so the rules cannot tell
+them apart — `getDeviceId()` (`lib/deviceId.ts`) can. It is cooperative by construction: fine between
+two people running a game together, not protection against someone hostile. Absent `activeDeviceId`
+means nobody has claimed control, which is every pre-existing game and the ordinary single-device
+case, so it must stay permitted.
+
+**Prefer the shared login for a league night.** With separate accounts, `useLeague` resolves the
+current league from `where('ownerId', '==', <signed-in user>)` and the points formula from that
+user's settings — so director 2 would record results into *their own* league with *their own*
+scoring, silently. Fixing that needs the league to be resolved from the tournament document rather
+than the signed-in user; until then, share the login.
+
 **Claiming is one batch**: take ownership and delete the code together, so a code cannot be used
 twice. The submitted code has to be written to `claimCode` for the rules to see it at all — rules can
 only read the request — and the new owner clears it immediately afterwards. That is safe because the

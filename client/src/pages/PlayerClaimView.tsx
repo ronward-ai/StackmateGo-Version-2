@@ -3,6 +3,7 @@ import { useParams, useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserCheck, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { getDeviceId } from '@/lib/deviceId';
 
 interface TournamentPlayer {
   id: string;
@@ -11,19 +12,6 @@ interface TournamentPlayer {
   claimedBy?: string;
   tableAssignment?: { tableIndex: number; seatIndex: number };
   seatInfo?: { tableIndex: number; seatIndex: number; totalSeatedPlayers: number };
-}
-
-function getDeviceId(): string {
-  try {
-    let id = localStorage.getItem('playerDeviceId');
-    if (!id) {
-      id = `d_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-      localStorage.setItem('playerDeviceId', id);
-    }
-    return id;
-  } catch {
-    return `d_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-  }
 }
 
 const fromVal = (v: any): any => {
