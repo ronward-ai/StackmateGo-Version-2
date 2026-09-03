@@ -121,7 +121,8 @@ service cloud.firestore {
     }
 
     // Active Tournaments
-    // - Any authenticated user can read (anonymous QR participants included)
+    // - Anyone can read ONE tournament by id (anonymous QR participants included);
+    //   only its owner can list them — see the get/list note on the match below
     // - Only a registered owner can create
     // - Owner can change anything
     // - Nobody else can change a live game. There used to be a branch letting any
