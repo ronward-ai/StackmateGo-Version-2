@@ -63,20 +63,19 @@ export async function createDocViaRest(
     body: JSON.stringify({ fields }),
   });
 
-  // Document already exists with this localGameId (previous session) — overwrite it.
+  // A document already exists with this id — ADOPT it, writing nothing.
+  //
+  // This used to PATCH the whole document, on the reasoning that re-going-live
+  // with the same localGameId should overwrite. That cost a live game: after a
+  // handover, the first device still held the roster from before the document
+  // existed, under the same localGameId. Signing back in ran its auto-save,
+  // which 409'd and then overwrote the other director's game with that stale
+  // copy.
+  //
+  // Returning the id sends the caller through the normal load path and the
+  // hasLoadedRemoteState latch, which is exactly right: join the game that is
+  // already there rather than assert over it.
   if (res.status === 409 && docId) {
-    const patchRes = await fetch(
-      `${base}/${collection}/${encodeURIComponent(docId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ fields }),
-      }
-    );
-    if (!patchRes.ok) {
-      const err = await patchRes.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `Firestore error ${patchRes.status}`);
-    }
     return docId;
   }
 

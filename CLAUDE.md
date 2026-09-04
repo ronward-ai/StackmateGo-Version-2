@@ -12,7 +12,7 @@ React + TypeScript + Vite, Firestore for data, deployed on Railway.
 ```
 npm run dev         # local dev server
 npm run check       # tsc — MUST stay clean
-npm test            # vitest, ~121 unit tests
+npm test            # vitest, ~138 unit tests
 npm run test:rules  # Firestore rules tests against the emulator (needs Java)
 npm run build       # production build
 ```
@@ -114,7 +114,14 @@ game disappeared.
 document written before the field existed came from Go Live, and those QR links must keep working.
 
 `lib/tournamentDocument.ts` is the single creation path. Two ways to create a tournament is the trap
-the removed handover code set.
+the removed handover code set. Go Live therefore **PATCHes `isPublished` onto the document that
+already exists** and only creates one when there genuinely is none — a game started while signed out.
+Calling the creation path again would collide on the id, and a collision now adopts (below), so it
+would silently fail to publish.
+
+Having a document id is no longer the same as being live. The QR and the Broadcasting badge key off
+`details.isPublished`, mirrored from the snapshot, or the director sees a QR that participants are
+refused by.
 
 ### A local game is persisted; a live one is not
 
@@ -122,9 +129,14 @@ the removed handover code set.
 `localGameId`. Restored only when `details.type !== 'database'`.
 
 Players were never persisted, so a refresh always lost the roster of a local game — and once logging
-out became a full page load, an ordinary action destroyed one. **Never restore this into a live
-tournament:** its truth is Firestore, and seeding it from localStorage is the same hazard
-`hasLoadedRemoteState` exists to prevent.
+out became a full page load, an ordinary action destroyed one.
+
+It is **cleared the moment the game becomes a database tournament**: it stands in for a cloud copy,
+and keeping it once there is one makes it a rival source of truth. That is precisely how a live game
+was lost — a roster from before the game was saved survived a logout and was resurrected over the
+real game two hours further on. **Never restore this into a live tournament:** its truth is
+Firestore, and seeding it from localStorage is the same hazard `hasLoadedRemoteState` exists to
+prevent.
 
 The clock is deliberately restored paused. The page was away for an unknown time, so resuming a
 running timer would silently be wrong.
@@ -138,6 +150,9 @@ Timestamp's `"[object Object]"` above every ISO string, so an old test could out
 
 `updatedAt` is written on every player sync so "most recently active" is real rather than "most
 recently created".
+
+That selection lives in `lib/liveTournament.ts`, not in the resume effect, because the auto-save asks
+the same question — see below.
 
 ### A device must never write to a tournament it has not read
 
@@ -153,6 +168,25 @@ gone mid-night, on every device.
 
 Deliberately not `isConnected`, which flips back to false on a listener error or teardown. The
 question is "have we ever read this", which only goes one way.
+
+### A collision on the tournament id means JOIN, not overwrite
+
+The document id **is** the `localGameId`, so the same night's game has the same id on every device.
+`createDocViaRest` therefore treats a 409 as "it is already there" and returns the id having written
+nothing; the caller loads it through the normal path and the `hasLoadedRemoteState` latch. It used to
+PATCH the whole document on the reasoning that re-going-live should overwrite — and that cost a live
+game: after a handover, device 1 still held the roster from before the document existed, and signing
+back in 409'd and overwrote device 2's game with it.
+
+The auto-save asks the same question first, before writing anything: if the account has a current
+live tournament **whose id is this device's `localGameId`**, adopt it. The id match is deliberate — a
+live game with a different id is a different game, and adopting it would hijack a director who has
+genuinely started a second tournament that evening. Nothing marks a game finished, so "the account
+has a live game" alone does not identify it as this one.
+
+`lib/liveTournament.ts` answers "which game is being run right now" for both the resume and that
+guard, so the two cannot disagree. It owns the 12-hour recency window, the `completed` filter and
+`timestampMs`, and is free of React and Firebase — callers pass documents they have already read.
 
 ### `isAnonymous` means the FIREBASE anonymous session
 
@@ -218,6 +252,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
 | `handover.ts` | Director handover: issuing, redeeming and burning transfer codes. |
+| `liveTournament.ts` | Which of an account's tournaments is the one being run right now. |
 
 ### One shared listener per query
 

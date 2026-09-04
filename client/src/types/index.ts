@@ -204,6 +204,15 @@ export interface TournamentDetails {
   ownerId?: string;
   directorCode?: string;
   participantCode?: string;
+  /**
+   * Whether players may watch this game.
+   *
+   * Mirrored from the document so the director's screen can tell a saved game
+   * from a published one — since auto-save, having a document id no longer
+   * means the QR works. Absent means published: every document written before
+   * the field existed came from Go Live.
+   */
+  isPublished?: boolean;
 }
 
 export interface TournamentState {

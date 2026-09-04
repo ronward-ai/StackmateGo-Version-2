@@ -38,14 +38,34 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         throw new Error('Not signed in. Please log out and log back in, then try again.');
       }
 
-      // One creation path, shared with the auto-save in PokerTimer — see
-      // lib/tournamentDocument.ts. Published straight away, because that is what
-      // this button is for.
-      const docId = await createTournamentDocument(state, user.id, league?.name, true);
+      // Publish the game that already exists, rather than writing a new one.
+      //
+      // Since auto-save, a signed-in director's game is in Firestore long before
+      // this button is pressed, and creating again would collide on the id —
+      // which now adopts the existing document and silently WOULD NOT publish
+      // it. Creation is only for a game that genuinely has no document: one
+      // started while signed out.
+      const existingId = dbTournamentId || (state.details?.type === 'database' ? state.details?.id : null);
+
+      let docId: string;
+      if (existingId) {
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        await updateDoc(doc(db, 'activeTournaments', String(existingId)), {
+          isPublished: true,
+          updatedAt: new Date().toISOString(),
+        });
+        docId = String(existingId);
+      } else {
+        // One creation path, shared with the auto-save in PokerTimer — see
+        // lib/tournamentDocument.ts.
+        docId = await createTournamentDocument(state, user.id, league?.name, true);
+      }
 
       updateTournamentDetails({
         id: docId,
-        type: 'database'
+        type: 'database',
+        isPublished: true,
       });
 
       // Persist so a page refresh can redirect back to the live director view
@@ -61,7 +81,14 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
   };
 
   const tournamentId = state.details?.id || dbTournamentId;
-  const liveUrl = tournamentId
+
+  // Saved is not live. Auto-save gives every signed-in director's game a
+  // document id, so the id alone would show a "Broadcasting" badge and a QR
+  // code that participants are refused by — isPublished is what the QR needs.
+  // Absent means published, for the documents that predate the field.
+  const isLive = !!tournamentId && state.details?.isPublished !== false;
+
+  const liveUrl = isLive && tournamentId
     ? `${window.location.protocol}//${window.location.host}/tournament/${tournamentId}/join`
     : null;
 
@@ -73,7 +100,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       <div className="flex items-center gap-2 mb-5">
         <Radio className="h-5 w-5 text-blue-400 animate-pulse" />
         <h2 className="text-xl font-bold text-white tracking-tight">StackMate Live</h2>
-        {tournamentId && (
+        {isLive && (
           <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
             Broadcasting
@@ -82,7 +109,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       </div>
 
       <div className="space-y-4">
-        {tournamentId ? (
+        {isLive ? (
           <>
             {/* Live View / Check-in QR */}
             <div className="bg-gradient-to-r from-blue-600/15 to-cyan-600/10 border border-blue-500/25 rounded-xl p-4">

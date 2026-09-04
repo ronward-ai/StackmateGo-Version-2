@@ -108,26 +108,6 @@ function UserMenu() {
   );
 }
 
-/**
- * A Firestore field that might be an ISO string, a Timestamp, or missing, as a
- * number of milliseconds. 0 when it cannot be read.
- *
- * Not decorative: sorting `String(value)` put "[object Object]" — a Timestamp —
- * above every ISO string, so an old document could outrank tonight's game.
- */
-function timestampMs(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  if (value && typeof value === 'object' && 'seconds' in (value as any)) {
-    const seconds = Number((value as any).seconds);
-    return Number.isFinite(seconds) ? seconds * 1000 : 0;
-  }
-  return 0;
-}
-
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
   const [, setLocation] = useLocation();
@@ -192,29 +172,13 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
         );
         if (cancelled || snap.empty) return;
 
-        // Only a game that is plausibly the one being run right now.
-        //
-        // Nothing deletes an activeTournaments document, so every game this
-        // account has ever taken live is a candidate. Picking "newest ever
-        // created" reopened a test tournament from months earlier when there was
-        // no current game — which is worse than reopening nothing.
-        const RECENT_MS = 12 * 60 * 60 * 1000; // a poker night does not span longer
-        const now = Date.now();
-
-        const candidates = snap.docs
-          .map(d => {
-            const data = d.data();
-            return {
-              id: d.id,
-              status: String(data.status ?? ''),
-              at: Math.max(timestampMs(data.updatedAt), timestampMs(data.createdAt)),
-            };
-          })
-          .filter(c => c.status !== 'completed')
-          .filter(c => c.at > 0 && now - c.at < RECENT_MS)
-          .sort((a, b) => b.at - a.at);
-
-        const newest = candidates[0];
+        // Only a game that is plausibly the one being run right now — the same
+        // question the auto-save asks, answered by the same function so the two
+        // cannot disagree about which game tonight's is.
+        const { findCurrentLiveTournament } = await import('@/lib/liveTournament');
+        const newest = findCurrentLiveTournament(
+          snap.docs.map(d => ({ id: d.id, ...d.data() })),
+        );
         if (newest) {
           localStorage.setItem('activeDirectorTournamentId', newest.id);
           setLocation(`/tournament/${newest.id}/director`);
@@ -519,10 +483,45 @@ function PokerTimerInner({
     creatingRef.current = true;
     (async () => {
       try {
+        // Join this night's game rather than minting a rival copy of it.
+        //
+        // The document id is the localGameId, so a device whose local roster
+        // survived a page load — logging out is a full page load — would create
+        // a document that ALREADY EXISTS, under the same id, from the state it
+        // held before it was ever saved. That overwrote a live game mid-night.
+        //
+        // Deliberately matched on the id: a live game with a DIFFERENT id is a
+        // different game, and adopting it would hijack a director who has
+        // genuinely started a second tournament in the same evening. Nothing
+        // marks a game finished, so "the account has a live game" alone is not
+        // enough to conclude it is this one.
+        const localGameId = tournament.state.details?.localGameId;
+        if (localGameId) {
+          const { collection, query, where, getDocs } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
+          const { findCurrentLiveTournament } = await import('@/lib/liveTournament');
+          const snap = await getDocs(
+            query(collection(db, 'activeTournaments'), where('ownerId', '==', user.id)),
+          );
+          const live = findCurrentLiveTournament(
+            snap.docs.map(d => ({ id: d.id, ...d.data() })),
+          );
+          if (live && live.id === localGameId) {
+            setDbTournamentId(live.id);
+            // isPublished is left to the snapshot: this device does not know
+            // whether the game it is joining was published, and guessing "yes"
+            // would show a QR for a game participants are refused by.
+            tournament.updateTournamentDetails({ id: live.id, type: 'database' });
+            try { localStorage.setItem('activeDirectorTournamentId', live.id); } catch {}
+            return;
+          }
+        }
+
         const { createTournamentDocument } = await import('@/lib/tournamentDocument');
         const docId = await createTournamentDocument(tournament.state, user.id, league?.name, false);
         setDbTournamentId(docId);
-        tournament.updateTournamentDetails({ id: docId, type: 'database' });
+        // Saved, not published: Go Live is what reveals the QR.
+        tournament.updateTournamentDetails({ id: docId, type: 'database', isPublished: false });
         try { localStorage.setItem('activeDirectorTournamentId', docId); } catch {}
       } catch (err) {
         // Not fatal: the game keeps running locally and is persisted there. Let

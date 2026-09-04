@@ -235,6 +235,21 @@ function saveLocalProgress(progress: LocalProgress) {
   } catch {}
 }
 
+/**
+ * Forget the local copy once the game lives in Firestore.
+ *
+ * This blob is a stand-in for a cloud copy, and keeping it after there is one
+ * turns it into a rival source of truth. That is exactly how a live game was
+ * lost: the roster from before the game was saved survived a logout, and
+ * signing back in resurrected it over the top of the real game two hours further
+ * on. A saved game is restored from Firestore, and only from Firestore.
+ */
+function clearLocalProgress() {
+  try {
+    localStorage.removeItem(LOCAL_PROGRESS_KEY);
+  } catch {}
+}
+
 export function useTournament(tournamentId?: string) {
   const { user } = useAuth();
   // Load saved settings and merge with defaults
@@ -409,7 +424,10 @@ export function useTournament(tournamentId?: string) {
   // lose the roster. Only for games that have not gone live — a database
   // tournament lives in Firestore and must not be seeded from here.
   useEffect(() => {
-    if (state.details?.type === 'database') return;
+    if (state.details?.type === 'database') {
+      clearLocalProgress();
+      return;
+    }
 
     // A standalone game carries no localGameId on details — only league games do
     // — so fall back to the stored id, which exists for every local game.
@@ -530,6 +548,13 @@ export function useTournament(tournamentId?: string) {
                   ownerId: data.ownerId,
                 } as typeof updatedState.details;
               }
+
+              // Absent means published — the field postdates the documents that
+              // Go Live created, and their QR links must keep working.
+              updatedState.details = {
+                ...updatedState.details,
+                isPublished: data.isPublished !== false,
+              } as typeof updatedState.details;
 
               return updatedState;
             } catch (error) {
