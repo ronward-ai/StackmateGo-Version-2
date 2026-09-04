@@ -1,20 +1,40 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# StackMate Go
 
-# Run and deploy your AI Studio app
+A poker tournament timer and league manager.
 
-This contains everything you need to run your app locally.
+A **director** runs a game on a laptop or tablet — blinds, clock, seating, rebuys, payouts —
+and **participants** join by scanning a QR code to get a read-only live view on their phones.
+Games can be standalone or part of a league season, with points, standings and player stats
+carried across the season.
 
-View your app in AI Studio: https://ai.studio/apps/127bb0ae-6c5c-42d1-a030-fd85760f05b1
+React + TypeScript + Vite, Firestore for data, deployed on Railway.
 
-## Run Locally
+## Run locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js 20
 
+```
+npm install
+cp .env.example .env.local   # then fill in your Firebase project's values
+npm run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Commands
+
+```
+npm run dev         # local dev server
+npm run check       # tsc
+npm test            # unit tests (vitest)
+npm run test:rules  # Firestore rules tests against the emulator (needs Java)
+npm run build       # production build
+npm start           # serve the production build
+```
+
+## Notes for contributors
+
+See [CLAUDE.md](CLAUDE.md). It is the real working documentation: how the data model fits
+together, which behaviours are load-bearing, and the traps that have already cost live games.
+Read it before changing anything around tournament state, handover or league results.
+
+One thing worth knowing up front: **Firestore security rules are deployed by hand.** Editing
+`firestore.rules` changes nothing in production until they are published.
