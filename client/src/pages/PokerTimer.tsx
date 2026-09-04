@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, LogOut, UserCircle, ChevronDown, Settings2 } from 'lucide-react';
+import { User, LogOut, UserCircle, ChevronDown, Settings2, X } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -133,17 +133,6 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   const [, setLocation] = useLocation();
   const { user, isAnonymous, isLoading: authLoading } = useAuth();
 
-  // If returning to the home page after previously going live, redirect back to the
-  // live director view so Firestore state is fully restored from the database.
-  //
-  // Only while someone is actually signed in to be that director. This used to
-  // fire regardless, which pinned the app to the tournament: every visit to /
-  // bounced straight back into a game the signed-out user could not direct, and
-  // the home screen — the only place with a Sign In button — became unreachable.
-  //
-  // Waiting for authLoading matters. useAuth starts with no user, so checking
-  // without it would skip the redirect on every cold load and break the case
-  // this effect exists for.
   // Did the user sign in during THIS page's lifetime?
   //
   // Distinct from "is signed in": arriving already-signed-in must not count, or
@@ -239,6 +228,11 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
     return () => { cancelled = true; };
   }, [tournamentId, authLoading, user, isAnonymous, setLocation]);
 
+  // Reopen the pinned live game when returning to the home page, so Firestore
+  // state is restored rather than the app starting from a blank local one.
+  // Only for a signed-in director: firing regardless pinned the app to a
+  // tournament a signed-out user could not direct, and made the home screen —
+  // the only place with a Sign In button — unreachable.
   useEffect(() => {
     if (tournamentId || authLoading) return;
 
@@ -342,6 +336,19 @@ function PokerTimerInner({
   // Held in a ref so the elimination effect reads it without re-subscribing.
   const displaySeasonRef = useRef<any>(null);
   const { user, isAnonymous, isLoading: authLoading } = useAuth();
+
+  // What an account buys you, said once where it will be read.
+  //
+  // Signed out, the console works fully and everything persists on this device —
+  // so nothing on screen told a visitor whether the app was free, broken, or
+  // about to lose their game.
+  //
+  // Dismissed for the session only, deliberately: it must not nag through
+  // tonight's game, but persisting the dismissal would permanently hide the only
+  // explanation there is.
+  const [signedOutBarDismissed, setSignedOutBarDismissed] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
+  const showSignedOutBar = !authLoading && (!user || isAnonymous) && !signedOutBarDismissed;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -845,6 +852,35 @@ function PokerTimerInner({
     <div className="min-h-screen bg-background text-foreground font-sans">
       <div className="container mx-auto px-4 py-3 sm:py-6 max-w-4xl">
         {/* Header — row 1: logo + user menu | row 2: mode toggle */}
+        {showSignedOutBar && (
+          <div className="mb-3 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-blue-200">Running on this device only</p>
+              <p className="text-xs text-blue-200/70">
+                Sign in to share a QR code with players, track a league, and pick this game up on
+                another device.
+              </p>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => setShowSignInModal(true)}
+              >
+                Sign in
+              </Button>
+              <button
+                onClick={() => setSignedOutBarDismissed(true)}
+                aria-label="Dismiss"
+                className="p-2 text-blue-200/60 hover:text-blue-100 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        <AuthModal isOpen={showSignInModal} onClose={() => setShowSignInModal(false)} />
+
         <header className="mb-3 sm:mb-5">
           {/* Row 1: logo left, user menu right */}
           <div className="flex items-center justify-between mb-2">
