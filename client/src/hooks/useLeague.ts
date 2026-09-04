@@ -29,6 +29,12 @@ export interface TournamentResult {
   rebuyAmount?: number;
   addons?: number;
   addonAmount?: number;
+  reEntries?: number;
+  bountyWinnings?: number;
+  /** Bounty figures under older names, tolerated on read. */
+  bountyWon?: number;
+  bountiesWon?: number;
+  knockouts?: number;
   tournamentId?: string | number;
   tournamentDate?: { seconds: number; nanoseconds: number } | number | null;
   seasonId?: string | null;
@@ -272,6 +278,16 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
           playersEliminatedCount: result.knockouts,
           cashWon: result.prizeMoney,
           buyIn: result.buyIn,
+          // What the player put in again, and what they took off other players'
+          // heads. Rebuilding each result from an explicit whitelist is why
+          // adding these to the document alone was not enough: the columns
+          // would still have read 0.
+          rebuys: result.rebuys,
+          rebuyAmount: result.rebuyAmount,
+          addons: result.addons,
+          addonAmount: result.addonAmount,
+          reEntries: result.reEntries,
+          bountyWinnings: result.bountyWinnings,
           date: result.createdAt?.toDate?.()?.toISOString() || result.createdAt || new Date().toISOString()
         }))
       };
@@ -312,6 +328,12 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       knockouts?: number;
       prizeMoney?: number;
       buyIn?: number;
+      rebuys?: number;
+      reEntries?: number;
+      addons?: number;
+      bountyWinnings?: number;
+      rebuyAmount?: number;
+      addonAmount?: number;
       tournamentDate: Date;
       tournamentName?: string;
       tournamentId?: string;
@@ -323,6 +345,17 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         leagueId: String(currentLeagueId),
         leaguePlayerId: String(resultData.leaguePlayerId),
         seasonId: resultData.seasonId || null, // ← persisted to Firestore
+        // Coerced, not spread through: sanitizeForFirestore strips undefined, so
+        // an unset count would omit the field entirely for every player who
+        // never rebought — the same absent-field trap that had these columns
+        // reading 0 in the first place. The amounts are what make Invested right;
+        // without them the table charges a rebuy at the buy-in.
+        rebuys: resultData.rebuys || 0,
+        reEntries: resultData.reEntries || 0,
+        addons: resultData.addons || 0,
+        bountyWinnings: resultData.bountyWinnings || 0,
+        rebuyAmount: resultData.rebuyAmount || 0,
+        addonAmount: resultData.addonAmount || 0,
         createdAt: serverTimestamp()
       });
       const docRef = await addDoc(collections.tournamentResults, newResult);
@@ -460,7 +493,22 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     buyInAmount?: number,
     tournamentId?: string,
     seasonId?: string,
-    allowReplace: boolean = false
+    allowReplace: boolean = false,
+    /**
+     * What the player put in again, and what the rebuys and add-ons cost.
+     *
+     * A trailing object rather than four more positional parameters — this
+     * signature is already nine deep, and the next reader should not have to
+     * count commas to see which number is the add-on price.
+     */
+    stats?: {
+      rebuys?: number;
+      reEntries?: number;
+      addons?: number;
+      bountyWinnings?: number;
+      rebuyAmount?: number;
+      addonAmount?: number;
+    },
   ) => {
     try {
       const leagueId = await waitForLeague();
@@ -528,6 +576,12 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         knockouts: playersEliminatedCount,
         prizeMoney,
         buyIn: buyInAmount || 10,
+        rebuys: stats?.rebuys || 0,
+        reEntries: stats?.reEntries || 0,
+        addons: stats?.addons || 0,
+        bountyWinnings: stats?.bountyWinnings || 0,
+        rebuyAmount: stats?.rebuyAmount || 0,
+        addonAmount: stats?.addonAmount || 0,
         tournamentDate: new Date(),
         tournamentName: 'Tournament Result',
         tournamentId,

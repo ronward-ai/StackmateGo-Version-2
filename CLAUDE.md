@@ -12,7 +12,7 @@ React + TypeScript + Vite, Firestore for data, deployed on Railway.
 ```
 npm run dev         # local dev server
 npm run check       # tsc — MUST stay clean
-npm test            # vitest, ~138 unit tests
+npm test            # vitest, ~156 unit tests
 npm run test:rules  # Firestore rules tests against the emulator (needs Java)
 npm run build       # production build
 ```
@@ -227,6 +227,33 @@ that screen — no sign-out, and no Take control because they did not own the ga
 escape was clearing site cookies from browser settings. Naming the account is load-bearing too:
 "which login is this?" was the unanswered question behind several rounds of debugging.
 
+### A league result is written once, from a whitelist, and read through another
+
+`tournamentResults` has exactly one writer — `addResultMutation` in `useLeague.ts` — and the read
+path (`useLeague.ts`, building `tournamentResults` for each player) rebuilds every result from an
+**explicit whitelist**. A field has to be added in three places to reach a column: the call site in
+`PokerTimer`, the mutation's parameter type and write, and that mapping. Adding it to only the
+document is not enough, and nothing fails — the column just reads 0.
+
+That is exactly how Rebuys, Re-entries, Add-ons and Bounties displayed 0 for every player in every
+league. All four are tracked live on the player and were dropped at the moment of recording, taking
+Invested, Profit and ROI down with them, since investment is buy-in *plus* what was put in again.
+
+Two traps in that write. `sanitizeForFirestore` strips `undefined`, so a count must be coerced with
+`|| 0` or the field is silently absent for everyone who never rebought. And the mapping renames
+`knockouts` to `playersEliminatedCount`, which is why the table reads both.
+
+`lib/resultStats.ts` owns the arithmetic and its fallbacks — an unpriced rebuy is charged at the
+buy-in, and a result with no recorded buy-in falls back to 10 so old leagues' history does not move.
+
+The **Bounties column is money**, not a count: a count of heads is the Hits column, and
+`bountyWinnings` is the only bounty figure the timer tracks. The stat key stays `bountiesWon`
+because it is persisted in each league's column settings.
+
+Historical results carry none of these fields and stay at 0. `completedTournaments` — a parallel
+record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
+is possible if it is ever worth doing.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
@@ -253,6 +280,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
 | `handover.ts` | Director handover: issuing, redeeming and burning transfer codes. |
 | `liveTournament.ts` | Which of an account's tournaments is the one being run right now. |
+| `resultStats.ts` | What a league result says a player spent and collected: investment, rebuys, add-ons, bounty money. |
 
 ### One shared listener per query
 
@@ -303,8 +331,6 @@ season, so the screen and the database cannot disagree.
   so the fix is to drop `create`/`update`. Dormant until payments are switched on, but it must be
   done *before* that, not after. The webhook also reads `metadata.uid` off the subscription while
   the checkout session sets it on the session, which Stripe does not propagate.
-- **League columns for Rebuys / Re-entries / Add-ons / Bounties display 0 forever.**
-  `RealTimeLeagueTable` reads those fields off `tournamentResults`; `useLeague` never writes them.
 
 ---
 

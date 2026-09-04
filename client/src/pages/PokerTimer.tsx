@@ -763,6 +763,19 @@ function PokerTimerInner({
               // lags that deletion — it would skip the write and leave the player
               // with no result at all.
               corrected.has(player.id),
+              // What the player put in again. These have always been on the
+              // player object right here and were simply dropped, which is why
+              // the league table's Rebuys, Re-entries, Add-ons and Bounty
+              // columns read 0 for every player in every league — and why
+              // Invested undercounted anyone who rebought.
+              {
+                rebuys: player.rebuys || 0,
+                reEntries: player.reEntries || 0,
+                addons: player.addons || 0,
+                bountyWinnings: player.bountyWinnings || 0,
+                rebuyAmount: tournament.state.prizeStructure?.rebuyAmount || 0,
+                addonAmount: tournament.state.prizeStructure?.addonAmount || 0,
+              },
             );
           } catch (playerError) {
             console.error('Error recording individual player to league:', player.name, playerError);

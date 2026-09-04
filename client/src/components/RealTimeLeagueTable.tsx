@@ -17,6 +17,7 @@ import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { isLeagueTournament } from '@/lib/tournamentMode';
 import { countGamesPlayed } from '@/lib/seasonProgress';
+import { totalsAcross } from '@/lib/resultStats';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
@@ -216,17 +217,11 @@ function RealTimeLeagueTable({
         return sum + prizeMoney;
       }, 0);
 
-      // Calculate total investment from tournament history
-      const totalInvestment = results.reduce((sum, result) => {
-        // Use recorded buy-in, fallback to 10 if missing to avoid changing historical data
-        const buyIn = result.buyIn || result.buyInAmount || 10;
-
-        // Add rebuys and add-ons if available
-        const rebuys = (result.rebuys || 0) * (result.rebuyAmount || buyIn);
-        const addons = (result.addons || 0) * (result.addonAmount || buyIn);
-
-        return sum + buyIn + rebuys + addons;
-      }, 0);
+      // What the player put in, and what they put in again — see
+      // lib/resultStats.ts, which owns the fallbacks for results written before
+      // any of this was recorded.
+      const extras = totalsAcross(results);
+      const totalInvestment = extras.invested;
 
       const buyInsSpent = totalInvestment;
 
@@ -253,8 +248,8 @@ function RealTimeLeagueTable({
       const bestFinish = games > 0 ? Math.min(...results.map(r => r.position || 999)) : 999;
       const winRate = games > 0 ? Math.round((firstPlaces / games) * 100) : 0;
       const earlyExits = results.filter(r => (r.position || 0) > ((r.totalPlayers || 0) * 0.8)).length;
-      const totalRebuys = results.reduce((sum, result) => sum + ((result as any).rebuys || 0), 0);
-      const totalReEntries = results.reduce((sum, result) => sum + ((result as any).reEntries || 0), 0);
+      const totalRebuys = extras.rebuys;
+      const totalReEntries = extras.reEntries;
 
       // ITM %
       const itmCount = results.filter(r => {
@@ -264,13 +259,15 @@ function RealTimeLeagueTable({
       const itmPercentage = games > 0 ? Math.round((itmCount / games) * 100) : 0;
 
       // Add-ons
-      const totalAddOns = results.reduce((sum, r) => sum + ((r as any).addons || 0), 0);
+      const totalAddOns = extras.addons;
 
       // Total invested (buyInsSpent already computed above)
       const totalInvested = buyInsSpent;
 
-      // Bounties won
-      const bountiesWon = results.reduce((sum, r) => sum + ((r as any).bountyWon || (r as any).bountiesWon || 0), 0);
+      // Bounty money. Deliberately the amount collected, not a count of heads:
+      // a count would be the Hits column again, and bounty winnings are the only
+      // bounty figure the timer actually tracks.
+      const bountiesWon = extras.bountyWinnings;
 
       // Attendance %
       const attendancePercent = totalTournaments > 0 ? Math.round((games / totalTournaments) * 100) : 0;
@@ -375,7 +372,8 @@ function RealTimeLeagueTable({
       case 'totalInvested':
         return `£${(player.totalInvested || 0).toLocaleString()}`;
       case 'bountiesWon':
-        return player.bountiesWon?.toString() || '0';
+        // Money, so formatted like the other cash columns.
+        return `£${(player.bountiesWon || 0).toLocaleString()}`;
       case 'attendancePercent':
         return `${player.attendancePercent || 0}%`;
       case 'currentStreak':

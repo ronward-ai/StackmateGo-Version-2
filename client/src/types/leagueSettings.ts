@@ -65,7 +65,7 @@ export interface LeagueStatsDisplay {
   itmPercentage: boolean; // % of games finishing in the money
   addOns: boolean; // Total add-on count across all games
   totalInvested: boolean; // Sum of buy-ins + rebuys + add-ons
-  bountiesWon: boolean; // Total bounties collected
+  bountiesWon: boolean; // Bounty money collected — an amount, not a count of heads (that is Hits)
   attendancePercent: boolean; // Games attended as % of total season games
   currentStreak: boolean; // Consecutive in-the-money finishes (most recent)
   biggestWin: boolean; // Highest single-tournament cash amount
@@ -117,7 +117,7 @@ export const STAT_LABELS: Record<string, string> = {
   itmPercentage: 'ITM %',
   addOns: 'Add-ons',
   totalInvested: 'Invested',
-  bountiesWon: 'Bounties',
+  bountiesWon: 'Bounty £',
   attendancePercent: 'Attendance',
   currentStreak: 'Streak',
   biggestWin: 'Biggest Win',
