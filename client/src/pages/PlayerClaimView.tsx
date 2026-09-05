@@ -115,32 +115,53 @@ export default function PlayerClaimView() {
   }, [tournamentId]);
 
   /**
-   * Writes the players array back via the Firestore REST API with no auth token.
+   * An ID token for the check-in write, signing the visitor in anonymously if
+   * they are not already.
    *
-   * The matching security rule allows this unauthenticated, restricted to the
-   * `players` field with the array length preserved. That blocks deletion and
-   * injection but still lets a participant alter fields inside an existing
-   * entry. Fully closing it means authenticating this write (anonymous is
-   * enough) and requiring isAuthenticated() in the rule.
+   * The write used to go out with no token at all, and the rule admitted it
+   * unauthenticated. Anyone who could see the QR code could therefore PATCH the
+   * players array of a live game from anywhere, with nothing tying the write to
+   * a session. Anonymous auth costs the participant nothing — the live view
+   * already signs every visitor in this way — and it is what lets the rule
+   * require a session at all.
    *
-   * This was deferred because anonymous auth was the leading suspect for the
+   * It was deferred once because anonymous auth was the leading suspect for the
    * "quota limit exceeded" reports, and check-in was the one participant flow
-   * that did not depend on it. That blocker is now gone: the cause turned out
-   * to be AI-shared quota limits on the Firestore database itself, resolved by
-   * moving it to pay-as-you-go billing — nothing to do with auth.
+   * that did not depend on it. That turned out to be the database's shared
+   * quota billing and nothing to do with auth, so the reason expired.
+   */
+  const claimToken = async (): Promise<string> => {
+    const { getAuth, signInAnonymously } = await import('firebase/auth');
+    const auth = getAuth();
+    const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
+    return user.getIdToken();
+  };
+
+  /**
+   * Writes the players array back via the Firestore REST API.
    *
-   * So this is now safe to do and worth doing: sign in anonymously, send the ID
-   * token on the PATCH, and tighten the rule's unauthenticated branch to require
-   * isAuthenticated(). The rules test suite already covers this branch.
+   * The rule still constrains this to the `players` field with the array length
+   * preserved, which is what blocks deletion and injection. Requiring a session
+   * does not by itself stop a determined participant editing a field inside an
+   * existing entry — anyone can obtain an anonymous session — so this raises the
+   * bar and makes the write attributable rather than closing the hole outright.
+   *
+   * Closing it properly means doing the write server-side with the Admin SDK,
+   * which needs a service account key. Key creation is blocked by an
+   * organisation policy on this project, so that route is not currently open.
    */
   const patchPlayers = async (updatedPlayers: TournamentPlayer[]): Promise<void> => {
     const { projectId, databaseId } = await import('@/lib/firebase');
+    const token = await claimToken();
     const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
     const res = await fetch(
       `${base}/activeTournaments/${tournamentId}?updateMask.fieldPaths=players`,
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ fields: { players: toVal(updatedPlayers) } }),
       }
     );

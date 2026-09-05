@@ -133,7 +133,7 @@ describe('only the director may change a live game', () => {
 
   it('still lets a participant check in, which is a different branch', async () => {
     // Guards against tightening this so far that the QR flow breaks.
-    await assertSucceeds(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+    await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
       players: [
         { id: 'p1', name: 'Alice', isActive: true, claimedBy: 'device-abc' },
         { id: 'p2', name: 'Bob', isActive: true },
@@ -181,25 +181,37 @@ describe('listing tournaments', () => {
 });
 
 describe('player check-in', () => {
-  it('allows an unauthenticated claim that only marks claimedBy', async () => {
-    await assertSucceeds(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
-      players: [
-        { id: 'p1', name: 'Alice', isActive: true, claimedBy: 'device-abc' },
-        { id: 'p2', name: 'Bob', isActive: true },
-      ],
+  const CLAIM = [
+    { id: 'p1', name: 'Alice', isActive: true, claimedBy: 'device-abc' },
+    { id: 'p2', name: 'Bob', isActive: true },
+  ];
+
+  it('allows a signed-in-anonymously claim that only marks claimedBy', async () => {
+    await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+      players: CLAIM,
+    }));
+  });
+
+  // The write used to go out with no token at all, so anyone who could see the
+  // QR code could PATCH a live game's players array from anywhere, with nothing
+  // tying the write to a session. PlayerClaimView now signs in anonymously
+  // before writing, which costs the participant nothing.
+  it('rejects a check-in with no session at all', async () => {
+    await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+      players: CLAIM,
     }));
   });
 
   it('rejects deleting players from the tournament', async () => {
     // The destructive case: anyone with the QR link wiping the field mid-game.
-    await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), { players: [] }));
-    await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { players: [] }));
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
       players: [{ id: 'p1', name: 'Alice', isActive: true }],
     }));
   });
 
   it('rejects injecting extra players', async () => {
-    await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
       players: [
         { id: 'p1', name: 'Alice', isActive: true },
         { id: 'p2', name: 'Bob', isActive: true },
@@ -208,8 +220,8 @@ describe('player check-in', () => {
     }));
   });
 
-  it('rejects an unauthenticated write that touches any other field', async () => {
-    await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+  it('rejects a check-in write that touches any other field', async () => {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
       players: [
         { id: 'p1', name: 'Alice', isActive: true },
         { id: 'p2', name: 'Bob', isActive: true },

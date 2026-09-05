@@ -160,18 +160,26 @@ service cloud.firestore {
         // Owner can change anything
         isAuthenticated() && isExistingDocOwner()
       ) || (
-        // Unauthenticated player claiming (PlayerClaimView check-in via QR).
-        // Only the players field may change, AND the array length must be
-        // preserved. Without the size check this branch let anyone holding a
-        // tournament id — which is handed to every participant in the QR code —
-        // replace the entire players array: wiping the field mid-tournament, or
-        // injecting entries that then feed through into league standings.
+        // Player check-in (PlayerClaimView, reached from the QR code).
         //
-        // Preserving size blocks deletion and injection. It does not prevent a
-        // determined participant from altering fields within an existing entry;
-        // closing that fully requires authenticating this write, which is
-        // deliberately deferred — see the note in PlayerClaimView.
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players'])
+        // Requires a session — anonymous is enough, and the participant view
+        // already signs every visitor in that way. This branch used to admit a
+        // completely unauthenticated write, so anyone who could see the QR code
+        // could PATCH a live game's players array from anywhere, with nothing
+        // tying the write to a session.
+        //
+        // Only the players field may change, AND the array length must be
+        // preserved. Without the size check this let a participant replace the
+        // whole array: wiping the field mid-tournament, or injecting entries
+        // that then feed through into league standings.
+        //
+        // Still not airtight — anyone can obtain an anonymous session, so a
+        // determined participant can edit a field inside an existing entry.
+        // Closing that means writing server-side with the Admin SDK, which needs
+        // a service account key; key creation is blocked by org policy on this
+        // project. See the note in PlayerClaimView.
+        isAuthenticated()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players'])
         && request.resource.data.players.size() == resource.data.players.size()
       );
       allow delete: if isRegistered() && isExistingDocOwner();
