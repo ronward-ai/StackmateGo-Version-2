@@ -342,6 +342,20 @@ has been *ended* — it does not decide which is current.
 Switching seasons is one write. It used to be N+1 un-batched writes that also rewrote documents
 participants read.
 
+### `leaguePlayers.totalPoints` is vestigial
+
+Written as 0 when a player is created and never maintained. Every standings table recomputes points
+from that player's results, so the stored value was read by nothing while costing a second Firestore
+write on every result recorded, deleted or corrected — halving the writes a ten-player game makes
+just to keep a number that could only drift.
+
+It was also a failure point in the wrong place: the increment was awaited inside `addResultMutation`,
+so a permission or network error on a write nobody needed turned a successfully recorded result into
+a thrown one.
+
+Do not resurrect the increments. If a stored total is ever genuinely wanted, derive it somewhere it
+can be tested.
+
 ### Season numbering is derived, never stored twice
 
 `gameNumberFor()` is the single derivation. `settings.gameNumber` is written in exactly one place
@@ -358,8 +372,6 @@ season, so the screen and the database cannot disagree.
   length is preserved, so deletion and injection stay blocked. Closing it fully means writing
   server-side with the Admin SDK, which needs a service account key; **key creation is blocked by an
   organisation policy on this project**, so that route is not currently open.
-- **`leaguePlayers.totalPoints`** is a denormalised counter nothing reads — every table recomputes
-  from results. It can only drift.
 
 ---
 
@@ -376,6 +388,9 @@ season, so the screen and the database cannot disagree.
 ---
 
 ## History
+
+`replit.md` was deleted: it described a "WebSocket" architecture this app has never had and
+duplicated CLAUDE.md badly. `.replit` stays — it is live config, not documentation.
 
 `docs/league-seasons-rework-plan.md` is the archived plan the League & Seasons rework was executed
 from. Read it for *why* the model looks the way it does — the single `activeSeasonId` pointer, the

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { db, collections } from '@/lib/firebase';
-import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
 
@@ -304,6 +304,18 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       const newPlayer = {
         ...playerData,
         leagueId: String(currentLeagueId),
+        /**
+         * Vestigial, and deliberately left at 0.
+         *
+         * Nothing reads the stored value — every standings table recomputes
+         * points from that player's results — so maintaining it meant a second
+         * Firestore write on every result recorded, deleted or corrected, for a
+         * number that could only drift away from the truth. Written once so the
+         * document shape stays consistent with the ones already out there.
+         *
+         * If a stored total is ever genuinely wanted, derive it somewhere it can
+         * be tested; do not resurrect the increments.
+         */
         totalPoints: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -359,12 +371,13 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         createdAt: serverTimestamp()
       });
       const docRef = await addDoc(collections.tournamentResults, newResult);
-      
-      // Atomically increment totalPoints — avoids stale-closure race when
-      // multiple results are recorded back-to-back at tournament end.
-      const playerRef = doc(db, 'leaguePlayers', String(resultData.leaguePlayerId));
-      await updateDoc(playerRef, { totalPoints: increment(resultData.points), updatedAt: serverTimestamp() });
-      
+
+      // leaguePlayers.totalPoints is deliberately NOT maintained here — see the
+      // note on createPlayerMutation. Every table recomputes points from the
+      // results, so this used to be a second Firestore write per result that
+      // nothing ever read, and one more thing that could fail mid-game and turn
+      // a recorded result into a thrown error.
+
       return { id: docRef.id, ...newResult };
     },
     onSuccess: () => {
@@ -471,11 +484,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   const removeResult = useCallback(async (playerId: string, resultId: string) => {
     if (!currentLeagueId) return;
     try {
-      const resultSnap = await getDoc(doc(db, 'tournamentResults', resultId));
-      const removedPoints = resultSnap.data()?.points || 0;
       await deleteDoc(doc(db, 'tournamentResults', resultId));
-      const playerRef = doc(db, 'leaguePlayers', playerId);
-      await updateDoc(playerRef, { totalPoints: increment(-removedPoints), updatedAt: serverTimestamp() });
       queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
       queryClient.invalidateQueries({ queryKey: ['leagueResults', currentLeagueId] });
     } catch (error) {
@@ -609,14 +618,9 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       );
       const snapshot = await getDocs(q);
       
-      // 3. Delete them and atomically decrement totalPoints
-      const totalRemoved = snapshot.docs.reduce((sum, d) => sum + (d.data().points || 0), 0);
+      // 3. Delete them
       const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, 'tournamentResults', docSnap.id)));
       await Promise.all(deletePromises);
-      if (totalRemoved > 0) {
-        const playerRef = doc(db, 'leaguePlayers', String(player.id));
-        await updateDoc(playerRef, { totalPoints: increment(-totalRemoved), updatedAt: serverTimestamp() });
-      }
 
       // 4. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
