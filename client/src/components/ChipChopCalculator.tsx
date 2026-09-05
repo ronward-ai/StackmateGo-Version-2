@@ -1,44 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Calculator, Trophy, ChevronRight } from 'lucide-react';
+import { Calculator, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-// ---------------------------------------------------------------------------
-// ICM calculation (recursive, memoised)
-// ---------------------------------------------------------------------------
-function icmEquity(chips: number[], payouts: number[]): number[] {
-  if (chips.length === 0 || payouts.length === 0) return chips.map(() => 0);
-
-  const total = chips.reduce((s, c) => s + c, 0);
-  if (total === 0) return chips.map(() => 0);
-
-  const equity = chips.map(() => 0);
-
-  for (let i = 0; i < chips.length; i++) {
-    const pFirst = chips[i] / total;
-    equity[i] += pFirst * payouts[0];
-
-    if (payouts.length > 1) {
-      const rest = chips.filter((_, j) => j !== i);
-      const restEq = icmEquity(rest, payouts.slice(1));
-      let k = 0;
-      for (let j = 0; j < chips.length; j++) {
-        if (j !== i) { equity[j] += pFirst * restEq[k]; k++; }
-      }
-    }
-  }
-  return equity;
-}
-
-function proportionalChop(chips: number[], remainingPool: number): number[] {
-  const total = chips.reduce((s, c) => s + c, 0);
-  if (total === 0) return chips.map(() => 0);
-  return chips.map(c => (c / total) * remainingPool);
-}
-
-// ---------------------------------------------------------------------------
+import { chopBase, icmEquity, payingPlaces, proportionalChop } from '@/lib/chop';
 
 interface Player { id: string; name: string; chipCount?: number; }
 
@@ -47,18 +13,29 @@ interface ChipChopCalculatorProps {
   onClose: () => void;
   players: Player[];          // active players only
   payouts: number[];          // payout structure [1st, 2nd, 3rd, ...]
-  prizePool: number;
+  currencySymbol: string;
 }
 
 export default function ChipChopCalculator({
-  open, onClose, players, payouts, prizePool,
+  open, onClose, players, payouts, currencySymbol,
 }: ChipChopCalculatorProps) {
-  const activePlayers = players.filter(p => p.chipCount !== undefined || true).slice(0, 9);
+  // Everyone still in. This used to slice to nine and drop the rest silently,
+  // which is wrong precisely in the big fields a chop is most likely in. The
+  // ICM cost that cap existed for is now bounded by the paying places instead.
+  const activePlayers = players;
 
-  const [chips, setChips] = useState<Record<string, string>>(() =>
-    Object.fromEntries(activePlayers.map(p => [p.id, p.chipCount != null ? String(p.chipCount) : '']))
-  );
+  const [chips, setChips] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<'icm' | 'prop'>('icm');
+
+  // Start from empty every time the dialog opens.
+  //
+  // The inputs used to be seeded once for the life of the component, so a
+  // director who chopped at five players, closed, busted down to three and
+  // reopened was shown stale stacks — already "complete", so an authoritative
+  // looking answer appeared immediately, for a table that no longer existed.
+  useEffect(() => {
+    if (open) setChips({});
+  }, [open]);
 
   const chipValues = activePlayers.map(p => {
     const v = parseFloat(chips[p.id] || '0');
@@ -66,23 +43,34 @@ export default function ChipChopCalculator({
   });
 
   const totalChips = chipValues.reduce((s, c) => s + c, 0);
-  const allFilled = chipValues.every(c => c > 0);
+  const allFilled = activePlayers.length > 0 && chipValues.every(c => c > 0);
 
-  // Pad or trim payouts to match active player count
-  const effectivePayouts = useMemo(() => {
-    const n = activePlayers.length;
-    if (payouts.length >= n) return payouts.slice(0, n);
-    // If fewer payouts than players, remaining get 0
-    return [...payouts, ...Array(n - payouts.length).fill(0)];
-  }, [payouts, activePlayers.length]);
+  // The places these players are actually competing for. Anyone already out has
+  // taken their place and their money with them, so the lower places are not on
+  // the table — and trailing zeros are trimmed, since ICM recurses once per
+  // payout and padding to the player count made nine players enumerate every
+  // ordering to compute equities that were zero anyway.
+  const effectivePayouts = useMemo(
+    () => payingPlaces(payouts.slice(0, activePlayers.length)),
+    [payouts, activePlayers.length],
+  );
+
+  // Both methods split the same money, however differently. The proportional
+  // chop used to divide the WHOLE prize pool while ICM competed for the top n
+  // payouts, so with more paid places than players left it handed out the money
+  // already owed to the finishers who were out.
+  const base = useMemo(
+    () => chopBase(payouts, activePlayers.length),
+    [payouts, activePlayers.length],
+  );
 
   const icmResults = useMemo(() =>
     allFilled ? icmEquity(chipValues, effectivePayouts) : null,
   [JSON.stringify(chipValues), JSON.stringify(effectivePayouts), allFilled]);
 
   const propResults = useMemo(() =>
-    allFilled ? proportionalChop(chipValues, prizePool) : null,
-  [JSON.stringify(chipValues), prizePool, allFilled]);
+    allFilled ? proportionalChop(chipValues, base) : null,
+  [JSON.stringify(chipValues), base, allFilled]);
 
   const results = tab === 'icm' ? icmResults : propResults;
 
@@ -119,8 +107,10 @@ export default function ChipChopCalculator({
 
         {/* Prize pool summary */}
         <div className="flex justify-between text-sm text-gray-300 bg-gray-800/50 rounded-lg px-3 py-2">
-          <span>Prize pool</span>
-          <span className="font-bold text-white">${prizePool.toLocaleString()}</span>
+          <span>Still to be won</span>
+          <span className="font-bold text-white">
+            {currencySymbol}{Math.round(base).toLocaleString()}
+          </span>
         </div>
 
         {/* Chip inputs */}
@@ -161,12 +151,12 @@ export default function ChipChopCalculator({
                   <span className="text-sm font-medium">{player.name}</span>
                 </div>
                 <span className="font-bold text-green-400">
-                  ${Math.round(results[i]).toLocaleString()}
+                  {currencySymbol}{Math.round(results[i]).toLocaleString()}
                 </span>
               </div>
             ))}
             <p className="text-xs text-gray-500 text-right pt-1">
-              Total: ${Math.round(results.reduce((s, v) => s + v, 0)).toLocaleString()}
+              Total: {currencySymbol}{Math.round(results.reduce((s, v) => s + v, 0)).toLocaleString()}
             </p>
           </div>
         ) : (

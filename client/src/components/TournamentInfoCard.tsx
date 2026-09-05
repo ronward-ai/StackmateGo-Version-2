@@ -363,6 +363,14 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
 
   const { rake, net: pool } = prizePoolFor(state.players, p);
 
+  // What each paid position is worth, derived once. The Payouts list below and
+  // the chop calculator both read this — they used to compute it separately
+  // from the same two inputs, which is how two figures for one number start.
+  const payoutAmounts = useMemo(
+    () => (p?.manualPayouts || []).map((po: any) => Math.floor(pool * (po.percentage || 0) / 100)),
+    [p?.manualPayouts, pool],
+  );
+
   const startChips = p?.startingChips || 10000;
   const rebuyChips = p?.rebuyChips || startChips;
   const addonChips = p?.addonChips || startChips;
@@ -451,7 +459,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                 </div>
                 <div className="space-y-1.5">
                   {p.manualPayouts.map((po: any, i: number) => {
-                    const amount = Math.floor(pool * po.percentage / 100);
+                    const amount = payoutAmounts[i] || 0;
                     const finisher = state.players.find((pl: any) => pl.position === i + 1);
                     const bountyBonus = (() => {
                       if (!finisher || !p?.enableBounties || !p?.bountyAmount) return 0;
@@ -596,8 +604,8 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
         open={showChipChop}
         onClose={() => setShowChipChop(false)}
         players={active}
-        payouts={p?.manualPayouts?.map((po: any) => Math.floor(pool * (po.percentage || 0) / 100)) || []}
-        prizePool={pool}
+        payouts={payoutAmounts}
+        currencySymbol={sym}
       />
     </Card>
   );

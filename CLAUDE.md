@@ -12,7 +12,7 @@ React + TypeScript + Vite, Firestore for data, deployed on Railway.
 ```
 npm run dev         # local dev server
 npm run check       # tsc — MUST stay clean
-npm test            # vitest, ~156 unit tests
+npm test            # vitest, ~194 unit tests
 npm run test:rules  # Firestore rules tests against the emulator (needs Java)
 npm run build       # production build
 ```
@@ -254,6 +254,28 @@ Historical results carry none of these fields and stay at 0. `completedTournamen
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
 
+### A chop splits only the money still to be won
+
+`ChipChopCalculator`, behind the **Chop** button in the Payouts header of `TournamentInfoCard`, is
+the only deal calculator. A second one, `DealCalculatorDialog`, existed unmounted and was deleted —
+two of these is how the rake formula drifted.
+
+`lib/chop.ts` owns the arithmetic. The thing to hold on to is what the players are competing for:
+**the top n payouts, where n is how many are left**, not the whole prize pool. Anyone already
+eliminated has taken their place and their money with them. ICM had this right and the proportional
+tab did not, so with six paid places and three players left it shared out the money already owed to
+4th, 5th and 6th — the two tabs quietly disagreed, and the wrong one was bigger.
+
+`payingPlaces()` trims trailing zeros before ICM runs, which is a correctness-shaped performance
+fix: `icmEquity` recurses once per payout, so padding the array to the player count made nine
+players enumerate 9! orderings to compute equities that were zero past third place.
+
+The chip inputs reset every time the dialog opens. They used to be seeded once for the life of the
+component, so chopping at five players, closing, busting to three and reopening showed stale stacks
+that already looked complete — an authoritative answer for a table that no longer existed.
+
+Chip counts are typed in by hand. `Player.chipCount` exists and nothing writes it.
+
 ### Every money figure comes from `lib/prizePool.ts`
 
 `prizePoolFor(players, prizeStructure)` is the one entry point, and `entryCosts(prizeStructure)`
@@ -323,6 +345,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
 | `handover.ts` | Director handover: issuing, redeeming and burning transfer codes. |
 | `liveTournament.ts` | Which of an account's tournaments is the one being run right now. |
+| `chop.ts` | Splitting the remaining prize money: ICM equity, proportional chop, and what is still on the table. |
 | `resultStats.ts` | What a league result says a player spent and collected: investment, rebuys, add-ons, bounty money. |
 
 ### One shared listener per query
