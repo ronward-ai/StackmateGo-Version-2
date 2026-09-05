@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   BlindLevel,
-  BestLosingHand,
   Player,
   Settings,
   TournamentState,
@@ -288,7 +287,6 @@ export function useTournament(tournamentId?: string) {
     // resuming paused is honest and the director presses play.
     isRunning: false,
     settings: mergedSettings,
-    bestLosingHand: undefined,
     prizeStructure: loadSavedPrizeStructure(),
     isFinalTable: restored?.isFinalTable ?? false,
     details: tournamentId ? {
@@ -380,8 +378,7 @@ export function useTournament(tournamentId?: string) {
                   ...tournamentData.settings?.tables
                 }
               },
-              bestLosingHand: undefined,
-              prizeStructure: tournamentData.prizeStructure || loadSavedPrizeStructure(),
+                        prizeStructure: tournamentData.prizeStructure || loadSavedPrizeStructure(),
               isFinalTable: false,
               details: {
                 type: 'database',
@@ -1486,8 +1483,7 @@ export function useTournament(tournamentId?: string) {
       secondsLeft: levels[0]?.duration ?? 0,
       isRunning: false,
       settings,
-      bestLosingHand: undefined,
-      prizeStructure,
+        prizeStructure,
       isFinalTable: false,
       details: { type: preservedType, localGameId: newLocalGameId },
     });
@@ -1951,22 +1947,6 @@ export function useTournament(tournamentId?: string) {
     });
   }, []);
 
-  // Update the best losing hand
-  const updateBestLosingHand = useCallback((hand: BestLosingHand) => {
-    setState(prev => ({
-      ...prev,
-      bestLosingHand: hand
-    }));
-  }, []);
-
-  // Clear the best losing hand
-  const clearBestLosingHand = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      bestLosingHand: undefined
-    }));
-  }, []);
-
   // NOTE: `completeTournament` was removed here.
   //
   // It was exported from this hook and called by nothing, and its prize maths
@@ -2225,8 +2205,6 @@ export function useTournament(tournamentId?: string) {
     updateNotes,
     updatePrizeStructure,
     removeLevel,
-    updateBestLosingHand,
-    clearBestLosingHand,
     skipToNextLevel,
     skipToPreviousLevel,
     updateTimer,

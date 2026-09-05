@@ -86,14 +86,6 @@ export interface Settings {
   notes?: string;
 }
 
-export interface BestLosingHand {
-  playerName: string;
-  handDescription: string;
-  beatenBy: string; // Player who won with the hand that beat this one
-  date?: string; // Optional date when it happened
-  notes?: string; // Optional additional notes
-}
-
 export interface PrizeStructure {
   buyIn: number;
   rebuyAmount?: number;
@@ -223,7 +215,6 @@ export interface TournamentState {
   targetEndTime?: number;
   isRunning: boolean;
   settings: Settings;
-  bestLosingHand?: BestLosingHand;
   prizeStructure?: PrizeStructure;
   isFinalTable?: boolean;
   details?: TournamentDetails;
