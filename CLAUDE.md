@@ -254,6 +254,28 @@ Historical results carry none of these fields and stay at 0. `completedTournamen
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
 
+### Payments: `users` is read-only to clients, and the uid rides on the subscription
+
+`users` holds `subscriptionStatus` and its only writer is the Stripe webhook through the Admin SDK,
+which bypasses rules entirely. The rules therefore allow **read only**. They used to allow the owner
+to create and update their own document, which meant any account could grant itself
+`{ subscriptionStatus: 'pro' }` from the browser console.
+
+The uid is stamped as Stripe metadata **twice** at checkout — on the session and, via
+`subscription_data`, on the subscription — because different events carry different objects.
+`checkout.session.completed` has the session, `customer.subscription.*` has the subscription, and
+`invoice.paid` has neither and must be resolved through the subscription it references. With the uid
+only on the session, as it was, every event the webhook acted on arrived without one and a paying
+customer would never have been marked pro.
+
+The webhook **fails loudly**: no Admin credentials, or a failed write, returns 500 so Stripe retries.
+Returning 200 makes Stripe consider the event delivered, and it never sends it again — a dropped
+upgrade with no trace.
+
+Payments are still switched off. `customer.subscription.updated` is deliberately not handled, so a
+subscription that goes `past_due` keeps pro until it is actually deleted; decide on that before
+going live.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
@@ -313,10 +335,6 @@ season, so the screen and the database cannot disagree.
   token. The rule constrains it to the `players` field with the array length preserved, which
   blocks deletion and injection but not editing an existing entry. Closing it means authenticating
   the write — see the note in `PlayerClaimView.tsx`.
-- **Anyone registered can create league documents.** Scoping create to `ownsLeague()` was tried and
-  reverted when it silently denied a handover director mid-game. Handover between accounts no longer
-  exists, so that rationale has expired — this can probably be tightened now, but do it deliberately
-  and with rules tests rather than as a drive-by. Update and delete remain owner-scoped.
 - **`leaguePlayers.totalPoints`** is a denormalised counter nothing reads — every table recomputes
   from results. It can only drift.
 - **The rake formula is copy-pasted at 9 sites**, and one of them disagrees.
@@ -326,11 +344,6 @@ season, so the screen and the database cannot disagree.
   disagrees with the director's screen; the pool itself is right, so payouts are unaffected.
   `prizePool.ts` is canonical and tested; consolidating the rest is safe but touches money code in
   several components.
-- **`users` can be written by its own owner** (`firestore.rules`), including `subscriptionStatus`.
-  Nothing in the client writes that collection at all — only the Stripe webhook, via the Admin SDK —
-  so the fix is to drop `create`/`update`. Dormant until payments are switched on, but it must be
-  done *before* that, not after. The webhook also reads `metadata.uid` off the subscription while
-  the checkout session sets it on the session, which Stripe does not propagate.
 
 ---
 

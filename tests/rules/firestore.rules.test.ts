@@ -239,14 +239,35 @@ describe('league data integrity', () => {
     await assertSucceeds(setDoc(doc(db, 'tournamentResults', 'new-result'), { leagueId: LEAGUE, points: 5 }));
   });
 
-  it('KNOWN GAP: a registered stranger can still create league documents', async () => {
-    // Documents the accepted trade-off rather than the desired end state.
-    // Scoping create to ownsLeague() closes this, but also denies handover
-    // directors — silently losing results mid-game. See the director-handover
-    // test below. The real fix is to authorise by tournament, not by league.
+  it('stops a registered stranger creating documents in a league they do not own', async () => {
+    // This was an accepted gap while a handover director could be signed in as
+    // another account and still need to record results. Handover between
+    // accounts no longer exists, so creates are owner-scoped like every other
+    // write: learning a leagueId no longer lets an account inject standings.
     const db = stranger();
-    await assertSucceeds(setDoc(doc(db, 'seasons', 'forged-season'), { name: 'Fake', leagueId: LEAGUE }));
-    await assertSucceeds(setDoc(doc(db, 'tournamentResults', 'forged-result'), { leagueId: LEAGUE, points: 999 }));
+    await assertFails(setDoc(doc(db, 'seasons', 'forged-season'), { name: 'Fake', leagueId: LEAGUE }));
+    await assertFails(setDoc(doc(db, 'leaguePlayers', 'forged-player'), { name: 'Fake', leagueId: LEAGUE }));
+    await assertFails(setDoc(doc(db, 'tournamentResults', 'forged-result'), { leagueId: LEAGUE, points: 999 }));
+  });
+
+  it('still lets that stranger write into their OWN league', async () => {
+    // The rule is ownership, not identity — the check must not simply pin
+    // writes to whoever seeded the test data.
+    await assertSucceeds(setDoc(doc(stranger(), 'tournamentResults', 'own-result'), {
+      leagueId: OTHER_LEAGUE, position: 1, points: 10,
+    }));
+  });
+
+  it('rejects a create naming a league that does not exist', async () => {
+    // ownsLeague() reads the league document, so a made-up id must fail closed
+    // rather than erroring open.
+    await assertFails(setDoc(doc(director(), 'tournamentResults', 'orphan-result'), {
+      leagueId: 'no-such-league', points: 1,
+    }));
+  });
+
+  it('rejects a create with no leagueId at all', async () => {
+    await assertFails(setDoc(doc(director(), 'tournamentResults', 'unscoped-result'), { points: 1 }));
   });
 
   it('still stops a stranger MODIFYING existing league documents', async () => {
@@ -269,25 +290,51 @@ describe('league data integrity', () => {
   });
 });
 
-describe('director handover', () => {
-  it('lets a handover director record results into the original league', async () => {
-    // After a transfer-code handover the new director is a registered user who
-    // is NOT the league owner. useLeague still resolves currentLeagueId from the
-    // tournament's stored leagueId, so addResultMutation writes results tagged
-    // with the ORIGINAL director's leagueId while authenticated as someone else.
-    //
-    // This is the flow that ownsLeague()-on-create broke. The denial surfaced
-    // only as a console permission error, so a full night's results would go
-    // unrecorded with nothing shown to the director. Guards the revert.
-    await assertSucceeds(setDoc(doc(stranger(), 'tournamentResults', 'handover-result'), {
+describe('handing over by logging out', () => {
+  // Handover between two different ACCOUNTS was removed. The next director signs
+  // in with the SAME account, so they are the league owner throughout — which is
+  // what let league writes be owner-scoped again.
+  it('lets the account that owns the league record results, from any device', async () => {
+    await assertSucceeds(setDoc(doc(director(), 'tournamentResults', 'handover-result'), {
       leagueId: LEAGUE, position: 3, points: 5, leaguePlayerId: 'player-1',
     }));
   });
 
-  it('still denies a handover director rewriting existing league standings', async () => {
+  it('denies another account writing into this league at all', async () => {
+    await assertFails(setDoc(doc(stranger(), 'tournamentResults', 'other-account-result'), {
+      leagueId: LEAGUE, position: 3, points: 5, leaguePlayerId: 'player-1',
+    }));
     await assertFails(updateDoc(doc(stranger(), 'leaguePlayers', 'player-1'), { totalPoints: 1 }));
   });
+});
 
+describe('users (subscription status)', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'users', DIRECTOR), { subscriptionStatus: 'free' });
+    });
+  });
+
+  it('lets an account read its own document', async () => {
+    await assertSucceeds(getDoc(doc(director(), 'users', DIRECTOR)));
+  });
+
+  it('stops an account reading somebody else\'s', async () => {
+    await assertFails(getDoc(doc(stranger(), 'users', DIRECTOR)));
+  });
+
+  // The point of the collection being read-only to clients: subscriptionStatus
+  // is written by the Stripe webhook through the Admin SDK, which bypasses
+  // rules. Allowing the owner to write meant any account could grant itself pro
+  // from the browser console.
+  it('stops an account granting itself pro', async () => {
+    await assertFails(updateDoc(doc(director(), 'users', DIRECTOR), { subscriptionStatus: 'pro' }));
+    await assertFails(setDoc(doc(director(), 'users', DIRECTOR), { subscriptionStatus: 'pro' }));
+  });
+
+  it('stops an account creating a user document for itself', async () => {
+    await assertFails(setDoc(doc(stranger(), 'users', OTHER_DIRECTOR), { subscriptionStatus: 'pro' }));
+  });
 });
 
 describe('completed tournaments (history)', () => {

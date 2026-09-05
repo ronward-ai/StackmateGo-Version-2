@@ -32,6 +32,40 @@ function getAdminDb() {
   }
 }
 
+/**
+ * The Firebase uid a Stripe event belongs to.
+ *
+ * The uid is stamped as metadata in two places at checkout — on the session and
+ * on the subscription — because different events carry different objects:
+ *
+ *  - checkout.session.completed  → the session, with session metadata
+ *  - customer.subscription.*     → the subscription, with subscription metadata
+ *  - invoice.paid                → an invoice, which carries NEITHER directly
+ *
+ * An invoice references the subscription instead, in a place that has moved
+ * between API versions, so try both shapes and fall back to fetching the
+ * subscription itself.
+ */
+async function resolveUid(stripe: Stripe, obj: any): Promise<string | undefined> {
+  const direct =
+    obj?.metadata?.uid ||
+    obj?.parent?.subscription_details?.metadata?.uid ||
+    obj?.subscription_details?.metadata?.uid;
+  if (direct) return String(direct);
+
+  const subscriptionId =
+    (typeof obj?.subscription === 'string' ? obj.subscription : obj?.subscription?.id) ||
+    obj?.parent?.subscription_details?.subscription;
+  if (!subscriptionId) return undefined;
+
+  try {
+    const subscription = await stripe.subscriptions.retrieve(String(subscriptionId));
+    return subscription.metadata?.uid ? String(subscription.metadata.uid) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function registerRoutes(app: Express, server: HTTPServer): Promise<HTTPServer> {
   // Health check endpoint
   app.get('/api/health', (req, res) => {
@@ -59,7 +93,15 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
         payment_method_types: ['card'],
         ...(email ? { customer_email: email } : {}),
         line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+        // On the session AND on the subscription it creates.
+        //
+        // The webhook acts on subscription and invoice events, and those events
+        // carry the SUBSCRIPTION's metadata, not the checkout session's — Stripe
+        // does not propagate one to the other. With the uid only on the session,
+        // every event the webhook cared about arrived without one, so a customer
+        // could pay and never be marked pro.
         metadata: { uid },
+        subscription_data: { metadata: { uid } },
         success_url: `${process.env.APP_URL || 'https://stackmatego.com'}/?pro=1`,
         cancel_url: `${process.env.APP_URL || 'https://stackmatego.com'}/`,
       });
@@ -103,21 +145,46 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
       }
 
       const obj = event.data.object as any;
-      const uid = obj.metadata?.uid;
 
+      // A misconfigured server must not tell Stripe the event was handled.
+      // Returning 200 with no database made a dropped upgrade look delivered,
+      // and Stripe never retries an event it has been told was received.
       const db = getAdminDb();
-      if (uid && db) {
-        if (event.type === 'customer.subscription.created' || event.type === 'invoice.paid') {
-          await db.collection('users').doc(uid).set(
-            { subscriptionStatus: 'pro', updatedAt: new Date().toISOString() },
-            { merge: true }
-          );
+      if (!db) {
+        console.error('Stripe webhook: no Admin SDK credentials, cannot record', event.type);
+        res.status(500).json({ error: 'Storage unavailable' });
+        return;
+      }
+
+      const uid = await resolveUid(stripe, obj);
+      if (!uid) {
+        // Nothing actionable, but retrying will not help either.
+        console.warn('Stripe webhook: no uid on', event.type, obj?.id);
+        res.json({ received: true });
+        return;
+      }
+
+      const setStatus = (subscriptionStatus: 'pro' | 'free') =>
+        db.collection('users').doc(uid).set(
+          { subscriptionStatus, updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+
+      try {
+        if (
+          event.type === 'checkout.session.completed' ||
+          event.type === 'customer.subscription.created' ||
+          event.type === 'invoice.paid'
+        ) {
+          await setStatus('pro');
         } else if (event.type === 'customer.subscription.deleted') {
-          await db.collection('users').doc(uid).set(
-            { subscriptionStatus: 'free', updatedAt: new Date().toISOString() },
-            { merge: true }
-          );
+          await setStatus('free');
         }
+      } catch (err: any) {
+        // Let Stripe retry rather than losing the upgrade.
+        console.error('Stripe webhook: could not write user', uid, err?.message);
+        res.status(500).json({ error: 'Write failed' });
+        return;
       }
 
       res.json({ received: true });

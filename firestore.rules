@@ -47,10 +47,17 @@ service cloud.firestore {
     }
 
     // Users collection
+    //
+    // READ-ONLY to clients. This document holds subscriptionStatus, and its only
+    // writer is the Stripe webhook via the Admin SDK, which bypasses these rules
+    // entirely. Nothing in the client writes this collection at all.
+    //
+    // It used to allow the owner to create and update their own document, which
+    // meant any account could grant itself { subscriptionStatus: 'pro' } from the
+    // browser console. Harmless while payments were off; it had to be closed
+    // BEFORE they were switched on, not after.
     match /users/{userId} {
       allow read: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
     }
 
     // User Settings
@@ -80,42 +87,45 @@ service cloud.firestore {
     }
 
     // Seasons / League Players / Tournament Results
+    //
     // Public read so QR participants see live standings before anonymous auth
-    // completes. Update and delete are owner-scoped via ownsLeague().
+    // completes. Every WRITE is scoped to the league's owner, create included.
     //
-    // KNOWN GAP: create checks only isRegistered(), so any account that learns a
-    // leagueId can add documents to that league.
+    // Create used to check only isRegistered(), so any account that learned a
+    // leagueId could add seasons, players and results to a league it had nothing
+    // to do with. Tightening it was tried and reverted once, because back then a
+    // director could receive a tournament belonging to ANOTHER account's league
+    // mid-game, and the rule silently denied their result writes with nothing on
+    // screen. That flow is gone: handing a game over now means logging out so the
+    // next director signs in with the SAME account, which owns the league by
+    // construction. The objection expired with the feature.
     //
-    // Tightening this to ownsLeague() was tried and reverted once, because it
-    // silently denied a director who had received a tournament from another
-    // account mid-game — results simply never recorded, with nothing on screen.
-    // That flow no longer exists: handing a game over now means logging out so
-    // the next director signs in with the SAME account, which always owns the
-    // league. The original objection has therefore expired and this can probably
-    // be tightened — but do it deliberately, with rules tests, not as a
-    // drive-by, since the failure mode is silent data loss during a live game.
+    // ownsLeague() reads the league document, so these writes cost one extra
+    // read each and fail closed if the league is missing.
     //
-    // The thorough fix is to authorise by tournament rather than by league:
-    // results already carry tournamentId, so a rule can verify the writer is the
-    // current director of a tournament belonging to that league. leaguePlayers
-    // writes need a tournamentId adding before that can cover them too.
+    // Note create is checked against request.resource (the document being
+    // written) and update/delete against resource (the one already stored) —
+    // there is no stored document to consult on a create.
     match /seasons/{seasonId} {
       allow read: if true;
-      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow create: if request.resource.data.leagueId is string
+        && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
     match /leaguePlayers/{playerId} {
       allow read: if true;
-      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow create: if request.resource.data.leagueId is string
+        && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
     match /tournamentResults/{resultId} {
       allow read: if true;
-      allow create: if isRegistered() && request.resource.data.leagueId is string;
+      allow create: if request.resource.data.leagueId is string
+        && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId);
       allow delete: if ownsLeague(resource.data.leagueId);
     }
