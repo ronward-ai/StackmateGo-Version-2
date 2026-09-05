@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, LogIn } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { calculatePrizePool } from "@/lib/prizePool";
+import { countEntries, prizePoolFor } from "@/lib/prizePool";
 
 const ordinal = (n: number) => ['1st','2nd','3rd'][n-1] ?? `${n}th`;
 const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
@@ -33,22 +33,9 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const rakePct = p.rakePercentage || 0;
 
   const players = tournament.players || [];
-  const totalRebuys = players.reduce((s: number, pl: any) => s + (pl.rebuys || 0), 0);
-  const totalAddons = players.reduce((s: number, pl: any) => s + (pl.addons || 0), 0);
-  const totalReEntries = players.reduce((s: number, pl: any) => s + (pl.reEntries || 0), 0);
+  const { totalRebuys, totalAddons, totalReEntries } = countEntries(players);
 
-  const { rake, net: pool } = calculatePrizePool({
-    buyIn, playerCount: players.length,
-    totalRebuys, rebuyAmount: rebuyAmt,
-    totalAddons, addonAmount: addonAmt,
-    totalReEntries,
-    reEntryRake: p.reEntryRake ?? true,
-    reEntryRakeAmount: p.reEntryRakeAmount,
-    rebuyRake: p.rebuyRake || false,
-    rebuyRakeAmount: p.rebuyRakeAmount,
-    rakeType, rakePercentage: rakePct,
-    rakeAmount: p.rakeAmount || 0,
-  });
+  const { rake, net: pool } = prizePoolFor(players, p);
 
   const startChips = p.startingChips || 10000;
   const rebuyChips = p.rebuyChips || startChips;

@@ -4,7 +4,7 @@ import { db, collections } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
 import { sanitizeForFirestore } from '@/lib/utils';
-import { calculatePrizePool } from '@/lib/prizePool';
+import { countEntries, prizePoolFor } from '@/lib/prizePool';
 import type { CompletedTournament, TournamentState } from '@/types';
 
 /** Stable empty reference — required by useSharedSnapshot. */
@@ -56,26 +56,11 @@ export function useCompletedTournaments() {
     const ps = state.prizeStructure;
     const buyIn = ps?.buyIn || 0;
 
-    const totalRebuys = players.reduce((n, p) => n + (p.rebuys || 0), 0);
-    const totalAddons = players.reduce((n, p) => n + (p.addons || 0), 0);
-    const totalReEntries = players.reduce((n, p) => n + (p.reEntries || 0), 0);
+    const { totalRebuys, totalAddons, totalReEntries } = countEntries(players);
 
     // Reuse the canonical calculation rather than recomputing it here — see
     // lib/prizePool.ts and its tests.
-    const { gross, rake } = calculatePrizePool({
-      buyIn,
-      playerCount: players.length,
-      totalRebuys, rebuyAmount: ps?.rebuyAmount,
-      totalAddons, addonAmount: ps?.addonAmount,
-      totalReEntries,
-      reEntryRake: ps?.reEntryRake ?? true,
-      reEntryRakeAmount: ps?.reEntryRakeAmount,
-      rebuyRake: ps?.rebuyRake || false,
-      rebuyRakeAmount: ps?.rebuyRakeAmount,
-      rakeType: ps?.rakeType,
-      rakePercentage: ps?.rakePercentage,
-      rakeAmount: ps?.rakeAmount,
-    });
+    const { gross, rake } = prizePoolFor(players, ps);
 
     const localGameId = (state.details as any)?.localGameId
       ?? (state.details as any)?.id

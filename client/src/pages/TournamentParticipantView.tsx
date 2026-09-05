@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { AuthModal } from '@/components/AuthModal';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
+import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
 
 interface TournamentData {
   id: string;
@@ -398,53 +399,36 @@ function TournamentParticipantView() {
     }
   };
 
-  // Add calculatePrizePool utility function
-  const calculatePrizePool = (tournamentData: any) => {
-    const totalPlayers = tournamentData.players?.length || 0;
-    if (totalPlayers === 0) return { totalPlayers: 0, totalPool: 0, grossPrizePool: 0, rakeAmount: 0, payouts: [], payoutStructure: "none" };
-
-    const buyIn = tournamentData.prizeStructure?.buyIn || tournamentData.buyIn || 10;
-    let grossPrizePool = totalPlayers * buyIn;
-
-    // Calculate rebuys, addons, and re-entries with validation
-    if (tournamentData.prizeStructure?.allowRebuys) {
-      const actualRebuys = tournamentData.players?.reduce((sum: number, player: any) => sum + (player.rebuys || 0), 0) || 0;
-      grossPrizePool += actualRebuys * (tournamentData.prizeStructure?.rebuyAmount || buyIn);
-    }
-
-    if (tournamentData.prizeStructure?.allowReEntry) {
-      const actualReEntries = tournamentData.players?.reduce((sum: number, player: any) => sum + (player.reEntries || 0), 0) || 0;
-      grossPrizePool += actualReEntries * buyIn;
-    }
-
-    if (tournamentData.prizeStructure?.allowAddons) {
-      const actualAddons = tournamentData.players?.reduce((sum: number, player: any) => sum + (player.addons || 0), 0) || 0;
-      grossPrizePool += actualAddons * (tournamentData.prizeStructure?.addonAmount || buyIn);
-    }
-
-    // Rake is a per-player house fee on top of the buy-in — does NOT reduce the prize pool
-    const rakePercentage = tournamentData.prizeStructure?.rakePercentage || 0;
-    const rakeType = tournamentData.prizeStructure?.rakeType || 'percentage';
-    const rakeAmountFixed = tournamentData.prizeStructure?.rakeAmount || 0;
-
-    const rakeAmount = rakeType === 'percentage'
-      ? Math.floor(buyIn * (rakePercentage / 100)) * totalPlayers
-      : rakeAmountFixed * totalPlayers;
-
-    const totalPool = grossPrizePool;
+  /**
+   * The pool and the house fee, from the same function the director's screen
+   * uses.
+   *
+   * This used to be a local copy that omitted re-entry and rebuy rake, so the
+   * house fee shown to players disagreed with the figure the director was
+   * looking at for the very same game. The pool itself matched, so payouts were
+   * never affected — it just could not be explained to anyone who compared the
+   * two screens.
+   */
+  const prizePoolData = (() => {
+    // Typed as RakeStructure rather than any: the local default object this is
+    // read from is narrower than a real prize structure, and the version this
+    // replaced dodged that by taking `any`.
+    const ps = (tournament.prizeStructure || {}) as RakeStructure;
+    const buyIn = ps.buyIn || tournament.buyIn || 10;
+    const players = tournament.players || [];
+    const { gross, rake } = prizePoolFor(players, { ...ps, buyIn });
 
     return {
-      totalPlayers,
-      totalPool,
-      grossPrizePool,
-      rakeAmount,
-      rakeType,
-      rakePercentage,
-      payouts: tournamentData.prizeStructure?.manualPayouts || []
+      totalPlayers: players.length,
+      totalPool: gross,
+      grossPrizePool: gross,
+      rakeAmount: rake,
+      rakeType: ps.rakeType || 'percentage',
+      rakePercentage: ps.rakePercentage || 0,
+      payouts: tournament.prizeStructure?.manualPayouts || [],
     };
-  };
+  })();
 
-  const prizePoolData = calculatePrizePool(tournament);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white overflow-auto">

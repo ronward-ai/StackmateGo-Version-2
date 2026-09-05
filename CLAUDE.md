@@ -254,6 +254,27 @@ Historical results carry none of these fields and stay at 0. `completedTournamen
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
 
+### Every money figure comes from `lib/prizePool.ts`
+
+`prizePoolFor(players, prizeStructure)` is the one entry point, and `entryCosts(prizeStructure)`
+gives what a single buy-in, rebuy or re-entry costs for the confirmation dialogs. Call those; do not
+re-derive.
+
+The formula used to be copy-pasted at nine sites, each re-spelling the same defaults, and they had
+already drifted:
+
+- `useTournament.completeTournament` paid the winner out of `gross - rake` where every other site
+  keeps the rake on top. Exported and called by nothing, so it never cost a real game — it has been
+  **deleted** rather than fixed. Build any future "finish the game" action on `prizePool.ts`.
+- `TournamentParticipantView` had a local copy whose house fee omitted re-entry and rebuy rake, so
+  the figure players saw disagreed with the director's screen for the same game. The pool was right,
+  so payouts were never affected. Fixing it makes the player-facing fee **go up** to match.
+
+The defaults are the part worth knowing, because they are not uniform: **a re-entry is raked by
+default and a rebuy is not** — a re-entry is a fresh entry into the tournament, a rebuy is not. Same
+for bounties. Spelling that as `?? true` in one file and `|| false` in another is how it drifts, so
+it now lives only in `entryCosts`.
+
 ### Payments: `users` is read-only to clients, and the uid rides on the subscription
 
 `users` holds `subscriptionStatus` and its only writer is the Stripe webhook through the Admin SDK,
@@ -293,7 +314,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 
 | Module | Owns |
 |---|---|
-| `prizePool.ts` | Prize pool and rake. **Rake is charged ON TOP of the buy-in**, so `net === gross` is deliberate, not a bug. |
+| `prizePool.ts` | Prize pool, rake and what one entry costs. **Rake is charged ON TOP of the buy-in**, so `net === gross` is deliberate, not a bug. Every money figure on screen comes from here. |
 | `seasonProgress.ts` | Game numbering, games played, season completion, next-season dates. |
 | `tournamentMode.ts` | Whether a tournament is a league game. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
@@ -337,13 +358,6 @@ season, so the screen and the database cannot disagree.
   the write — see the note in `PlayerClaimView.tsx`.
 - **`leaguePlayers.totalPoints`** is a denormalised counter nothing reads — every table recomputes
   from results. It can only drift.
-- **The rake formula is copy-pasted at 9 sites**, and one of them disagrees.
-  `useTournament.ts` `completeTournament` subtracts rake from the pool where every other site keeps
-  it on top. It is exported but never called, so it is a landmine rather than a live loss.
-  `TournamentParticipantView` shows a house-fee figure that omits re-entry and rebuy rake, so it
-  disagrees with the director's screen; the pool itself is right, so payouts are unaffected.
-  `prizePool.ts` is canonical and tested; consolidating the rest is safe but touches money code in
-  several components.
 
 ---
 

@@ -15,6 +15,7 @@ import { sanitizeForFirestore } from '../lib/utils';
 
 import { useAuth } from './useAuth';
 import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
+import { prizePoolFor } from '@/lib/prizePool';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -1128,28 +1129,7 @@ export function useTournament(tournamentId?: string) {
       if (prev.prizeStructure?.manualPayouts) {
         const payout = prev.prizeStructure.manualPayouts.find(p => p.position === newPosition);
         if (payout && payout.percentage > 0) {
-          const buyInAmount = prev.prizeStructure?.buyIn || 0;
-          const rebuyAmount = prev.prizeStructure?.rebuyAmount || 0;
-          const addonAmount = prev.prizeStructure?.addonAmount || 0;
-          const rakePercentage = prev.prizeStructure?.rakePercentage || 0;
-          const rakeAmountFixed = prev.prizeStructure?.rakeAmount || 0;
-          const rakeType = prev.prizeStructure?.rakeType || 'percentage';
-          
-          const totalRebuys = prev.players.reduce((sum, p) => sum + (p.rebuys || 0), 0);
-          const totalAddons = prev.players.reduce((sum, p) => sum + (p.addons || 0), 0);
-          const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
-          const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
-
-          const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
-          const rebuyRake = prev.prizeStructure?.rebuyRake || false;
-          const perEntryRake = rakeType === 'percentage'
-            ? Math.floor(buyInAmount * (rakePercentage / 100))
-            : rakeAmountFixed;
-          const rakeAmount = perEntryRake * prev.players.length
-            + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
-            + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
-
-          const totalPrizePool = grossPrizePool;
+          const { net: totalPrizePool } = prizePoolFor(prev.players, prev.prizeStructure);
 
           prizeMoney = Math.floor((totalPrizePool * payout.percentage) / 100);
         }
@@ -1218,28 +1198,7 @@ export function useTournament(tournamentId?: string) {
         if (prev.prizeStructure?.manualPayouts) {
           const firstPlacePayout = prev.prizeStructure.manualPayouts.find(p => p.position === 1);
           if (firstPlacePayout && firstPlacePayout.percentage > 0) {
-            const buyInAmount = prev.prizeStructure?.buyIn || 0;
-            const rebuyAmount = prev.prizeStructure?.rebuyAmount || 0;
-            const addonAmount = prev.prizeStructure?.addonAmount || 0;
-            const rakePercentage = prev.prizeStructure?.rakePercentage || 0;
-            const rakeAmountFixed = prev.prizeStructure?.rakeAmount || 0;
-            const rakeType = prev.prizeStructure?.rakeType || 'percentage';
-            
-            const totalRebuys = prev.players.reduce((sum, p) => sum + (p.rebuys || 0), 0);
-            const totalAddons = prev.players.reduce((sum, p) => sum + (p.addons || 0), 0);
-            const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
-            const grossPrizePool = (buyInAmount * prev.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
-
-            const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
-            const rebuyRake = prev.prizeStructure?.rebuyRake || false;
-            const perEntryRake = rakeType === 'percentage'
-              ? Math.floor(buyInAmount * (rakePercentage / 100))
-              : rakeAmountFixed;
-            const rakeAmount = perEntryRake * prev.players.length
-              + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
-              + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
-
-            const totalPrizePool = grossPrizePool;
+            const { net: totalPrizePool } = prizePoolFor(prev.players, prev.prizeStructure);
 
             firstPlacePrize = Math.floor((totalPrizePool * firstPlacePayout.percentage) / 100);
           }
@@ -2008,70 +1967,17 @@ export function useTournament(tournamentId?: string) {
     }));
   }, []);
 
-  // Complete tournament and assign 1st place prize money
-  const completeTournament = useCallback(() => {
-    setState(prev => {
-      // Find the winner (last active player)
-      const winner = prev.players.find(p => p.isActive !== false);
-      if (!winner) return prev;
-
-      // Calculate 1st place prize money using buy-in settings
-      const totalPlayers = prev.players.length;
-      const buyInAmount = prev.prizeStructure?.buyIn || 0;
-      const rebuyAmount = prev.prizeStructure?.rebuyAmount || 0;
-      const addonAmount = prev.prizeStructure?.addonAmount || 0;
-      const rakePercentage = prev.prizeStructure?.rakePercentage || 0;
-      const rakeAmountFixed = prev.prizeStructure?.rakeAmount || 0;
-      const rakeType = prev.prizeStructure?.rakeType || 'percentage';
-      
-      const totalRebuys = prev.players.reduce((sum, p) => sum + (p.rebuys || 0), 0);
-      const totalAddons = prev.players.reduce((sum, p) => sum + (p.addons || 0), 0);
-      const totalReEntries = prev.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
-      const grossPrizePool = (buyInAmount * totalPlayers) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
-
-      const reEntryRake = prev.prizeStructure?.reEntryRake ?? true;
-      const rebuyRake = prev.prizeStructure?.rebuyRake || false;
-      const perEntryRake = rakeType === 'percentage'
-        ? Math.floor(buyInAmount * (rakePercentage / 100))
-        : rakeAmountFixed;
-      const rakeAmount = perEntryRake * totalPlayers
-        + (reEntryRake ? totalReEntries * (prev.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
-        + (rebuyRake ? totalRebuys * (prev.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
-
-      const totalPrizePool = Math.max(0, grossPrizePool - rakeAmount);
-
-      let firstPlacePrize = 0;
-      if (prev.prizeStructure?.manualPayouts && prev.prizeStructure.manualPayouts.length > 0) {
-        const firstPlacePayout = prev.prizeStructure.manualPayouts.find(p => p.position === 1);
-        if (firstPlacePayout && firstPlacePayout.percentage > 0) {
-          firstPlacePrize = Math.floor((totalPrizePool * firstPlacePayout.percentage) / 100);
-        }
-      }
-
-      // Add bounty winnings if enabled (knockouts + own bounty back)
-      if (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyAmount) {
-        const knockouts = winner.knockouts || 0;
-        // Winner gets their own bounty back (they didn't lose it) plus knockout bounties
-        firstPlacePrize += (knockouts + 1) * prev.prizeStructure.bountyAmount;
-      }
-
-      // Update the winner with prize money and position 1
-      return {
-        ...prev,
-        players: prev.players.map(player =>
-          player.id === winner.id
-            ? {
-                ...player,
-                position: 1, // First place
-                points: totalPlayers * 36, // 1st place points
-                prizeMoney: firstPlacePrize,
-                isActive: false // Mark as inactive so tournament shows as complete
-              }
-            : player
-        )
-      };
-    });
-  }, []);
+  // NOTE: `completeTournament` was removed here.
+  //
+  // It was exported from this hook and called by nothing, and its prize maths
+  // disagreed with the rest of the app: it paid the winner out of
+  // `grossPrizePool - rakeAmount`, where every other site keeps the rake ON TOP
+  // of the buy-in and pays out of the gross. A live game never hit it, so it was
+  // a landmine rather than a loss — but the two answers could not both be right,
+  // and reviving it would have paid a short winner.
+  //
+  // If an explicit "finish the game" action is ever wanted, build it on
+  // lib/prizePool.ts like everything else, rather than restoring this.
 
   // Undo last elimination (or specific player if ID provided)
   const undoBustOut = useCallback((playerId?: string) => {
@@ -2332,7 +2238,6 @@ export function useTournament(tournamentId?: string) {
     getCurrentLevelText,
     getRemainingTimeText,
     isBreak,
-    completeTournament,
     undoBustOut,
     undoPlayerReturn,
     resetAllPlayersToActive,

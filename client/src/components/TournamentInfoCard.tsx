@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { calculatePrizePool } from "@/lib/prizePool";
+import { countEntries, prizePoolFor } from "@/lib/prizePool";
 import { gameNumberFor } from "@/lib/seasonProgress";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
@@ -359,22 +359,9 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
   const addonAmt = p?.addonAmount || 0;
   const rakeType = p?.rakeType || 'percentage';
   const rakePct = p?.rakePercentage || 0;
-  const totalRebuys = state.players.reduce((s, pl) => s + (pl.rebuys || 0), 0);
-  const totalAddons = state.players.reduce((s, pl) => s + (pl.addons || 0), 0);
-  const totalReEntries = state.players.reduce((s, pl) => s + (pl.reEntries || 0), 0);
+  const { totalRebuys, totalAddons, totalReEntries } = countEntries(state.players);
 
-  const { rake, net: pool } = calculatePrizePool({
-    buyIn, playerCount: state.players.length,
-    totalRebuys, rebuyAmount: rebuyAmt,
-    totalAddons, addonAmount: addonAmt,
-    totalReEntries,
-    reEntryRake: p?.reEntryRake ?? true,
-    reEntryRakeAmount: p?.reEntryRakeAmount,
-    rebuyRake: p?.rebuyRake || false,
-    rebuyRakeAmount: p?.rebuyRakeAmount,
-    rakeType, rakePercentage: rakePct,
-    rakeAmount: p?.rakeAmount || 0,
-  });
+  const { rake, net: pool } = prizePoolFor(state.players, p);
 
   const startChips = p?.startingChips || 10000;
   const rebuyChips = p?.rebuyChips || startChips;

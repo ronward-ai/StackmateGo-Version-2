@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { entryCosts } from "@/lib/prizePool";
 import {
   Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle
@@ -52,13 +53,13 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const sym = state.settings.currency || '£';
   const ps = state.prizeStructure;
-  const perEntryRake = (ps?.rakeType || 'percentage') === 'percentage'
-    ? Math.floor((ps?.buyIn || 0) * ((ps?.rakePercentage || 0) / 100))
-    : (ps?.rakeAmount || 0);
-  const rebuyRakeAmt = ps?.rebuyRake ? (ps?.rebuyRakeAmount || perEntryRake) : 0;
-  const reEntryRakeAmt = (ps?.reEntryRake ?? true) ? (ps?.reEntryRakeAmount || perEntryRake) : 0;
-  const rebuyBountyAmt = (ps?.enableBounties && ps?.rebuyBounty) ? (ps?.bountyAmount || 0) : 0;
-  const reEntryBountyAmt = (ps?.enableBounties && ps?.reEntryBounty !== false) ? (ps?.bountyAmount || 0) : 0;
+  const {
+    perEntryRake,
+    rebuyRake: rebuyRakeAmt,
+    reEntryRake: reEntryRakeAmt,
+    rebuyBounty: rebuyBountyAmt,
+    reEntryBounty: reEntryBountyAmt,
+  } = entryCosts(ps);
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
   const [seatsPerTable, setSeatsPerTable]   = useState(tables.seatsPerTable);

@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, Download, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
@@ -95,13 +96,13 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   // Cost helpers for confirmation dialogs
   const sym = state.settings.currency || '£';
   const ps = state.prizeStructure;
-  const perEntryRake = (ps?.rakeType || 'percentage') === 'percentage'
-    ? Math.floor((ps?.buyIn || 0) * ((ps?.rakePercentage || 0) / 100))
-    : (ps?.rakeAmount || 0);
-  const rebuyRakeAmt = ps?.rebuyRake ? (ps?.rebuyRakeAmount || perEntryRake) : 0;
-  const reEntryRakeAmt = (ps?.reEntryRake ?? true) ? (ps?.reEntryRakeAmount || perEntryRake) : 0;
-  const rebuyBountyAmt = (ps?.enableBounties && ps?.rebuyBounty) ? (ps?.bountyAmount || 0) : 0;
-  const reEntryBountyAmt = (ps?.enableBounties && ps?.reEntryBounty !== false) ? (ps?.bountyAmount || 0) : 0;
+  const {
+    perEntryRake,
+    rebuyRake: rebuyRakeAmt,
+    reEntryRake: reEntryRakeAmt,
+    rebuyBounty: rebuyBountyAmt,
+    reEntryBounty: reEntryBountyAmt,
+  } = entryCosts(ps);
   const exportRef = useRef<HTMLDivElement>(null);
 
   // Load recent players from localStorage when feature is enabled
@@ -392,21 +393,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       const ps = state.prizeStructure;
       const buyIn = ps?.buyIn || 0;
       const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
-      const totalAddons = state.players.reduce((s, p) => s + (p.addons || 0), 0);
-      const totalReEntries = state.players.reduce((s, p) => s + (p.reEntries || 0), 0);
-      const gross = (buyIn * state.players.length)
-        + ((ps?.rebuyAmount || 0) * totalRebuys)
-        + ((ps?.addonAmount || 0) * totalAddons)
-        + (buyIn * totalReEntries);
-      const reEntryRake = ps?.reEntryRake ?? true;
-      const rebuyRake = ps?.rebuyRake || false;
-      const perEntryRake = (ps?.rakeType || 'percentage') === 'percentage'
-        ? Math.floor(buyIn * ((ps?.rakePercentage || 0) / 100))
-        : (ps?.rakeAmount || 0);
-      const rake = perEntryRake * state.players.length
-        + (reEntryRake ? totalReEntries * (ps?.reEntryRakeAmount || perEntryRake) : 0)
-        + (rebuyRake ? totalRebuys * (ps?.rebuyRakeAmount || perEntryRake) : 0);
-      const prizePool = gross;
+      const { gross, rake, net: prizePool } = prizePoolFor(state.players, ps);
 
       const sorted = [...state.players].sort((a, b) => {
         if (a.isActive !== false && b.isActive === false) return -1;
@@ -761,28 +748,8 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           {(() => {
             const currencySymbol = state.settings.currency || '£';
             
-            const buyInAmount = state.prizeStructure?.buyIn || 0;
-            const rebuyAmount = state.prizeStructure?.rebuyAmount || 0;
-            const addonAmount = state.prizeStructure?.addonAmount || 0;
-            const rakePercentage = state.prizeStructure?.rakePercentage || 0;
-            const rakeAmountFixed = state.prizeStructure?.rakeAmount || 0;
-            const rakeType = state.prizeStructure?.rakeType || 'percentage';
-            
-            const totalRebuys = state.players.reduce((sum, p) => sum + (p.rebuys || 0), 0);
-            const totalAddons = state.players.reduce((sum, p) => sum + (p.addons || 0), 0);
-            const totalReEntries = state.players.reduce((sum, p) => sum + (p.reEntries || 0), 0);
-            const grossPrizePool = (buyInAmount * state.players.length) + (rebuyAmount * totalRebuys) + (addonAmount * totalAddons) + (buyInAmount * totalReEntries);
-
-            const reEntryRake = state.prizeStructure?.reEntryRake ?? true;
-            const rebuyRake = state.prizeStructure?.rebuyRake || false;
-            const perEntryRake = rakeType === 'percentage'
-              ? Math.floor(buyInAmount * (rakePercentage / 100))
-              : rakeAmountFixed;
-            const rakeAmount = perEntryRake * state.players.length
-              + (reEntryRake ? totalReEntries * (state.prizeStructure?.reEntryRakeAmount || perEntryRake) : 0)
-              + (rebuyRake ? totalRebuys * (state.prizeStructure?.rebuyRakeAmount || perEntryRake) : 0);
-
-            const totalPrizePool = grossPrizePool;
+            const { rake: rakeAmount, net: totalPrizePool } =
+              prizePoolFor(state.players, state.prizeStructure);
 
             const calculatePlayerWinnings = (player: any): { prize: number; bounty: number } => {
               let prize = 0;

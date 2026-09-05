@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculatePrizePool } from './prizePool';
+import { calculatePrizePool, countEntries, entryCosts, prizePoolFor } from './prizePool';
 
 /**
  * Characterisation tests for the canonical prize pool calculation.
@@ -117,5 +117,131 @@ describe('calculatePrizePool', () => {
       expect(r.gross).toBe(0);
       expect(r.rake).toBe(0);
     });
+  });
+});
+
+describe('countEntries', () => {
+  it('is all zeroes for an empty roster', () => {
+    expect(countEntries([])).toEqual({
+      playerCount: 0, totalRebuys: 0, totalAddons: 0, totalReEntries: 0,
+    });
+  });
+
+  it('defaults a missing roster to empty', () => {
+    expect(countEntries().playerCount).toBe(0);
+  });
+
+  it('counts players and sums what they put in again', () => {
+    expect(countEntries([
+      { rebuys: 2, addons: 1 },
+      { reEntries: 1 },
+      {},
+    ])).toEqual({ playerCount: 3, totalRebuys: 2, totalAddons: 1, totalReEntries: 1 });
+  });
+});
+
+describe('entryCosts', () => {
+  it('takes a percentage of the buy-in, rounded down', () => {
+    expect(entryCosts({ buyIn: 25, rakePercentage: 10 }).perEntryRake).toBe(2);
+  });
+
+  it('takes a fixed fee when configured', () => {
+    expect(entryCosts({ buyIn: 25, rakeType: 'fixed', rakeAmount: 5 }).perEntryRake).toBe(5);
+  });
+
+  it('is 0 with no structure at all', () => {
+    expect(entryCosts()).toEqual({
+      perEntryRake: 0, rebuyRake: 0, reEntryRake: 0, rebuyBounty: 0, reEntryBounty: 0,
+    });
+  });
+
+  // The asymmetry the copy-pasted sites kept re-spelling, and the reason to have
+  // it in one place: a re-entry is a fresh entry and is raked by default; a rebuy
+  // is not.
+  it('rakes a re-entry by default and a rebuy not', () => {
+    const costs = entryCosts({ buyIn: 10, rakePercentage: 10 });
+    expect(costs.reEntryRake).toBe(1);
+    expect(costs.rebuyRake).toBe(0);
+  });
+
+  it('honours an explicit choice either way', () => {
+    expect(entryCosts({ buyIn: 10, rakePercentage: 10, reEntryRake: false }).reEntryRake).toBe(0);
+    expect(entryCosts({ buyIn: 10, rakePercentage: 10, rebuyRake: true }).rebuyRake).toBe(1);
+  });
+
+  it('uses a specific rebuy or re-entry fee over the per-entry one', () => {
+    const costs = entryCosts({
+      buyIn: 10, rakePercentage: 10,
+      rebuyRake: true, rebuyRakeAmount: 3,
+      reEntryRake: true, reEntryRakeAmount: 4,
+    });
+    expect(costs.rebuyRake).toBe(3);
+    expect(costs.reEntryRake).toBe(4);
+  });
+
+  it('adds no bounty unless bounties are enabled', () => {
+    const off = entryCosts({ bountyAmount: 5, rebuyBounty: true });
+    expect(off.rebuyBounty).toBe(0);
+    expect(off.reEntryBounty).toBe(0);
+  });
+
+  it('gives a re-entry a bounty by default once bounties are on, a rebuy not', () => {
+    const costs = entryCosts({ enableBounties: true, bountyAmount: 5 });
+    expect(costs.reEntryBounty).toBe(5);
+    expect(costs.rebuyBounty).toBe(0);
+  });
+});
+
+describe('prizePoolFor', () => {
+  const structure = {
+    buyIn: 10, rebuyAmount: 10, addonAmount: 5,
+    rakeType: 'percentage' as const, rakePercentage: 10,
+  };
+
+  it('is an empty pool for an empty roster', () => {
+    expect(prizePoolFor([], structure)).toEqual({ gross: 0, rake: 0, net: 0 });
+  });
+
+  it('survives a game with no prize structure yet', () => {
+    expect(prizePoolFor([{}, {}])).toEqual({ gross: 0, rake: 0, net: 0 });
+  });
+
+  it('adds buy-ins, rebuys, add-ons and re-entries', () => {
+    const pool = prizePoolFor(
+      [{ rebuys: 1 }, { addons: 1 }, { reEntries: 1 }],
+      structure,
+    );
+    expect(pool.gross).toBe(30 + 10 + 5 + 10);
+  });
+
+  // Rake is charged ON TOP of the buy-in, so it must never come out of the pool.
+  // completeTournament subtracted it, which is the disagreement this replaces.
+  it('REGRESSION: rake never reduces the pool', () => {
+    const pool = prizePoolFor([{}, {}, {}], structure);
+    expect(pool.rake).toBe(3);
+    expect(pool.net).toBe(pool.gross);
+    expect(pool.net).toBe(30);
+  });
+
+  it('agrees with calculatePrizePool given the same game', () => {
+    const players = [{ rebuys: 2 }, { reEntries: 1 }, { addons: 1 }];
+    expect(prizePoolFor(players, { ...structure, rebuyRake: true })).toEqual(
+      calculatePrizePool({
+        buyIn: 10, playerCount: 3,
+        totalRebuys: 2, rebuyAmount: 10,
+        totalAddons: 1, addonAmount: 5,
+        totalReEntries: 1,
+        reEntryRake: true, reEntryRakeAmount: 1,
+        rebuyRake: true, rebuyRakeAmount: 1,
+        rakeType: 'percentage', rakePercentage: 10, rakeAmount: 0,
+      }),
+    );
+  });
+
+  it('charges a fixed rake per player, not once', () => {
+    const pool = prizePoolFor([{}, {}, {}, {}, {}], {
+      buyIn: 10, rakeType: 'fixed', rakeAmount: 5,
+    });
+    expect(pool.rake).toBe(25);
   });
 });
