@@ -69,7 +69,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     <>
       <LeagueSettingsDialog open={showLeagueSettings} onOpenChange={setShowLeagueSettings} />
 
-      <Card className="card-glass-purple rounded-xl">
+      <Card className="card-glass rounded-xl">
         <CardContent className="p-5">
 
           <div className="flex items-start justify-between gap-3 mb-4">

@@ -142,7 +142,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
         />
       </SettingsGroup>
 
-      <Card className="card-glass-purple rounded-xl">
+      <Card className="card-glass rounded-xl">
         <CardContent className="p-5">
 
           {/* Header */}

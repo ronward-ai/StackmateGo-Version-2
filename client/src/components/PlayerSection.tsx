@@ -525,7 +525,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   
 
   return (
-    <Card className="p-4 bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20">
+    <Card className="p-4 card-glass">
       <div className="flex items-center justify-between">
         {/* Once finished every player is marked inactive — including the winner —
             so the live count would read "(0)" and look like an empty state right

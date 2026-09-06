@@ -80,7 +80,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
 
   return (
     <div className="space-y-4">
-      <Card className="card-glass-indigo rounded-xl">
+      <Card className="card-glass rounded-xl">
         <CardContent className="p-5">
           <div className="flex items-center gap-2 mb-5">
             <Settings2 className="h-4 w-4 text-indigo-400" />

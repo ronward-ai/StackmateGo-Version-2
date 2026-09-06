@@ -33,10 +33,10 @@ function FieldRow({ label, children, hint }: { label: string; children: React.Re
 // Styled sub-section that reveals when a toggle is enabled
 function SubSection({ children, color = 'purple' }: { children: React.ReactNode; color?: string }) {
   const colorMap: Record<string, string> = {
-    purple: 'card-glass-purple',
-    green: 'card-glass-green',
-    blue: 'card-glass-blue',
-    orange: 'card-glass-orange',
+    purple: 'card-glass',
+    green: 'card-glass',
+    blue: 'card-glass',
+    orange: 'card-glass',
   };
   return (
     <div className={cn('rounded-lg p-4 mt-3 space-y-4 fade-in', colorMap[color] || colorMap.purple)}>
@@ -246,7 +246,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
     <div className="space-y-4">
 
       {/* ── SECTION 1: Basics ─────────────────────────────── */}
-      <Card className="card-glass-indigo rounded-xl">
+      <Card className="card-glass rounded-xl">
         <CardContent className="p-5 space-y-4">
           <SectionHeader icon={CircleDollarSign} title="Buy-in & Chips" color="text-indigo-400" />
 
@@ -322,7 +322,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
       </Card>
 
       {/* ── SECTION 2: Bounties ───────────────────────────── */}
-      <Card className={cn('rounded-xl transition-all', enableBounties ? 'card-glass-orange' : 'card-glass')}>
+      <Card className={cn('rounded-xl transition-all', enableBounties ? 'card-glass' : 'card-glass')}>
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -367,7 +367,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
       </Card>
 
       {/* ── SECTION 3: Rebuys ────────────────────────────── */}
-      <Card className={cn('rounded-xl transition-all', allowRebuys ? 'card-glass-purple' : 'card-glass')}>
+      <Card className={cn('rounded-xl transition-all', allowRebuys ? 'card-glass' : 'card-glass')}>
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -445,7 +445,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
       </Card>
 
       {/* ── SECTION 4: Re-entry ──────────────────────────── */}
-      <Card className={cn('rounded-xl transition-all', allowReEntry ? 'card-glass-blue' : 'card-glass')}>
+      <Card className={cn('rounded-xl transition-all', allowReEntry ? 'card-glass' : 'card-glass')}>
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -517,7 +517,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
       </Card>
 
       {/* ── SECTION 5: Add-ons ───────────────────────────── */}
-      <Card className={cn('rounded-xl transition-all', allowAddons ? 'card-glass-green' : 'card-glass')}>
+      <Card className={cn('rounded-xl transition-all', allowAddons ? 'card-glass' : 'card-glass')}>
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -552,7 +552,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
       </Card>
 
       {/* ── SECTION 6: Prize Distribution ───────────────── */}
-      <Card className="card-glass-rose rounded-xl">
+      <Card className="card-glass rounded-xl">
         <CardContent className="p-5 space-y-4">
           <div className="flex items-center justify-between">
             <SectionHeader icon={Trophy} title="Prize Distribution" color="text-rose-400" />

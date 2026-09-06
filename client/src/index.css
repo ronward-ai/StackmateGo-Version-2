@@ -58,16 +58,6 @@
   --ring: 25 95% 53%;
   --radius: 0.5rem;
 
-  /* Harmonious card color variants */
-  --card-blue: 200 12% 14%;
-  --card-purple: 260 12% 14%;
-  --card-green: 140 12% 14%;
-  --card-orange: 25 12% 14%;
-  --card-rose: 340 12% 14%;
-  --card-slate: 210 10% 14%;
-  --card-emerald: 155 12% 14%;
-  --card-indigo: 240 12% 14%;
-
   /* Harmonized semantic colors */
   --success: 140 65% 45%;
   --success-foreground: 0 0% 100%;
@@ -166,159 +156,45 @@
   }
 
   /* Harmonious card variants */
-  .card-blue {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(200 40% 45% / 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(220 30% 40% / 0.06) 0%, transparent 50%),
-      hsl(var(--card-blue));
-    border: 1px solid hsl(200 15% 25%);
-  }
-
-  .card-purple {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(260 40% 45% / 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(280 30% 40% / 0.06) 0%, transparent 50%),
-      hsl(var(--card-purple));
-    border: 1px solid hsl(260 15% 25%);
-  }
-
-  .card-green {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(140 40% 45% / 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(160 30% 40% / 0.06) 0%, transparent 50%),
-      hsl(var(--card-green));
-    border: 1px solid hsl(140 15% 25%);
-  }
-
-  .card-orange {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(25 40% 45% / 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(35 30% 40% / 0.06) 0%, transparent 50%),
-      hsl(var(--card-orange));
-    border: 1px solid hsl(25 15% 25%);
-  }
-
-  .card-rose {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(340 40% 45% / 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(320 30% 40% / 0.06) 0%, transparent 50%),
-      hsl(var(--card-rose));
-    border: 1px solid hsl(340 15% 25%);
-  }
-
-  .card-emerald {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(155 40% 45% / 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(165 30% 40% / 0.06) 0%, transparent 50%),
-      hsl(var(--card-emerald));
-    border: 1px solid hsl(155 15% 25%);
-  }
-
-  .card-indigo {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(240 40% 45% / 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(250 30% 40% / 0.06) 0%, transparent 50%),
-      hsl(var(--card-indigo));
-    border: 1px solid hsl(240 15% 25%);
-  }
-
-  .card-slate {
-    background:
-      radial-gradient(circle at 30% 30%, hsl(210 30% 45% / 0.06) 0%, transparent 50%),
-      radial-gradient(circle at 70% 70%, hsl(215 25% 40% / 0.05) 0%, transparent 50%),
-      hsl(var(--card-slate));
-    border: 1px solid hsl(210 12% 25%);
-  }
 
   /* Glassmorphism card variants */
+  /*
+   * ONE card treatment, in three roles.
+   *
+   * There were nine tinted variants and they encoded nothing: the Structure tab
+   * alone wore six of them for sub-panels of a single screen, and purple was
+   * shared by the League card, Blind Levels and both info cards. Being the
+   * largest coloured surface on every screen, that lottery is what stopped the
+   * timer card reading as special — it was one tinted panel among nine.
+   *
+   * Colour now means something or it is not used.
+   */
+
+  /* Resting — the default. Content provides the interest, not the container. */
   .card-glass {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.035);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   }
 
-  .card-glass-blue {
-    background: rgba(59, 130, 246, 0.08);
+  /* Raised — the thing you came to this screen for. At most one per screen. */
+  .card-raised {
+    background: rgba(255, 255, 255, 0.055);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    box-shadow:
-      0 8px 32px rgba(59, 130, 246, 0.15),
-      inset 0 1px 0 rgba(147, 197, 253, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   }
 
-  .card-glass-purple {
-    background: rgba(139, 92, 246, 0.08);
+  /* Live — a STATE, not a decoration. Only when something is actually happening. */
+  .card-live {
+    background: hsl(var(--primary) / 0.05);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    box-shadow:
-      0 8px 32px rgba(139, 92, 246, 0.15),
-      inset 0 1px 0 rgba(196, 181, 253, 0.1);
-  }
-
-  .card-glass-green {
-    background: rgba(34, 197, 94, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(34, 197, 94, 0.2);
-    box-shadow:
-      0 8px 32px rgba(34, 197, 94, 0.15),
-      inset 0 1px 0 rgba(134, 239, 172, 0.1);
-  }
-
-  .card-glass-orange {
-    background: rgba(249, 115, 22, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(249, 115, 22, 0.2);
-    box-shadow:
-      0 8px 32px rgba(249, 115, 22, 0.15),
-      inset 0 1px 0 rgba(254, 215, 170, 0.1);
-  }
-
-  .card-glass-rose {
-    background: rgba(244, 63, 94, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(244, 63, 94, 0.2);
-    box-shadow:
-      0 8px 32px rgba(244, 63, 94, 0.15),
-      inset 0 1px 0 rgba(253, 164, 175, 0.1);
-  }
-
-  .card-glass-emerald {
-    background: rgba(16, 185, 129, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    box-shadow:
-      0 8px 32px rgba(16, 185, 129, 0.15),
-      inset 0 1px 0 rgba(110, 231, 183, 0.1);
-  }
-
-  .card-glass-indigo {
-    background: rgba(99, 102, 241, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    box-shadow:
-      0 8px 32px rgba(99, 102, 241, 0.15),
-      inset 0 1px 0 rgba(165, 180, 252, 0.1);
-  }
-
-  .card-glass-slate {
-    background: rgba(100, 116, 139, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(100, 116, 139, 0.2);
-    box-shadow:
-      0 8px 32px rgba(100, 116, 139, 0.15),
-      inset 0 1px 0 rgba(203, 213, 225, 0.1);
+    border: 1px solid hsl(var(--primary) / 0.4);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   }
 
   .tournament-card-header {
@@ -544,15 +420,6 @@
   opacity: 0.8;
 }
 
-/* Grid pattern variants for different card colors */
-.grid-pattern.card-blue::before { opacity: 0.6; }
-.grid-pattern.card-purple::before { opacity: 0.6; }
-.grid-pattern.card-green::before { opacity: 0.6; }
-.grid-pattern.card-orange::before { opacity: 0.6; }
-.grid-pattern.card-rose::before { opacity: 0.6; }
-.grid-pattern.card-emerald::before { opacity: 0.6; }
-.grid-pattern.card-indigo::before { opacity: 0.6; }
-.grid-pattern.card-slate::before { opacity: 0.7; }
 
 /* Hero section gradient */
 .hero-gradient {

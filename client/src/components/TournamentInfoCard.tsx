@@ -382,8 +382,10 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
 
   const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 
+  // Raised: it sits directly under the timer and holds the money — the one card
+  // on the console that earns the extra elevation.
   return (
-    <Card className="card-glass-purple rounded-xl">
+    <Card variant="raised" className="rounded-xl">
       <CardContent className="p-5">
 
         {/* Header */}

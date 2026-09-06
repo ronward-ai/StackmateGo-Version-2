@@ -2,34 +2,30 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * The one card treatment, in three roles.
+ *
+ *   default  resting — most cards. Content provides the interest.
+ *   raised   the thing you came to this screen for. At most one per screen.
+ *   live     a STATE, not a decoration. Only when something is happening.
+ *
+ * This prop used to offer EIGHTEEN values — nine tints twice over — and was
+ * called zero times: every consumer hand-wrote `className="card-glass-purple"`
+ * instead, which is how the tints drifted into meaning nothing.
+ */
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & {
-    variant?: 'default' | 'blue' | 'purple' | 'green' | 'orange' | 'rose' | 'emerald' | 'indigo' | 'slate' | 'glass' | 'glass-blue' | 'glass-purple' | 'glass-green' | 'glass-orange' | 'glass-rose' | 'glass-emerald' | 'glass-indigo' | 'glass-slate'
+    variant?: 'default' | 'raised' | 'live'
   }
 >(({ className, variant = 'default', ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border text-card-foreground shadow-sm grid-pattern",
-      variant === 'default' && "bg-card",
-      variant === 'blue' && "card-blue",
-      variant === 'purple' && "card-purple", 
-      variant === 'green' && "card-green",
-      variant === 'orange' && "card-orange",
-      variant === 'rose' && "card-rose",
-      variant === 'emerald' && "card-emerald",
-      variant === 'indigo' && "card-indigo",
-      variant === 'slate' && "card-slate",
-      variant === 'glass' && "card-glass",
-      variant === 'glass-blue' && "card-glass-blue",
-      variant === 'glass-purple' && "card-glass-purple",
-      variant === 'glass-green' && "card-glass-green",
-      variant === 'glass-orange' && "card-glass-orange",
-      variant === 'glass-rose' && "card-glass-rose",
-      variant === 'glass-emerald' && "card-glass-emerald",
-      variant === 'glass-indigo' && "card-glass-indigo",
-      variant === 'glass-slate' && "card-glass-slate",
+      "rounded-lg border text-card-foreground grid-pattern",
+      variant === 'default' && "bg-card shadow-sm",
+      variant === 'raised' && "card-raised",
+      variant === 'live' && "card-live",
       className
     )}
     {...props}

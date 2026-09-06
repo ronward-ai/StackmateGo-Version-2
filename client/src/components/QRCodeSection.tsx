@@ -95,7 +95,8 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
   return (
     <>
     <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} featureHint="Live QR sharing" />
-    <Card className="p-4 bg-gradient-to-br from-blue-950/60 to-indigo-950/60 border border-blue-500/25">
+    {/* The one place "live" is a real state rather than a decoration. */}
+    <Card variant={isLive ? 'live' : 'default'} className="p-4">
       {/* Header */}
       <div className="flex items-center gap-2 mb-5">
         <Radio className="h-5 w-5 text-blue-400 animate-pulse" />
@@ -112,7 +113,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
         {isLive ? (
           <>
             {/* Live View / Check-in QR */}
-            <div className="bg-gradient-to-r from-blue-600/15 to-cyan-600/10 border border-blue-500/25 rounded-xl p-4">
+            <div className="card-glass rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Smartphone className="h-4 w-4 text-blue-400" />
                 <h3 className="font-semibold text-blue-300 text-sm">Player Check-in &amp; Live View</h3>
@@ -149,7 +150,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
           </>
         ) : (
           /* Not yet live */
-          <div className="bg-gradient-to-br from-blue-600/10 to-indigo-600/10 border border-blue-500/20 rounded-xl p-6">
+          <div className="card-glass rounded-xl p-6">
             <div className="text-center space-y-4">
               <Radio className="h-10 w-10 text-blue-400 mx-auto" />
               <div>

@@ -47,7 +47,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const winner = active.length === 1 && eliminated.length > 0 ? active[0] : null;
 
   return (
-    <Card className="card-glass-purple rounded-xl">
+    <Card className="card-glass rounded-xl">
       <CardContent className="p-5">
 
         {/* Header */}

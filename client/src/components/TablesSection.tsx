@@ -329,7 +329,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   return (
     <div className="space-y-4">
-      <Card className="card-glass-orange rounded-xl">
+      <Card className="card-glass rounded-xl">
         <CardContent className="p-5">
 
           {/* Header */}
