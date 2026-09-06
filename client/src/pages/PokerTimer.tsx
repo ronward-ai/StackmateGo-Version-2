@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, LogOut, UserCircle, ChevronDown, Settings2, X } from 'lucide-react';
+import { User, LogOut, UserCircle, ChevronDown, Settings2, X, Users, LayoutGrid, Coins, Layers, Trophy } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -988,28 +988,42 @@ function PokerTimerInner({
               <TournamentModeToggle tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
             </div>
             <div className="relative">
-              <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap hide-scrollbar justify-start sm:justify-center rounded-none bg-transparent p-0 border-b border-border/40 h-auto">
-                <TabsTrigger value="players" variant="players" className="flex-shrink-0 min-w-[80px]">Players</TabsTrigger>
-                <TabsTrigger value="tables" variant="tables" className="flex-shrink-0 min-w-[80px]">Seating</TabsTrigger>
-                <TabsTrigger value="buyins" variant="buy-ins" className="flex-shrink-0 min-w-[80px]">Structure</TabsTrigger>
-                <TabsTrigger value="levels" variant="timer" className="flex-shrink-0 min-w-[80px]">Levels</TabsTrigger>
+              <TabsList className="border-b border-border/40 rounded-none bg-transparent p-0 h-auto gap-0">
+                <TabsTrigger value="players">
+                  <Users className="h-4 w-4" />
+                  Players
+                </TabsTrigger>
+                <TabsTrigger value="tables">
+                  <LayoutGrid className="h-4 w-4" />
+                  Seating
+                </TabsTrigger>
+                <TabsTrigger value="buyins">
+                  <Coins className="h-4 w-4" />
+                  Structure
+                </TabsTrigger>
+                <TabsTrigger value="levels">
+                  <Layers className="h-4 w-4" />
+                  Levels
+                </TabsTrigger>
                 {isLeagueMode && (
-                  <TabsTrigger value="league" variant="league" className="flex-shrink-0 min-w-[80px]">League</TabsTrigger>
+                  <TabsTrigger value="league">
+                    <Trophy className="h-4 w-4" />
+                    League
+                  </TabsTrigger>
                 )}
-                <TabsTrigger value="settings" variant="settings" className="flex-shrink-0 min-w-[80px]">Settings</TabsTrigger>
-                <TabsTrigger value="qr" variant="timer" className="flex-shrink-0 min-w-[80px]">
-                  <span className="flex items-center gap-1.5">
-                    <span className="relative flex items-center justify-center h-3.5 w-3.5 flex-shrink-0">
-                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
-                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '1s' }} />
-                      <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '2s' }} />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-                    </span>
-                    Share
+                <TabsTrigger value="settings">
+                  <Settings2 className="h-4 w-4" />
+                  Settings
+                </TabsTrigger>
+                <TabsTrigger value="qr">
+                  <span className="relative flex items-center justify-center h-4 w-4 flex-shrink-0">
+                    <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '0s' }} />
+                    <span className="radar-ring absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ animationDelay: '0.6s' }} />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
                   </span>
+                  Share
                 </TabsTrigger>
               </TabsList>
-              <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
             </div>
 
             <TabsContent value="players" className="mt-0 p-4 pt-5">
