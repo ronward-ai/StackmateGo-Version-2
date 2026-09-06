@@ -30,15 +30,32 @@
   --card-foreground: 0 0% 95%;
   --border: 210 8% 22%;
   --input: 210 10% 16%;
-  --primary: 180 85% 45%;
-  --primary-foreground: 210 12% 8%;
+  /*
+   * The accent is ORANGE, because the app already was.
+   *
+   * --primary used to be teal while the screen was visibly orange — 119 orange
+   * utility classes, the active tab, half the section-header icons. With the
+   * token disagreeing with the app, variant="default" was used exactly once in
+   * the whole codebase and 83% of buttons were outline or ghost, so nothing read
+   * as the main action. That vacuum is what grew two dozen bespoke .btn-*
+   * gradient classes to fill it.
+   *
+   * Teal is not the brand and never was: it is the CLOCK's colour, one end of
+   * the timer's state language (teal → amber → red → gold). It stays in
+   * pipingFor() and nowhere else.
+   */
+  --primary: 25 95% 53%;
+  --primary-foreground: 20 60% 8%;
   --secondary: 210 15% 25%;
   --secondary-foreground: 0 0% 95%;
-  --accent: 180 70% 40%;
+  /* A raised neutral surface, not a brand statement. This is what shadcn uses
+     for hover backgrounds in menus and ghost buttons — it was teal, which put
+     the old brand colour behind every dropdown row. */
+  --accent: 210 10% 22%;
   --accent-foreground: 0 0% 95%;
   --destructive: 0 65% 55%;
   --destructive-foreground: 0 0% 95%;
-  --ring: 180 85% 45%;
+  --ring: 25 95% 53%;
   --radius: 0.5rem;
 
   /* Harmonious card color variants */
@@ -710,10 +727,10 @@
   .tabs-trigger-settings[data-state="active"],
   .tabs-trigger-buy-ins[data-state="active"],
   .tabs-trigger-league[data-state="active"] {
-    background: rgba(249, 115, 22, 0.08) !important;
-    color: #F97316 !important;
+    background: hsl(var(--primary) / 0.08) !important;
+    color: hsl(var(--primary)) !important;
     border-color: transparent !important;
-    border-bottom-color: #F97316 !important;
+    border-bottom-color: hsl(var(--primary)) !important;
     border-bottom-width: 2px !important;
     box-shadow: none !important;
   }
