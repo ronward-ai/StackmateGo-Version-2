@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Radio, Smartphone } from 'lucide-react';
@@ -95,12 +96,17 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
   return (
     <>
     <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} featureHint="Live QR sharing" />
-    {/* The one place "live" is a real state rather than a decoration. */}
-    <Card variant={isLive ? 'live' : 'default'} className="p-4">
+    {/*
+      Neutral, even when live. The card wore the `live` tint AND a green
+      Broadcasting badge — two signals for one state — and the tint compounded
+      with the panel nested inside it into a muddy brown that the text sat
+      badly on. The badge says it on its own.
+    */}
+    <Card className="p-4">
       {/* Header */}
       <div className="flex items-center gap-2 mb-5">
-        <Radio className="h-5 w-5 text-blue-400 animate-pulse" />
-        <h2 className="text-xl font-bold text-white tracking-tight">StackMate Live</h2>
+        <Radio className={cn("h-5 w-5", isLive ? "text-green-400 animate-pulse" : "text-muted-foreground")} />
+        <h2 className="text-xl font-bold text-foreground tracking-tight">StackMate Live</h2>
         {isLive && (
           <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
@@ -115,8 +121,8 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
             {/* Live View / Check-in QR */}
             <div className="card-glass rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Smartphone className="h-4 w-4 text-blue-400" />
-                <h3 className="font-semibold text-blue-300 text-sm">Player Check-in &amp; Live View</h3>
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold text-foreground text-sm">Player Check-in &amp; Live View</h3>
               </div>
               <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
                 <div className="flex-1 space-y-1.5">
@@ -126,14 +132,14 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
                   {liveUrl && (
                     <button
                       onClick={() => { navigator.clipboard.writeText(liveUrl); toast({ title: 'Copied!', description: 'Live link copied to clipboard' }); }}
-                      className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+                      className="text-xs text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
                     >
                       Copy live link
                     </button>
                   )}
                 </div>
                 <div className="flex flex-col items-center flex-shrink-0">
-                  <div className="w-32 h-32 border-2 border-blue-500/40 rounded-xl flex items-center justify-center bg-white p-1 shadow-lg shadow-blue-900/30">
+                  <div className="w-32 h-32 border border-white/15 rounded-xl flex items-center justify-center bg-white p-1 shadow-lg">
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=112x112&data=${encodeURIComponent(liveUrl!)}`}
                       alt="StackMate Live QR Code"
@@ -142,7 +148,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   </div>
-                  <p className="text-xs text-blue-400 mt-2 font-medium">Scan to join live</p>
+                  <p className="text-caption text-muted-foreground mt-2 font-medium">Scan to join live</p>
                 </div>
               </div>
             </div>
@@ -152,9 +158,9 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
           /* Not yet live */
           <div className="card-glass rounded-xl p-6">
             <div className="text-center space-y-4">
-              <Radio className="h-10 w-10 text-blue-400 mx-auto" />
+              <Radio className="h-10 w-10 text-muted-foreground mx-auto" />
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">Start Broadcasting</h3>
+                <h3 className="text-lg font-bold text-foreground mb-1">Start Broadcasting</h3>
                 <p className="text-body text-muted-foreground">
                   Go live so players can check in on their phones and everyone follows the action in real time — blinds, prize pool, seat assignments and league standings.
                 </p>

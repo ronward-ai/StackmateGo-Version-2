@@ -270,6 +270,13 @@ for sub-panels of one screen, and purple was shared by four unrelated cards. Bei
 coloured surface on every screen, that is what stopped the timer card reading as special. `raised` is
 at most one card per screen; `live` means something is actually happening.
 
+`live` tints the whole card in the accent, which **compounds with anything nested inside it** — the
+Share tab put a `card-glass` panel inside a `card-live` card and the two translucent layers plus the
+40%-accent border came out a muddy brown that text sat badly on. It also already had a green
+Broadcasting badge, so it was signalling one state twice. It is now a plain card, and `live` survives
+on exactly one card: the participant's own check-in row, where it says "this is you" and has nothing
+nested in it.
+
 Adding a tenth tint, or a `.btn-*` gradient class, is how both of these grew the first time. If a new
 colour is genuinely needed, it needs a reason that survives being written down here.
 
