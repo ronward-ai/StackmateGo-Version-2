@@ -382,10 +382,10 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2 mb-5">
+            {/* The Seating tab's primary action. */}
             <Button
-              variant="outline"
               size="sm"
-              className="btn-seat-players gap-1.5 h-9 text-xs"
+              className="gap-1.5 h-9 text-xs"
               disabled={state.players.length === 0}
               onClick={() => setSeatDialogOpen(true)}
             >

@@ -162,7 +162,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
               <Button
                 onClick={createTournament}
                 disabled={isCreating}
-                className="btn-create-viewer-green px-6 py-2 text-sm font-semibold w-full sm:w-auto"
+                className="px-6 py-2 text-sm font-semibold w-full sm:w-auto"
               >
                 {isCreating ? (
                   <>

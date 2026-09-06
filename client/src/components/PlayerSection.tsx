@@ -605,10 +605,10 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                 </div>
               )}
             </div>
-            <Button 
+            {/* The Players tab's primary action. */}
+            <Button
               onClick={handleAddPlayer}
-              variant="outline"
-              className="btn-add-player flex items-center justify-center gap-1 font-medium py-2 px-3 rounded-lg transition-all duration-200"
+              className="flex items-center justify-center gap-1 font-medium py-2 px-3"
             >
               <span className="material-icons text-sm">add</span>
               <span>Add</span>
