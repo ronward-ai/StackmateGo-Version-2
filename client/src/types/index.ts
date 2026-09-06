@@ -109,6 +109,12 @@ export interface PrizeStructure {
   rakePercentage?: number;
   rakeAmount?: number;
   rakeType?: 'percentage' | 'fixed';
+  /**
+   * @deprecated Legacy home for the payout percentages. Nothing reads this —
+   * every money figure comes from `manualPayouts`. Read through `payoutsOf()`
+   * in lib/payoutTemplates.ts, which honours it for structures saved before the
+   * default was corrected, and never write to it.
+   */
   structure?: Array<{
     position: number;
     percentage: number;

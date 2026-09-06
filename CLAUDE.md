@@ -384,6 +384,24 @@ that already looked complete — an authoritative answer for a table that no lon
 
 Chip counts are typed in by hand. `Player.chipCount` exists and nothing writes it.
 
+### Payout percentages live in `manualPayouts`, and once did not
+
+Every money figure reads `prizeStructure.manualPayouts` — the player row's prize, the exported PNG,
+the money written onto a player at bust-out, and the Payouts panel, which hides itself entirely when
+the field is absent.
+
+The DEFAULT prize structure wrote its 60/30/10 into **`structure`**, a field nothing in the app
+reads. So a game run straight from the defaults advertised a payout scheme and then paid nobody: no
+money on any player, no money chip, no Payouts panel. Applying anything in the Structure tab writes
+`manualPayouts` and it all starts working, which is why it survived — it only bit a game that never
+visited that tab, which is exactly what a quick test game is.
+
+`payoutsOf()` in `lib/payoutTemplates.ts` reads whichever field a structure has, preferring
+`manualPayouts`; `withNormalisedPayouts()` is applied where a structure is **loaded** — localStorage
+and the tournament document — so the rest of the app only ever sees `manualPayouts`. Normalising on
+read rather than migrating means no stored game has to be rewritten to keep working. **Never write
+`structure`.**
+
 ### Every money figure comes from `lib/prizePool.ts`
 
 `prizePoolFor(players, prizeStructure)` is the one entry point, and `entryCosts(prizeStructure)`

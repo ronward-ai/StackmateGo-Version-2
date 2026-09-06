@@ -15,6 +15,7 @@ import { sanitizeForFirestore } from '../lib/utils';
 import { useAuth } from './useAuth';
 import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
 import { prizePoolFor } from '@/lib/prizePool';
+import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -100,7 +101,11 @@ const loadSavedPrizeStructure = (): PrizeStructure => {
   try {
     const saved = localStorage.getItem('tournamentPrizeStructure');
     if (saved) {
-      return JSON.parse(saved);
+      // Normalised on read rather than migrated: a structure saved before the
+      // default was fixed keeps its payouts in `structure`, and rewriting
+      // everyone's stored game to correct that would be the riskier half of the
+      // trade.
+      return withNormalisedPayouts(JSON.parse(saved));
     }
   } catch (error) {
     console.error('Error loading saved prize structure:', error);
@@ -118,7 +123,10 @@ const loadSavedPrizeStructure = (): PrizeStructure => {
     rebuyChips: 10000,
     addonChips: 10000,
     addonAvailableLevel: 6,
-    structure: [
+    // manualPayouts, NOT `structure`. This default used to write `structure`,
+    // which nothing in the app reads — so a game run straight from the defaults
+    // advertised 60/30/10 and then paid nobody. See payoutsOf().
+    manualPayouts: [
       { position: 1, percentage: 60 },
       { position: 2, percentage: 30 },
       { position: 3, percentage: 10 }
@@ -380,7 +388,9 @@ export function useTournament(tournamentId?: string) {
                   ...tournamentData.settings?.tables
                 }
               },
-                        prizeStructure: tournamentData.prizeStructure || loadSavedPrizeStructure(),
+                        prizeStructure: tournamentData.prizeStructure
+                          ? withNormalisedPayouts(tournamentData.prizeStructure)
+                          : loadSavedPrizeStructure(),
               isFinalTable: false,
               details: {
                 type: 'database',

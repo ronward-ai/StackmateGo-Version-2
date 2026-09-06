@@ -94,3 +94,57 @@ export function topPercentPayouts(playerCount: number): PayoutSlot[] {
 
   return percentages.map((percentage, i) => ({ position: i + 1, percentage }));
 }
+
+/** A payout scheme: what each finishing position is worth, as a percentage. */
+export interface PayoutPlace {
+  position: number;
+  percentage: number;
+}
+
+/**
+ * Where a prize structure keeps its payout percentages.
+ *
+ * There are two fields for one concept. Every money calculation in the app reads
+ * `manualPayouts` — the player row's prize, the exported image, the prize money
+ * written onto a player at bust-out, and the Payouts panel, which hides itself
+ * entirely when the field is absent. But the DEFAULT prize structure, the one a
+ * brand-new tournament starts from, wrote its 60/30/10 into `structure`, which
+ * nothing anywhere reads.
+ *
+ * So a game run straight from the defaults advertised a payout scheme and then
+ * paid nobody: no money on any player, no money chip on any row, and no Payouts
+ * panel at all. Applying anything in the Structure tab writes `manualPayouts`
+ * and it all starts working, which is why this survived — it only bit a game
+ * that never visited that tab, which is exactly what a quick test game is.
+ *
+ * The default now writes `manualPayouts`. This exists for everything saved
+ * before that: prize structures in localStorage and on stored tournaments still
+ * carry `structure`, and are read through here rather than rewritten, so no
+ * existing game has to be migrated to keep working.
+ */
+export function payoutsOf(prizeStructure?: {
+  manualPayouts?: PayoutPlace[];
+  /** @deprecated Legacy home for the same percentages. Read via payoutsOf. */
+  structure?: PayoutPlace[];
+} | null): PayoutPlace[] {
+  if (!prizeStructure) return [];
+  if (prizeStructure.manualPayouts && prizeStructure.manualPayouts.length > 0) {
+    return prizeStructure.manualPayouts;
+  }
+  return prizeStructure.structure || [];
+}
+
+/**
+ * A prize structure with its payouts in the field the app actually reads.
+ *
+ * Applied where a structure is loaded — from localStorage, or from a stored
+ * tournament — so the rest of the app only ever sees `manualPayouts`.
+ */
+export function withNormalisedPayouts<T extends {
+  manualPayouts?: PayoutPlace[];
+  structure?: PayoutPlace[];
+}>(prizeStructure: T): T {
+  const payouts = payoutsOf(prizeStructure);
+  if (payouts.length === 0) return prizeStructure;
+  return { ...prizeStructure, manualPayouts: payouts };
+}

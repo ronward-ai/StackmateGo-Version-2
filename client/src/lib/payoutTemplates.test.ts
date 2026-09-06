@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { topPercentPayouts, paidPlacesFor } from './payoutTemplates';
+import { topPercentPayouts, paidPlacesFor, payoutsOf, withNormalisedPayouts } from './payoutTemplates';
 
 describe('paidPlacesFor', () => {
   it('pays roughly the top 10%', () => {
@@ -92,5 +92,69 @@ describe('topPercentPayouts', () => {
     const pcts = topPercentPayouts(100).map(p => p.percentage);
     expect(pcts[0]).toBeGreaterThan(25);
     expect(pcts[0]).toBeGreaterThan(pcts[1]);
+  });
+});
+
+describe('payoutsOf', () => {
+  const PAYOUTS = [
+    { position: 1, percentage: 60 },
+    { position: 2, percentage: 30 },
+    { position: 3, percentage: 10 },
+  ];
+
+  it('reads manualPayouts, which is what the app pays from', () => {
+    expect(payoutsOf({ manualPayouts: PAYOUTS })).toEqual(PAYOUTS);
+  });
+
+  // The regression. The default prize structure wrote its 60/30/10 into
+  // `structure`, which nothing in the app reads, so a game run straight from
+  // the defaults paid nobody and showed no money chip or Payouts panel.
+  it('REGRESSION: falls back to a structure saved under the legacy field', () => {
+    expect(payoutsOf({ structure: PAYOUTS })).toEqual(PAYOUTS);
+  });
+
+  it('prefers manualPayouts and does not merge the two', () => {
+    const legacy = [{ position: 1, percentage: 100 }];
+    expect(payoutsOf({ manualPayouts: PAYOUTS, structure: legacy })).toEqual(PAYOUTS);
+  });
+
+  it('is empty for a structure with neither, or none at all', () => {
+    expect(payoutsOf({})).toEqual([]);
+    expect(payoutsOf(undefined)).toEqual([]);
+    expect(payoutsOf(null)).toEqual([]);
+    expect(payoutsOf({ manualPayouts: [] })).toEqual([]);
+  });
+
+  it('treats an empty manualPayouts as absent, so the legacy field still counts', () => {
+    expect(payoutsOf({ manualPayouts: [], structure: PAYOUTS })).toEqual(PAYOUTS);
+  });
+});
+
+describe('withNormalisedPayouts', () => {
+  const PAYOUTS = [{ position: 1, percentage: 100 }];
+
+  /** The shape a stored prize structure actually has: either field, or neither. */
+  type Stored = {
+    buyIn?: number;
+    enableBounties?: boolean;
+    manualPayouts?: { position: number; percentage: number }[];
+    structure?: { position: number; percentage: number }[];
+  };
+
+  it('moves legacy payouts into the field the app reads', () => {
+    const stored: Stored = { buyIn: 10, structure: PAYOUTS };
+    expect(withNormalisedPayouts(stored).manualPayouts).toEqual(PAYOUTS);
+  });
+
+  it('keeps every other field of the prize structure', () => {
+    const stored: Stored = { buyIn: 25, enableBounties: true, structure: PAYOUTS };
+    const normalised = withNormalisedPayouts(stored);
+    expect(normalised.buyIn).toBe(25);
+    expect(normalised.enableBounties).toBe(true);
+  });
+
+  it('leaves a structure with no payouts at all alone', () => {
+    const bare: Stored = { buyIn: 10 };
+    expect(withNormalisedPayouts(bare)).toBe(bare);
   });
 });
