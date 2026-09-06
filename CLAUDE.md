@@ -229,8 +229,18 @@ vocabularies for the same fact — knockouts read `🎯 3`, `KO x3` and `3 KOs`,
 red. Adding a chip means adding it there, once.
 
 **The tones are semantic and there are five**: `neutral` for facts (seat, knockouts, rebuys), `money`,
-`bounty`, `eliminated`, `points`. A row could previously carry six hues chosen per call site, which
-is why the money did not stand out. Facts sharing the neutral chip is the point, not an oversight.
+`bounty` (the COUNT of bounties collected), `eliminated`, `points`. A row could previously carry six
+hues chosen per call site, which is why the money did not stand out. Facts sharing the neutral chip
+is the point, not an oversight.
+
+**One money chip, and it is the total** — the payout plus the bounty money, added inside
+`badgesFor` so two call sites cannot disagree about what "total" means. They used to sit side by side
+in green and amber, asking the reader to add up two numbers to answer the only question anyone asks.
+The split is still on the Payouts panel.
+
+**The bounty count includes the winner's own bounty back**, so `5 bounties` beside `4 KO` is correct
+for a winner and the count multiplies out against the money on the same row. That `+1` was already in
+the money arithmetic in both call sites; the count only surfaces it.
 
 `TONE_STYLES` in `ui/player-badge.tsx` repeats those colours as inline styles because the PNG export
 hands plain DOM nodes to html2canvas and cannot use Tailwind classes. Change one, change both.

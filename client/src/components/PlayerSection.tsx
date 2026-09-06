@@ -424,9 +424,11 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         // Winnings (split into prize and bounty for separate display)
         let exportPrize = 0;
         let exportBounty = 0;
+        let exportBounties = 0;
         if (ps?.enableBounties && ps?.bountyAmount) {
           const kos = player.knockouts || 0;
-          exportBounty = pos === 1 ? (kos + 1) * ps.bountyAmount : kos * ps.bountyAmount;
+          exportBounties = pos === 1 ? kos + 1 : kos;
+          exportBounty = exportBounties * ps.bountyAmount;
         }
         if (pos > 0 && ps?.manualPayouts) {
           const payout = ps.manualPayouts.find((p: any) => p.position === pos);
@@ -477,6 +479,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           points: isLeagueMode && pos > 0
             ? calculatePoints(pos, state.players.length, player.knockouts || 0, buyIn, 0, 0)
             : 0,
+          bountiesCollected: exportBounties,
           prize: exportPrize,
           bounty: exportBounty,
           currencySymbol: sym,
@@ -763,19 +766,18 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             const { rake: rakeAmount, net: totalPrizePool } =
               prizePoolFor(state.players, state.prizeStructure);
 
-            const calculatePlayerWinnings = (player: any): { prize: number; bounty: number } => {
+            const calculatePlayerWinnings = (player: any): { prize: number; bounty: number; bountiesCollected: number } => {
               let prize = 0;
               let bounty = 0;
+              let bountiesCollected = 0;
 
-              // Bounty winnings from knockouts
+              // Bounty winnings from knockouts. The winner takes their own
+              // bounty back at the end, which is the +1 — so the count and the
+              // money multiply out against each other on the row.
               if (state.prizeStructure?.enableBounties && state.prizeStructure?.bountyAmount) {
                 const knockouts = player.knockouts || 0;
-
-                if (player.position === 1) {
-                  bounty += (knockouts + 1) * state.prizeStructure.bountyAmount;
-                } else {
-                  bounty += knockouts * state.prizeStructure.bountyAmount;
-                }
+                bountiesCollected = player.position === 1 ? knockouts + 1 : knockouts;
+                bounty = bountiesCollected * state.prizeStructure.bountyAmount;
               }
 
               // Position-based prize money
@@ -786,7 +788,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                 }
               }
 
-              return { prize, bounty };
+              return { prize, bounty, bountiesCollected };
             };
 
             // Sort players by position: active players first (no position), then by position (1st, 2nd, 3rd, etc.)
@@ -815,7 +817,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             }
 
             return sortedPlayers.map((player) => {
-              const { prize, bounty } = calculatePlayerWinnings(player);
+              const { prize, bounty, bountiesCollected } = calculatePlayerWinnings(player);
 
               // Check if player has been eliminated (has a position)
               let displayRank = "Active";
@@ -860,6 +862,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                         ? state.players.find(p => String(p.id) === String(player.eliminatedBy))?.name
                         : null,
                       rebuys: player.rebuys,
+                      bountiesCollected,
                       points: isLeagueMode && player.position && player.position > 0
                         ? calculatePoints(player.position, state.players.length, player.knockouts || 0, state.prizeStructure?.buyIn || 0, 0, 0)
                         : 0,

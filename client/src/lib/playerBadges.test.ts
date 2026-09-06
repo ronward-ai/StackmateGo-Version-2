@@ -36,17 +36,53 @@ describe('badgesFor', () => {
   });
 
   it('carries the currency the game is played in', () => {
-    expect(one({ prize: 170 }, 'prize')?.figure).toBe('£170');
+    expect(one({ prize: 170 }, 'cash')?.figure).toBe('£170');
     expect(badgesFor({ ...base, prize: 170, currencySymbol: '€' })[0].figure).toBe('€170');
   });
 
   it('rounds money to whole units', () => {
-    expect(one({ prize: 102.4 }, 'prize')?.figure).toBe('£102');
-    expect(one({ bounty: 19.6 }, 'bounty')?.figure).toBe('£20');
+    expect(one({ prize: 102.4 }, 'cash')?.figure).toBe('£102');
+    expect(one({ bounty: 19.6 }, 'cash')?.figure).toBe('£20');
+  });
+
+  // The payout and the bounty money used to be two chips side by side, asking
+  // the reader to add them up to answer the only question anyone asks.
+  it('shows ONE money chip, the payout plus the bounty money', () => {
+    const money = badgesFor({ ...base, prize: 170, bounty: 20 }).filter(b => b.tone === 'money');
+    expect(money).toHaveLength(1);
+    expect(money[0].figure).toBe('£190');
+  });
+
+  it('still shows a total for a player with only one kind of winnings', () => {
+    expect(one({ prize: 170 }, 'cash')?.figure).toBe('£170');
+    expect(one({ bounty: 20 }, 'cash')?.figure).toBe('£20');
+  });
+
+  it('omits the money chip when nothing was won', () => {
+    expect(keys({ prize: 0, bounty: 0 })).not.toContain('cash');
+  });
+
+  // The winner takes their own bounty back at the end, so their count is one
+  // above their knockouts — which is exactly what the money is made of.
+  it('counts bounties separately from knockouts', () => {
+    const winner = badgesFor({ ...base, knockouts: 4, bountiesCollected: 5, bounty: 100 });
+    expect(winner.find(b => b.key === 'ko')?.figure).toBe('4');
+    expect(winner.find(b => b.key === 'bounties')?.figure).toBe('5');
+  });
+
+  it('counts one bounty as a bounty and two as bounties', () => {
+    expect(one({ bountiesCollected: 1 }, 'bounties')?.label).toBe('bounty');
+    expect(one({ bountiesCollected: 2 }, 'bounties')?.label).toBe('bounties');
+  });
+
+  it('omits the count when the game has no bounties', () => {
+    expect(keys({ knockouts: 3 })).not.toContain('bounties');
   });
 
   it('omits every zero rather than showing an empty count', () => {
-    expect(badgesFor({ ...base, knockouts: 0, rebuys: 0, points: 0, prize: 0, bounty: 0 })).toEqual([]);
+    expect(badgesFor({
+      ...base, knockouts: 0, rebuys: 0, points: 0, prize: 0, bounty: 0, bountiesCollected: 0,
+    })).toEqual([]);
   });
 
   // The point of the module: colour says what kind of thing this is, not who
@@ -55,7 +91,7 @@ describe('badgesFor', () => {
     const all = badgesFor({
       ...base,
       seated: true, seat: { tableIndex: 0, seatIndex: 0 },
-      knockouts: 2, rebuys: 1, points: 120, prize: 170, bounty: 20,
+      knockouts: 2, rebuys: 1, points: 120, prize: 170, bounty: 20, bountiesCollected: 2,
       eliminatedByName: 'Kelly',
     });
     const tone = (k: string) => all.find(b => b.key === k)?.tone;
@@ -63,8 +99,8 @@ describe('badgesFor', () => {
     expect(tone('seat')).toBe('neutral');
     expect(tone('ko')).toBe('neutral');
     expect(tone('rebuys')).toBe('neutral');
-    expect(tone('prize')).toBe('money');
-    expect(tone('bounty')).toBe('bounty');
+    expect(tone('cash')).toBe('money');
+    expect(tone('bounties')).toBe('bounty');
     expect(tone('out')).toBe('eliminated');
     expect(tone('points')).toBe('points');
   });
@@ -72,8 +108,9 @@ describe('badgesFor', () => {
   it('keeps a fixed order, so a row does not reshuffle as the night goes on', () => {
     expect(keys({
       seated: true, seat: { tableIndex: 0, seatIndex: 0 },
-      knockouts: 1, eliminatedByName: 'Kelly', rebuys: 1, points: 10, prize: 5, bounty: 5,
-    })).toEqual(['seat', 'ko', 'out', 'rebuys', 'points', 'prize', 'bounty']);
+      knockouts: 1, bountiesCollected: 1, eliminatedByName: 'Kelly', rebuys: 1,
+      points: 10, prize: 5, bounty: 5,
+    })).toEqual(['seat', 'ko', 'bounties', 'out', 'rebuys', 'points', 'cash']);
   });
 });
 

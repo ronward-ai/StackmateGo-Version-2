@@ -40,9 +40,17 @@ export interface BadgeInputs {
   /** The player who knocked this one out, already resolved to a name. */
   eliminatedByName?: string | null;
   rebuys?: number;
+  /**
+   * How many bounties this player collected — heads taken, plus their own back
+   * if they won. That +1 is already in the money arithmetic, so surfacing the
+   * count here means the two multiply out against each other on the same row.
+   */
+  bountiesCollected?: number;
   /** League points, when the game is a league game and the player has finished. */
   points?: number;
+  /** Payout for their finishing position. */
   prize?: number;
+  /** Bounty money. Added to the prize — the row shows one total, not both. */
   bounty?: number;
   currencySymbol: string;
 }
@@ -56,8 +64,9 @@ export function badgeText(badge: PlayerBadge): string {
  * The chips for one player, in a fixed order.
  *
  * Order is where they are, not what they are worth: where you were sitting, what
- * you did, what it cost you, what you won. Keeping it fixed means a row does not
- * reshuffle as the night goes on.
+ * you did, what it cost you, what you won. The bounty count sits beside the
+ * knockout count it derives from, and the money is last, where the eye ends up.
+ * Keeping it fixed means a row does not reshuffle as the night goes on.
  */
 export function badgesFor(input: BadgeInputs): PlayerBadge[] {
   const badges: PlayerBadge[] = [];
@@ -73,6 +82,15 @@ export function badgesFor(input: BadgeInputs): PlayerBadge[] {
 
   if ((input.knockouts || 0) > 0) {
     badges.push({ key: 'ko', figure: String(input.knockouts), label: 'KO', tone: 'neutral' });
+  }
+
+  if ((input.bountiesCollected || 0) > 0) {
+    badges.push({
+      key: 'bounties',
+      figure: String(input.bountiesCollected),
+      label: input.bountiesCollected === 1 ? 'bounty' : 'bounties',
+      tone: 'bounty',
+    });
   }
 
   if (input.eliminatedByName) {
@@ -92,17 +110,14 @@ export function badgesFor(input: BadgeInputs): PlayerBadge[] {
     badges.push({ key: 'points', figure: String(input.points), label: 'pts', tone: 'points' });
   }
 
-  if ((input.prize || 0) > 0) {
-    badges.push({ key: 'prize', figure: `${sym}${Math.round(input.prize as number)}`, tone: 'money' });
-  }
-
-  if ((input.bounty || 0) > 0) {
-    badges.push({
-      key: 'bounty',
-      figure: `${sym}${Math.round(input.bounty as number)}`,
-      label: 'bounty',
-      tone: 'bounty',
-    });
+  // ONE money chip. The payout and the bounty money used to sit side by side in
+  // green and amber, which asked the reader to add up two numbers to answer the
+  // only question anyone actually asks: what did I win? The split is still on
+  // the Payouts panel. The module does the adding so two call sites cannot
+  // disagree about what "total" means.
+  const cash = (input.prize || 0) + (input.bounty || 0);
+  if (cash > 0) {
+    badges.push({ key: 'cash', figure: `${sym}${Math.round(cash)}`, tone: 'money' });
   }
 
   return badges;
