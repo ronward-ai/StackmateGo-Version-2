@@ -504,7 +504,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                             className="w-3 h-3 rounded-full border border-white/50"
                             style={{ backgroundColor: feltHex(tableBackgrounds[tableIndex] || 'felt-green') }}
                           />
-                          <span className="text-[10px] hidden sm:block">Felt</span>
+                          <span className="text-caption hidden sm:block">Felt</span>
                         </div>
                       </SelectTrigger>
                       <SelectContent className="min-w-[150px]">
@@ -546,7 +546,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                 : "border-white/20 bg-black/15 hover:bg-white/5"
                             )}
                           >
-                            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/40 text-[10px] font-bold flex-shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/40 text-caption font-bold flex-shrink-0">
                               {seatIndex + 1}
                             </div>
                             <span className="text-xs text-white/40">
@@ -568,7 +568,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                           )}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center text-white text-caption font-bold flex-shrink-0">
                               {seatIndex + 1}
                             </div>
                             <span className="font-semibold text-white text-sm truncate">{player.name}</span>
@@ -586,7 +586,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                     <Button
                                       variant="secondary"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="h-7 px-1.5 text-[10px] font-bold"
+                                      className="h-7 px-1.5 text-caption font-bold"
                                     >
                                       R
                                     </Button>
@@ -621,7 +621,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                     <Button
                                       variant="secondary"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="h-7 px-1.5 text-[10px] font-bold"
+                                      className="h-7 px-1.5 text-caption font-bold"
                                     >
                                       RE
                                     </Button>
@@ -657,7 +657,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                     setHitmanId(null);
                                     setBustOutDialogOpen(true);
                                   }}
-                                  className="h-7 w-10 text-[10px] font-bold"
+                                  className="h-7 w-10 text-caption font-bold"
                                 >
                                   KO
                                 </Button>

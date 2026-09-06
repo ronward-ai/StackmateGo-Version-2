@@ -214,6 +214,31 @@ Every figure belongs in `font-mono`: the clock, money, chip counts, standings. T
 `tabular-nums` app-wide, so digits stop jittering as they change. Each stack falls back to something
 real, because a standalone game stays usable offline where Google Fonts will not load.
 
+**The ramp is named by role** — `text-caption` (11px), `text-label` (13px), `text-body` (15px),
+`text-title` — declared in `tailwind.config.ts` alongside Tailwind's own scale. Reach for these in
+new work. 85% of the app was `text-xs` or `text-sm`, `text-base` was rarer than `text-lg`, and four
+undeclared sizes (8, 9, 10, 11px) had been reached for whenever `xs` was too big; those are folded
+into `caption`. Prose gets `body` — an empty state is one of the few places the app explains itself,
+so it should not be set in the same 12px as a table cell.
+
+### Colour means something, or it is not used
+
+**One accent, and it is orange.** `--primary` used to be teal while the app was visibly orange — 119
+orange utility classes, the active tab, half the section-header icons. With the token disagreeing
+with the screen, `variant="default"` was used exactly once in the whole codebase, 83% of buttons were
+outline or ghost, and nothing read as the main action; two dozen bespoke `.btn-*` gradient classes
+with `!important` grew to fill that vacuum. **Teal is the clock's colour, not the brand** — it lives
+in `pipingFor()` and nowhere else.
+
+**One card, three roles** (`.card-glass` resting, `.card-raised`, `.card-live`, or the `variant` prop
+on `ui/card.tsx`). There were nine tinted variants encoding nothing: the Structure tab alone wore six
+for sub-panels of one screen, and purple was shared by four unrelated cards. Being the largest
+coloured surface on every screen, that is what stopped the timer card reading as special. `raised` is
+at most one card per screen; `live` means something is actually happening.
+
+Adding a tenth tint, or a `.btn-*` gradient class, is how both of these grew the first time. If a new
+colour is genuinely needed, it needs a reason that survives being written down here.
+
 ### The piping round the clock is the level progress
 
 `TimerCard` renders inside `.timer-frame`, whose conic-gradient border fills clockwise from twelve

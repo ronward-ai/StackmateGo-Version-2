@@ -93,7 +93,7 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
                           key={seatIndex}
                           className="flex items-center gap-2.5 p-2 rounded-lg border border-dashed border-white/15 bg-black/15"
                         >
-                          <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/40 text-[10px] font-bold flex-shrink-0">
+                          <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white/40 text-caption font-bold flex-shrink-0">
                             {seatIndex + 1}
                           </div>
                           <span className="text-xs text-white/40">Empty</span>
@@ -106,7 +106,7 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
                         key={player.id}
                         className="flex items-center gap-2.5 p-2 rounded-lg border border-white/20 bg-black/25"
                       >
-                        <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                        <div className="w-6 h-6 rounded-full bg-blue-500/80 flex items-center justify-center text-white text-caption font-bold flex-shrink-0">
                           {seatIndex + 1}
                         </div>
                         <span className="font-medium text-white text-sm truncate flex-1">{player.name}</span>

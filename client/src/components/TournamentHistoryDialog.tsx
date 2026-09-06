@@ -39,7 +39,7 @@ function HistoryRow({
               {entry.name || (entry.type === 'standalone' ? 'Standalone Game' : entry.seasonName || 'League Game')}
             </span>
             {entry.type !== 'standalone' && (
-              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 flex-shrink-0">
+              <span className="text-caption uppercase tracking-wide px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 flex-shrink-0">
                 League
               </span>
             )}

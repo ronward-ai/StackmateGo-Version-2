@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.state.error?.message || 'Unknown error'}
             </p>
             {isDebugEnabled() && (
-              <pre className="text-[10px] leading-relaxed text-left text-muted-foreground font-mono bg-muted/30 p-2 rounded max-h-[50vh] overflow-auto whitespace-pre-wrap break-words select-text">
+              <pre className="text-caption leading-relaxed text-left text-muted-foreground font-mono bg-muted/30 p-2 rounded max-h-[50vh] overflow-auto whitespace-pre-wrap break-words select-text">
                 {formatErrorReport(
                   'React ErrorBoundary',
                   this.state.error,

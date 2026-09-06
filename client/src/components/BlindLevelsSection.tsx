@@ -169,7 +169,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                   ))}
                   {savedBlindTemplates.length > 0 && (
                     <>
-                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-t border-border/40 mt-1 pt-1">
+                      <div className="px-2 py-1.5 text-caption font-semibold text-muted-foreground uppercase tracking-wider border-t border-border/40 mt-1 pt-1">
                         Saved
                       </div>
                       {savedBlindTemplates.map(t => (
@@ -334,9 +334,9 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                       {isCurrentLevel ? (
                         <div className="flex flex-col items-center gap-0.5">
                           <div className="w-5 h-5 rounded-full bg-[rgba(20,184,166,0.25)] flex items-center justify-center">
-                            <span className="text-[10px] font-bold text-[#14B8A6]">{blindLevelNum}</span>
+                            <span className="text-caption font-bold text-[#14B8A6]">{blindLevelNum}</span>
                           </div>
-                          <span className="text-[8px] font-bold text-[#14B8A6] tracking-wider leading-none">NOW</span>
+                          <span className="text-caption font-bold text-[#14B8A6] tracking-wider leading-none">NOW</span>
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground text-center">{blindLevelNum}</span>

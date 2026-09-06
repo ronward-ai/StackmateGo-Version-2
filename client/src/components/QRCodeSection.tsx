@@ -120,7 +120,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
               </div>
               <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
                 <div className="flex-1 space-y-1.5">
-                  <p className="text-sm text-gray-300 leading-snug">
+                  <p className="text-body text-muted-foreground">
                     Players scan to check in and see their seat assignment. Spectators get a real-time live view — blinds, prize pool, leaderboard, all updating automatically.
                   </p>
                   {liveUrl && (
@@ -155,7 +155,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
               <Radio className="h-10 w-10 text-blue-400 mx-auto" />
               <div>
                 <h3 className="text-lg font-bold text-white mb-1">Start Broadcasting</h3>
-                <p className="text-sm text-gray-400 leading-snug">
+                <p className="text-body text-muted-foreground">
                   Go live so players can check in on their phones and everyone follows the action in real time — blinds, prize pool, seat assignments and league standings.
                 </p>
               </div>

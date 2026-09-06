@@ -75,7 +75,7 @@ function FullscreenButton() {
       {isFullscreen
         ? <Minimize2 className="h-4 w-4" />
         : <Maximize2 className="h-4 w-4" />}
-      <span className="text-[9px] leading-none font-medium uppercase tracking-wide">
+      <span className="text-caption leading-none font-medium uppercase tracking-wide">
         {isFullscreen ? 'Exit' : 'Full'}
       </span>
     </button>

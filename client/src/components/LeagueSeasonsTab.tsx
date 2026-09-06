@@ -114,12 +114,12 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{season.name}</span>
                     {isCurrent && (
-                      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 flex-shrink-0">
+                      <span className="inline-flex items-center gap-1 text-caption uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 flex-shrink-0">
                         <Check className="h-3 w-3" />Current
                       </span>
                     )}
                     {isCompleted && (
-                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground flex-shrink-0">
+                      <span className="text-caption uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground flex-shrink-0">
                         Ended
                       </span>
                     )}

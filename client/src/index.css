@@ -1103,7 +1103,10 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 }
 
 .empty-state-description {
-  @apply text-sm text-muted-foreground/70 max-w-xs;
+  /* Prose, so it gets the body step rather than the label step everything else
+     was set in. An empty state is the one place the app actually explains
+     itself. */
+  @apply text-body text-muted-foreground/70 max-w-xs;
 }
 
 /* Standardized Section Gaps */

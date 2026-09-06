@@ -132,7 +132,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
 
               <div className="py-3">
                 <Label className="text-sm font-medium">Clock Piping</Label>
-                <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                <p className="text-label text-muted-foreground mt-0.5 mb-3">
                   The frame around the timer. Its colour follows the game either way — amber in the
                   last minute, red inside thirty seconds.
                 </p>
@@ -158,7 +158,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                           <div />
                         </div>
                         <div className="mt-2 text-xs font-medium">{option.label}</div>
-                        <div className="text-[11px] leading-snug text-muted-foreground">{option.hint}</div>
+                        <div className="text-caption leading-snug text-muted-foreground">{option.hint}</div>
                       </button>
                     );
                   })}

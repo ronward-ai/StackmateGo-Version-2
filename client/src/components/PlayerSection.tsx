@@ -907,7 +907,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                           setHitmanId(null);
                           setBustOutDialogOpen(true);
                         }}
-                        className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-[10px] font-bold flex-shrink-0 transition-colors"
+                        className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-caption font-bold flex-shrink-0 transition-colors"
                       >
                         KO
                       </button>

@@ -20,6 +20,26 @@ export default {
       '2xl': '1536px',
     },
     extend: {
+      fontSize: {
+        /*
+         * The ramp, named by role.
+         *
+         * 85% of all type in this app was text-xs or text-sm, with text-base
+         * used seven times — rarer than text-lg — so there was no such thing as
+         * body copy, and one text-xs was doing the work of a caption, a table
+         * cell, a paragraph and a button label at once. Below it sat four
+         * undeclared sizes (8, 9, 10 and 11px) reached for whenever xs was too
+         * big.
+         *
+         * These sit alongside Tailwind's own scale rather than replacing it, so
+         * existing text-xs / text-sm keep working while new work has somewhere
+         * better to go.
+         */
+        caption: ['0.6875rem', { lineHeight: '1.35' }],   // 11px — table cells, seat numbers
+        label:   ['0.8125rem', { lineHeight: '1.4' }],    // 13px — field labels, hints
+        body:    ['0.9375rem', { lineHeight: '1.6' }],    // 15px — actual prose
+        title:   ['1.125rem',  { lineHeight: '1.35', letterSpacing: '-0.01em' }],
+      },
       fontFamily: {
         // Archivo for the interface, JetBrains Mono for every figure, Instrument
         // Serif for display. Real fallbacks matter: a standalone game stays
