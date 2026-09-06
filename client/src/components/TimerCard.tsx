@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { buttonCombinations } from "@/lib/buttonUtils";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +21,40 @@ import { Slider } from './ui/slider';
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   recentLevelChange: boolean;
+}
+
+/**
+ * Which piping treatment frames the clock.
+ *
+ * All four are implemented in index.css under "Timer piping" — change this one
+ * word to switch and nothing else needs touching:
+ *
+ *   'ring'   the piping IS the level progress, filling clockwise from the top
+ *   'drift'  a continuous ombré travelling round the frame, atmospheric only
+ *   'rails'  top and bottom edges only, the quietest
+ *   'ember'  solid gradient plus an outer bloom spilling onto the page
+ */
+const TIMER_PIPING: 'ring' | 'drift' | 'rails' | 'ember' = 'ring';
+
+/**
+ * The piping's colours, from what the tournament is doing.
+ *
+ * Deliberately the palette the clock digits already use — white through amber
+ * to red — so the frame and the numbers are saying the same thing and there is
+ * nothing new to learn to read it across a room.
+ */
+function pipingFor(opts: {
+  secondsLeft: number;
+  isRunning: boolean;
+  isBreak: boolean;
+  isFinished: boolean;
+}): { colours: [string, string, string]; drift: string; bloom: number } {
+  if (opts.isFinished) return { colours: ['#FBBF24', '#F59E0B', '#FBBF24'], drift: '5s', bloom: 0.55 };
+  if (opts.isBreak)    return { colours: ['#22D3EE', '#8B5CF6', '#22D3EE'], drift: '22s', bloom: 0.34 };
+  if (!opts.isRunning) return { colours: ['#64748B', '#475569', '#64748B'], drift: '40s', bloom: 0.1 };
+  if (opts.secondsLeft <= 30) return { colours: ['#EF4444', '#F97316', '#EF4444'], drift: '3.2s', bloom: 0.62 };
+  if (opts.secondsLeft <= 60) return { colours: ['#F59E0B', '#FB923C', '#F59E0B'], drift: '7s', bloom: 0.45 };
+  return { colours: ['#14B8A6', '#3B82F6', '#6366F1'], drift: '16s', bloom: 0.3 };
 }
 
 function FullscreenButton() {
@@ -242,8 +275,28 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
     }
   };
 
+  const piping = pipingFor({
+    secondsLeft: state.secondsLeft,
+    isRunning: state.isRunning,
+    isBreak: !!currentBreak,
+    isFinished: isTournamentFinished,
+  });
+
   return (
-    <Card className="relative bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20 rounded-xl shadow-lg p-4 sm:p-8 flex flex-col items-center">
+    <div
+      className="timer-frame"
+      data-piping={TIMER_PIPING}
+      style={{
+        '--pipe-1': piping.colours[0],
+        '--pipe-2': piping.colours[1],
+        '--pipe-3': piping.colours[2],
+        // The ring reads as an arc, so it wants 0-1 rather than a percentage.
+        '--pipe-progress': Math.min(1, Math.max(0, calculateProgress() / 100)),
+        '--pipe-drift': piping.drift,
+        '--pipe-bloom': piping.bloom,
+      } as React.CSSProperties}
+    >
+    <Card className="relative bg-gradient-to-r from-teal-600/10 to-blue-600/10 border-0 rounded-[calc(1.25rem-5px)] shadow-lg p-4 sm:p-8 flex flex-col items-center">
       <FullscreenButton />
 
       <div
@@ -370,14 +423,12 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
         )}
       </div>
 
-      {/* Level Progress Indicator */}
-      <Progress
-        value={calculateProgress()}
-        className={cn(
-          "w-full h-2 mb-3 sm:mb-6 bg-neutral-800",
-          currentBreak ? "[&>div]:bg-secondary" : "timer-progress-gradient"
-        )}
-      />
+      {/*
+        The flat progress bar that used to sit here is gone: the piping around
+        the card is the level progress now, and two indicators for one number
+        can only ever disagree. Switching TIMER_PIPING away from 'ring' loses
+        that reading — put this back if you do.
+      */}
 
       {/* Level Info */}
       <div className="flex justify-between items-start text-muted-foreground text-sm w-full px-1 mb-2 sm:mb-3">
@@ -405,6 +456,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
         <div className="flex-1 text-right font-medium">{getNextLevelPreview()}</div>
       </div>
     </Card>
+    </div>
   );
 }
 

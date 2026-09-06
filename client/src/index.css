@@ -1,7 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500;700&display=swap');
+/*
+ * Type.
+ *
+ * Archivo carries the interface, Instrument Serif the few display moments, and
+ * JetBrains Mono every figure — the clock, chip counts, money, standings — where
+ * digits need to be the same width so they stop jittering as they change.
+ *
+ * Inter and Roboto Mono were imported here for a long time and never applied:
+ * nothing in the app set font-family, and Tailwind's default `font-sans` is the
+ * system stack, so two families were downloaded on every visit and neither was
+ * ever drawn. The stacks below are declared in tailwind.config.ts and applied to
+ * body, so they actually take effect — and each falls back to something real
+ * when the game is being run offline.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500;700&display=swap');
 @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
-
-/* Testing auto-restart mechanism */
 
 @tailwind base;
 @tailwind components;
@@ -67,7 +79,18 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+  }
+
+  /* Figures line up in columns all over this app — payouts, chip counts,
+     standings, the clock. Tabular numerals stop them shifting as they change. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+    letter-spacing: -0.011em;
   }
 }
 
@@ -1051,14 +1074,6 @@
     stroke-width: 2.5 !important;
     transition: all 0.2s ease !important;
   }
-
-  /* Timer progress bar — teal→orange gradient on the indicator.
-     Radix clips from the left via translateX, so as the bar depletes
-     the teal (left) disappears first, leaving orange when nearly empty. */
-  .timer-progress-gradient > div {
-    background: linear-gradient(to right, #14b8a6, #f97316) !important;
-    transition: transform 0.3s linear !important;
-  }
 }
 
 /* ==============================
@@ -1349,3 +1364,100 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   40%, 80% { transform: translateX(8px); }
 }
 .animate-shake { animation: shake 0.4s ease-in-out; }
+
+/* ---------------------------------------------------------------------------
+ * Timer piping
+ *
+ * The frame around the clock, separating it from the rest of the console.
+ *
+ * FOUR TREATMENTS LIVE HERE, and exactly one is chosen by the `TIMER_PIPING`
+ * constant in TimerCard.tsx — change that one word to switch:
+ *
+ *   ring    the piping IS the level progress, filling clockwise from the top
+ *   drift   a continuous ombré travelling round the frame, purely atmospheric
+ *   rails   top and bottom edges only, the quietest option
+ *   ember   solid gradient plus an outer bloom that spills onto the page
+ *
+ * TimerCard sets --pipe-1/2/3 (the gradient), --pipe-progress (0-1) and
+ * --pipe-bloom from tournament state, so every treatment reacts to the same
+ * thing: teal through blue while there is time, amber inside the last minute,
+ * red inside thirty seconds, slate when paused, cyan-violet on a break, gold
+ * for the winner.
+ * ------------------------------------------------------------------------- */
+
+.timer-frame {
+  --pipe-1: #14B8A6;
+  --pipe-2: #3B82F6;
+  --pipe-3: #6366F1;
+  --pipe-progress: 0;
+  --pipe-track: rgba(255, 255, 255, 0.06);
+  --pipe-drift: 16s;
+  --pipe-bloom: 0.3;
+
+  position: relative;
+  border-radius: 1.25rem;
+  padding: 5px;
+  isolation: isolate;
+  transition: background 0.8s ease;
+}
+
+.timer-frame > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* The level progress, read as a filled arc. Position is state rather than
+   animation, so this keeps working under reduced motion. */
+.timer-frame[data-piping="ring"] {
+  /* from 0deg starts the arc at twelve o'clock and sweeps clockwise — the way
+     a clock face is read. Starting it anywhere else makes the fill look like it
+     is unwinding rather than filling. */
+  background: conic-gradient(
+    from 0deg,
+    var(--pipe-1) 0deg,
+    var(--pipe-2) calc(var(--pipe-progress) * 360deg),
+    var(--pipe-track) calc(var(--pipe-progress) * 360deg),
+    var(--pipe-track) 360deg
+  );
+}
+
+.timer-frame[data-piping="drift"],
+.timer-frame[data-piping="ember"] {
+  background: linear-gradient(115deg, var(--pipe-1), var(--pipe-2), var(--pipe-3), var(--pipe-2), var(--pipe-1));
+  background-size: 320% 320%;
+  animation: timer-pipe-drift var(--pipe-drift) linear infinite;
+}
+
+.timer-frame[data-piping="ember"]::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  z-index: 0;
+  border-radius: 1.9rem;
+  background: inherit;
+  filter: blur(26px);
+  opacity: var(--pipe-bloom);
+  transition: opacity 0.8s ease;
+}
+
+.timer-frame[data-piping="rails"] {
+  background: none;
+  padding: 0;
+}
+.timer-frame[data-piping="rails"] > * {
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--pipe-1), var(--pipe-2), var(--pipe-3), transparent) 1;
+}
+
+@keyframes timer-pipe-drift {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 320% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-frame[data-piping="drift"],
+  .timer-frame[data-piping="ember"] {
+    animation: none;
+  }
+}

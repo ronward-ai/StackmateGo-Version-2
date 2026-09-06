@@ -20,6 +20,14 @@ export default {
       '2xl': '1536px',
     },
     extend: {
+      fontFamily: {
+        // Archivo for the interface, JetBrains Mono for every figure, Instrument
+        // Serif for display. Real fallbacks matter: a standalone game stays
+        // usable offline, where Google Fonts will not load.
+        sans: ['Archivo', 'system-ui', '-apple-system', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+        display: ['"Instrument Serif"', 'Georgia', 'Times New Roman', 'serif'],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

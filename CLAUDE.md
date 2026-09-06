@@ -203,6 +203,29 @@ anonymous user as far as an ownership check it could never pass.
 It now reads `firebaseUser.isAnonymous`, honouring the legacy key only for stale data. **Check
 `isAnonymous`, never `isAuthenticated` alone**, when you mean "signed in for real".
 
+### Type is Archivo, JetBrains Mono and Instrument Serif — and it used to be nothing
+
+`tailwind.config.ts` declares the three stacks and `body` applies `font-sans`, so they actually take
+effect. Before that, `index.css` imported **Inter and Roboto Mono and nothing ever set
+`font-family`** — Tailwind's default `font-sans` is the system stack — so two families were
+downloaded on every visit and neither was ever drawn.
+
+Every figure belongs in `font-mono`: the clock, money, chip counts, standings. That class also sets
+`tabular-nums` app-wide, so digits stop jittering as they change. Each stack falls back to something
+real, because a standalone game stays usable offline where Google Fonts will not load.
+
+### The piping round the clock is the level progress
+
+`TimerCard` renders inside `.timer-frame`, whose conic-gradient border fills clockwise from twelve
+o'clock as the level runs — `from 0deg`, or it looks like it is unwinding. Its colours come from
+`pipingFor()` and are the ones the digits already use: teal through blue, amber inside the last
+minute, red inside thirty seconds, slate paused, cyan-violet on a break, gold for the winner.
+
+**Four treatments live in `index.css` and one word in `TimerCard.tsx` picks between them** —
+`TIMER_PIPING` is `'ring' | 'drift' | 'rails' | 'ember'`. Only `ring` encodes progress; the others
+are atmosphere. The flat progress bar under the clock was removed when the ring went in, because two
+indicators for one number can only disagree — **put it back if you switch away from `ring`.**
+
 ### The footer shows the build, and `index.html` is never cached
 
 `vite.config.ts` defines `__BUILD_ID__` from the git short SHA and `PokerTimer`'s footer renders it.
