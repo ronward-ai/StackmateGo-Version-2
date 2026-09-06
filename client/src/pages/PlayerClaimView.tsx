@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserCheck, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { getDeviceId } from '@/lib/deviceId';
+import EmptyState from '@/components/ui/empty-state';
 
 interface TournamentPlayer {
   id: string;
@@ -329,8 +330,10 @@ export default function PlayerClaimView() {
         </div>
       ) : (
         players.length === 0 && (
-          <Card className="p-6 text-center text-muted-foreground text-sm">
-            No players added yet. Ask your director.
+          <Card>
+            <EmptyState icon={UserCheck} title="No players yet">
+              Your director has not added the roster. Ask them to add you, then refresh.
+            </EmptyState>
           </Card>
         )
       )}

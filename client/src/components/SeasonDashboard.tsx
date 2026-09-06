@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
+import EmptyState from '@/components/ui/empty-state';
 import { countGamesPlayed, isSeasonComplete, clampedGameNumber, nextSeasonDates } from '@/lib/seasonProgress';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
@@ -95,13 +96,16 @@ export default function SeasonDashboard({
 
   if (!currentSeason) {
     return (
-      <Card className="p-8" data-testid="season-dashboard-empty">
-        <div className="text-center text-muted-foreground space-y-2">
-          <Calendar className="h-12 w-12 mx-auto opacity-30" />
-          <p>No active season.</p>
-          <p className="text-sm">Create one from <span className="text-foreground font-medium">Manage League → Seasons</span>.</p>
-        </div>
-      </Card>
+      <div data-testid="season-dashboard-empty">
+        <EmptyState
+          icon={Calendar}
+          title="No season yet"
+        >
+          A season groups games together so points, standings and game numbers
+          add up across the weeks. Start one from <span className="text-foreground font-medium">Manage
+          League &rarr; Seasons</span>.
+        </EmptyState>
+      </div>
     );
   }
 

@@ -8,6 +8,7 @@ import { X, Download, Users, Trophy, Plus, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
+import EmptyState from '@/components/ui/empty-state';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
@@ -796,13 +797,9 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
             if (sortedPlayers.length === 0) {
               return (
-                <div className="empty-state fade-in">
-                  <div className="empty-state-icon">
-                    <Users className="w-full h-full" strokeWidth={1.5} />
-                  </div>
-                  <div className="empty-state-title">No players registered</div>
-                  <div className="empty-state-description">Add players using the form above to track knockouts, rebuys, and standings</div>
-                </div>
+                <EmptyState icon={Users} className="fade-in" title="No players yet">
+                  Add players above to track knockouts, rebuys and standings through the night.
+                </EmptyState>
               );
             }
 

@@ -17,6 +17,7 @@ import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { isLeagueTournament } from '@/lib/tournamentMode';
 import { countGamesPlayed } from '@/lib/seasonProgress';
+import EmptyState from '@/components/ui/empty-state';
 import { totalsAcross } from '@/lib/resultStats';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
@@ -567,11 +568,9 @@ function RealTimeLeagueTable({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-10 text-muted-foreground">
-            <Trophy className="h-12 w-12 mx-auto mb-4 opacity-20" />
-            <p className="text-base font-medium mb-1">No players registered yet</p>
-            <p className="text-sm">Add players to the league to get started.</p>
-          </div>
+          <EmptyState icon={Trophy} title="No players in the league yet">
+            Players join the league automatically the first time they are recorded in a game.
+          </EmptyState>
         </CardContent>
       </Card>
     );
@@ -746,19 +745,14 @@ function RealTimeLeagueTable({
             </div>
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <Trophy className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p className="font-medium mb-1">No League Data Available</p>
-            <p className="text-sm">
+          <EmptyState icon={Trophy} title="No standings yet">
+            <span>
               {leaguePlayers && leaguePlayers.length > 0
-                ? `${leaguePlayers.length} players registered but no standings calculated yet`
-                : "No players registered in the league system yet"
+                ? `${leaguePlayers.length} players are registered, but no games have been recorded yet.`
+                : "Standings appear once the first game of the season is recorded."
               }
-            </p>
-            <p className="text-xs mt-2 opacity-70">
-              Configure league settings and record tournament results to see standings
-            </p>
-          </div>
+            </span>
+          </EmptyState>
         )}
 
       </CardContent>}

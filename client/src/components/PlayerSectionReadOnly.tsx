@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Trophy, Target, ChevronUp, ChevronDown } from 'lucide-react';
+import EmptyState from '@/components/ui/empty-state';
 
 interface Player {
   id: string;
@@ -137,10 +138,9 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
 
         {/* Empty State */}
         {players.length === 0 && (
-          <div className="text-center py-8">
-            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No players have joined yet</p>
-          </div>
+          <EmptyState icon={Users} title="Nobody has joined yet">
+            Players appear here as they scan the QR code and check in.
+          </EmptyState>
         )}
       </CardContent>}
     </Card>

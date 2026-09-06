@@ -76,11 +76,18 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 min-w-0">
                 <Trophy className="h-4 w-4 text-orange-400 flex-shrink-0" />
+                {/* Say what is true. This used to fall back to 'My League' and
+                    'Season 1', so a director who had never made either was shown
+                    a league and a season that did not exist — and then, because
+                    the dashboard below was guarded on currentSeason, blank space
+                    where the instructions should have been. */}
                 <h2 className="text-sm font-semibold text-foreground truncate">
-                  {league?.name || 'My League'}
-                  <span className="text-muted-foreground font-normal">
-                    {' — '}{currentSeason?.name || 'Season 1'}
-                  </span>
+                  {league?.name || 'No league yet'}
+                  {currentSeason?.name && (
+                    <span className="text-muted-foreground font-normal">
+                      {' — '}{currentSeason.name}
+                    </span>
+                  )}
                 </h2>
               </div>
               <p className="text-xs text-muted-foreground mt-1 ml-6 truncate">{seasonSummary}</p>
@@ -108,7 +115,10 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
             </div>
           </div>
 
-          {isExpanded && currentSeason && (
+          {/* Unguarded on purpose: SeasonDashboard already knows what to show
+              when there is no season, and guarding here made that the one screen
+              a new director could never reach. */}
+          {isExpanded && (
             <SeasonDashboard
               season={currentSeason}
               leaguePlayers={leaguePlayers}
