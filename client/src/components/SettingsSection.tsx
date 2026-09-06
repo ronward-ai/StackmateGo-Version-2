@@ -5,6 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SettingRow, SettingsGroup, SettingsGroupHeader } from '@/components/ui/setting-row';
+import { cn } from '@/lib/utils';
+import type { TimerPiping } from '@/types';
+
+/**
+ * The piping treatments, in the order they escalate.
+ *
+ * Only the ring encodes the level progress; picking any other brings back the
+ * flat progress bar under the clock, so no treatment leaves progress unreadable.
+ */
+const PIPING_OPTIONS: { value: TimerPiping; label: string; hint: string }[] = [
+  { value: 'ring',  label: 'Level Ring', hint: 'Fills as the level runs' },
+  { value: 'drift', label: 'Drift',      hint: 'Slow travelling ombré' },
+  { value: 'rails', label: 'Rails',      hint: 'Top and bottom only' },
+  { value: 'ember', label: 'Ember',      hint: 'Gradient with an outer glow' },
+];
 import { Image, X, Mic, RefreshCw, Settings2, Palette, FileText, Timer, Check } from "lucide-react";
 
 interface SettingsSectionProps {
@@ -114,6 +129,41 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                 checked={state.settings.showNextLevel}
                 onCheckedChange={(v) => updateSettings({ showNextLevel: v })}
               />
+
+              <div className="py-3">
+                <Label className="text-sm font-medium">Clock Piping</Label>
+                <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                  The frame around the timer. Its colour follows the game either way — amber in the
+                  last minute, red inside thirty seconds.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {PIPING_OPTIONS.map(option => {
+                    const selected = (state.settings.timerPiping ?? 'ring') === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => updateSettings({ timerPiping: option.value })}
+                        aria-pressed={selected}
+                        className={cn(
+                          "text-left rounded-lg border p-2 transition-colors",
+                          selected
+                            ? "border-cyan-400/70 bg-cyan-400/5"
+                            : "border-border/40 hover:border-border"
+                        )}
+                      >
+                        {/* The real CSS at chip size, so the choice is made by
+                            looking rather than by reading a name. */}
+                        <div className="timer-frame timer-piping-swatch" data-piping={option.value}>
+                          <div />
+                        </div>
+                        <div className="mt-2 text-xs font-medium">{option.label}</div>
+                        <div className="text-[11px] leading-snug text-muted-foreground">{option.hint}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </SettingsGroup>
             <Card className="card-glass rounded-xl">
               <CardContent className="p-4 space-y-4">

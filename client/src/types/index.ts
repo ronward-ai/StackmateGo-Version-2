@@ -43,8 +43,18 @@ export interface BrandingSettings {
   isVisible?: boolean; // Toggle for showing/hiding branding
 }
 
+/**
+ * How the clock is framed. Four treatments live in index.css; only 'ring'
+ * encodes the level progress, so choosing any other brings back the flat
+ * progress bar under the clock (TimerCard) — two ways of reading progress is
+ * one too many, none is worse.
+ */
+export type TimerPiping = 'ring' | 'drift' | 'rails' | 'ember';
+
 export interface Settings {
   enableSounds: boolean;
+  /** Piping around the timer card. Absent means 'ring'. */
+  timerPiping?: TimerPiping;
   /** When a BREAK ends, wait for the director to press play instead of
    *  starting the next level automatically. */
   pauseAfterBreak?: boolean;

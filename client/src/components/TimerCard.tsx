@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { buttonCombinations } from "@/lib/buttonUtils";
 import { cn } from "@/lib/utils";
@@ -22,19 +23,6 @@ interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   recentLevelChange: boolean;
 }
-
-/**
- * Which piping treatment frames the clock.
- *
- * All four are implemented in index.css under "Timer piping" — change this one
- * word to switch and nothing else needs touching:
- *
- *   'ring'   the piping IS the level progress, filling clockwise from the top
- *   'drift'  a continuous ombré travelling round the frame, atmospheric only
- *   'rails'  top and bottom edges only, the quietest
- *   'ember'  solid gradient plus an outer bloom spilling onto the page
- */
-const TIMER_PIPING: 'ring' | 'drift' | 'rails' | 'ember' = 'ring';
 
 /**
  * The piping's colours, from what the tournament is doing.
@@ -275,6 +263,9 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
     }
   };
 
+  // The director's choice, from Settings. Absent means the ring, which is the
+  // only treatment that encodes the level progress.
+  const pipingStyle = state.settings.timerPiping ?? 'ring';
   const piping = pipingFor({
     secondsLeft: state.secondsLeft,
     isRunning: state.isRunning,
@@ -285,7 +276,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   return (
     <div
       className="timer-frame"
-      data-piping={TIMER_PIPING}
+      data-piping={pipingStyle}
       style={{
         '--pipe-1': piping.colours[0],
         '--pipe-2': piping.colours[1],
@@ -424,11 +415,20 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
       </div>
 
       {/*
-        The flat progress bar that used to sit here is gone: the piping around
-        the card is the level progress now, and two indicators for one number
-        can only ever disagree. Switching TIMER_PIPING away from 'ring' loses
-        that reading — put this back if you do.
+        Level progress, but only when the piping is not already showing it.
+        The ring IS the progress; drawing this as well would be two indicators
+        for one number, which can only ever disagree. Every other treatment is
+        atmosphere, so the bar comes back with them.
       */}
+      {pipingStyle !== 'ring' && (
+        <Progress
+          value={calculateProgress()}
+          className={cn(
+            "w-full h-2 mb-3 sm:mb-6 bg-neutral-800",
+            currentBreak ? "[&>div]:bg-secondary" : "timer-progress-gradient"
+          )}
+        />
+      )}
 
       {/* Level Info */}
       <div className="flex justify-between items-start text-muted-foreground text-sm w-full px-1 mb-2 sm:mb-3">

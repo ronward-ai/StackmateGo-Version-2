@@ -34,6 +34,8 @@ const DEFAULT_LEVELS: BlindLevel[] = [
 
 const DEFAULT_SETTINGS: Settings = {
   enableSounds: true,
+  // The only treatment that shows the level progress, so it is the default.
+  timerPiping: 'ring',
   // Default on: players wander off during a break, and having the next level
   // start by itself catches the table out.
   pauseAfterBreak: true,

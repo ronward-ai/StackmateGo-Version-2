@@ -1365,6 +1365,15 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 }
 .animate-shake { animation: shake 0.4s ease-in-out; }
 
+/* Timer progress bar — teal→orange gradient on the indicator.
+   Shown only when the piping is NOT the ring, since the ring already reads as
+   the level progress. Radix clips from the left via translateX, so as the bar
+   depletes the teal disappears first, leaving orange when nearly empty. */
+.timer-progress-gradient > div {
+  background: linear-gradient(to right, #14b8a6, #f97316) !important;
+  transition: transform 0.3s linear !important;
+}
+
 /* ---------------------------------------------------------------------------
  * Timer piping
  *
@@ -1460,4 +1469,29 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   .timer-frame[data-piping="ember"] {
     animation: none;
   }
+}
+
+/* A treatment shown at chip size, for the Settings picker. Same rules as the
+   real thing — .timer-frame drives it — just smaller and with a fixed
+   progress so the ring is legible at 44px. */
+.timer-piping-swatch {
+  /* A fixed part-way progress, or the ring swatch shows an empty track and
+     looks like the option does nothing. */
+  --pipe-progress: 0.62;
+  width: 100%;
+  height: 34px;
+  border-radius: 0.5rem;
+  padding: 3px;
+}
+.timer-piping-swatch > div {
+  width: 100%;
+  height: 100%;
+  border-radius: calc(0.5rem - 3px);
+  background: hsl(var(--card));
+}
+.timer-piping-swatch[data-piping="rails"] { padding: 0; }
+.timer-piping-swatch[data-piping="ember"]::before {
+  inset: -6px;
+  border-radius: 0.85rem;
+  filter: blur(9px);
 }

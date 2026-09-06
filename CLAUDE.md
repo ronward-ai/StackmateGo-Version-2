@@ -221,10 +221,21 @@ o'clock as the level runs — `from 0deg`, or it looks like it is unwinding. Its
 `pipingFor()` and are the ones the digits already use: teal through blue, amber inside the last
 minute, red inside thirty seconds, slate paused, cyan-violet on a break, gold for the winner.
 
-**Four treatments live in `index.css` and one word in `TimerCard.tsx` picks between them** —
-`TIMER_PIPING` is `'ring' | 'drift' | 'rails' | 'ember'`. Only `ring` encodes progress; the others
-are atmosphere. The flat progress bar under the clock was removed when the ring went in, because two
-indicators for one number can only disagree — **put it back if you switch away from `ring`.**
+**Four treatments live in `index.css` and the director picks between them in Settings** —
+`settings.timerPiping` is `'ring' | 'drift' | 'rails' | 'ember'`, absent meaning `ring`. Adding a
+fifth means a CSS block keyed on `[data-piping="..."]` and an entry in `PIPING_OPTIONS`
+(`SettingsSection.tsx`); nothing else.
+
+Only `ring` encodes progress, so **`TimerCard` renders the flat progress bar for every other
+treatment and hides it for the ring.** Two indicators for one number can only disagree, and none is
+worse than two — that conditional is the whole reason the setting is safe to offer.
+
+The picker previews each option with the real CSS at chip size (`.timer-piping-swatch`), so the
+choice is made by looking rather than by reading four names.
+
+It is stored with the other settings in localStorage and deliberately **not** written to the
+tournament document: it is how this director likes their screen, not a property of the game. A
+second device gets the default until it is set there too.
 
 ### The footer shows the build, and `index.html` is never cached
 
