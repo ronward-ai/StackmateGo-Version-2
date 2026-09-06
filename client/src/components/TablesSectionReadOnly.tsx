@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, ChevronUp, ChevronDown } from 'lucide-react';
+import PlayerBadge from '@/components/ui/player-badge';
+import { badgesFor } from '@/lib/playerBadges';
 
 // Mirrors TablesSection.tsx FELT_COLORS — single source of truth
 const feltClass = (key: string) => {
@@ -110,11 +112,11 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
                           {seatIndex + 1}
                         </div>
                         <span className="font-medium text-white text-sm truncate flex-1">{player.name}</span>
-                        {(player.knockouts ?? 0) > 0 && (
-                          <span className="text-xs bg-orange-600/70 text-orange-100 px-1.5 py-0.5 rounded flex-shrink-0">
-                            🎯 {player.knockouts}
-                          </span>
-                        )}
+                        {badgesFor({
+                          gameFinished: true,
+                          knockouts: player.knockouts,
+                          currencySymbol: '',
+                        }).map(badge => <PlayerBadge key={badge.key} badge={badge} />)}
                       </div>
                     );
                   })}

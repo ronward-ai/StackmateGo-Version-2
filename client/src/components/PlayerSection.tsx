@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils';
 import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
 import EmptyState from '@/components/ui/empty-state';
+import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
+import { badgesFor, badgeText } from '@/lib/playerBadges';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
@@ -457,34 +459,43 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         const right = document.createElement('div');
         right.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;';
 
-        const addBadge = (text: string, bg: string, fg = '#fff') => {
-          const b = document.createElement('span');
-          b.textContent = text;
-          b.style.cssText = `background:${bg};color:${fg};padding:5px 9px;border-radius:5px;font-size:12px;font-weight:600;white-space:nowrap;`;
-          right.appendChild(b);
-        };
-
+        // Exactly what the screen shows, from the same list — the export used to
+        // build its own badges and word them differently: `KO x3` here against
+        // `🎯 3` on screen, in a different colour, for the same fact.
         const exportActivePlayers = state.players.filter(p => p.isActive !== false);
         const exportFinished = state.players.some(p => p.position === 1) || exportActivePlayers.length <= 1;
-        if (!exportFinished && player.seated && player.tableAssignment)
-          addBadge(`T${player.tableAssignment.tableIndex + 1}S${player.tableAssignment.seatIndex + 1}`, '#1d4ed8', '#bfdbfe');
-        if ((player.knockouts || 0) > 0)
-          addBadge(`KO x${player.knockouts}`, '#9a3412', '#fed7aa');
-        if (player.isActive === false && player.eliminatedBy) {
-          const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
-          if (killer) addBadge(`out: ${killer.name}`, '#7f1d1d');
-        }
-        if ((player.rebuys || 0) > 0)
-          addBadge(`R x${player.rebuys}`, '#581c87', '#e9d5ff');
-        if (exportPrize > 0)
-          addBadge(`${sym}${exportPrize}`, '#14532d', '#86efac');
-        if (exportBounty > 0)
-          addBadge(`🎯 ${sym}${exportBounty}`, '#9a3412', '#fed7aa');
-        // League points
-        if (isLeagueMode && pos > 0) {
-          const pts = calculatePoints(pos, state.players.length, player.knockouts || 0, buyIn, 0, 0);
-          if (pts > 0) addBadge(`${pts} pts`, '#713f12', '#fde68a');
-        }
+
+        badgesFor({
+          seat: player.tableAssignment,
+          seated: player.seated,
+          gameFinished: exportFinished,
+          knockouts: player.knockouts,
+          eliminatedByName: player.isActive === false && player.eliminatedBy
+            ? state.players.find(p => String(p.id) === String(player.eliminatedBy))?.name
+            : null,
+          rebuys: player.rebuys,
+          points: isLeagueMode && pos > 0
+            ? calculatePoints(pos, state.players.length, player.knockouts || 0, buyIn, 0, 0)
+            : 0,
+          prize: exportPrize,
+          bounty: exportBounty,
+          currencySymbol: sym,
+        }).forEach(badge => {
+          const tone = TONE_STYLES[badge.tone];
+          const b = document.createElement('span');
+          b.textContent = badgeText(badge);
+          b.style.cssText = [
+            `background:${tone.bg}`,
+            `color:${tone.fg}`,
+            `border:1px solid ${tone.border}`,
+            'padding:4px 8px',
+            'border-radius:4px',
+            'font-size:12px',
+            'font-weight:600',
+            'white-space:nowrap',
+          ].join(';');
+          right.appendChild(b);
+        });
 
         row.append(left, right);
         wrap.appendChild(row);
@@ -838,47 +849,26 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     </span>
                     <span className="font-bold text-white text-base truncate" title={player.name}>{player.name}</span>
 
-                    {!tournamentFinished && player.seated && player.tableAssignment && (
-                      <span className="text-xs bg-blue-600/70 text-blue-100 px-2 py-0.5 rounded font-normal flex-shrink-0">
-                        T{player.tableAssignment.tableIndex + 1}S{player.tableAssignment.seatIndex + 1}
-                      </span>
-                    )}
-                    {player.knockouts > 0 && (
-                      <span className="flex items-center gap-0.5 text-xs bg-orange-600/70 text-orange-100 px-2 py-0.5 rounded font-normal flex-shrink-0">
-                        🎯 {player.knockouts}
-                      </span>
-                    )}
-                    {player.isActive === false && player.eliminatedBy && (() => {
-                      const killer = state.players.find(p => String(p.id) === String(player.eliminatedBy));
-                      return killer ? (
-                        <span className="text-xs bg-red-600/50 text-red-200 px-2 py-0.5 rounded font-normal flex-shrink-0">
-                          💀 {killer.name}
-                        </span>
-                      ) : null;
-                    })()}
-                    {isLeagueMode && player.position && player.position > 0 && (() => {
-                      const pts = calculatePoints(player.position, state.players.length, player.knockouts || 0, state.prizeStructure?.buyIn || 0, 0, 0);
-                      return pts > 0 ? (
-                        <span className="text-xs bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 px-2 py-0.5 rounded font-semibold flex-shrink-0">
-                          {pts} pts
-                        </span>
-                      ) : null;
-                    })()}
-                    {(player.rebuys || 0) > 0 && (
-                      <span className="text-xs bg-purple-600/70 text-purple-100 px-2 py-0.5 rounded font-normal flex-shrink-0">
-                        R{player.rebuys}
-                      </span>
-                    )}
-                    {prize > 0 && (
-                      <span className="text-xs font-mono font-bold text-green-300 bg-green-600/20 border border-green-500/30 px-2 py-0.5 rounded flex-shrink-0">
-                        {currencySymbol}{prize.toFixed(0)}
-                      </span>
-                    )}
-                    {bounty > 0 && (
-                      <span className="text-xs font-mono font-bold text-orange-300 bg-orange-600/20 border border-orange-500/30 px-2 py-0.5 rounded flex-shrink-0">
-                        🎯 {currencySymbol}{bounty.toFixed(0)}
-                      </span>
-                    )}
+                    {/* One vocabulary, from lib/playerBadges.ts — the export and
+                        the participant's phone render from the same list. */}
+                    {badgesFor({
+                      seat: player.tableAssignment,
+                      seated: player.seated,
+                      gameFinished: tournamentFinished,
+                      knockouts: player.knockouts,
+                      eliminatedByName: player.isActive === false && player.eliminatedBy
+                        ? state.players.find(p => String(p.id) === String(player.eliminatedBy))?.name
+                        : null,
+                      rebuys: player.rebuys,
+                      points: isLeagueMode && player.position && player.position > 0
+                        ? calculatePoints(player.position, state.players.length, player.knockouts || 0, state.prizeStructure?.buyIn || 0, 0, 0)
+                        : 0,
+                      prize,
+                      bounty,
+                      currencySymbol,
+                    }).map(badge => (
+                      <PlayerBadge key={badge.key} badge={badge} />
+                    ))}
                   </div>
 
                   {/* Right: action buttons — always on the same row */}

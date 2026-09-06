@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Trophy, Target, ChevronUp, ChevronDown } from 'lucide-react';
 import EmptyState from '@/components/ui/empty-state';
+import PlayerBadge from '@/components/ui/player-badge';
+import { badgesFor } from '@/lib/playerBadges';
 
 interface Player {
   id: string;
@@ -85,18 +87,19 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                     <span className="font-medium">{player.name}</span>
-                    {!hideTableBadge && player.seated && player.tableAssignment && (
-                      <Badge variant="outline" className="text-xs">
-                        Table {player.tableAssignment.tableIndex + 1} • Seat {player.tableAssignment.seatIndex + 1}
-                      </Badge>
-                    )}
+                    {badgesFor({
+                      seat: player.tableAssignment,
+                      seated: player.seated,
+                      gameFinished: hideTableBadge,
+                      currencySymbol: '',
+                    }).map(badge => <PlayerBadge key={badge.key} badge={badge} />)}
                   </div>
                   <div className="flex items-center gap-2">
-                    {player.knockouts > 0 && (
-                      <Badge variant="secondary" className="text-xs bg-red-500/20 text-red-400">
-                        {player.knockouts} KO{player.knockouts !== 1 ? 's' : ''}
-                      </Badge>
-                    )}
+                    {badgesFor({
+                      gameFinished: true,
+                      knockouts: player.knockouts,
+                      currencySymbol: '',
+                    }).map(badge => <PlayerBadge key={badge.key} badge={badge} />)}
                   </div>
                 </div>
               ))}
