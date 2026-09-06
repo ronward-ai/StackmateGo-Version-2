@@ -487,8 +487,6 @@ function RealTimeLeagueTable({
         windowWidth: exportRef.current.scrollWidth,
         windowHeight: exportRef.current.scrollHeight,
         onclone: (_doc: Document, el: HTMLElement) => {
-          // Strip Material Icons spans (unrenderable without the CDN font)
-          el.querySelectorAll('.material-icons, .material-icons-outlined').forEach(icon => icon.remove());
           // For movement arrow cells: swap the SVG for the pre-built text fallback
           el.querySelectorAll('.movement-arrow-cell').forEach(cell => {
             cell.querySelector('.movement-arrow-svg')?.remove();

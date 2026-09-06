@@ -273,7 +273,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
                 size="sm"
                 className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
               >
-                <span className="material-icons text-sm">skip_previous</span>
+                <SkipBack className="h-4 w-4" />
                 <span>Previous</span>
               </Button>
             </AlertDialogTrigger>
@@ -296,7 +296,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
             onClick={() => skipToPreviousLevel()}
             disabled={state.currentLevel <= 0 || isTournamentFinished}
           >
-            <span className="material-icons text-sm">skip_previous</span>
+            <SkipBack className="h-4 w-4" />
             <span>Previous</span>
           </Button>
         )}
@@ -313,9 +313,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
               handleToggleTimer()
             }}
           >
-            <span className="material-icons text-sm">
-              {state.isRunning ? "pause" : "play_arrow"}
-            </span>
+            {state.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             <span>{state.isRunning ? "Pause" : "Start"}</span>
           </Button>
         ) : null}
@@ -329,7 +327,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
                 size="sm"
                 className="flex items-center justify-center gap-1 text-xs px-3 py-2 text-muted-foreground hover:text-foreground"
               >
-                <span className="material-icons text-sm">skip_next</span>
+                <SkipForward className="h-4 w-4" />
                 <span>Next</span>
               </Button>
             </AlertDialogTrigger>
@@ -352,7 +350,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
             onClick={() => skipToNextLevel()}
             disabled={state.currentLevel >= state.levels.length - 1 || isTournamentFinished}
           >
-            <span className="material-icons text-sm">skip_next</span>
+            <SkipForward className="h-4 w-4" />
             <span>Next</span>
           </Button>
         )}

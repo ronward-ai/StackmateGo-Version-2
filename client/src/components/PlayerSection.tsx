@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { X, Download, Users } from 'lucide-react';
+import { X, Download, Users, Trophy, Plus, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
@@ -532,9 +532,9 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             where the final standings are. Switch to a results heading instead,
             which also gives the Export button next to it some context. */}
         <h2 className="text-xl font-semibold flex items-center">
-          <span className="material-icons mr-2 text-orange-500">
-            {tournamentFinished ? 'emoji_events' : 'group'}
-          </span>
+          {tournamentFinished
+            ? <Trophy className="mr-2 h-5 w-5 text-orange-500" />
+            : <Users className="mr-2 h-5 w-5 text-orange-500" />}
           {tournamentFinished
             ? `Final Results (${state.players.length})`
             : `Players & Rankings (${activePlayers.length})`}
@@ -610,7 +610,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               onClick={handleAddPlayer}
               className="flex items-center justify-center gap-1 font-medium py-2 px-3"
             >
-              <span className="material-icons text-sm">add</span>
+              <Plus className="h-4 w-4" />
               <span>Add</span>
             </Button>
           </div>
@@ -798,9 +798,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               return (
                 <div className="empty-state fade-in">
                   <div className="empty-state-icon">
-                    <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
+                    <Users className="w-full h-full" strokeWidth={1.5} />
                   </div>
                   <div className="empty-state-title">No players registered</div>
                   <div className="empty-state-description">Add players using the form above to track knockouts, rebuys, and standings</div>
@@ -1034,7 +1032,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
-                <span className="material-icons text-sm">add_circle</span>
+                <PlusCircle className="h-4 w-4" />
                 <span>Add-ons (Level {state.currentLevel + 1}+)</span>
               </h4>
               <span className="text-xs text-green-400">Available</span>
@@ -1053,7 +1051,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                       disabled
                       className="text-xs flex items-center gap-1 bg-gray-600 text-gray-300 cursor-not-allowed"
                     >
-                      <span className="material-icons text-sm">add_circle</span>
+                      <PlusCircle className="h-4 w-4" />
                       {player.name} ✓
                     </Button>
                   );
@@ -1067,7 +1065,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                         size="sm"
                         className="text-xs flex items-center gap-1 bg-card border border-amber-500 text-amber-400 hover:bg-amber-500/10"
                       >
-                        <span className="material-icons text-sm">add_circle</span>
+                        <PlusCircle className="h-4 w-4" />
                         {player.name}
                       </Button>
                     </AlertDialogTrigger>
