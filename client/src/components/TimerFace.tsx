@@ -116,7 +116,12 @@ export default function TimerFace({
         </div>
 
         {!isBreak && !isFinished && (
-          <div className="text-xs text-muted-foreground tracking-widest uppercase mb-1">Blinds</div>
+          /* Deliberately dim and widely tracked: this is a caption naming the
+             figure below it, and at full muted-foreground it competed with the
+             numbers instead of introducing them. The 0.22em is a display choice
+             for this one label — wide enough that 11px still reads as a heading
+             rather than small text. */
+          <div className="text-caption text-muted-foreground/45 tracking-[0.22em] uppercase mb-1">Blinds</div>
         )}
         <div className={cn(
           "text-2xl sm:text-4xl md:text-6xl font-bold mb-3 sm:mb-7 text-center",
