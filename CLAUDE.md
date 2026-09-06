@@ -239,9 +239,24 @@ at most one card per screen; `live` means something is actually happening.
 Adding a tenth tint, or a `.btn-*` gradient class, is how both of these grew the first time. If a new
 colour is genuinely needed, it needs a reason that survives being written down here.
 
+### One clock, drawn by `TimerFace`
+
+The director's console and the participant view render the SAME timer — frame, digits, blinds, ante —
+from `components/TimerFace.tsx`. What differs goes in as children: transport controls for the
+director, a running/paused badge for participants.
+
+The participant view used to hand-roll its own duplicate, with its own card, size ramp and inline
+line-height. The two drifted immediately and silently: every improvement to the console's clock was
+invisible to the people scanning the QR code, which is the screen most people at a game actually
+look at. **Change the clock in `TimerFace`, never in one of its callers.**
+
+Participants always get the `ring` treatment. `settings.timerPiping` is a director's local
+preference and is not synced, and the ring is the one that shows how far through the level the table
+is — which is what a player wants to know.
+
 ### The piping round the clock is the level progress
 
-`TimerCard` renders inside `.timer-frame`, whose conic-gradient border fills clockwise from twelve
+`TimerFace` renders inside `.timer-frame`, whose conic-gradient border fills clockwise from twelve
 o'clock as the level runs — `from 0deg`, or it looks like it is unwinding. Its colours come from
 `pipingFor()` and are the ones the digits already use: teal through blue, amber inside the last
 minute, red inside thirty seconds, slate paused, cyan-violet on a break, gold for the winner.

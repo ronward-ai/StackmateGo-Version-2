@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import TimerFace from "@/components/TimerFace";
 import { Button } from "@/components/ui/button";
 import { buttonCombinations } from "@/lib/buttonUtils";
 import { cn } from "@/lib/utils";
@@ -22,27 +22,6 @@ import { Slider } from './ui/slider';
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   recentLevelChange: boolean;
-}
-
-/**
- * The piping's colours, from what the tournament is doing.
- *
- * Deliberately the palette the clock digits already use — white through amber
- * to red — so the frame and the numbers are saying the same thing and there is
- * nothing new to learn to read it across a room.
- */
-function pipingFor(opts: {
-  secondsLeft: number;
-  isRunning: boolean;
-  isBreak: boolean;
-  isFinished: boolean;
-}): { colours: [string, string, string]; drift: string; bloom: number } {
-  if (opts.isFinished) return { colours: ['#FBBF24', '#F59E0B', '#FBBF24'], drift: '5s', bloom: 0.55 };
-  if (opts.isBreak)    return { colours: ['#22D3EE', '#8B5CF6', '#22D3EE'], drift: '22s', bloom: 0.34 };
-  if (!opts.isRunning) return { colours: ['#64748B', '#475569', '#64748B'], drift: '40s', bloom: 0.1 };
-  if (opts.secondsLeft <= 30) return { colours: ['#EF4444', '#F97316', '#EF4444'], drift: '3.2s', bloom: 0.62 };
-  if (opts.secondsLeft <= 60) return { colours: ['#F59E0B', '#FB923C', '#F59E0B'], drift: '7s', bloom: 0.45 };
-  return { colours: ['#14B8A6', '#3B82F6', '#6366F1'], drift: '16s', bloom: 0.3 };
 }
 
 function FullscreenButton() {
@@ -266,58 +245,23 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   // The director's choice, from Settings. Absent means the ring, which is the
   // only treatment that encodes the level progress.
   const pipingStyle = state.settings.timerPiping ?? 'ring';
-  const piping = pipingFor({
-    secondsLeft: state.secondsLeft,
-    isRunning: state.isRunning,
-    isBreak: !!currentBreak,
-    isFinished: isTournamentFinished,
-  });
-
   return (
-    <div
-      className="timer-frame"
-      data-piping={pipingStyle}
-      style={{
-        '--pipe-1': piping.colours[0],
-        '--pipe-2': piping.colours[1],
-        '--pipe-3': piping.colours[2],
-        // The ring reads as an arc, so it wants 0-1 rather than a percentage.
-        '--pipe-progress': Math.min(1, Math.max(0, calculateProgress() / 100)),
-        '--pipe-drift': piping.drift,
-        '--pipe-bloom': piping.bloom,
-      } as React.CSSProperties}
+    <TimerFace
+      clock={formatTime()}
+      secondsLeft={state.secondsLeft}
+      progress={calculateProgress()}
+      isRunning={state.isRunning}
+      isBreak={!!currentBreak}
+      isFinished={isTournamentFinished}
+      headline={currentBreak ? "BREAK TIME" : getCurrentBlinds()}
+      ante={currentLevelAnte}
+      anteLabel={state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}
+      // The director's choice, from Settings. Absent means the ring, the only
+      // treatment that encodes the level progress.
+      piping={state.settings.timerPiping ?? 'ring'}
+      recentLevelChange={recentLevelChange}
+      topRight={<FullscreenButton />}
     >
-    <Card className="relative bg-gradient-to-r from-teal-600/10 to-blue-600/10 border-0 rounded-[calc(1.25rem-5px)] shadow-lg p-4 sm:p-8 flex flex-col items-center">
-      <FullscreenButton />
-
-      <div
-        className="font-mono text-8xl sm:text-[10rem] md:text-[16rem] lg:text-[20rem] font-bold tracking-tight my-4 sm:my-8 flex-shrink-0 timer-responsive"
-        style={{
-          lineHeight: '0.85',
-          color: state.secondsLeft <= 30 ? '#EF4444' : state.secondsLeft <= 60 ? '#F59E0B' : 'white',
-          transition: 'color 0.8s ease',
-        }}
-      >
-        {formatTime()}
-      </div>
-
-      {!currentBreak && <div className="text-xs text-muted-foreground tracking-widest uppercase mb-1">Blinds</div>}
-      <div className={cn(
-        "text-2xl sm:text-4xl md:text-6xl font-bold mb-3 sm:mb-7",
-        recentLevelChange && "level-change",
-        currentBreak && "text-secondary",
-        isTournamentFinished && "animate-pulse text-yellow-400"
-      )}>
-        {currentBreak ? "BREAK TIME" : getCurrentBlinds()}
-      </div>
-
-      {/* Ante — smaller, underneath blinds */}
-      {!currentBreak && currentLevelAnte > 0 && (
-        <div className="text-xs sm:text-sm font-medium mb-3 sm:mb-5 text-amber-400/80 tracking-wide">
-          {state.settings.bigBlindAnte ? 'BB Ante' : 'Ante'}: {currentLevelAnte}
-        </div>
-      )}
-
       {/* Timer Controls with Previous/Next positioned at edges */}
       <div className="flex justify-between items-center w-full px-4 sm:px-8 mb-4 sm:mb-6">
         {/* Previous Button - Left side */}
@@ -455,8 +399,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
         </div>
         <div className="flex-1 text-right font-medium">{getNextLevelPreview()}</div>
       </div>
-    </Card>
-    </div>
+    </TimerFace>
   );
 }
 

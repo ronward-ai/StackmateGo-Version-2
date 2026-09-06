@@ -3,7 +3,7 @@ import { useParams, useLocation } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogIn, LogOut } from 'lucide-react';
+import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogIn, LogOut, StickyNote } from 'lucide-react';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
@@ -13,6 +13,8 @@ import { AuthModal } from '@/components/AuthModal';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
 import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
+import TimerFace from '@/components/TimerFace';
+import { cn } from '@/lib/utils';
 
 interface TournamentData {
   id: string;
@@ -409,6 +411,31 @@ function TournamentParticipantView() {
    * never affected — it just could not be explained to anyone who compared the
    * two screens.
    */
+  /**
+   * What the clock is showing, derived once.
+   *
+   * The headline used to be assembled inline inside the JSX with an IIFE, and
+   * the class it sat in was built as `${cond && "text-secondary"}` — which emits
+   * the string "false" into className whenever the game is not on a break.
+   */
+  const participantPlayers = tournament.players || [];
+  const eliminatedCount = participantPlayers.filter((p: any) => p.isActive === false || p.position).length;
+  const activeCount = participantPlayers.filter((p: any) => p.isActive === true || (p.isActive !== false && !p.position)).length;
+  const tournamentFinished = !!participantPlayers.find((p: any) => p.position === 1)
+    || (eliminatedCount >= participantPlayers.length - 1 && participantPlayers.length > 1)
+    || (activeCount === 1 && eliminatedCount > 0);
+
+  const headline = tournamentFinished
+    ? 'TOURNAMENT FINISHED'
+    : currentLevel?.isBreak
+      ? 'BREAK TIME'
+      : currentLevel
+        ? `${currentLevel.smallBlind || currentLevel.small} / ${currentLevel.bigBlind || currentLevel.big}`
+        : '\u2014';
+
+  const levelDuration = tournament.blindLevels?.[tournament.currentLevel]?.duration || 900;
+  const levelProgress = Math.min(100, Math.max(0, 100 - (timeLeft / levelDuration) * 100));
+
   const prizePoolData = (() => {
     // Typed as RakeStructure rather than any: the local default object this is
     // read from is narrower than a real prize structure, and the version this
@@ -431,7 +458,11 @@ function TournamentParticipantView() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white overflow-auto">
+    /* The app's own shell. This hard-coded its own gradient and pure white, so
+       the screen players actually see was a colder, bluer app than the one the
+       director runs — and it flashed on load, because the loading branch below
+       already used bg-background. */
+    <div className="min-h-screen bg-background text-foreground font-sans overflow-auto">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Header Section */}
         <div className="flex items-center justify-between mb-6">
@@ -534,7 +565,7 @@ function TournamentParticipantView() {
           const seat = me.tableAssignment || me.seatInfo;
           return (
             <div className="mb-4">
-              <Card className="bg-gradient-to-r from-orange-600/15 to-amber-600/10 border border-orange-500/30 p-4">
+              <Card variant="live" className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
@@ -572,95 +603,61 @@ function TournamentParticipantView() {
 
         {/* Main Timer Card */}
         <div className="mb-6">
-          <Card className="bg-gradient-to-r from-teal-600/10 to-blue-600/10 border border-teal-500/20 rounded-xl shadow-lg p-4 sm:p-8 flex flex-col items-center">
-            <div className="font-mono text-6xl sm:text-8xl md:text-[12rem] lg:text-[16rem] font-bold tracking-tight my-4 sm:my-8 flex-shrink-0 timer-responsive" style={{ lineHeight: '0.85' }}>
-              {formatTime(timeLeft)}
-            </div>
-
-            <div className={`text-xl sm:text-2xl md:text-4xl font-bold mb-3 sm:mb-7 ${
-              currentLevel?.isBreak && "text-secondary"
-            }`}>
-              {(() => {
-                const players = tournament.players || [];
-                // Separate active and eliminated players with explicit checks
-                const activePlayers = players.filter(p => p.isActive === true || (p.isActive !== false && !p.position));
-                const eliminatedPlayers = players
-                  .filter(p => p.isActive === false || p.position)
-                  .sort((a, b) => (a.position || 0) - (b.position || 0));
-                const totalPlayers = players.length || 0;
-                const winner = players.find(p => p.position === 1);
-
-                // Tournament is finished when we have a winner OR enough players have been eliminated
-                const tournamentFinished = winner ||
-                                         (eliminatedPlayers.length >= totalPlayers - 1 && totalPlayers > 1) ||
-                                         (activePlayers.length === 1 && eliminatedPlayers.length > 0);
-
-
-                if (tournamentFinished) {
-                  return "TOURNAMENT FINISHED";
-                }
-                if (currentLevel?.isBreak) {
-                  return "BREAK TIME";
-                }
-                if (currentLevel) {
-                  return `Blinds: ${currentLevel.smallBlind || currentLevel.small}/${currentLevel.bigBlind || currentLevel.big}`;
-                }
-                return "Loading...";
-              })()}
-            </div>
-
-            {/* Show ante if present and not on break */}
-            {!currentLevel?.isBreak && currentLevel?.ante > 0 && (
-              <div className="text-sm sm:text-md font-medium mb-3 sm:mb-7 text-amber-500">
-                Ante: {currentLevel.ante}
-              </div>
-            )}
-
-            {/* Status indicator */}
-            <div className="flex justify-center items-center gap-4 mb-4 sm:mb-6">
-              <div className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 ${
+          {/*
+            The SAME timer the director sees — piping and all.
+            This used to be a hand-rolled duplicate with its own card, size ramp
+            and inline line-height, so every improvement to the console's clock
+            was invisible to the people actually scanning the QR code. Players
+            always get the ring: it is the treatment that shows how far through
+            the level the table is, which is the thing they want to know.
+          */}
+          <TimerFace
+            clock={formatTime(timeLeft)}
+            secondsLeft={timeLeft}
+            progress={levelProgress}
+            isRunning={!!tournament.isRunning}
+            isBreak={!!currentLevel?.isBreak}
+            isFinished={tournamentFinished}
+            headline={headline}
+            ante={currentLevel?.ante}
+          >
+            {/* Live / paused, and whether this phone is still connected. */}
+            <div className="flex justify-center items-center gap-3 mb-4 sm:mb-6">
+              <div className={cn(
+                "px-3 py-1.5 rounded-full text-label font-medium flex items-center gap-2",
                 tournament.isRunning
-                  ? 'bg-green-500/20 text-green-700 dark:text-green-300'
-                  : 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${tournament.isRunning ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                  ? "bg-green-500/15 text-green-300"
+                  : "bg-yellow-500/15 text-yellow-300"
+              )}>
+                <div className={cn("w-2 h-2 rounded-full", tournament.isRunning ? "bg-green-500" : "bg-yellow-500")} />
                 {tournament.isRunning ? 'RUNNING' : 'PAUSED'}
               </div>
-              <Badge variant={isConnected ? 'default' : 'destructive'} className="text-xs">
-                {isConnected ? '🟢 Live' : '🔴 Offline'}
-              </Badge>
+              <div className={cn(
+                "px-3 py-1.5 rounded-full text-label font-medium flex items-center gap-2",
+                isConnected ? "bg-white/5 text-muted-foreground" : "bg-red-500/15 text-red-300"
+              )}>
+                <div className={cn("w-2 h-2 rounded-full", isConnected ? "bg-green-500" : "bg-red-500")} />
+                {isConnected ? 'Live' : 'Offline'}
+              </div>
             </div>
 
-            {/* Level Progress Indicator */}
-            <div className="w-full h-2.5 mb-3 sm:mb-6 bg-neutral-800 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-1000 ${
-                  currentLevel?.isBreak ? 'bg-secondary' : 'bg-primary'
-                }`}
-                style={{
-                  width: `${tournament.blindLevels && tournament.currentLevel < tournament.blindLevels.length ?
-                    (100 - (timeLeft / (tournament.blindLevels[tournament.currentLevel]?.duration || 900)) * 100) : 0}%`
-                }}
-              />
-            </div>
-
-            {/* Level Info */}
-            <div className="flex justify-between items-start text-muted-foreground text-sm w-full px-1 mb-2 sm:mb-3">
-              <div className="flex-1 text-left">
-                {currentLevel?.isBreak ? "🍺 Break" :
+            {/* Level info. No progress bar: the piping ring above is the level
+                progress, and two indicators for one number can only disagree. */}
+            <div className="flex justify-between items-start text-muted-foreground text-label w-full px-1 mb-2 sm:mb-3 gap-2">
+              <div className="flex-1 min-w-0 truncate text-left font-medium">
+                {currentLevel?.isBreak ? "Break" :
                  `Level ${tournament.blindLevels ?
-                   tournament.blindLevels.slice(0, tournament.currentLevel + 1).filter(l => !l.isBreak).length :
+                   tournament.blindLevels.slice(0, tournament.currentLevel + 1).filter((l: any) => !l.isBreak).length :
                    (tournament.currentLevel || 0) + 1}`}
               </div>
 
-              {/* Next Break Info - Moved to center */}
-              <div className="flex flex-col items-center justify-center flex-1">
+              <div className="flex flex-col items-center justify-center flex-1 min-w-0">
                 {(() => {
                   const nextBreakInfo = getNextBreakInfo();
                   if (nextBreakInfo && !currentLevel?.isBreak) {
                     return (
-                      <div className="text-orange-500 font-medium text-center mb-2">
-                        Next Break: {nextBreakInfo.timeUntilBreak}
+                      <div className="text-primary font-medium text-center">
+                        Next break: {nextBreakInfo.timeUntilBreak}
                       </div>
                     );
                   }
@@ -668,283 +665,19 @@ function TournamentParticipantView() {
                 })()}
               </div>
 
-              <div className="flex-1 text-right font-medium">
+              <div className="flex-1 min-w-0 truncate text-right font-medium">
                 {nextLevel ?
-                  (nextLevel.isBreak ? "🍺 Break Time" : `Next: ${nextLevel.smallBlind || nextLevel.small}/${nextLevel.bigBlind || nextLevel.big}`) :
-                  "Tournament Complete"}
+                  (nextLevel.isBreak ? "Next: Break" : `Next: ${nextLevel.smallBlind || nextLevel.small}/${nextLevel.bigBlind || nextLevel.big}`) :
+                  "Tournament complete"}
               </div>
             </div>
-          </Card>
+          </TimerFace>
         </div>
 
         {/* Tournament Info Card */}
         <div className="mb-6">
           <ParticipantTournamentInfoCard tournament={tournament} />
         </div>
-        {false && <Card className="p-4 bg-gradient-to-r from-purple-600/10 to-pink-600/10 border border-purple-500/20">
-            <div className="flex items-center justify-between cursor-pointer">
-              <h2 className="text-xl font-semibold flex items-center">
-                <span className="material-icons mr-2 text-secondary">info</span>
-                Tournament Info
-              </h2>
-            </div>
-            <div className="p-4 pt-0 border-t border-[#2a2a2a]">
-              <div>
-              {/* Prize Pool Info */}
-              <div className="bg-background bg-opacity-40 rounded-lg p-4 mt-4">
-                <h3 className="text-xl font-medium mb-3">
-                  Total Players: {tournament.players?.length || 0} | Prize Pool: {currencySymbol}{prizePoolData.totalPool}
-                </h3>
-
-                {/* Prize Pool Breakdown */}
-                <div className="text-muted-foreground text-sm space-y-2">
-                  <div className="flex justify-between">
-                    <span>Buy-in:</span>
-                    <span>{currencySymbol}{tournament.prizeStructure?.buyIn || tournament.buyIn || 0}</span>
-                  </div>
-                  {tournament.prizeStructure?.enableBounties && tournament.prizeStructure?.bountyAmount > 0 && (
-                    <div className="flex justify-between">
-                      <span>Bounty per knockout:</span>
-                      <span>{currencySymbol}{tournament.prizeStructure.bountyAmount}</span>
-                    </div>
-                  )}
-                  {(() => {
-                    const totalRebuys = tournament.players?.reduce((sum, player) => sum + (player.rebuys || 0), 0) || 0;
-                    const rebuyAmount = tournament.prizeStructure?.rebuyAmount || 0;
-                    if (totalRebuys > 0) {
-                      return (
-                        <>
-                          <div className="flex justify-between">
-                            <span>Rebuy amount:</span>
-                            <span>{currencySymbol}{rebuyAmount}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Total rebuys ({totalRebuys}):</span>
-                            <span>{currencySymbol}{rebuyAmount * totalRebuys}</span>
-                          </div>
-                        </>
-                      );
-                    }
-                    return null;
-                  })()}
-                  {(() => {
-                    const totalAddons = tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0;
-                    const addonAmount = tournament.prizeStructure?.addonAmount || 0;
-                    if (totalAddons > 0) {
-                      return (
-                        <>
-                          <div className="flex justify-between">
-                            <span>Add-on amount:</span>
-                            <span>{currencySymbol}{addonAmount}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Total add-ons ({totalAddons}):</span>
-                            <span>{currencySymbol}{addonAmount * totalAddons}</span>
-                          </div>
-                        </>
-                      );
-                    }
-                    return null;
-                  })()}
-                  <div className="border-t border-muted pt-2 mt-2">
-                    {prizePoolData.rakeAmount > 0 && (
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>House Fee / Rake {prizePoolData.rakeType === 'percentage' ? `(${prizePoolData.rakePercentage}% per player)` : '(per player)'}:</span>
-                        <span>{currencySymbol}{prizePoolData.rakeAmount}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-medium mt-1">
-                      <span>Prize Pool:</span>
-                      <span>{currencySymbol}{prizePoolData.totalPool}</span>
-                    </div>
-                  </div>
-
-                  {tournament.prizeStructure?.manualPayouts && tournament.prizeStructure.manualPayouts.length > 0 && (
-                    <div className="border-t border-muted mt-3 pt-3">
-                      <div className="font-medium mb-2">
-                        Prize Distribution{tournament.prizeStructure?.enableBounties ? ' (excluding bounties)' : ''}:
-                      </div>
-                      <div className="space-y-1">
-                        {tournament.prizeStructure.manualPayouts.map((payout, index) => {
-                          return (
-                            <div key={index} className="flex justify-between">
-                              <span>
-                                {index === 0 ? "1st" : index === 1 ? "2nd" : index === 2 ? "3rd" : `${index + 1}th`} Place ({payout.percentage}%):
-                              </span>
-                              <span>{currencySymbol}{Math.floor((prizePoolData.totalPool * payout.percentage) / 100)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Rebuy Information - Show when enabled */}
-                  {tournament.prizeStructure?.allowRebuys && (
-                    <div className="border-t border-muted mt-3 pt-3">
-                      <div className="font-medium mb-2">
-                        Rebuy Information:
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Rebuy Period:</span>
-                          <span>First {tournament.prizeStructure.rebuyPeriodLevels || 3} levels</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Rebuy Cost:</span>
-                          <span>{currencySymbol}{tournament.prizeStructure.rebuyAmount || 0}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Rebuy Chips:</span>
-                          <span>{(tournament.prizeStructure.rebuyChips || 10000).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Max Rebuys:</span>
-                          <span>{tournament.prizeStructure.maxRebuys || 'Unlimited'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Rebuys Used:</span>
-                          <span>{tournament.players?.reduce((sum, player) => sum + (player.rebuys || 0), 0) || 0}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Add-on Information - Show when enabled */}
-                  {tournament.prizeStructure?.allowAddons && (
-                    <div className="border-t border-muted mt-3 pt-3">
-                      <div className="font-medium mb-2">
-                        Add-on Information:
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Available from Level:</span>
-                          <span>{tournament.prizeStructure.addonAvailableLevel || 6}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Add-on Cost:</span>
-                          <span>{currencySymbol}{tournament.prizeStructure.addonAmount || 0}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Add-on Chips:</span>
-                          <span>{(tournament.prizeStructure.addonChips || 10000).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Add-ons Used:</span>
-                          <span>{tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Re-entry Information - Show when enabled */}
-                  {tournament.prizeStructure?.allowReEntry && (
-                    <div className="border-t border-muted mt-3 pt-3">
-                      <div className="font-medium mb-2">
-                        Re-entry Information:
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Re-entry Period:</span>
-                          <span>First {tournament.prizeStructure.reEntryPeriodLevels || 3} levels</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Re-entry Cost:</span>
-                          <span>{currencySymbol}{tournament.prizeStructure.buyIn || 0}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Re-entries Used:</span>
-                          <span>{tournament.players?.reduce((sum, player) => sum + (player.reEntries || 0), 0) || 0}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bounty Information - Show when enabled */}
-                  {tournament.prizeStructure?.enableBounties && tournament.prizeStructure?.bountyAmount > 0 && (
-                    <div className="border-t border-muted mt-3 pt-3">
-                      <div className="font-medium mb-2">
-                        Bounty Information:
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Bounty per knockout:</span>
-                          <span>{currencySymbol}{tournament.prizeStructure.bountyAmount}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Chip Information */}
-                  <div className="border-t border-muted mt-3 pt-3">
-                    <div className="flex justify-between">
-                      <span>Starting Stack:</span>
-                      <span>{(tournament.prizeStructure?.startingChips || 10000).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Total Chips:</span>
-                      <span>
-                        {(() => {
-                          const startingChips = tournament.prizeStructure?.startingChips || 10000;
-                          const totalRebuys = tournament.players?.reduce((sum, player) => sum + (player.rebuys || 0), 0) || 0;
-                          const totalAddons = tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0;
-                          const rebuyChips = tournament.prizeStructure?.rebuyChips || startingChips;
-                          const addonChips = tournament.prizeStructure?.addonChips || startingChips;
-
-                          const totalChips = (startingChips * (tournament.players?.length || 0)) + (rebuyChips * totalRebuys) + (addonChips * totalAddons);
-                          return totalChips.toLocaleString();
-                        })()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Average Stack:</span>
-                      <span>
-                        {(() => {
-                          const startingChips = tournament.prizeStructure?.startingChips || 10000;
-                          const totalRebuys = tournament.players?.reduce((sum, player) => sum + (player.rebuys || 0), 0) || 0;
-                          const totalAddons = tournament.players?.reduce((sum, player) => sum + (player.addons || 0), 0) || 0;
-                          const rebuyChips = tournament.prizeStructure?.rebuyChips || startingChips;
-                          const addonChips = tournament.prizeStructure?.addonChips || startingChips;
-
-                          const totalChips = (startingChips * (tournament.players?.length || 0)) + (rebuyChips * totalRebuys) + (addonChips * totalAddons);
-                          const activePlayers = tournament.players?.filter(p => p.isActive !== false).length || 0;
-                          const avgStack = activePlayers > 0 ? Math.floor(totalChips / activePlayers) : 0;
-                          return avgStack.toLocaleString();
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Show winner notification when tournament is complete */}
-                {(() => {
-                  const totalPlayers = tournament.players?.length || 0;
-                  const eliminatedPlayers = tournament.players?.filter(p => p.isActive === false) || [];
-                  const winner = tournament.players?.find(p => p.position === 1);
-                  const actuallyActivePlayers = tournament.players?.filter(p => p.isActive === true || (p.isActive !== false && !p.position)) || [];
-
-                  // Tournament is finished when we have a winner OR enough eliminations have occurred
-                  const tournamentFinished = winner ||
-                                           (eliminatedPlayers.length >= totalPlayers - 1 && totalPlayers > 1) ||
-                                           (actuallyActivePlayers.length === 1 && eliminatedPlayers.length > 0);
-
-                  if (tournamentFinished) {
-                    const winnerName = winner?.name || actuallyActivePlayers[0]?.name || 'Champion';
-                    return (
-                      <div className="mt-4 bg-[#2a2a2a] rounded-lg p-4">
-                        <h3 className="font-medium text-secondary mb-2">Tournament Winner!</h3>
-                        <div className="text-foreground">
-                          {winnerName} is the champion!
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-              </div>
-            </div>
-          </Card>}
 
         {/* Director Controls removed */}
 
@@ -974,10 +707,10 @@ function TournamentParticipantView() {
           if (notes && notes.trim()) {
             return (
               <div className="mb-6">
-                <Card className="p-4 bg-gradient-to-r from-yellow-600/10 to-orange-600/10 border border-yellow-500/20">
+                <Card className="card-glass p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xl font-semibold flex items-center">
-                      <span className="material-icons mr-2 text-yellow-500">note</span>
+                      <StickyNote className="mr-2 h-5 w-5 text-yellow-500" />
                       Tournament Notes
                     </h2>
                     <button onClick={() => setNotesExpanded(v => !v)}>
