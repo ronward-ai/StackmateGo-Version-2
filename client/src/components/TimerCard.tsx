@@ -136,7 +136,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
 
     // If next level is a break
     if (nextLevel.isBreak) {
-      return "🍺 Break Time";
+      return "Break Time";
     }
 
     return `Next: ${nextLevel.small}/${nextLevel.big}`;
@@ -154,7 +154,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
 
     // If this is a break, show it as a break without level number
     if (currentLevel.isBreak) {
-      return `🍺 Break`;
+      return "Break";
     }
 
     // Calculate the correct blind level number (excluding breaks)

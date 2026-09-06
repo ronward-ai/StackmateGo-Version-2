@@ -576,7 +576,7 @@ function TournamentParticipantView() {
                       <p className="text-xs text-orange-300">
                         {me.isActive === false
                           ? me.position === 1
-                            ? '🏆 Winner!'
+                            ? 'Winner!'
                             : me.position
                             ? `Finished in position ${me.position}`
                             : 'Eliminated'

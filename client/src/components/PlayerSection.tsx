@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { X, Download, Users, Trophy, Plus, PlusCircle } from 'lucide-react';
+import { X, Download, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
@@ -461,7 +461,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
         // Exactly what the screen shows, from the same list — the export used to
         // build its own badges and word them differently: `KO x3` here against
-        // `🎯 3` on screen, in a different colour, for the same fact.
+        // a target emoji on screen, in a different colour, for the same fact.
         const exportActivePlayers = state.players.filter(p => p.isActive !== false);
         const exportFinished = state.players.some(p => p.position === 1) || exportActivePlayers.length <= 1;
 
@@ -1038,8 +1038,8 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                       disabled
                       className="text-xs flex items-center gap-1 bg-gray-600 text-gray-300 cursor-not-allowed"
                     >
-                      <PlusCircle className="h-4 w-4" />
-                      {player.name} ✓
+                      <Check className="h-4 w-4" />
+                      {player.name}
                     </Button>
                   );
                 }

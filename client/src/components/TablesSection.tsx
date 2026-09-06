@@ -13,7 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
-import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties } from "lucide-react";
+import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties, Check, Scale, MousePointerClick } from "lucide-react";
 import { TableConfig, Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -425,8 +425,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
           {moveMode && (
             <div className="mb-4 px-4 py-3 rounded-lg border border-primary/40 bg-primary/5 text-sm text-primary fade-in">
               {selectedPlayerToMove
-                ? `✅ ${selectedPlayerToMove.name} selected — tap an empty seat to move them`
-                : '👆 Tap a player to select them for moving'}
+                ? `${selectedPlayerToMove.name} selected — tap an empty seat to move them`
+                : 'Tap a player to select them for moving'}
             </div>
           )}
 
@@ -572,7 +572,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                               {seatIndex + 1}
                             </div>
                             <span className="font-semibold text-white text-sm truncate">{player.name}</span>
-                            {isSelected && <span className="text-primary text-xs ml-auto">✓</span>}
+                            {isSelected && <Check className="h-3.5 w-3.5 text-primary ml-auto flex-shrink-0" />}
                           </div>
 
                           {!moveMode && (
@@ -775,7 +775,10 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       <Dialog open={tableBalanceDialogOpen} onOpenChange={setTableBalanceDialogOpen}>
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle>⚖️ Table Imbalance</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Scale className="h-4 w-4 text-amber-400" />
+              Table Imbalance
+            </DialogTitle>
             <DialogDescription>
               {balanceOptions && `${tableNames[balanceOptions.overloadedTable] || `Table ${balanceOptions.overloadedTable + 1}`} has ${balanceOptions.playersToMove.length} players vs ${
                 state.players.filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable).length
@@ -785,7 +788,10 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
           <div className="space-y-3 py-2">
             <Button variant="outline" className="w-full justify-start h-auto p-4" onClick={balanceRandomly}>
               <div className="text-left">
-                <div className="font-medium">🎲 Random — move a random player</div>
+                <div className="font-medium flex items-center gap-2">
+                  <Shuffle className="h-4 w-4" />
+                  Random — move a random player
+                </div>
                 <div className="text-xs text-muted-foreground mt-0.5">Let the app pick who moves</div>
               </div>
             </Button>
@@ -800,7 +806,10 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               }}
             >
               <div className="text-left">
-                <div className="font-medium">👆 Manual — choose who moves</div>
+                <div className="font-medium flex items-center gap-2">
+                  <MousePointerClick className="h-4 w-4" />
+                  Manual — choose who moves
+                </div>
                 <div className="text-xs text-muted-foreground mt-0.5">Use Move Players mode to pick</div>
               </div>
             </Button>

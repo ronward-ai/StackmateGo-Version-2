@@ -221,6 +221,30 @@ undeclared sizes (8, 9, 10, 11px) had been reached for whenever `xs` was too big
 into `caption`. Prose gets `body` — an empty state is one of the few places the app explains itself,
 so it should not be set in the same 12px as a table cell.
 
+### A player's chips are written once, in `lib/playerBadges.ts`
+
+The director's row, the exported PNG and the participant's phone all render the chips beside a
+player's name from that one list. They used to build them separately and had drifted into three
+vocabularies for the same fact — knockouts read `🎯 3`, `KO x3` and `3 KOs`, in orange, brown and
+red. Adding a chip means adding it there, once.
+
+**The tones are semantic and there are five**: `neutral` for facts (seat, knockouts, rebuys), `money`,
+`bounty`, `eliminated`, `points`. A row could previously carry six hues chosen per call site, which
+is why the money did not stand out. Facts sharing the neutral chip is the point, not an oversight.
+
+`TONE_STYLES` in `ui/player-badge.tsx` repeats those colours as inline styles because the PNG export
+hands plain DOM nodes to html2canvas and cannot use Tailwind classes. Change one, change both.
+
+### Icons are lucide, and there are no emoji
+
+One exception, deliberate: `TournamentOverBanner`'s confetti. That screen is shown once a night and a
+lucide outline of a party popper would be worse at the job.
+
+Everything else went. Emoji render from the system emoji font — full colour, a different weight and
+baseline from the lucide icon beside them, different again on each platform, and baked into the
+exported results image exactly as they looked. `✓` and `✗` were the worst of it: interface icons
+carrying meaning in league settings, drawn by the text renderer.
+
 ### Colour means something, or it is not used
 
 **One accent, and it is orange.** `--primary` used to be teal while the app was visibly orange — 119

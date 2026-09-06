@@ -433,7 +433,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
 
           {state.settings.applyDurationToAll && (
             <p className="text-xs text-amber-400 mt-2 text-center">
-              ⚡ Editing any duration updates all levels
+              Editing any duration updates all levels
             </p>
           )}
 

@@ -414,7 +414,10 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
             {/* Winner */}
             {winner && (
               <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
-                <div className="text-yellow-400 font-bold text-lg">🏆 {winner.name}</div>
+                <div className="text-yellow-400 font-bold text-lg flex items-center justify-center gap-2">
+                  <Trophy className="h-5 w-5" />
+                  {winner.name}
+                </div>
                 <div className="text-xs text-yellow-300/70 mt-0.5">Tournament Winner</div>
               </div>
             )}

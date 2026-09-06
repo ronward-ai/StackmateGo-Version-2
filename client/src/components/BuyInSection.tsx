@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDollarSign } from "lucide-react";
+import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDollarSign, Check, AlertTriangle } from "lucide-react";
 import { cn, sanitizeForFirestore } from "@/lib/utils";
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -583,7 +583,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
 
           {totalPercentage !== 100 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
-              <span>⚠️</span>
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
               <span>Total: {totalPercentage}% — must equal 100%</span>
             </div>
           )}
@@ -662,7 +662,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
         {isApplying ? (
           <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Applying...</>
         ) : justApplied ? (
-          <><span className="mr-2">✓</span>Applied!</>
+          <><Check className="mr-2 h-4 w-4" />Applied!</>
         ) : (
           'Apply Changes'
         )}
