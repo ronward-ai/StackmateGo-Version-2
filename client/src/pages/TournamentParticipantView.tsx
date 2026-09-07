@@ -1,19 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useLocation } from 'wouter';
+import { useParams } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogIn, LogOut, StickyNote } from 'lucide-react';
+import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogOut, StickyNote } from 'lucide-react';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Button } from '@/components/ui/button'; // Assuming Button component is available
 import { useAuth } from '@/hooks/useAuth';
-import { AuthModal } from '@/components/AuthModal';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
 import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
 import TimerFace from '@/components/TimerFace';
+import type { TimerPiping } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface TournamentData {
@@ -36,6 +36,8 @@ interface TournamentData {
     showSeconds: boolean;
     showNextLevel: boolean;
     currency: string;
+    /** The director's clock piping, synced with the rest of settings. */
+    timerPiping?: TimerPiping;
     tables: {
       numberOfTables: number;
       seatsPerTable: number;
@@ -85,21 +87,8 @@ function TournamentParticipantView() {
   const [error, setError] = useState<string | null>(null);
   const [notesExpanded, setNotesExpanded] = useState(true);
   const { user, isAuthenticated, isAnonymous, isLoading, signInAnonymously, logout } = useAuth();
-  const [, setLocation] = useLocation();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [signInRequested, setSignInRequested] = useState(false);
-
   // `user` is a union with the legacy anonymous shape, which carries no email.
   const accountLabel = user && 'email' in user ? user.email : undefined;
-  useEffect(() => {
-    if (!signInRequested || !isAuthenticated || isAnonymous || !id) return;
-
-    const ownerId = tournament?.ownerId;
-    const mayDirect = !ownerId || ownerId === user?.id;
-
-    setSignInRequested(false);
-    if (mayDirect) setLocation(`/tournament/${id}/director`);
-  }, [signInRequested, isAuthenticated, isAnonymous, id, tournament?.ownerId, user?.id, setLocation]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -471,7 +460,7 @@ function TournamentParticipantView() {
               <img
                 src="/stackmatelogo.svg"
                 alt="StackMate Go"
-                className="h-7 w-auto object-contain"
+                className="h-9 w-auto object-contain"
                 style={{ filter: 'brightness(1.1)' }}
               />
               <span className="flex items-center gap-1 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
@@ -479,40 +468,24 @@ function TournamentParticipantView() {
                 LIVE
               </span>
             </div>
-            <h1 className="text-xl font-bold text-white leading-tight">{tournament?.name || 'Tournament'}</h1>
+            <h1 className="text-xl font-bold text-foreground leading-tight">{tournament?.name || 'Tournament'}</h1>
           </div>
 
-          {/* A way back into the app.
-              This screen used to be a dead end: "Go Home" existed only in the
-              error branch, so a tournament that loaded successfully offered no
-              route anywhere. A director who signed out was redirected here and
-              left looking at their own game with nothing to click. It is also
-              the only exit for a player who arrived by QR and wants to run a
-              game of their own.
+          {/*
+            Players get the logo and nothing else — no Sign in, no home button.
+            They arrived by QR to watch a game, and neither control does anything
+            they want.
 
-              A deliberate labelled control rather than a clickable logo, so
-              nobody taps it by accident while watching a live game. */}
-          <div className="flex-shrink-0 flex items-center gap-2">
-            {/* An account control in BOTH states.
-                This used to offer Sign In only when signed out, so a director who
-                landed here signed in as the wrong account had nothing to press —
-                no sign-out, and no Take control because they did not own the
-                game. The only escape was clearing site cookies from browser
-                settings, which is what actually happened.
-
-                The account is named on purpose rather than decoratively: seeing
-                WHICH login is in use would have made that whole episode a
-                glance. Players arriving by QR are anonymous, so they only ever
-                see Sign in. */}
-            {(!isAuthenticated || isAnonymous) ? (
-              <button
-                onClick={() => { setSignInRequested(true); setShowAuthModal(true); }}
-                className="flex items-center gap-1.5 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg px-3 py-2 transition-colors"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span>Sign in</span>
-              </button>
-            ) : (
+            The controls survive for a SIGNED-IN account, because that is who
+            needed them: a director who landed here signed in as the wrong
+            account had no sign-out and no Take control, and the only escape was
+            clearing site cookies from browser settings, which is what actually
+            happened. Naming the account is load-bearing for the same reason —
+            "which login is this?" was the unanswered question behind that whole
+            episode. Anonymous QR visitors were never the ones stuck.
+          */}
+          {isAuthenticated && !isAnonymous && (
+            <div className="flex-shrink-0 flex items-center gap-2">
               <button
                 onClick={() => {
                   // Full page load, matching the director header — see the note
@@ -521,24 +494,24 @@ function TournamentParticipantView() {
                     .catch(err => console.error('Sign out failed:', err))
                     .finally(() => { window.location.href = '/?home=1'; });
                 }}
-                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors max-w-[190px]"
+                className="flex items-center gap-1.5 text-caption text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors max-w-[190px]"
                 title={accountLabel ? `Signed in as ${accountLabel}` : 'Sign out'}
               >
                 <LogOut className="h-3.5 w-3.5 flex-shrink-0" />
                 <span className="truncate">{accountLabel || 'Sign out'}</span>
               </button>
-            )}
-            {/* ?home=1 makes this a guaranteed way out. A plain "/" is redirected
-                straight back to the pinned live game by PokerTimer, so from a
-                wedged state the home button could not actually get you home. */}
-            <a
-              href="/?home=1"
-              className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors"
-            >
-              <Home className="h-3.5 w-3.5" />
-              <span>StackMate Go</span>
-            </a>
-          </div>
+              {/* ?home=1 makes this a guaranteed way out. A plain "/" is
+                  redirected straight back to the pinned live game by PokerTimer,
+                  so from a wedged state the home button could not get you home. */}
+              <a
+                href="/?home=1"
+                className="flex items-center gap-1.5 text-caption text-muted-foreground hover:text-foreground bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-2 transition-colors"
+              >
+                <Home className="h-3.5 w-3.5" />
+                <span>StackMate Go</span>
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Tournament Over Banner */}
@@ -620,6 +593,10 @@ function TournamentParticipantView() {
             isFinished={tournamentFinished}
             headline={headline}
             ante={currentLevel?.ante}
+            // The director's choice, which reaches here because the whole
+            // settings object is synced to the tournament document. Players saw
+            // the ring whatever the director had picked.
+            piping={tournament.settings?.timerPiping ?? 'ring'}
           >
             {/* Live / paused, and whether this phone is still connected. */}
             <div className="flex justify-center items-center gap-3 mb-4 sm:mb-6">
@@ -641,8 +618,18 @@ function TournamentParticipantView() {
               </div>
             </div>
 
-            {/* Level info. No progress bar: the piping ring above is the level
-                progress, and two indicators for one number can only disagree. */}
+            {/* Level progress, but only when the piping is not already showing
+                it — the ring IS the progress. Same rule as the console. */}
+            {(tournament.settings?.timerPiping ?? 'ring') !== 'ring' && (
+              <div className="w-full h-2 mb-3 sm:mb-6 bg-neutral-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-1000"
+                  style={{ width: `${levelProgress}%` }}
+                />
+              </div>
+            )}
+
+            {/* Level info. */}
             <div className="flex justify-between items-start text-muted-foreground text-label w-full px-1 mb-2 sm:mb-3 gap-2">
               <div className="flex-1 min-w-0 truncate text-left font-medium">
                 {currentLevel?.isBreak ? "Break" :
@@ -738,7 +725,6 @@ function TournamentParticipantView() {
         </footer>
       </div>
 
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   );
 }

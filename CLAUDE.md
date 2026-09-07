@@ -291,9 +291,10 @@ line-height. The two drifted immediately and silently: every improvement to the 
 invisible to the people scanning the QR code, which is the screen most people at a game actually
 look at. **Change the clock in `TimerFace`, never in one of its callers.**
 
-Participants always get the `ring` treatment. `settings.timerPiping` is a director's local
-preference and is not synced, and the ring is the one that shows how far through the level the table
-is — which is what a player wants to know.
+Participants see **the treatment the director chose**. `settings.timerPiping` rides along with the
+rest of `settings`, which `PokerTimer` syncs wholesale to the tournament document, so the value is
+already there — the participant view simply never read it. The progress-bar rule travels with it:
+both sides hide the bar for `ring` and show it for everything else.
 
 ### The piping round the clock is the level progress
 
@@ -314,9 +315,9 @@ worse than two — that conditional is the whole reason the setting is safe to o
 The picker previews each option with the real CSS at chip size (`.timer-piping-swatch`), so the
 choice is made by looking rather than by reading four names.
 
-It is stored with the other settings in localStorage and deliberately **not** written to the
-tournament document: it is how this director likes their screen, not a property of the game. A
-second device gets the default until it is set there too.
+It is stored with the other settings in localStorage, and reaches the tournament document because
+`PokerTimer` syncs the whole `settings` object — which is how participants get it. A second director
+device starts on its own local value until it is set there too.
 
 ### The footer shows the build, and `index.html` is never cached
 
@@ -336,11 +337,15 @@ a stale build indefinitely while other devices move on. That happened, and it pr
 wedged state — the home control on the participant view links to **`/?home=1`**, which skips that
 redirect and clears the pin. Use it wherever "get me out" is meant.
 
-The participant view shows the signed-in account with a **Sign out**, not just a Sign In for
-signed-out visitors. Without it, a director signed in as the wrong account had nothing to press on
+The participant view shows a **Sign out naming the account**, plus the home control — but **only to a
+signed-in account**. Without it, a director signed in as the wrong account had nothing to press on
 that screen — no sign-out, and no Take control because they did not own the game — and the only
 escape was clearing site cookies from browser settings. Naming the account is load-bearing too:
 "which login is this?" was the unanswered question behind several rounds of debugging.
+
+Anonymous QR visitors see the logo and nothing else. They were never the ones stuck, and a Sign in
+button on a screen they reached to watch a game is noise. Do not put the controls back for them
+without also solving the trap above for the signed-in case.
 
 ### A league result is written once, from a whitelist, and read through another
 
