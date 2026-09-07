@@ -540,6 +540,13 @@ season, so the screen and the database cannot disagree.
 
 ## Known gaps, deliberately left
 
+- **"Voice Announcements" does not announce anything.** The toggle writes
+  `settings.enableVoice`, and SettingsSection's Test button speaks — but nothing in the running game
+  ever does. `TimerCard` carried `voiceEnabled`, `ttsEnabled` and a `SpeechSynthesisUtterance` ref
+  that were declared and never referenced; they have been removed rather than left looking like the
+  feature exists. Building it means speaking level changes and the countdown warnings from the
+  timer, gated on `settings.enableVoice`.
+
 - **Check-in writes are only as strong as an anonymous session.** `PlayerClaimView` signs in
   anonymously and sends a token, and the rule requires one — but anyone can obtain an anonymous
   session, so a determined participant can still edit a field inside an existing entry. The array

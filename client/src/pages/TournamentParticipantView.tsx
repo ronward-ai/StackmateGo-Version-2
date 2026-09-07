@@ -652,8 +652,11 @@ function TournamentParticipantView() {
                 })()}
               </div>
 
+              {/* Honours the director's Next Level Preview setting, which rides
+                  along with the rest of settings — a player should not see what
+                  the director has chosen to hide. */}
               <div className="flex-1 min-w-0 truncate text-right font-medium">
-                {nextLevel ?
+                {tournament.settings?.showNextLevel === false ? null : nextLevel ?
                   (nextLevel.isBreak ? "Next: Break" : `Next: ${nextLevel.smallBlind || nextLevel.small}/${nextLevel.bigBlind || nextLevel.big}`) :
                   "Tournament complete"}
               </div>

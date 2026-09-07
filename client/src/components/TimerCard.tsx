@@ -172,11 +172,9 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceLanguage, setVoiceLanguage] = useState('en-GB');
   const [voiceSpeed, setVoiceSpeed] = useState(1);
   const [voiceVolume, setVoiceVolume] = useState(1);
-  const [ttsEnabled, setTtsEnabled] = useState(false);
   const [nextLevelAnnouncement, setNextLevelAnnouncement] = useState('3 minutes');
   const [lastAnnouncementTime, setLastAnnouncementTime] = useState<number | null>(null);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
@@ -185,7 +183,6 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const alarmRef = useRef<HTMLAudioElement | null>(null);
-  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
     if (state.settings.enableSounds) {
@@ -395,7 +392,12 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
             </div>
           )}
         </div>
-        <div className="flex-1 text-right font-medium">{getNextLevelPreview()}</div>
+        {/* The Next Level Preview setting. It was written to localStorage and
+            synced to the tournament document, and then read by nobody — so
+            ticking it in Settings did nothing at all. */}
+        <div className="flex-1 text-right font-medium">
+          {state.settings.showNextLevel !== false ? getNextLevelPreview() : null}
+        </div>
       </div>
     </TimerFace>
   );
