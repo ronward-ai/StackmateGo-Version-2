@@ -470,6 +470,30 @@ Payments are still switched off. `customer.subscription.updated` is deliberately
 subscription that goes `past_due` keeps pro until it is actually deleted; decide on that before
 going live.
 
+### The app speaks through `lib/speak.ts`, and picks no voice
+
+Voice announcements are real and they work: the 30-second warning, each level change, the two skip
+controls and the end of the tournament, all in `useTournament.ts`, all gated on
+`settings.enableVoice`. **They are not in `TimerCard`** — it once carried a `voiceEnabled`, a
+`ttsEnabled` and a `SpeechSynthesisUtterance` ref that were declared and never referenced, and those
+three dead declarations are why this was once written up here as an unbuilt feature. It is built.
+
+`lib/speak.ts` is the only place that constructs an utterance and the only place that sets rate,
+volume and language. Six sites used to build their own and had drifted: the 30-second warning was
+0.7 while everything else was 1.0, and exactly one of them set `lang` — so on a device with several
+installed voices the warning could be spoken by a different voice from the level change seconds
+later. The delays stay per-call, because they are genuinely different: 2.5s lets the level-complete
+chimes finish, 1.2s clears the warning chime.
+
+**No voice is selected, deliberately.** `speechSynthesis` supplies the platform default, which is
+why the same game sounds male on an iPad and female on Android. A picker would have to be per-device
+— installed voices differ, so a choice could not travel — and every announcement on a given device
+already matches. If it is ever wanted it belongs in `speak.ts` and nowhere else.
+
+`lib/announcements.ts` owns the wording, including the level numbering that skips breaks (copied at
+three sites before). The Settings Test button speaks the level the game is on, through the same
+path, so it tests the announcements rather than only the device.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
@@ -539,13 +563,6 @@ season, so the screen and the database cannot disagree.
 ---
 
 ## Known gaps, deliberately left
-
-- **"Voice Announcements" does not announce anything.** The toggle writes
-  `settings.enableVoice`, and SettingsSection's Test button speaks — but nothing in the running game
-  ever does. `TimerCard` carried `voiceEnabled`, `ttsEnabled` and a `SpeechSynthesisUtterance` ref
-  that were declared and never referenced; they have been removed rather than left looking like the
-  feature exists. Building it means speaking level changes and the countdown warnings from the
-  timer, gated on `settings.enableVoice`.
 
 - **Check-in writes are only as strong as an anonymous session.** `PlayerClaimView` signs in
   anonymously and sends a token, and the rule requires one — but anyone can obtain an anonymous

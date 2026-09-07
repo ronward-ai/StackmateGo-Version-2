@@ -16,6 +16,8 @@ import { useAuth } from './useAuth';
 import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
 import { prizePoolFor } from '@/lib/prizePool';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
+import { levelAnnouncement } from '@/lib/announcements';
+import { speak } from '@/lib/speak';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -719,12 +721,8 @@ export function useTournament(tournamentId?: string) {
             }
 
             if (prevState.settings.enableVoice) {
-              setTimeout(() => {
-                const utterance = new SpeechSynthesisUtterance('30 seconds remaining');
-                utterance.rate = 0.8;
-                utterance.volume = 0.7;
-                speechSynthesis.speak(utterance);
-              }, 1200);
+              // 1.2s clears the two-tone warning chime above.
+              speak('30 seconds remaining', { delayMs: 1200 });
             }
           }
 
@@ -802,45 +800,11 @@ export function useTournament(tournamentId?: string) {
 
               // Schedule voice announcement - use immediate approach
               if (prevState.settings.enableVoice) {
-                let announcement = '';
-
-                if (nextLevel.isBreak) {
-                  announcement = `Break time. Duration: ${nextLevel.duration / 60} minutes`;
-                } else {
-                  // Calculate blind level number (excluding breaks)
-                  const blindLevelNumber = prevState.levels
-                    .slice(0, nextLevelIndex + 1)
-                    .filter(level => !level.isBreak)
-                    .length;
-
-                  announcement = `Level ${blindLevelNumber}. Small blind ${nextLevel.small}, big blind ${nextLevel.big}`;
-
-                  if (nextLevel.ante && nextLevel.ante > 0) {
-                    announcement += `, ante ${nextLevel.ante}`;
-                  }
-                }
-
-                // Use immediate execution after level complete sound
-                setTimeout(() => {
-                  // Clear any pending speech
-                  if (speechSynthesis.speaking || speechSynthesis.pending) {
-                    speechSynthesis.cancel();
-                  }
-
-                  // Create and configure utterance
-                  const utterance = new SpeechSynthesisUtterance(announcement);
-                  utterance.rate = 0.8;
-                  utterance.volume = 1.0;
-                  utterance.pitch = 1.0;
-                  utterance.lang = 'en-US';
-
-                  // Speak immediately
-                  try {
-                    speechSynthesis.speak(utterance);
-                  } catch (error) {
-                    console.error("Speech synthesis failed:", error);
-                  }
-                }, 2500); // Reduced delay to 2.5 seconds
+                // 2.5s lets the three level-complete chimes finish first.
+                speak(levelAnnouncement(prevState.levels, nextLevelIndex), {
+                  cancel: true,
+                  delayMs: 2500,
+                });
               }
 
               // Broadcast level change for database tournaments (during active play)
@@ -855,10 +819,7 @@ export function useTournament(tournamentId?: string) {
             // Tournament is complete
             else {
               if (prevState.settings.enableVoice) {
-                const utterance = new SpeechSynthesisUtterance('Tournament complete');
-                utterance.rate = 0.8;
-                utterance.volume = 1.0;
-                speechSynthesis.speak(utterance);
+                speak('Tournament complete');
               }
 
               // No more levels, stop the timer
@@ -2063,40 +2024,7 @@ export function useTournament(tournamentId?: string) {
 
       // Announce new level if voice is enabled
       if (prev.settings.enableVoice) {
-        const nextLevelData = prev.levels[nextLevel];
-
-        setTimeout(() => {
-          try {
-            let announcement = '';
-
-            if (nextLevelData.isBreak) {
-              announcement = `Skipped to break time. Duration: ${nextLevelData.duration / 60} minutes`;
-            } else {
-              // Calculate blind level number (excluding breaks)
-              const blindLevelNumber = prev.levels
-                .slice(0, nextLevel + 1)
-                .filter(level => !level.isBreak)
-                .length;
-
-              announcement = `Skipped to Level ${blindLevelNumber}. Small blind ${nextLevelData.small}, big blind ${nextLevelData.big}`;
-
-              if (nextLevelData.ante && nextLevelData.ante > 0) {
-                announcement += `, ante ${nextLevelData.ante}`;
-              }
-            }
-
-            speechSynthesis.cancel();
-
-            setTimeout(() => {
-              const utterance = new SpeechSynthesisUtterance(announcement);
-              utterance.rate = 0.8;
-              utterance.volume = 1.0;
-              speechSynthesis.speak(utterance);
-            }, 100);
-          } catch (error) {
-            // Speech synthesis not available
-          }
-        }, 100);
+        speak(levelAnnouncement(prev.levels, nextLevel, 'Skipped to'), { cancel: true, delayMs: 200 });
       }
 
       const newState = {
@@ -2127,40 +2055,7 @@ export function useTournament(tournamentId?: string) {
 
       // Announce level if voice is enabled
       if (prev.settings.enableVoice) {
-        const prevLevelData = prev.levels[prevLevel];
-
-        setTimeout(() => {
-          try {
-            let announcement = '';
-
-            if (prevLevelData.isBreak) {
-              announcement = `Skipped back to break time. Duration: ${prevLevelData.duration / 60} minutes`;
-            } else {
-              // Calculate blind level number (excluding breaks)
-              const blindLevelNumber = prev.levels
-                .slice(0, prevLevel + 1)
-                .filter(level => !level.isBreak)
-                .length;
-
-              announcement = `Skipped back to Level ${blindLevelNumber}. Small blind ${prevLevelData.small}, big blind ${prevLevelData.big}`;
-
-              if (prevLevelData.ante && prevLevelData.ante > 0) {
-                announcement += `, ante ${prevLevelData.ante}`;
-              }
-            }
-
-            speechSynthesis.cancel();
-
-            setTimeout(() => {
-              const utterance = new SpeechSynthesisUtterance(announcement);
-              utterance.rate = 0.8;
-              utterance.volume = 1.0;
-              speechSynthesis.speak(utterance);
-            }, 100);
-          } catch (error) {
-            // Speech synthesis not available
-          }
-        }, 100);
+        speak(levelAnnouncement(prev.levels, prevLevel, 'Skipped back to'), { cancel: true, delayMs: 200 });
       }
 
       const newState = {

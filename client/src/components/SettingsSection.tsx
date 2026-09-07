@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { SettingRow, SettingsGroup, SettingsGroupHeader } from '@/components/ui/setting-row';
 import { cn } from '@/lib/utils';
 import type { TimerPiping } from '@/types';
+import { levelAnnouncement } from '@/lib/announcements';
+import { speak } from '@/lib/speak';
 
 /**
  * The piping treatments, in the order they escalate.
@@ -57,12 +59,11 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
     setTimeout(() => setNotesJustSaved(false), 2000);
   };
 
-  const testVoice = (msg = 'This is a test voice announcement') => {
-    if (speechSynthesis.speaking) speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(msg);
-    u.rate = 0.8;
-    u.volume = 1.0;
-    speechSynthesis.speak(u);
+  // Test speaks the level the game is actually on, through the same path the
+  // announcements take. A bespoke sentence built here was not a fair test: it
+  // proved the device could speak, not that the game would sound like this.
+  const testVoice = (msg?: string) => {
+    speak(msg ?? levelAnnouncement(state.levels, state.currentLevel), { cancel: true });
   };
 
   const applyBranding = async () => {
