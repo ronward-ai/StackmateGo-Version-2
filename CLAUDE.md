@@ -527,12 +527,18 @@ season, so the screen and the database cannot disagree.
 
 ## Known gaps, deliberately left
 
-- **Check-in writes are only as strong as an anonymous session.** `PlayerClaimView` now signs in
+- **Check-in writes are only as strong as an anonymous session.** `PlayerClaimView` signs in
   anonymously and sends a token, and the rule requires one — but anyone can obtain an anonymous
   session, so a determined participant can still edit a field inside an existing entry. The array
   length is preserved, so deletion and injection stay blocked. Closing it fully means writing
   server-side with the Admin SDK, which needs a service account key; **key creation is blocked by an
   organisation policy on this project**, so that route is not currently open.
+
+  **This makes check-in depend on the Anonymous provider being enabled** (Firebase Console →
+  Authentication → Sign-in method). It was the one participant flow that needed no auth at all, and
+  turning it into one that does broke check-in until the provider was switched on. The rules tests
+  cannot catch this — the emulator has anonymous auth on by default. Any new environment this app is
+  deployed to needs that provider enabled, or nobody can check in.
 
 ---
 
