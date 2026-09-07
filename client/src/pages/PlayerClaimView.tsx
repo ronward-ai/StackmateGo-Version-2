@@ -132,10 +132,25 @@ export default function PlayerClaimView() {
    * quota billing and nothing to do with auth, so the reason expired.
    */
   const claimToken = async (): Promise<string> => {
-    const { getAuth, signInAnonymously } = await import('firebase/auth');
-    const auth = getAuth();
-    const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
-    return user.getIdToken();
+    const { signInAnonymously } = await import('firebase/auth');
+    // The app's own auth instance, not getAuth() — this route reaches Firebase
+    // only through dynamic imports, and picking up the default app implicitly
+    // is one initialisation-order bug waiting to happen.
+    const { auth } = await import('@/lib/firebase');
+    try {
+      const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
+      return user.getIdToken();
+    } catch (err: any) {
+      // Anonymous sign-in is a hard dependency of check-in now, where it never
+      // used to be. If the provider is switched off in the Firebase console
+      // this is exactly where it surfaces, and a generic "try again" would
+      // send someone hunting in the wrong place.
+      throw new Error(
+        err?.code === 'auth/operation-not-allowed' || err?.code === 'auth/admin-restricted-operation'
+          ? 'Anonymous sign-in is disabled for this project, so check-in cannot be authorised.'
+          : `Could not start a session: ${err?.code || err?.message || 'unknown error'}`
+      );
+    }
   };
 
   /**
@@ -192,7 +207,12 @@ export default function PlayerClaimView() {
       localStorage.setItem(`claimedPlayer_${tournamentId}`, player.id);
       setClaimed(player.id);
     } catch (e: any) {
-      setClaimError('Could not claim seat. Please try again.');
+      // Say what actually went wrong. This used to swallow everything into
+      // "Please try again", which hid a permission denial behind advice that
+      // could not possibly help — and made the failure undiagnosable from a
+      // phone, which is the only device this screen is ever used on.
+      console.error('Check-in failed:', e);
+      setClaimError(e?.message || 'Could not claim seat. Please try again.');
     } finally {
       setClaiming(null);
     }
@@ -206,7 +226,9 @@ export default function PlayerClaimView() {
       await patchPlayers(updated);
       localStorage.removeItem(`claimedPlayer_${tournamentId}`);
       setClaimed(null);
-    } catch { /* silently ignore */ }
+    } catch (e) {
+      console.error('Releasing the seat failed:', e);
+    }
   };
 
   const claimedPlayer = players.find(p => p.id === claimed);
