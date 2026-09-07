@@ -1258,3 +1258,35 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   border-radius: 0.85rem;
   filter: blur(9px);
 }
+
+/* ---------------------------------------------------------------------------
+ * Card rails
+ *
+ * The "rails" piping treatment, borrowed from the timer for a card that earns
+ * marking out — StackMate Live, which is the feature nothing else in this
+ * category has. Edges only, so unlike a tint it cannot touch the legibility of
+ * anything inside it, which is exactly how that card went wrong before.
+ *
+ * Both rails are drawn in ONE pseudo-element because `.grid-pattern::before` is
+ * already taken on every Card, and two rules fighting over one pseudo-element is
+ * the sort of collision that shows up only on screen.
+ * ------------------------------------------------------------------------- */
+.card-rails {
+  position: relative;
+  --rail-1: hsl(var(--primary));
+  --rail-2: #FBBF24;
+  --rail-3: hsl(var(--primary));
+}
+
+.card-rails::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, var(--rail-1), var(--rail-2), var(--rail-3), transparent)
+      top / 100% 3px no-repeat,
+    linear-gradient(90deg, transparent, var(--rail-1), var(--rail-2), var(--rail-3), transparent)
+      bottom / 100% 3px no-repeat;
+}

@@ -102,7 +102,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       with the panel nested inside it into a muddy brown that the text sat
       badly on. The badge says it on its own.
     */}
-    <Card className="p-4">
+    <Card className="card-rails p-4">
       {/* Header */}
       <div className="flex items-center gap-2 mb-5">
         <Radio className={cn("h-5 w-5", isLive ? "text-green-400 animate-pulse" : "text-muted-foreground")} />

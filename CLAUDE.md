@@ -255,6 +255,19 @@ baseline from the lucide icon beside them, different again on each platform, and
 exported results image exactly as they looked. `✓` and `✗` were the worst of it: interface icons
 carrying meaning in league settings, drawn by the text renderer.
 
+### The StackMate Live card wears rails
+
+`.card-rails` in `index.css` — the timer's rails treatment, on the one card that earns marking out.
+It is the feature nothing else in this category has, and edges-only is the safe way to say so: unlike
+a tint it cannot touch the legibility of anything nested inside, which is exactly how that card went
+wrong when it carried `card-live`.
+
+Both rails are drawn in **one `::after`**, because `.grid-pattern::before` is already taken on every
+`Card`. Two rules fighting over one pseudo-element is a collision that only shows up on screen.
+
+The rails are the accent, always. The green Broadcasting badge still reports the state — the rails
+say "this is special", not "this is live".
+
 ### Colour means something, or it is not used
 
 **One accent, and it is orange.** `--primary` used to be teal while the app was visibly orange — 119
