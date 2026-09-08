@@ -63,6 +63,12 @@ export interface Settings {
   showNextLevel: boolean;
   bigBlindAnte?: boolean;
   applyDurationToAll?: boolean;
+  /**
+   * @deprecated Recent players is no longer a setting — the suggestions appear
+   * when they are useful and are absent otherwise, like League Roster quick-add.
+   * Declared only so stored settings and older tournament documents, which still
+   * carry the key, keep loading. Nothing reads it.
+   */
   enableRecentPlayers?: boolean;
   tables?: {
     numberOfTables: number;

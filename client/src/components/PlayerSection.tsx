@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { X, Download, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { entryCosts, prizePoolFor } from '@/lib/prizePool';
-import { SettingRow, SettingsGroup } from '@/components/ui/setting-row';
 import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
 import { badgesFor, badgeText } from '@/lib/playerBadges';
@@ -29,7 +28,7 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, updateSettings, undoPlayerReturn } = tournament;
+  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
   const { toast } = useToast();
 
   /**
@@ -108,17 +107,20 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   } = entryCosts(ps);
   const exportRef = useRef<HTMLDivElement>(null);
 
-  // Load recent players from localStorage when feature is enabled
+  // Recent players is not a setting.
+  //
+  // It was gated on `enableRecentPlayers`, which defaulted to false and lived
+  // behind a titled "Player Options" panel at the top of this tab — the largest
+  // element on the screen, controlling the smallest feature on it, and off for
+  // everyone who never found it.
+  //
+  // Nothing here needs opting out of: the autocomplete fires only when what you
+  // type matches a stored name, and the list below appears only when there are
+  // names to offer. That is exactly how League Roster quick-add behaves a few
+  // lines down, and it has never had a switch either.
   useEffect(() => {
-    if (state.settings.enableRecentPlayers) {
-      loadRecentPlayers();
-    } else {
-      // Reset state when feature is disabled
-      setShowAllRecent(false);
-      setRecentSearchTerm('');
-      setRecentPlayers([]);
-    }
-  }, [state.settings.enableRecentPlayers]);
+    loadRecentPlayers();
+  }, []);
 
   // Load recent players from localStorage
   const loadRecentPlayers = () => {
@@ -135,8 +137,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
   // Save recent players to localStorage
   const saveRecentPlayer = (name: string) => {
-    if (!state.settings.enableRecentPlayers) return;
-
     try {
       const trimmedName = name.trim();
       if (!trimmedName) return;
@@ -154,21 +154,8 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     }
   };
 
-  // Get frequently used players (recent 8)
-  const getFrequentPlayers = () => {
-    if (!state.settings.enableRecentPlayers) return [];
-
-    return recentPlayers
-      .sort((a, b) => b.lastUsed - a.lastUsed)
-      .slice(0, 8)
-      .map(p => p.name)
-      .filter(name => !state.players.some(player => player.name.toLowerCase() === name.toLowerCase()));
-  };
-
   // Get filtered recent players based on search term
   const getFilteredRecentPlayers = () => {
-    if (!state.settings.enableRecentPlayers) return [];
-
     const availablePlayers = recentPlayers.filter(player => 
       !state.players.some(p => p.name.toLowerCase() === player.name.toLowerCase())
     );
@@ -195,7 +182,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
   // Filter names based on input
   useEffect(() => {
-    if (state.settings.enableRecentPlayers && playerName.trim() && recentPlayers.length > 0) {
+    if (playerName.trim() && recentPlayers.length > 0) {
       const searchTerm = playerName.toLowerCase();
       const filtered = recentPlayers
         .filter(p => 
@@ -216,7 +203,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       setFilteredNames([]);
       setShowAutocomplete(false);
     }
-  }, [playerName, recentPlayers, state.players, state.settings.enableRecentPlayers]);
+  }, [playerName, recentPlayers, state.players]);
 
   // Handle clicks/touches outside autocomplete (touch-safe for mobile/iPad)
   const handleClickOutside = (event: MouseEvent | TouchEvent) => {
@@ -578,19 +565,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         </div>
       </div>
 
-      {/* Belongs with players rather than two tabs away in Settings. */}
-      <div className="export-hide mt-4">
-        <SettingsGroup icon={Users} title="Player Options" color="text-teal-400">
-          <SettingRow
-            id="enableRecentPlayers"
-            label="Recent Players"
-            hint="Suggest names you have used before when adding players"
-            checked={state.settings.enableRecentPlayers || false}
-            onCheckedChange={(v) => updateSettings({ enableRecentPlayers: v })}
-          />
-        </SettingsGroup>
-      </div>
-
       <div className="pt-4 space-y-4" ref={exportRef}>
         {/* Add Player Section - Mobile Optimized */}
         <div className="space-y-3 export-hide">
@@ -602,17 +576,17 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                 onChange={(e) => setPlayerName(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Enter player name..."
-                className="w-full px-3 py-3 text-base bg-[#1a1a1a] border border-[#2a2a2a] rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                className="w-full px-3 py-3 text-base focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary"
               />
 
               {/* Autocomplete dropdown */}
-              {showAutocomplete && state.settings.enableRecentPlayers && (
-                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md shadow-lg max-h-40 overflow-y-auto">
+              {showAutocomplete && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
                   {filteredNames.map((player) => (
                     <button
                       key={player.name}
                       onClick={() => handleSelectName(player.name)}
-                      className="w-full px-3 py-2 text-left text-white hover:bg-[#2a2a2a] focus:bg-[#2a2a2a] focus:outline-none"
+                      className="w-full px-3 py-2 text-left text-body text-foreground hover:bg-white/5 focus:bg-white/5 focus:outline-none"
                     >
                       {player.name}
                     </button>
@@ -649,7 +623,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowLeagueRoster(v => !v)}
-                    className="text-xs text-blue-400 hover:text-blue-300 h-6 px-0 font-medium"
+                    className="text-label text-muted-foreground hover:text-foreground h-6 px-0 font-medium"
                   >
                     <Users className="h-3 w-3 mr-1" />
                     League Roster ({available.length} available)
@@ -659,7 +633,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowLeagueRoster(false)}
-                      className="text-xs text-blue-400 hover:text-blue-300 h-6 px-2"
+                      className="text-label text-muted-foreground hover:text-foreground h-6 px-2"
                     >
                       Show Less
                     </Button>
@@ -671,7 +645,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                       <button
                         key={lp.id}
                         onClick={() => handleSelectName(lp.name)}
-                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/15 border border-blue-500/30 text-blue-300 hover:bg-blue-500/25 hover:text-blue-200 transition-colors"
+                        className="inline-flex items-center px-2.5 py-1 rounded-full text-caption font-medium bg-white/5 border border-white/10 text-foreground/80 hover:bg-white/10 hover:text-foreground transition-colors"
                       >
                         {lp.name}
                       </button>
@@ -686,14 +660,14 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           })()}
 
           {/* Quick Add Recent Players - Compact View */}
-          {state.settings.enableRecentPlayers && recentPlayers.length > 0 && (
+          {recentPlayers.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowAllRecent(!showAllRecent)}
-                  className="text-xs text-gray-400 hover:text-gray-300 h-6 px-0 font-medium"
+                  className="text-label text-muted-foreground hover:text-foreground h-6 px-0 font-medium"
                 >
                   Recent Players ({recentPlayers.length})
                 </Button>
@@ -702,7 +676,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowAllRecent(false)}
-                    className="text-xs text-blue-400 hover:text-blue-300 h-6 px-2"
+                    className="text-label text-muted-foreground hover:text-foreground h-6 px-2"
                   >
                     Show Less
                   </Button>
@@ -717,20 +691,20 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     placeholder="Search recent players..."
                     value={recentSearchTerm}
                     onChange={(e) => setRecentSearchTerm(e.target.value)}
-                    className="h-8 text-sm bg-[#1a1a1a] border-[#2a2a2a]"
+                    className="h-8 text-label"
                   />
                   <div className="max-h-32 overflow-y-auto space-y-1">
                     {getFilteredRecentPlayers().map((player) => (
                       <div
                         key={player.name}
-                        className="flex items-center p-2 hover:bg-[#2a2a2a] rounded cursor-pointer"
+                        className="flex items-center p-2 hover:bg-white/5 rounded cursor-pointer"
                         onClick={() => handleSelectName(player.name)}
                       >
-                        <span className="text-sm text-white">{player.name}</span>
+                        <span className="text-body text-foreground">{player.name}</span>
                       </div>
                     ))}
                     {getFilteredRecentPlayers().length === 0 && recentSearchTerm && (
-                      <div className="text-center text-sm text-gray-400 py-2">
+                      <div className="text-center text-label text-muted-foreground py-2">
                         No players found matching "{recentSearchTerm}"
                       </div>
                     )}

@@ -47,7 +47,6 @@ const DEFAULT_SETTINGS: Settings = {
   enableVoice: false,
   showSeconds: true,
   showNextLevel: true,
-  enableRecentPlayers: false,
   tables: {
     numberOfTables: 2,
     seatsPerTable: 8,
