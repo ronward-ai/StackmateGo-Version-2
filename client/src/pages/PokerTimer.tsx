@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, LogOut, UserCircle, ChevronDown, Settings2, X, Users, LayoutGrid, Coins, Layers, Trophy, ShieldAlert, History } from 'lucide-react';
+import { User, LogOut, UserCircle, ChevronDown, Settings2, X, Users, LayoutGrid, Coins, Layers, ShieldAlert, History } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -461,17 +461,15 @@ function PokerTimerInner({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournament.state.players, saveCompletedTournament, user?.id]);
 
-  // The League tab is only meaningful for a league game. Hiding it in standalone
-  // also keeps the tab bar from overflowing on a phone in portrait, where it was
-  // pushing Share off-screen. League mode is enabled from the mode toggle above
-  // the tabs, so hiding the tab never blocks getting into league mode.
+  // Whether the league panel below the setup card is shown at all.
   // Reuses _isLeagueMode from above rather than recomputing the same expression.
+  //
+  // The league used to be a TAB in the setup row, which is the wrong category:
+  // every other tab there sets up TONIGHT'S GAME, and that card is headed
+  // "Tournament Setup". It also made the row change shape when the mode toggle
+  // moved — on a phone TabsList is a four-column grid, so it was League that
+  // pushed Settings and Share onto a second row.
   const isLeagueMode = _isLeagueMode;
-
-  // Don't strand the user on a tab that is about to disappear.
-  useEffect(() => {
-    if (!isLeagueMode && activeTab === 'league') setActiveTab('players');
-  }, [isLeagueMode, activeTab]);
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
   // What each sync last WROTE, so a re-run with an identical payload costs
   // nothing. Two of these effects used to write unconditionally, and every one
@@ -1220,12 +1218,6 @@ function PokerTimerInner({
                   <Layers className="h-4 w-4" />
                   Levels
                 </TabsTrigger>
-                {isLeagueMode && (
-                  <TabsTrigger value="league">
-                    <Trophy className="h-4 w-4" />
-                    League
-                  </TabsTrigger>
-                )}
                 <TabsTrigger value="settings">
                   <Settings2 className="h-4 w-4" />
                   Settings
@@ -1269,12 +1261,6 @@ function PokerTimerInner({
               <TablesSection tournament={tournament} />
             </TabsContent>
 
-            {isLeagueMode && (
-              <TabsContent value="league" className="mt-0 p-4 pt-5">
-                <LeagueSection tournament={tournament} />
-              </TabsContent>
-            )}
-
             <TabsContent value="qr" className="mt-0 p-4 pt-5">
               <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} syncBlocked={syncBlocked || preflightFailed} />
             </TabsContent>
@@ -1284,6 +1270,12 @@ function PokerTimerInner({
             </TabsContent>
           </Tabs>
         </Card>
+
+        {/* The league, as its own thing. LeagueSection is a self-contained card
+            with its own header, Manage League button and collapse control — it
+            was never a tab, which is why it rendered as a card inside a card in
+            one. */}
+        {isLeagueMode && <LeagueSection tournament={tournament} />}
 
         <footer className="mt-8 text-center text-muted-foreground text-sm py-4">
           <p>StackMateGo &copy; {new Date().getFullYear()}</p>

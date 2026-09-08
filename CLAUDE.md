@@ -310,7 +310,23 @@ undeclared sizes (8, 9, 10, 11px) had been reached for whenever `xs` was too big
 into `caption`. Prose gets `body` — an empty state is one of the few places the app explains itself,
 so it should not be set in the same 12px as a table cell.
 
-### The League tab says the season once
+### The league is a section on the page, not a setup tab
+
+It used to be a **League tab** in the Tournament Setup row, appearing between Levels and Settings when
+the mode toggle moved. Wrong category: every other tab there configures TONIGHT'S GAME, and the card
+is headed "Tournament Setup", while the league spans every game — standings, seasons, points, and
+Manage League. Renaming it would not have helped; "Standings" undersells a panel that also deletes
+leagues.
+
+It also made the tab row **change shape** with the toggle. On a phone `TabsList` is a four-column grid,
+so League was what pushed Settings and Share onto a second row. The six tabs are unconditional now.
+
+`LeagueSection` was always built for this: a self-contained card with its own header, its own Manage
+League button and its own collapse control — which is why it rendered as a card inside a card in a
+tab. Its collapse is remembered (`leaguePanelExpanded`), since on the page it is what stands between a
+phone and the timer.
+
+### The League panel says the season once
 
 `LeagueSection` is the LEAGUE header — the league's name, Manage League, and the collapse control. The
 SEASON belongs to `SeasonDashboard`, which holds its numbers: name, status, dates, the progress bar

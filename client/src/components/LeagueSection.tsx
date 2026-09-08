@@ -8,6 +8,8 @@ import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { gameNumberFor, clampedGameNumber, isSeasonComplete, countGamesPlayed } from '@/lib/seasonProgress';
 
+const LEAGUE_PANEL_KEY = 'leaguePanelExpanded';
+
 interface LeagueSectionProps {
   tournament?: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   readOnly?: boolean;
@@ -30,7 +32,24 @@ interface LeagueSectionProps {
  * Delete League.
  */
 export default function LeagueSection({ tournament, readOnly = false }: LeagueSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Remembered, because the panel is on the page now rather than behind a tab:
+  // a director who wants the timer nearer the top on a phone should be able to
+  // fold this once and have it stay folded. Open by default.
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(LEAGUE_PANEL_KEY) !== 'collapsed';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleExpanded = () => {
+    setIsExpanded(prev => {
+      const next = !prev;
+      try { localStorage.setItem(LEAGUE_PANEL_KEY, next ? 'expanded' : 'collapsed'); } catch {}
+      return next;
+    });
+  };
   const [showLeagueSettings, setShowLeagueSettings] = useState(false);
 
   const { league, leaguePlayers } = useLeague();
@@ -69,7 +88,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     <>
       <LeagueSettingsDialog open={showLeagueSettings} onOpenChange={setShowLeagueSettings} />
 
-      <Card className="card-glass rounded-xl">
+      <Card className="card-glass rounded-xl mb-6">
         <CardContent className="p-5">
 
           {/* The LEAGUE is the header here; the SEASON is described once, by the
@@ -111,7 +130,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                 </Button>
               )}
               <button
-                onClick={() => setIsExpanded(v => !v)}
+                onClick={toggleExpanded}
                 className="p-1 text-muted-foreground hover:text-foreground"
                 title={isExpanded ? 'Collapse' : 'Expand'}
               >
