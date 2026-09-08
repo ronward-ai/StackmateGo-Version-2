@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import TimerCard from '@/components/TimerCard';
-import TournamentInfoCard, { TournamentNewButton, TournamentModeToggle } from '@/components/TournamentInfoCard';
+import TournamentInfoCard, { TournamentNewButton } from '@/components/TournamentInfoCard';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import PlayerSection from '@/components/PlayerSection';
@@ -329,7 +329,7 @@ function PokerTimerInner({
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Compute game number once here so TournamentInfoCard and TournamentModeToggle always show the same value.
+  // Compute game number once here so the info card and the mode toggle inside it always show the same value.
   const _isLeagueMode = tournament.state.details?.type === 'season' || tournament.state.settings?.isSeasonTournament === true;
   const _storedSeasonId = tournament.state.settings?.seasonId;
   const _displaySeason = _storedSeasonId
@@ -1122,6 +1122,13 @@ function PokerTimerInner({
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
           <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} />
+
+          {/* Directly beneath the card that holds the mode slider, so flipping it
+              changes something you can see. LeagueSection is a self-contained
+              card with its own header, Manage League button and collapse — it was
+              never a tab, which is why it rendered as a card inside a card in
+              one. */}
+          {isLeagueMode && <LeagueSection tournament={tournament} />}
         </div>
 
         {/* A browser that cannot write to Firestore.
@@ -1196,10 +1203,6 @@ function PokerTimerInner({
                 <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
               </div>
             </div>
-            {/* Row 2: mode toggle */}
-            <div className="px-4 pb-3">
-              <TournamentModeToggle tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
-            </div>
             <div className="relative">
               <TabsList className="border-b border-border/40 rounded-none bg-transparent p-0 h-auto gap-0">
                 <TabsTrigger value="players">
@@ -1270,12 +1273,6 @@ function PokerTimerInner({
             </TabsContent>
           </Tabs>
         </Card>
-
-        {/* The league, as its own thing. LeagueSection is a self-contained card
-            with its own header, Manage League button and collapse control — it
-            was never a tab, which is why it rendered as a card inside a card in
-            one. */}
-        {isLeagueMode && <LeagueSection tournament={tournament} />}
 
         <footer className="mt-8 text-center text-muted-foreground text-sm py-4">
           <p>StackMateGo &copy; {new Date().getFullYear()}</p>

@@ -51,13 +51,12 @@ function DetailRow({ label, value, highlight, compact }: { label: string; value:
   );
 }
 
-const activeStyle = {
-  background: 'linear-gradient(135deg, rgba(249,115,22,0.12) 0%, rgba(249,115,22,0.06) 100%)',
-  color: 'rgb(251,146,60)',
-  borderColor: 'rgba(249,115,22,0.3)',
-  boxShadow: '0 2px 8px rgba(249,115,22,0.15)',
-};
-const inactiveStyle = { borderColor: 'transparent', color: 'var(--muted-foreground)' };
+// The selected side of the mode toggle. These were inline style objects
+// hard-coding rgba(249,115,22,…) — the .btn-* gradient pattern in JavaScript
+// form, which is how it survived the sweep of the CSS ones.
+const modeButton = 'inline-flex items-center justify-center rounded-sm px-3 py-1 text-label font-medium transition-colors border';
+const modeActive = 'bg-primary/10 text-primary border-primary/30';
+const modeInactive = 'border-transparent text-muted-foreground hover:text-foreground';
 
 export function TournamentModeToggle({ tournament, league, leaguePlayers = [], currentSeason, seasons }: { tournament: TournamentProp } & Pick<SharedLeagueProps, 'league' | 'leaguePlayers' | 'currentSeason' | 'seasons'>) {
   const { state, updateTournamentDetails, updateSettings } = tournament;
@@ -90,8 +89,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
     <div className="flex flex-wrap items-center gap-2">
       <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
         <button
-          className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
-          style={!isLeagueMode ? activeStyle : inactiveStyle}
+          className={cn(modeButton, !isLeagueMode ? modeActive : modeInactive)}
           onClick={() => {
             updateTournamentDetails({ ...state.details, type: 'standalone' });
             // Clear the whole league context, not just the flag. Leaving leagueId
@@ -109,15 +107,18 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
           Standalone
         </button>
         <button
-          className="inline-flex items-center justify-center rounded-sm px-3 py-1 text-xs font-medium transition-all duration-200 border"
-          style={isLeagueMode ? activeStyle : inactiveStyle}
+          className={cn(modeButton, isLeagueMode ? modeActive : modeInactive)}
           onClick={handleEnableLeague}
         >
           League
         </button>
       </div>
+      {/* The only copy of this line. TournamentInfoCard's header printed the
+          identical sentence in the identical colour, so in league mode the same
+          fact appeared twice on one screen. Beside the toggle is the better
+          home: "League" and "Spring 2026 · Game 4 of 13" read as one statement. */}
       {isLeagueMode && gameNumber !== null && (
-        <span className="text-xs font-medium text-orange-400 truncate min-w-0">
+        <span className="text-label font-medium text-primary truncate min-w-0">
           {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
         </span>
       )}
@@ -392,13 +393,8 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-orange-400" />
+            <Trophy className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Info</span>
-            {isLeagueMode && gameNumber !== null && (
-              <span className="text-xs font-medium text-orange-400">
-                {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setIsExpanded(v => !v)}>
@@ -407,6 +403,23 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                 : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </button>
           </div>
+        </div>
+
+        {/* What KIND of game this is, which is as much this card's business as the
+            prize pool: it lived in the Tournament Setup card, where flipping it
+            summoned the league panel below a very tall card, off-screen. The
+            league panel now sits directly beneath this card.
+
+            Outside the collapse on purpose — folding the body away must not take
+            the mode control with it. */}
+        <div className="mt-3">
+          <TournamentModeToggle
+            tournament={tournament}
+            league={league}
+            leaguePlayers={leaguePlayers}
+            currentSeason={currentSeason}
+            seasons={seasons}
+          />
         </div>
 
         {isExpanded && (

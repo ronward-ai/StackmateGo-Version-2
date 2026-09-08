@@ -310,6 +310,24 @@ undeclared sizes (8, 9, 10, 11px) had been reached for whenever `xs` was too big
 into `caption`. Prose gets `body` — an empty state is one of the few places the app explains itself,
 so it should not be set in the same 12px as a table cell.
 
+### The mode slider lives in Tournament Info, with the league panel beneath it
+
+Standalone-vs-League decides what KIND of game this is, which is the same sort of fact as the event
+name, the prize pool and the payouts — so it sits in the Tournament Info card, on its own row under
+the header and **outside the collapse**, since folding the body away must not take the mode control
+with it. The league panel renders directly beneath that card.
+
+It used to sit in the Tournament Setup card. Once the league stopped being a tab, flipping it summoned
+a panel *below* that very tall card, off-screen: a control whose effect nobody would scroll to find.
+
+The season line — `Spring 2026 · Game 4 of 13` — is stated **once**, beside the toggle, where it reads
+as one statement with the selected mode. The info card's header printed the identical sentence in the
+identical colour, so in league mode the same fact appeared twice on one screen.
+
+The toggle's two buttons were styled with **inline style objects** hard-coding `rgba(249,115,22,…)` —
+the `.btn-*` gradient pattern in JavaScript form, which is how it survived the sweep of the CSS ones.
+They take `bg-primary/10 text-primary border-primary/30` now.
+
 ### The league is a section on the page, not a setup tab
 
 It used to be a **League tab** in the Tournament Setup row, appearing between Levels and Settings when
