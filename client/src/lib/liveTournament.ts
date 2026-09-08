@@ -81,3 +81,39 @@ export function findCurrentLiveTournament<T extends LiveTournamentCandidate>(
 
   return live.length > 0 ? live[0].candidate : null;
 }
+
+/**
+ * Which document the DIRECTOR'S CONSOLE should be reading and writing — or null
+ * when this game is not in the database at all.
+ *
+ * There were two answers to this and they disagreed. The sync effects used a
+ * `dbTournamentId` held in `PokerTimer`'s own state; the QR code used
+ * `state.details?.id || dbTournamentId`. New Tournament navigates to `/?home=1`,
+ * which is the route the console is already on, so the component never unmounts
+ * and that held id SURVIVED THE RESET. The second game of a session therefore
+ * showed a QR for the FIRST game's document — with its stale roster and paused
+ * clock — while the console wrote nothing anywhere, because the reset had made
+ * the game local again and the sync effects wait on a Firestore read that never
+ * happens for a local game.
+ *
+ * So the rule, once:
+ *   - a tournament id in the URL is definitive — that route exists to open one
+ *     specific game, and it must survive the moment before its document loads;
+ *   - otherwise the game must actually BE a database game, and the id is the one
+ *     on its details;
+ *   - a held id belonging to no current game is worth nothing. Returning it is
+ *     what caused this.
+ */
+export function consoleTournamentId(input: {
+  /** From the /tournament/:id/director route, if any. */
+  urlId?: string | null;
+  detailsType?: string | null;
+  detailsId?: string | number | null;
+  /** The id the console is currently holding in state. */
+  heldId?: string | null;
+}): string | null {
+  if (input.urlId) return String(input.urlId);
+  if (input.detailsType !== 'database') return null;
+  if (input.detailsId) return String(input.detailsId);
+  return input.heldId ? String(input.heldId) : null;
+}

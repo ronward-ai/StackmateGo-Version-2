@@ -40,6 +40,7 @@ import {
   type SyncHealth,
 } from '@/lib/syncHealth';
 import { recoverableProgress } from '@/lib/localProgress';
+import { consoleTournamentId } from '@/lib/liveTournament';
 import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
@@ -547,6 +548,10 @@ function PokerTimerInner({
         // Not fatal: the game keeps running locally and is persisted there. Let
         // it try again rather than latching the failure.
         console.error('Could not save the tournament to your account:', err);
+      } finally {
+        // "In flight", not "has ever created". Latching this on success made it
+        // a second, invisible lock on top of dbTournamentId, and the next game
+        // of the session could never be saved.
         creatingRef.current = false;
       }
     })();
@@ -599,6 +604,50 @@ function PokerTimerInner({
     setSyncBlocked(false);
   };
 
+  // The document the syncs read and write. Derived, not held: the QR code used
+  // to work this out separately from the sync effects and the two disagreed —
+  // see lib/liveTournament.ts. One answer, so they cannot.
+  const activeTournamentId = useMemo(
+    () => consoleTournamentId({
+      urlId: tournamentId,
+      detailsType: tournament.state.details?.type,
+      detailsId: tournament.state.details?.id,
+      heldId: dbTournamentId,
+    }),
+    [tournamentId, tournament.state.details?.type, tournament.state.details?.id, dbTournamentId],
+  );
+
+  // LET GO of a document this game no longer belongs to.
+  //
+  // dbTournamentId is this component's own state, and New Tournament navigates
+  // to /?home=1 — the route the console is ALREADY on — so the component is
+  // never unmounted and the id survived the reset. From the second game of a
+  // session on: the auto-save below returned early (it refuses when an id is
+  // held), so the new game was never saved to the account at all; the sync
+  // effects were blocked too, because a reset game is local again and they wait
+  // on a Firestore read that never comes for a local game; and the QR fell back
+  // to the PREVIOUS game's document, showing its stale roster and paused clock
+  // under a green Broadcasting badge. Nothing failed, so nothing was reported.
+  //
+  // Keyed on the state rather than wired into the New Tournament button: holding
+  // an id for a game that is not in the database is the inconsistency itself,
+  // whatever produced it.
+  useEffect(() => {
+    if (tournamentId) return; // the director route names its own game
+    if (tournament.state.details?.type === 'database') return;
+    if (!dbTournamentId && !creatingRef.current) return;
+
+    setDbTournamentId(null);
+    creatingRef.current = false;
+    // These hold the PREVIOUS game's payloads. Left alone, the new game's first
+    // write could be skipped as "unchanged" if it happened to match.
+    lastSyncedPlayersRef.current = '';
+    lastSyncedTimerRef.current = '';
+    lastSyncedSettingsRef.current = '';
+    setRecoverable(null);
+    setRecoveryDismissed(false);
+  }, [tournamentId, tournament.state.details?.type, dbTournamentId]);
+
   // PREFLIGHT: is this browser able to write to Firestore at all?
   //
   // It has to be a WRITE. The failure this exists for had reads working
@@ -644,15 +693,15 @@ function PokerTimerInner({
   // The mirrored roster this device holds, when the saved game has none — see
   // recoverableProgress. Offered, never applied on its own.
   useEffect(() => {
-    if (!dbTournamentId || !tournament.hasLoadedRemoteState) return;
+    if (!activeTournamentId || !tournament.hasLoadedRemoteState) return;
     if (recoveryDismissed) return;
-    setRecoverable(recoverableProgress(dbTournamentId, tournament.state.players.length));
-  }, [dbTournamentId, tournament.hasLoadedRemoteState, tournament.state.players.length, recoveryDismissed]);
+    setRecoverable(recoverableProgress(activeTournamentId, tournament.state.players.length));
+  }, [activeTournamentId, tournament.hasLoadedRemoteState, tournament.state.players.length, recoveryDismissed]);
 
   // Directly sync players to Firestore whenever they change.
   // This is a reliable belt-and-suspenders sync that bypasses the broadcast chain.
   useEffect(() => {
-    if (!dbTournamentId || !user || isAnonymous) return;
+    if (!activeTournamentId || !user || isAnonymous) return;
     if (!tournament.hasLoadedRemoteState) return;
     const sync = async () => {
       const serialised = JSON.stringify(tournament.state.players);
@@ -662,7 +711,7 @@ function PokerTimerInner({
       const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
         await updateDoc(
-          doc(db, 'activeTournaments', dbTournamentId),
+          doc(db, 'activeTournaments', activeTournamentId),
           // updatedAt makes "which game am I running?" answerable on another
           // device: resume picks the most recently ACTIVE tournament, not the
           // most recently created one.
@@ -681,11 +730,11 @@ function PokerTimerInner({
       }
     };
     sync();
-  }, [tournament.state.players, dbTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.players, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {
-    if (!dbTournamentId || !user || isAnonymous) return;
+    if (!activeTournamentId || !user || isAnonymous) return;
     if (!tournament.hasLoadedRemoteState) return;
     const payload = {
       currentLevel: tournament.state.currentLevel,
@@ -706,7 +755,7 @@ function PokerTimerInner({
       const { db } = await import('@/lib/firebase');
       const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
-        await updateDoc(doc(db, 'activeTournaments', dbTournamentId), sanitizeForFirestore(payload));
+        await updateDoc(doc(db, 'activeTournaments', activeTournamentId), sanitizeForFirestore(payload));
         lastSyncedTimerRef.current = serialised;
         reportSyncSuccess();
       } catch (e) {
@@ -720,7 +769,7 @@ function PokerTimerInner({
     tournament.state.targetEndTime,   // set on start, cleared on pause
     tournament.state.levels,
     tournament.state.notes,
-    dbTournamentId,
+    activeTournamentId,
     user?.id,
     isAnonymous,
     tournament.hasLoadedRemoteState,
@@ -728,7 +777,7 @@ function PokerTimerInner({
 
   // Directly sync prizeStructure and settings to Firestore whenever they change.
   useEffect(() => {
-    if (!dbTournamentId || !user || isAnonymous) return;
+    if (!activeTournamentId || !user || isAnonymous) return;
     if (!tournament.hasLoadedRemoteState) return;
     const payload = {
       prizeStructure: tournament.state.prizeStructure,
@@ -746,7 +795,7 @@ function PokerTimerInner({
       const { db } = await import('@/lib/firebase');
       const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
-        await updateDoc(doc(db, 'activeTournaments', dbTournamentId), sanitizeForFirestore(payload));
+        await updateDoc(doc(db, 'activeTournaments', activeTournamentId), sanitizeForFirestore(payload));
         lastSyncedSettingsRef.current = serialised;
         reportSyncSuccess();
       } catch (e) {
@@ -754,7 +803,7 @@ function PokerTimerInner({
       }
     };
     sync();
-  }, [tournament.state.prizeStructure, tournament.state.settings, dbTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.prizeStructure, tournament.state.settings, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Setup Socket.IO connection for real-time updates removed
 
@@ -1131,7 +1180,7 @@ function PokerTimerInner({
         )}
 
         {/* Live banner — shown when players exist but haven't gone live yet */}
-        {tournament.state.players.length > 0 && !dbTournamentId && (
+        {tournament.state.players.length > 0 && !activeTournamentId && (
           <LiveBanner onGoLive={() => setActiveTab('qr')} />
         )}
 

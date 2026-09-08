@@ -190,6 +190,29 @@ recently created".
 That selection lives in `lib/liveTournament.ts`, not in the resume effect, because the auto-save asks
 the same question — see below.
 
+### Which document the console is driving is derived, not held
+
+`lib/liveTournament.ts`'s `consoleTournamentId()` answers it once, for the sync effects and the QR
+code alike. They used to work it out separately — the syncs from a `dbTournamentId` held in
+`PokerTimer`'s state, the QR from `state.details?.id || dbTournamentId` — and **they disagreed.**
+
+New Tournament navigates to `/?home=1`, which is the route the console is already on, so the
+component is never unmounted and `dbTournamentId` **survived the reset**. From the second game of a
+session onwards: the auto-save returned early because an id was held, so the new game was never saved
+to the account at all; the sync effects were blocked too, because a reset game is local again and
+they wait on a Firestore read that never comes for a local game; and the QR fell back to the previous
+game's document, showing its stale roster and paused clock under a green Broadcasting badge. Nothing
+failed, so nothing was reported — the console looked perfectly healthy.
+
+`creatingRef` was a second, invisible lock of the same kind: set true on a successful creation and
+cleared only on failure, so it meant "has ever created" when the comment beside it said "in flight".
+It is cleared in a `finally` now.
+
+**A held id belonging to no current game is worth nothing.** The rule: a tournament id in the URL is
+definitive, otherwise the game must actually be a database game. `PokerTimer` clears the held id
+whenever the game is not one, keyed on the state rather than on the New Tournament button, because
+holding an id for a game that is not in the database is the inconsistency itself however it arose.
+
 ### A device must never write to a tournament it has not read
 
 `PokerTimer` has three direct `updateDoc` sync effects that bypass the broadcast chain by design.

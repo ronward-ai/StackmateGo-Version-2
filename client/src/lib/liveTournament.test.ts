@@ -3,6 +3,7 @@ import {
   timestampMs,
   lastActivityMs,
   findCurrentLiveTournament,
+  consoleTournamentId,
   LIVE_TOURNAMENT_WINDOW_MS,
 } from './liveTournament';
 
@@ -115,5 +116,42 @@ describe('findCurrentLiveTournament', () => {
   it('REGRESSION: reports the live game to a device that has not read it', () => {
     const live = { id: 'live', status: 'active', createdAt: minutesAgo(120), updatedAt: minutesAgo(3) };
     expect(findCurrentLiveTournament([live], NOW)).toBe(live);
+  });
+});
+
+describe('consoleTournamentId', () => {
+  it('is null for a local game, however stale the held id', () => {
+    // The regression: New Tournament leaves PokerTimer mounted, so the previous
+    // game's id survives in state. Returning it pointed the QR at the last game.
+    expect(
+      consoleTournamentId({ detailsType: 'standalone', heldId: 'game_previous' })
+    ).toBeNull();
+    expect(
+      consoleTournamentId({ detailsType: 'season', heldId: 'game_previous' })
+    ).toBeNull();
+  });
+
+  it('is the details id for a database game', () => {
+    expect(
+      consoleTournamentId({ detailsType: 'database', detailsId: 'game_now', heldId: 'game_previous' })
+    ).toBe('game_now');
+  });
+
+  it('falls back to the held id for a database game that has not filled details in yet', () => {
+    expect(consoleTournamentId({ detailsType: 'database', heldId: 'game_now' })).toBe('game_now');
+  });
+
+  it('lets the URL win, so the director route works before the document loads', () => {
+    expect(
+      consoleTournamentId({ urlId: 'from_url', detailsType: 'standalone', heldId: 'game_previous' })
+    ).toBe('from_url');
+  });
+
+  it('is null when there is nothing at all', () => {
+    expect(consoleTournamentId({})).toBeNull();
+  });
+
+  it('accepts a numeric details id', () => {
+    expect(consoleTournamentId({ detailsType: 'database', detailsId: 12345 })).toBe('12345');
   });
 });

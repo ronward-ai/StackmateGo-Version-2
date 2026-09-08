@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { consoleTournamentId } from '@/lib/liveTournament';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Radio, Smartphone } from 'lucide-react';
@@ -83,12 +84,24 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, sy
     }
   };
 
-  const tournamentId = state.details?.id || dbTournamentId;
+  // Which game this card is about, from the one place that answers it. The QR
+  // and the sync effects used to work this out separately, and they disagreed:
+  // after New Tournament the console still held the PREVIOUS game's id, the new
+  // game's details had none, and `state.details?.id || dbTournamentId` fell back
+  // to it — so the QR published a stale document while the console, now running
+  // a local game again, wrote to nothing at all.
+  const tournamentId = consoleTournamentId({
+    detailsType: state.details?.type,
+    detailsId: state.details?.id,
+    heldId: dbTournamentId,
+  });
 
   // Saved is not live. Auto-save gives every signed-in director's game a
   // document id, so the id alone would show a "Broadcasting" badge and a QR
   // code that participants are refused by — isPublished is what the QR needs.
-  // Absent means published, for the documents that predate the field.
+  // Absent means published, for the documents that predate the field: that is
+  // about STORED documents, which is why the id above must come from a game
+  // that actually has one.
   const isLive = !!tournamentId && state.details?.isPublished !== false;
 
   const liveUrl = isLive && tournamentId
