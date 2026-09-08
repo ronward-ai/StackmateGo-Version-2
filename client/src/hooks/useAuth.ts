@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { auth } from "../lib/firebase";
 import { 
   signInWithPopup, 
@@ -118,27 +118,45 @@ export function useAuth() {
     await signOut(auth);
   };
 
-  // Check for anonymous user in localStorage
-  const getAnonymousUser = (): AnonymousUser | null => {
+  // EVERYTHING BELOW IS MEMOISED, and that is load-bearing.
+  //
+  // `user` used to be an object literal built on every render, and
+  // getAnonymousUser() read and parsed localStorage on every render for a
+  // second one. Sixteen effects across the app list `user` in a dependency
+  // array, so a referentially fresh object meant "run on every render" — and
+  // PokerTimer re-renders every second, because that is how the clock advances.
+  //
+  // Two of its three Firestore sync effects had no payload guard, so a live
+  // game wrote to Firestore TWICE A SECOND — about 7,200 writes an hour where a
+  // handful were needed. Enough to exhaust a day's allowance in an evening,
+  // which surfaces as `resource-exhausted` and a "Sync issue" toast; very
+  // probably the real story behind the quota exhaustion that was chased through
+  // browser storage, iOS UA detection and IndexedDB. The timer interval effect
+  // depended on `user` too, so the one-second interval was torn down and
+  // recreated on every render.
+  //
+  // Referential instability is invisible at the call site. Keep it memoised.
+
+  // The legacy `anonymousUser` key, which NOTHING writes — honoured only for
+  // stale data, so reading it once at mount is enough.
+  const [anonymousUser] = useState<AnonymousUser | null>(() => {
     try {
       const anonymousData = localStorage.getItem('anonymousUser');
       return anonymousData ? { ...JSON.parse(anonymousData), isAnonymous: true } : null;
     } catch {
       return null;
     }
-  };
+  });
 
-  const anonymousUser = getAnonymousUser();
-  
-  const user: User | null = firebaseUser ? {
+  const user: User | null = useMemo(() => firebaseUser ? {
     id: firebaseUser.uid,
     email: firebaseUser.email || undefined,
     name: firebaseUser.displayName || undefined,
     firstName: firebaseUser.displayName?.split(' ')[0],
     lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ')
-  } : null;
+  } : null, [firebaseUser?.uid, firebaseUser?.email, firebaseUser?.displayName]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const effectiveUser = user || anonymousUser;
+  const effectiveUser = useMemo(() => user || anonymousUser, [user, anonymousUser]);
 
   return {
     user: effectiveUser,

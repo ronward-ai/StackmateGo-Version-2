@@ -460,7 +460,15 @@ function PokerTimerInner({
     if (!isLeagueMode && activeTab === 'league') setActiveTab('players');
   }, [isLeagueMode, activeTab]);
   const [dbTournamentId, setDbTournamentId] = useState<string | null>(tournamentId || null);
+  // What each sync last WROTE, so a re-run with an identical payload costs
+  // nothing. Two of these effects used to write unconditionally, and every one
+  // of them listed the `user` OBJECT — which useAuth rebuilt on every render, so
+  // they re-ran every render, and this page re-renders every second because that
+  // is how the clock advances. A live game was writing to Firestore twice a
+  // second. The deps are ids now; these refs are the belt to that pair of braces.
   const lastSyncedPlayersRef = useRef<string>('');
+  const lastSyncedTimerRef = useRef<string>('');
+  const lastSyncedSettingsRef = useRef<string>('');
 
   // Save the game to the director's account as soon as there IS one.
   //
@@ -543,6 +551,27 @@ function PokerTimerInner({
   // which these effects would happily write straight over the real game.
   // Do not remove the latch.
 
+  // ONE report per failure streak.
+  //
+  // Three identical destructive toasts, naming neither the error nor which sync
+  // raised it, re-fired on every retry: a single underlying failure presented as
+  // a popup that would not go away, and said nothing anyone could act on.
+  // `unavailable` is an offline blip that self-heals, and is not worth a toast
+  // at all.
+  const lastSyncErrorRef = useRef<string | null>(null);
+  const reportSyncFailure = (what: string, error: unknown) => {
+    const code = (error as { code?: string } | null)?.code ?? 'unknown';
+    console.error(`${what} sync to Firestore failed:`, error);
+    if (code === 'unavailable') return;
+    if (lastSyncErrorRef.current === code) return;
+    lastSyncErrorRef.current = code;
+    toast({
+      title: 'Sync issue',
+      description: `${what} could not be saved (${code}). Live updates may be delayed.`,
+      variant: 'destructive',
+    });
+  };
+
   // Directly sync players to Firestore whenever they change.
   // This is a reliable belt-and-suspenders sync that bypasses the broadcast chain.
   useEffect(() => {
@@ -551,7 +580,6 @@ function PokerTimerInner({
     const sync = async () => {
       const serialised = JSON.stringify(tournament.state.players);
       if (serialised === lastSyncedPlayersRef.current) return;
-      lastSyncedPlayersRef.current = serialised;
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       const { sanitizeForFirestore } = await import('@/lib/utils');
@@ -566,40 +594,46 @@ function PokerTimerInner({
             updatedAt: new Date().toISOString(),
           })
         );
+        // Marked as synced only once it is. This used to be set before the
+        // await, so a failed write left the roster looking saved and the next
+        // identical render skipped the retry.
+        lastSyncedPlayersRef.current = serialised;
+        lastSyncErrorRef.current = null;
       } catch (e) {
-        console.error('Player sync to Firestore failed:', e);
-        toast({ title: 'Sync issue', description: 'Live updates may be delayed.', variant: 'destructive' });
+        reportSyncFailure('Players', e);
       }
     };
     sync();
-  }, [tournament.state.players, dbTournamentId, user, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.players, dbTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {
     if (!dbTournamentId || !user || isAnonymous) return;
     if (!tournament.hasLoadedRemoteState) return;
+    const payload = {
+      currentLevel: tournament.state.currentLevel,
+      secondsLeft: tournament.state.secondsLeft,
+      isRunning: tournament.state.isRunning,
+      targetEndTime: tournament.state.targetEndTime || null,
+      smallBlind: tournament.state.levels[tournament.state.currentLevel]?.small || 0,
+      bigBlind: tournament.state.levels[tournament.state.currentLevel]?.big || 0,
+      ante: tournament.state.levels[tournament.state.currentLevel]?.ante || 0,
+      blindLevels: tournament.state.levels,
+      notes: tournament.state.notes || '',
+    };
+    const serialised = JSON.stringify(payload);
+    if (serialised === lastSyncedTimerRef.current) return;
+
     const sync = async () => {
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
-        await updateDoc(
-          doc(db, 'activeTournaments', dbTournamentId),
-          sanitizeForFirestore({
-            currentLevel: tournament.state.currentLevel,
-            secondsLeft: tournament.state.secondsLeft,
-            isRunning: tournament.state.isRunning,
-            targetEndTime: tournament.state.targetEndTime || null,
-            smallBlind: tournament.state.levels[tournament.state.currentLevel]?.small || 0,
-            bigBlind: tournament.state.levels[tournament.state.currentLevel]?.big || 0,
-            ante: tournament.state.levels[tournament.state.currentLevel]?.ante || 0,
-            blindLevels: tournament.state.levels,
-            notes: tournament.state.notes || '',
-          })
-        );
+        await updateDoc(doc(db, 'activeTournaments', dbTournamentId), sanitizeForFirestore(payload));
+        lastSyncedTimerRef.current = serialised;
+        lastSyncErrorRef.current = null;
       } catch (e) {
-        console.error('Timer sync to Firestore failed:', e);
-        toast({ title: 'Sync issue', description: 'Live updates may be delayed.', variant: 'destructive' });
+        reportSyncFailure('The clock', e);
       }
     };
     sync();
@@ -610,7 +644,7 @@ function PokerTimerInner({
     tournament.state.levels,
     tournament.state.notes,
     dbTournamentId,
-    user,
+    user?.id,
     isAnonymous,
     tournament.hasLoadedRemoteState,
   ]);
@@ -619,29 +653,31 @@ function PokerTimerInner({
   useEffect(() => {
     if (!dbTournamentId || !user || isAnonymous) return;
     if (!tournament.hasLoadedRemoteState) return;
+    const payload = {
+      prizeStructure: tournament.state.prizeStructure,
+      settings: tournament.state.settings,
+      // Keep top-level league fields in sync so handover always works
+      leagueId: tournament.state.settings?.leagueId || null,
+      seasonId: tournament.state.settings?.seasonId || null,
+      isSeasonTournament: tournament.state.settings?.isSeasonTournament || false,
+    };
+    const serialised = JSON.stringify(payload);
+    if (serialised === lastSyncedSettingsRef.current) return;
+
     const sync = async () => {
       const { doc, updateDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
-        await updateDoc(
-          doc(db, 'activeTournaments', dbTournamentId),
-          sanitizeForFirestore({
-            prizeStructure: tournament.state.prizeStructure,
-            settings: tournament.state.settings,
-            // Keep top-level league fields in sync so handover always works
-            leagueId: tournament.state.settings?.leagueId || null,
-            seasonId: tournament.state.settings?.seasonId || null,
-            isSeasonTournament: tournament.state.settings?.isSeasonTournament || false,
-          })
-        );
+        await updateDoc(doc(db, 'activeTournaments', dbTournamentId), sanitizeForFirestore(payload));
+        lastSyncedSettingsRef.current = serialised;
+        lastSyncErrorRef.current = null;
       } catch (e) {
-        console.error('PrizeStructure sync to Firestore failed:', e);
-        toast({ title: 'Sync issue', description: 'Live updates may be delayed.', variant: 'destructive' });
+        reportSyncFailure('Settings', e);
       }
     };
     sync();
-  }, [tournament.state.prizeStructure, tournament.state.settings, dbTournamentId, user, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.prizeStructure, tournament.state.settings, dbTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Setup Socket.IO connection for real-time updates removed
 

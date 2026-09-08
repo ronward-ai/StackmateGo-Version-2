@@ -853,7 +853,14 @@ export function useTournament(tournamentId?: string) {
 
     // If timer isn't running, just return a no-op cleanup
     return () => {};
-  }, [state.isRunning, state.settings.enableSounds, state.settings.enableVoice, user]);
+  // The ID, not the user object. `user` was referentially fresh on every render,
+  // which tore this one-second interval down and rebuilt it on every render —
+  // it could only fire when a whole second passed with no render at all. The
+  // digits survived that, because they are recomputed from targetEndTime, but
+  // the level change, the 30-second warning and the voice announcements all
+  // live inside the tick. The tick does read user?.id, for the broadcast, so
+  // the id stays a dependency rather than being dropped.
+  }, [state.isRunning, state.settings.enableSounds, state.settings.enableVoice, user?.id]);
 
   // Enhanced broadcast function with proper WebSocket communication
   const broadcastTournamentAction = useCallback(async (actionName: string, newState: TournamentState) => {
@@ -934,7 +941,7 @@ export function useTournament(tournamentId?: string) {
     window.dispatchEvent(new CustomEvent('tournamentActionBroadcast', {
       detail: { action: actionName, state: newState, type: newState.details?.type }
     }));
-  }, [user]);
+  }, [user?.id]);
 
   // Start the timer
   const startTimer = useCallback(() => {

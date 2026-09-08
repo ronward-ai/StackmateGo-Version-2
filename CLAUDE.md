@@ -188,6 +188,36 @@ has a live game" alone does not identify it as this one.
 guard, so the two cannot disagree. It owns the 12-hour recency window, the `completed` filter and
 `timestampMs`, and is free of React and Firebase — callers pass documents they have already read.
 
+### `useAuth`'s return value is memoised, and that is not a micro-optimisation
+
+`user` was an object literal rebuilt on every render, and the legacy `anonymousUser` key was read and
+parsed from localStorage on every render for a second one. Sixteen effects across the app list `user`
+in a dependency array, so a referentially fresh object meant **"run on every render"** — and
+`PokerTimer` re-renders every second, because that is how the clock advances.
+
+Two of its three Firestore sync effects had no payload guard, so **a live game wrote to Firestore
+twice a second** — about 7,200 writes an hour where a handful were needed. That is enough to exhaust
+a day's write allowance in an evening, and `resource-exhausted` is what the sync effects catch and
+report as the "Sync issue" toast. It is very likely the real story behind the quota exhaustion above,
+which was chased through browser storage, iOS UA detection and IndexedDB before the database's
+billing mode fixed the symptom.
+
+The churn reached the clock as well: the timer interval effect had `user` in its deps, so the
+one-second interval was **torn down and recreated on every render** and could only fire when a whole
+second passed with no render at all. The digits survived it, being recomputed from `targetEndTime` —
+but the level change, the 30-second warning and the voice announcements all live inside that tick.
+
+Three things keep it fixed, and all three are wanted. `useAuth` memoises. Dependency arrays take
+**`user?.id`, a string**, not the object. And each sync effect serialises its payload and returns
+early when it matches what it last wrote — recorded **after** the write resolves, so a failure is
+retried rather than looking saved. Referential instability is invisible at the call site, which is
+why the belt as well as the braces.
+
+The sync toast now names the Firestore code and the sync, and fires **once per failure streak**:
+three identical destructive toasts re-fired on every retry turned one underlying failure into a popup
+that would not go away and said nothing anyone could act on. `unavailable` is an offline blip and
+raises nothing.
+
 ### `isAnonymous` means the FIREBASE anonymous session
 
 `TournamentParticipantView` signs every visitor in anonymously on arrival, so `isAuthenticated`
