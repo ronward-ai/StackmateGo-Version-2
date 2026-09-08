@@ -14,9 +14,11 @@ interface QRCodeSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   dbTournamentId?: string | null;
   onGoLive?: (id: string) => void;
+  /** Writes to Firestore are failing — usually a blocker cancelling them. */
+  syncBlocked?: boolean;
 }
 
-export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: QRCodeSectionProps) {
+export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, syncBlocked }: QRCodeSectionProps) {
   const { state, updateTournamentDetails } = tournament;
   const { toast } = useToast();
   const { user, isAnonymous } = useAuth();
@@ -107,7 +109,17 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive }: 
       <div className="flex items-center gap-2 mb-5">
         <Radio className={cn("h-5 w-5", isLive ? "text-green-400 animate-pulse" : "text-muted-foreground")} />
         <h2 className="text-xl font-bold text-foreground tracking-tight">StackMate Live</h2>
-        {isLive && (
+        {/* Two different facts. Broadcasting means participants can see this
+            game; Not syncing means the browser cannot reach the database at
+            all, which the director had no indicator for — the PARTICIPANT view
+            has had a Live/Offline badge all along and the person who can act on
+            it had nothing. */}
+        {syncBlocked ? (
+          <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-red-400/15 text-red-400 border border-red-400/30 px-2 py-0.5 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+            Not syncing
+          </span>
+        ) : isLive && (
           <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
             Broadcasting

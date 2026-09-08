@@ -18,6 +18,7 @@ import { prizePoolFor } from '@/lib/prizePool';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
+import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/localProgress';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -205,63 +206,6 @@ const broadcastParticipantUpdate = async (tournamentId: number | string) => {
   }
 };
 
-/**
- * The live part of a local game — everything the settings/levels/prize-structure
- * keys do not already cover.
- *
- * Players were never persisted, so a refresh has always lost the roster of a game
- * that had not gone live, and logging out (a full page load since d95771a) made
- * that reachable by an ordinary action: six players and two bust-outs, gone.
- *
- * Keyed by localGameId so starting a new game never inherits the last one's
- * roster.
- */
-const LOCAL_PROGRESS_KEY = 'tournamentLocalProgress';
-
-interface LocalProgress {
-  localGameId: string;
-  players: Player[];
-  currentLevel: number;
-  secondsLeft: number;
-  isRunning: boolean;
-  targetEndTime?: number;
-  isFinalTable?: boolean;
-}
-
-function loadLocalProgress(localGameId?: string): LocalProgress | null {
-  if (!localGameId) return null;
-  try {
-    const raw = localStorage.getItem(LOCAL_PROGRESS_KEY);
-    if (!raw) return null;
-    const saved = JSON.parse(raw) as LocalProgress;
-    if (saved?.localGameId !== localGameId || !Array.isArray(saved.players)) return null;
-    return saved;
-  } catch {
-    return null;
-  }
-}
-
-function saveLocalProgress(progress: LocalProgress) {
-  try {
-    localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(progress));
-  } catch {}
-}
-
-/**
- * Forget the local copy once the game lives in Firestore.
- *
- * This blob is a stand-in for a cloud copy, and keeping it after there is one
- * turns it into a rival source of truth. That is exactly how a live game was
- * lost: the roster from before the game was saved survived a logout, and
- * signing back in resurrected it over the top of the real game two hours further
- * on. A saved game is restored from Firestore, and only from Firestore.
- */
-function clearLocalProgress() {
-  try {
-    localStorage.removeItem(LOCAL_PROGRESS_KEY);
-  } catch {}
-}
-
 export function useTournament(tournamentId?: string) {
   const { user } = useAuth();
   // Load saved settings and merge with defaults
@@ -436,16 +380,14 @@ export function useTournament(tournamentId?: string) {
   // lose the roster. Only for games that have not gone live — a database
   // tournament lives in Firestore and must not be seeded from here.
   useEffect(() => {
-    if (state.details?.type === 'database') {
-      clearLocalProgress();
-      return;
-    }
-
     // A standalone game carries no localGameId on details — only league games do
     // — so fall back to the stored id, which exists for every local game.
     const localGameId = state.details?.localGameId ?? getOrCreateLocalGameId();
     if (!localGameId) return;
 
+    // Written for a LIVE game too. Nothing reads it back into one without the
+    // director pressing Restore, so it costs nothing and it is the only copy
+    // that survives a browser whose writes to Firestore are being blocked.
     saveLocalProgress({
       localGameId: String(localGameId),
       players: state.players,
@@ -454,6 +396,8 @@ export function useTournament(tournamentId?: string) {
       isRunning: state.isRunning,
       targetEndTime: state.targetEndTime,
       isFinalTable: state.isFinalTable,
+      dbTournamentId: state.details?.type === 'database' ? state.details?.id?.toString() : undefined,
+      updatedAt: new Date().toISOString(),
     });
   }, [
     state.players,
@@ -464,6 +408,7 @@ export function useTournament(tournamentId?: string) {
     state.isFinalTable,
     state.details?.type,
     state.details?.localGameId,
+    state.details?.id,
   ]);
 
   // Set up Firestore listener for real-time tournament synchronization
@@ -1455,6 +1400,10 @@ export function useTournament(tournamentId?: string) {
     // a duplicate) and meant repeat "Go Live" reused one Firestore document.
     const newLocalGameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     try { localStorage.setItem('tournamentLocalGameId', newLocalGameId); } catch {}
+    // The previous game is over. The mirror is keyed by localGameId so it would
+    // not match anyway, but leaving a dead roster in storage is how one came
+    // back to life once already.
+    clearLocalProgress();
 
     setState({
       levels,
@@ -1468,6 +1417,35 @@ export function useTournament(tournamentId?: string) {
       details: { type: preservedType, localGameId: newLocalGameId },
     });
   }, [state.settings, state.prizeStructure, state.details, state.levels]);
+
+  /**
+   * Put a mirrored roster back into a live game, at the director's request.
+   *
+   * Only ever called from the recovery banner, and only for the narrow case
+   * `recoverableProgress` allows. The ordinary sync effects then push it to
+   * Firestore like any other change — there is no separate write path, because
+   * two ways to save a game is the trap the removed handover code set.
+   *
+   * The clock comes back paused, for the same reason a local game's does: the
+   * page was away for an unknown time, so resuming a running timer would
+   * silently be wrong.
+   */
+  const restoreLocalProgress = useCallback((progress: {
+    players: Player[];
+    currentLevel: number;
+    secondsLeft: number;
+    isFinalTable?: boolean;
+  }) => {
+    setState(prev => ({
+      ...prev,
+      players: progress.players,
+      currentLevel: progress.currentLevel,
+      secondsLeft: progress.secondsLeft,
+      isRunning: false,
+      targetEndTime: undefined,
+      isFinalTable: progress.isFinalTable ?? prev.isFinalTable,
+    }));
+  }, []);
 
   // Update players with comprehensive validation and immediate broadcasting
   const updatePlayers = (newPlayers: Player[]) => {
@@ -2122,6 +2100,7 @@ export function useTournament(tournamentId?: string) {
     skipToNextLevel,
     skipToPreviousLevel,
     updateTimer,
+    restoreLocalProgress,
 
     formatTime,
     calculateProgress,

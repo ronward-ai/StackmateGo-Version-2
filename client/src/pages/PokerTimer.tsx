@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, LogOut, UserCircle, ChevronDown, Settings2, X, Users, LayoutGrid, Coins, Layers, Trophy } from 'lucide-react';
+import { User, LogOut, UserCircle, ChevronDown, Settings2, X, Users, LayoutGrid, Coins, Layers, Trophy, ShieldAlert, History } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,18 @@ import TablesSection from '@/components/TablesSection';
 import BlindLevelsSection from '@/components/BlindLevelsSection';
 import BuyInSection from '@/components/BuyInSection';
 import QRCodeSection from '@/components/QRCodeSection';
+import {
+  HEALTHY,
+  isBlocked,
+  markReported,
+  recordFailure,
+  recordSuccess,
+  shouldReport,
+  syncFailureMessage,
+  type SyncHealth,
+} from '@/lib/syncHealth';
+import { recoverableProgress } from '@/lib/localProgress';
+import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
@@ -551,26 +563,91 @@ function PokerTimerInner({
   // which these effects would happily write straight over the real game.
   // Do not remove the latch.
 
-  // ONE report per failure streak.
+  // How the syncs are faring. `lib/syncHealth.ts` owns the judgement; this holds
+  // the streak and does the talking.
   //
-  // Three identical destructive toasts, naming neither the error nor which sync
-  // raised it, re-fired on every retry: a single underlying failure presented as
-  // a popup that would not go away, and said nothing anyone could act on.
-  // `unavailable` is an offline blip that self-heals, and is not worth a toast
-  // at all.
-  const lastSyncErrorRef = useRef<string | null>(null);
+  // Both extremes were tried here. Reporting every failure re-fired three
+  // identical destructive toasts on every retry. Suppressing `unavailable`
+  // outright — an offline blip, self-healing — meant an ad blocker cancelling
+  // every write to firestore.googleapis.com was reported nowhere at all, and a
+  // whole tournament was never saved without a word on screen.
+  const syncHealthRef = useRef<SyncHealth>(HEALTHY);
+  const [syncBlocked, setSyncBlocked] = useState(false);
+  const [preflightFailed, setPreflightFailed] = useState(false);
+  const [recoverable, setRecoverable] = useState<ReturnType<typeof recoverableProgress>>(null);
+  const [recoveryDismissed, setRecoveryDismissed] = useState(false);
+
   const reportSyncFailure = (what: string, error: unknown) => {
     const code = (error as { code?: string } | null)?.code ?? 'unknown';
     console.error(`${what} sync to Firestore failed:`, error);
-    if (code === 'unavailable') return;
-    if (lastSyncErrorRef.current === code) return;
-    lastSyncErrorRef.current = code;
-    toast({
-      title: 'Sync issue',
-      description: `${what} could not be saved (${code}). Live updates may be delayed.`,
-      variant: 'destructive',
-    });
+
+    const now = Date.now();
+    let health = recordFailure(syncHealthRef.current, code, now);
+    if (shouldReport(health, now)) {
+      const description = syncFailureMessage(health, what);
+      health = markReported(health);
+      toast({ title: 'Sync issue', description, variant: 'destructive' });
+      // The overlay is for phones, which have no console to read.
+      reportToOverlay(`sync ${code}: ${description}`);
+    }
+    syncHealthRef.current = health;
+    setSyncBlocked(isBlocked(health, now));
   };
+
+  const reportSyncSuccess = () => {
+    syncHealthRef.current = recordSuccess();
+    setSyncBlocked(false);
+  };
+
+  // PREFLIGHT: is this browser able to write to Firestore at all?
+  //
+  // It has to be a WRITE. The failure this exists for had reads working
+  // perfectly — uBlock cancelled `Write/channel` and left `Listen/channel`
+  // alone — so the game loaded, looked healthy, and saved nothing all night. A
+  // read-only check would have passed and said so.
+  //
+  // And it needs a timeout: a request cancelled by an extension does not
+  // reject, the SDK simply keeps retrying, so the promise never settles. Never
+  // settling IS the answer here.
+  //
+  // Once per mount, behind a ref. One write per session is the whole budget —
+  // an effect in this file that ran on every render is what caused the last
+  // round of trouble.
+  const preflightRef = useRef(false);
+  useEffect(() => {
+    if (preflightRef.current) return;
+    if (authLoading || !user?.id || isAnonymous) return;
+    preflightRef.current = true;
+
+    (async () => {
+      try {
+        const { doc, setDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const probe = setDoc(
+          doc(db, 'userSettings', user.id),
+          { lastSeenAt: new Date().toISOString() },
+          { merge: true },
+        );
+        const timedOut = Symbol('timeout');
+        const result = await Promise.race([
+          probe.then(() => 'ok' as const),
+          new Promise<typeof timedOut>(resolve => setTimeout(() => resolve(timedOut), 8000)),
+        ]);
+        if (result !== 'ok') setPreflightFailed(true);
+      } catch (e) {
+        console.error('Firestore preflight failed:', e);
+        setPreflightFailed(true);
+      }
+    })();
+  }, [authLoading, user?.id, isAnonymous]);
+
+  // The mirrored roster this device holds, when the saved game has none — see
+  // recoverableProgress. Offered, never applied on its own.
+  useEffect(() => {
+    if (!dbTournamentId || !tournament.hasLoadedRemoteState) return;
+    if (recoveryDismissed) return;
+    setRecoverable(recoverableProgress(dbTournamentId, tournament.state.players.length));
+  }, [dbTournamentId, tournament.hasLoadedRemoteState, tournament.state.players.length, recoveryDismissed]);
 
   // Directly sync players to Firestore whenever they change.
   // This is a reliable belt-and-suspenders sync that bypasses the broadcast chain.
@@ -598,7 +675,7 @@ function PokerTimerInner({
         // await, so a failed write left the roster looking saved and the next
         // identical render skipped the retry.
         lastSyncedPlayersRef.current = serialised;
-        lastSyncErrorRef.current = null;
+        reportSyncSuccess();
       } catch (e) {
         reportSyncFailure('Players', e);
       }
@@ -631,7 +708,7 @@ function PokerTimerInner({
       try {
         await updateDoc(doc(db, 'activeTournaments', dbTournamentId), sanitizeForFirestore(payload));
         lastSyncedTimerRef.current = serialised;
-        lastSyncErrorRef.current = null;
+        reportSyncSuccess();
       } catch (e) {
         reportSyncFailure('The clock', e);
       }
@@ -671,7 +748,7 @@ function PokerTimerInner({
       try {
         await updateDoc(doc(db, 'activeTournaments', dbTournamentId), sanitizeForFirestore(payload));
         lastSyncedSettingsRef.current = serialised;
-        lastSyncErrorRef.current = null;
+        reportSyncSuccess();
       } catch (e) {
         reportSyncFailure('Settings', e);
       }
@@ -1000,6 +1077,59 @@ function PokerTimerInner({
           <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} />
         </div>
 
+        {/* A browser that cannot write to Firestore.
+            A CONDITION, not an event, so it sits on the screen rather than
+            passing as a toast: the director has to change a setting in another
+            program before anything will save. Named plainly, because "the sync
+            failed" sends nobody anywhere useful. */}
+        {(preflightFailed || syncBlocked) && (
+          <div className="mb-6 rounded-xl border border-red-400/30 bg-red-400/[0.08] p-4 flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="text-body text-foreground/90">
+              <div className="font-semibold text-red-400 mb-1">This game is not being saved</div>
+              An ad or tracker blocker in this browser is stopping StackMate reaching its database.
+              Allow this site in it (in uBlock Origin: click its icon, then the large power button)
+              and reload. The game keeps running on this device meanwhile, but nothing is being
+              stored and it will not survive a refresh.
+            </div>
+          </div>
+        )}
+
+        {/* The mirrored roster, offered back.
+            Never applied on its own: an automatic restore from localStorage is
+            how a live game was overwritten once already. The offer only appears
+            where the saved game has NO players and this device's copy is of the
+            same game. */}
+        {recoverable && (
+          <div className="mb-6 rounded-xl border border-primary/30 bg-primary/[0.08] p-4 flex items-start gap-3">
+            <History className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-body text-foreground/90">
+              <div className="font-semibold text-primary mb-1">
+                This device has {recoverable.players.length} player{recoverable.players.length === 1 ? '' : 's'} the saved game does not
+              </div>
+              Saved here{recoverable.updatedAt ? ` at ${new Date(recoverable.updatedAt).toLocaleTimeString()}` : ''}, and
+              the copy in your account is empty — which happens when a browser extension blocks the
+              database. Restore them?
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    tournament.restoreLocalProgress(recoverable);
+                    setRecoverable(null);
+                    setRecoveryDismissed(true);
+                    toast({ title: 'Players restored', description: 'The clock is paused — press play when you are ready.' });
+                  }}
+                >
+                  Restore {recoverable.players.length} player{recoverable.players.length === 1 ? '' : 's'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setRecoverable(null); setRecoveryDismissed(true); }}>
+                  Not now
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Live banner — shown when players exist but haven't gone live yet */}
         {tournament.state.players.length > 0 && !dbTournamentId && (
           <LiveBanner onGoLive={() => setActiveTab('qr')} />
@@ -1097,7 +1227,7 @@ function PokerTimerInner({
             )}
 
             <TabsContent value="qr" className="mt-0 p-4 pt-5">
-              <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} />
+              <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} syncBlocked={syncBlocked || preflightFailed} />
             </TabsContent>
 
             <TabsContent value="settings" className="mt-0 p-4 pt-5">

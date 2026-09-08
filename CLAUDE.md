@@ -123,23 +123,59 @@ Having a document id is no longer the same as being live. The QR and the Broadca
 `details.isPublished`, mirrored from the snapshot, or the director sees a QR that participants are
 refused by.
 
-### A local game is persisted; a live one is not
+### Every game is mirrored locally, and the mirror is never restored on its own
 
-`tournamentLocalProgress` holds the players and clock of a game that has **not** gone live, keyed by
-`localGameId`. Restored only when `details.type !== 'database'`.
+`lib/localProgress.ts` holds the players and clock of the game being run, keyed by `localGameId`, and
+`dbTournamentId` once it is live. Players were never persisted at all once, so a refresh lost the
+roster of a local game — and when logging out became a full page load, an ordinary action destroyed
+one.
 
-Players were never persisted, so a refresh always lost the roster of a local game — and once logging
-out became a full page load, an ordinary action destroyed one.
+It used to be **cleared the moment the game became a database tournament**, on the reasoning that the
+blob stands in for a cloud copy and keeping it once there is one makes it a rival source of truth.
+That hazard is real: a roster from before a game was saved once survived a logout and was resurrected
+over the real game two hours further on.
 
-It is **cleared the moment the game becomes a database tournament**: it stands in for a cloud copy,
-and keeping it once there is one makes it a rival source of truth. That is precisely how a live game
-was lost — a roster from before the game was saved survived a logout and was resurrected over the
-real game two hours further on. **Never restore this into a live tournament:** its truth is
-Firestore, and seeding it from localStorage is the same hazard `hasLoadedRemoteState` exists to
-prevent.
+But it assumed **Firestore was reachable**. An ad blocker cancelling `Write/channel` (reads were
+fine, so the game looked completely normal) left the roster living only in the tab's memory, and a
+refresh restored the near-empty document written when the game was created — a whole tournament,
+gone. **Deleting the only copy is worse than keeping a second one.**
 
-The clock is deliberately restored paused. The page was away for an unknown time, so resuming a
-running timer would silently be wrong.
+So the mirror is written for live games too, and the hazard is closed at the other end instead:
+
+- **Automatic restore is unchanged** — only when `details.type !== 'database'`. Seeding a live
+  tournament from localStorage is the same hazard `hasLoadedRemoteState` exists to prevent, and that
+  rule did not move.
+- **`recoverableProgress()` offers it back** in exactly one shape: the mirror names *this* tournament,
+  it has players, and the remote document's roster is **empty**. Where Firestore holds a real roster it
+  wins, always. The director presses Restore; nothing happens on its own. The automatic restore lost a
+  game precisely because nobody was asked.
+
+`clearLocalProgress()` now runs only where a game genuinely ends or is replaced — New Tournament.
+
+The clock is deliberately restored paused, in both paths. The page was away for an unknown time, so
+resuming a running timer would silently be wrong.
+
+### An ad blocker is a first-class failure mode
+
+`ERR_BLOCKED_BY_CLIENT` on `firestore.googleapis.com` is a browser extension cancelling the request
+before it leaves the machine. Nothing in the app can defeat it — but it must not be silent, and it
+must not cost data.
+
+**Blocking is not symmetrical.** The case that happened had `Listen/channel` (reads) working and
+`Write/channel` blocked, so the game loaded, looked healthy and saved nothing. **Any connectivity
+check must therefore be a WRITE** — `PokerTimer`'s preflight writes `lastSeenAt` to the director's own
+`userSettings` document, once per mount behind a ref.
+
+**A blocked request does not reject.** The SDK keeps retrying and the promise never settles, so the
+preflight races it against 8 seconds and treats "still pending" as blocked.
+
+`lib/syncHealth.ts` owns when a failure is worth saying. Both extremes were tried: reporting every
+failure re-fired three identical destructive toasts on every retry, and suppressing `unavailable`
+outright — an offline blip, self-healing — hid a blocked browser completely. The distinction is not
+the code but whether the failure **persists**: three consecutive failures or 20 seconds. A blocked
+browser also gets a standing **"Not syncing"** chip on the StackMate Live card, because it is a
+condition rather than an event, and the director had no connection indicator at all while the
+*participant* view has had a Live/Offline badge all along.
 
 ### Resume only reopens a game that is plausibly current
 
