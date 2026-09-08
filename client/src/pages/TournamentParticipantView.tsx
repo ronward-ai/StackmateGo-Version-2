@@ -15,6 +15,7 @@ import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
 import TimerFace from '@/components/TimerFace';
 import type { TimerPiping } from '@/types';
 import { cn } from '@/lib/utils';
+import { secondsLeftFrom } from '@/lib/tournamentClock';
 
 interface TournamentData {
   id: string;
@@ -136,11 +137,9 @@ function TournamentParticipantView() {
         }));
       }
       setTournament(data as any);
-      if (data.targetEndTime && data.isRunning) {
-        setTimeLeft(Math.max(0, Math.ceil((data.targetEndTime - Date.now()) / 1000)));
-      } else {
-        setTimeLeft(data.secondsLeft || 0);
-      }
+      // Same derivation the console uses. This side was already right and the
+      // console was not, which is exactly why it should not stay a second copy.
+      setTimeLeft(secondsLeftFrom(data as any, Date.now()));
       setError(null);
       setIsConnected(true);
       if (data.settings?.isSeasonTournament) {

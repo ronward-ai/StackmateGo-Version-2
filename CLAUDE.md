@@ -375,6 +375,24 @@ rest of `settings`, which `PokerTimer` syncs wholesale to the tournament documen
 already there — the participant view simply never read it. The progress-bar rule travels with it:
 both sides hide the bar for `ring` and show it for everything else.
 
+### A running clock is an end time, not a countdown
+
+A tournament document carries the clock twice, and the two are not equally trustworthy.
+`targetEndTime` is absolute — the moment the level ends — and stays true however old the document is.
+`secondsLeft` is a countdown **snapshotted at write time**, true only at the instant it was stored.
+
+`lib/tournamentClock.ts` owns the rule: while running, the end time decides and the stored countdown
+is ignored; paused, the countdown is all there is, and that is safe because pausing is itself a write.
+
+The console's snapshot handler used to take `data.secondsLeft` at face value. That went unnoticed for
+a long time **because the app was writing the document about twice a second**, so the stored value was
+never more than a moment stale — the bug was propped up by the write storm, and surfaced the instant
+that was fixed: every snapshot, including the echo of the app's own player writes, stamped a stale
+count over the running clock and the next tick jumped it back down. Freeze, then jump.
+
+The participant view had it right all along and the console did not, which is the whole argument for
+one derivation rather than two.
+
 ### The piping round the clock is the level progress
 
 `TimerFace` renders inside `.timer-frame`, whose conic-gradient border fills clockwise from twelve

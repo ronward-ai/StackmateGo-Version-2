@@ -19,6 +19,7 @@ import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/localProgress';
+import { secondsLeftFrom } from '@/lib/tournamentClock';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -489,9 +490,20 @@ export function useTournament(tournamentId?: string) {
               if (typeof data.currentLevel === 'number' && data.currentLevel >= 0) {
                 updatedState.currentLevel = data.currentLevel;
               }
-              if (typeof data.secondsLeft === 'number' && data.secondsLeft >= 0) {
-                updatedState.secondsLeft = data.secondsLeft;
-              }
+              // The document's countdown is a snapshot taken when it was
+              // written; its targetEndTime is absolute and cannot go stale.
+              // Taking `secondsLeft` at face value froze the running clock and
+              // let the next tick jump it back down — invisible only while the
+              // app was writing twice a second to keep the stored value fresh.
+              // The three fields describe one clock, so they are read together.
+              updatedState.secondsLeft = secondsLeftFrom(
+                {
+                  isRunning: typeof data.isRunning === 'boolean' ? data.isRunning : currentState.isRunning,
+                  targetEndTime: data.targetEndTime,
+                  secondsLeft: typeof data.secondsLeft === 'number' ? data.secondsLeft : currentState.secondsLeft,
+                },
+                Date.now(),
+              );
               if (typeof data.isRunning === 'boolean') {
                 updatedState.isRunning = data.isRunning;
               }
