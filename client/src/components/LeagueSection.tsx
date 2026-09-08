@@ -88,7 +88,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
     <>
       <LeagueSettingsDialog open={showLeagueSettings} onOpenChange={setShowLeagueSettings} />
 
-      <Card className="card-glass rounded-xl mb-6">
+      <Card className="card-glass rounded-xl">
         <CardContent className="p-5">
 
           {/* The LEAGUE is the header here; the SEASON is described once, by the

@@ -1122,14 +1122,20 @@ function PokerTimerInner({
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
           <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} />
-
-          {/* Directly beneath the card that holds the mode slider, so flipping it
-              changes something you can see. LeagueSection is a self-contained
-              card with its own header, Manage League button and collapse — it was
-              never a tab, which is why it rendered as a card inside a card in
-              one. */}
-          {isLeagueMode && <LeagueSection tournament={tournament} />}
         </div>
+
+        {/* Directly beneath the card that holds the mode slider, so flipping it
+            changes something you can see. LeagueSection is a self-contained card
+            with its own header, Manage League button and collapse — it was never
+            a tab, which is why it rendered as a card inside a card in one.
+
+            Its OWN wrapper, like every other card on this page. Nested inside the
+            info card's wrapper it had no gap above it and a doubled one below. */}
+        {isLeagueMode && (
+          <div className="mb-6">
+            <LeagueSection tournament={tournament} />
+          </div>
+        )}
 
         {/* A browser that cannot write to Firestore.
             A CONDITION, not an event, so it sits on the screen rather than
