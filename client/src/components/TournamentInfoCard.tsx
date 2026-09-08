@@ -10,6 +10,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { currencyOf } from '@/lib/currency';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -352,7 +353,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
     tournament.updatePrizeStructure(saved.prizeStructure);
   }, [isLeagueMode, displaySeason?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sym = state.settings.currency || '£';
+  const sym = currencyOf(state.settings);
   const p = state.prizeStructure;
   const buyIn = p?.buyIn || 0;
   const rebuyAmt = p?.rebuyAmount || 0;

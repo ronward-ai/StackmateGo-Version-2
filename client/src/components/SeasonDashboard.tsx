@@ -3,21 +3,14 @@ import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
 import EmptyState from '@/components/ui/empty-state';
 import { countGamesPlayed, isSeasonComplete, clampedGameNumber, nextSeasonDates } from '@/lib/seasonProgress';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
-import {
-  Users,
-  Target,
-  TrendingUp,
-  Calendar,
-  DollarSign,
-  History
-} from 'lucide-react';
+import { Calendar, History } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
 import { useSeasonRollover } from '@/hooks/useSeasonRollover';
+import { currencyOf, money } from '@/lib/currency';
 
 // Note: a local StandingsTable, a STAT_DEFS label/format map and a computeStats
 // helper used to live here. All three were defined but never called — the only
@@ -49,6 +42,9 @@ export default function SeasonDashboard({
   // season shown in the League header. The hook values are a fallback for when
   // the component is rendered without props.
   const currentSeason = season ?? currentSeasonFromHook;
+  // The prize pool was hard-coded to £ while every other money figure in the app
+  // honours settings.currency.
+  const sym = currencyOf(tournament?.state?.settings);
   const leaguePlayers = leaguePlayersProp ?? leaguePlayersFromHook;
 
   const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
@@ -114,22 +110,30 @@ export default function SeasonDashboard({
   return (
     <div className="space-y-6" data-testid="season-dashboard">
 
-      {/* Season Header */}
-      <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-6 rounded-xl border border-primary/20">
-        <div className="flex items-center gap-3 mb-1 flex-wrap">
-          <h2 className="text-2xl font-bold truncate">{currentSeason.name}</h2>
+      {/* The season, said ONCE.
+          LeagueSection used to describe it above — name, dates, "Game 4 of 13" —
+          and this opened with all of it again in a tinted panel, followed by four
+          Cards nested inside the League card for four figures. Five boxes before
+          the standings, which is what the tab is opened for. The card is already
+          the surface; a tint inside a tint is what made the Share tab muddy. */}
+      <div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-title font-bold truncate">{currentSeason.name}</h2>
           <Badge variant={isCompleted ? 'secondary' : 'default'}>
             {isCompleted ? 'Completed' : 'Active'}
           </Badge>
         </div>
-        <p className="text-muted-foreground text-sm">{formatSeasonDateRange(currentSeason)}</p>
+        <p className="text-label text-muted-foreground mt-0.5">{formatSeasonDateRange(currentSeason)}</p>
+
         {(currentSeason.numberOfGames || 0) > 0 && (
-          <div className="mt-3">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>Game {clampedGameNumber(seasonStats.totalTournaments, currentSeason)} of {currentSeason.numberOfGames}</span>
+          <div className="mt-4">
+            <div className="flex justify-between text-caption text-muted-foreground mb-1.5">
+              <span className="font-mono">
+                Game {clampedGameNumber(seasonStats.totalTournaments, currentSeason)} of {currentSeason.numberOfGames}
+              </span>
               <span>{seasonStats.gamesRemaining} remaining</span>
             </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div className="h-1.5 bg-white/[0.07] rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-500"
                 style={{ width: `${seasonStats.progressPercent}%` }}
@@ -137,6 +141,23 @@ export default function SeasonDashboard({
             </div>
           </div>
         )}
+
+        {/* Four figures, no boxes. Every number in the app is set in the mono
+            face, and the labels take the caption step — the same treatment as
+            the Payouts panel. */}
+        <div className="flex flex-wrap gap-x-8 gap-y-4 mt-4 pt-4 border-t border-border/40">
+          {[
+            { label: 'Players', value: String(seasonStats.totalPlayers) },
+            { label: 'Games', value: String(seasonStats.totalTournaments) },
+            { label: 'Avg field', value: String(seasonStats.avgPlayersPerTournament) },
+            { label: 'Prize pool', value: money(seasonStats.totalPrizePool, sym) },
+          ].map(stat => (
+            <div key={stat.label}>
+              <div className="font-mono text-xl font-bold leading-tight">{stat.value}</div>
+              <div className="text-caption text-muted-foreground uppercase tracking-wide">{stat.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Season complete. Advisory only — nothing ends a season automatically,
@@ -165,50 +186,6 @@ export default function SeasonDashboard({
           </div>
         </div>
       )}
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Players</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-mono">{seasonStats.totalPlayers}</div>
-            <p className="text-xs text-muted-foreground mt-1">This season</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Tournaments</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-mono">{seasonStats.totalTournaments}</div>
-            <p className="text-xs text-muted-foreground mt-1">Completed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Players</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-mono">{seasonStats.avgPlayersPerTournament}</div>
-            <p className="text-xs text-muted-foreground mt-1">Per tournament</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Prize Pool</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-mono">£{seasonStats.totalPrizePool}</div>
-            <p className="text-xs text-muted-foreground mt-1">Distributed</p>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* One standings table. Selecting a past season SWAPS what this table
           shows rather than appending a second table below the current one —

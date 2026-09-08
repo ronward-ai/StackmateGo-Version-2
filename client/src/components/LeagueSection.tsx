@@ -72,25 +72,30 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
       <Card className="card-glass rounded-xl">
         <CardContent className="p-5">
 
-          <div className="flex items-start justify-between gap-3 mb-4">
+          {/* The LEAGUE is the header here; the SEASON is described once, by the
+              dashboard below, which is the component that holds its numbers.
+              This used to state the season name, its dates and "Game 4 of 13",
+              and the dashboard then opened with all three again in a tinted
+              panel. Collapsed, the one-line summary stands in for it, so folding
+              the panel away does not lose which season is running. */}
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 min-w-0">
-                <Trophy className="h-4 w-4 text-orange-400 flex-shrink-0" />
+                <Trophy className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                 {/* Say what is true. This used to fall back to 'My League' and
                     'Season 1', so a director who had never made either was shown
                     a league and a season that did not exist — and then, because
                     the dashboard below was guarded on currentSeason, blank space
                     where the instructions should have been. */}
-                <h2 className="text-sm font-semibold text-foreground truncate">
+                <h2 className="text-caption uppercase tracking-[0.1em] text-muted-foreground truncate">
                   {league?.name || 'No league yet'}
-                  {currentSeason?.name && (
-                    <span className="text-muted-foreground font-normal">
-                      {' — '}{currentSeason.name}
-                    </span>
-                  )}
                 </h2>
               </div>
-              <p className="text-xs text-muted-foreground mt-1 ml-6 truncate">{seasonSummary}</p>
+              {!isExpanded && (
+                <p className="text-label text-foreground/80 mt-1 ml-[22px] truncate">
+                  {currentSeason?.name ? `${currentSeason.name} · ${seasonSummary}` : seasonSummary}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -102,12 +107,12 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                   onClick={() => setShowLeagueSettings(true)}
                 >
                   <Settings className="h-3.5 w-3.5" />
-                  <span className="text-xs">Manage League</span>
+                  <span className="text-label">Manage League</span>
                 </Button>
               )}
               <button
                 onClick={() => setIsExpanded(v => !v)}
-                className="p-1 text-muted-foreground"
+                className="p-1 text-muted-foreground hover:text-foreground"
                 title={isExpanded ? 'Collapse' : 'Expand'}
               >
                 {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -119,11 +124,13 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
               when there is no season, and guarding here made that the one screen
               a new director could never reach. */}
           {isExpanded && (
+            <div className="mt-4">
             <SeasonDashboard
               season={currentSeason}
               leaguePlayers={leaguePlayers}
               tournament={tournament}
             />
+            </div>
           )}
         </CardContent>
       </Card>

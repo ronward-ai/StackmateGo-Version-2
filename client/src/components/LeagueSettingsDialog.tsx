@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'; // Added useEffect import
+import React, { Fragment, useState, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -83,7 +83,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
         )}
         <DialogContent>
           <div className="p-4 text-center">
-            <p className="text-red-500">Error loading league settings. Please try again.</p>
+            <p className="text-destructive text-body">Error loading league settings. Please try again.</p>
             <Button onClick={() => setIsOpen(false)} className="mt-4">Close</Button>
           </div>
         </DialogContent>
@@ -246,8 +246,8 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
             Manage League
           </DialogTitle>
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3 mt-2">
-              <p className="text-red-600 text-sm">{error}</p>
+            <div className="bg-destructive/10 border border-destructive/30 rounded-md p-3 mt-2">
+              <p className="text-destructive text-label">{error}</p>
               <Button
                 variant="ghost"
                 size="sm"
@@ -265,7 +265,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
         <LeagueScopeBar />
 
         <Tabs defaultValue="seasons" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-12">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="seasons" className="h-full">
               <CalendarDays className="h-4 w-4" />
               Seasons
@@ -324,7 +324,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                 {(settings.pointsSystem.formula.type === 'logarithmic' ||
                   settings.pointsSystem.formula.type === 'squareRoot' ||
                   settings.pointsSystem.formula.type === 'linear') && (
-                  <div className="grid grid-cols-2 gap-4 p-4 border rounded">
+                  <div className="grid grid-cols-2 gap-4 p-4 card-glass rounded-xl">
                     <div className="space-y-2">
                       <Label>Base Multiplier</Label>
                       <Input
@@ -357,7 +357,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
 
                 {/* Fixed Points Configuration */}
                 {settings.pointsSystem.formula.type === 'fixed' && (
-                  <div className="p-4 border rounded space-y-4">
+                  <div className="p-4 card-glass rounded-xl space-y-4">
                     <div className="space-y-2">
                       <Label>Position-Based Points</Label>
                       <div className="text-xs text-muted-foreground mb-2">
@@ -389,7 +389,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                       <div className="flex space-x-2 mt-2">
                         <Button
                           type="button"
-                          className="btn-add-position"
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             const currentPoints = settings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1];
@@ -400,7 +400,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                         </Button>
                         <Button
                           type="button"
-                          className="btn-remove-position"
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             const currentPoints = settings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1];
@@ -413,7 +413,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                         </Button>
                         <Button
                           type="button"
-                          className="btn-reset-positions"
+                          variant="ghost"
                           size="sm"
                           onClick={() => {
                             updateFormulaParameter('positionPoints', [25, 18, 13, 9, 6, 4, 3, 2, 1]);
@@ -440,14 +440,29 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                       />
 
                       {/* Available Variables */}
-                      <div className="text-xs text-muted-foreground p-3 bg-muted rounded space-y-1">
-                        <p><strong>Available Variables:</strong></p>
-                        <p>• <code>p</code> = number of players</p>
-                        <p>• <code>f</code> = finish position</p>
-                        <p>• <code>b</code> = buy-in</p>
-                        <p>• <code>c</code> = total cost (buy-in + rebuys + addon)</p>
-                        <p>• <code>k</code> = knockouts</p>
-                        <p>• <code>z</code> = prizepool</p>
+                      {/* A reference table, not a paragraph: this is the one
+                          place in the app a director has to read carefully, and
+                          the symbols belong in the mono face like every other
+                          figure. */}
+                      <div className="card-glass rounded-xl p-3">
+                        <div className="text-caption uppercase tracking-wide text-muted-foreground mb-2">
+                          Available variables
+                        </div>
+                        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-label">
+                          {[
+                            ['p', 'number of players'],
+                            ['f', 'finish position'],
+                            ['b', 'buy-in'],
+                            ['c', 'total cost (buy-in + rebuys + add-on)'],
+                            ['k', 'knockouts'],
+                            ['z', 'prize pool'],
+                          ].map(([symbol, meaning]) => (
+                            <Fragment key={symbol}>
+                              <code className="font-mono font-bold text-primary">{symbol}</code>
+                              <span className="text-muted-foreground">{meaning}</span>
+                            </Fragment>
+                          ))}
+                        </div>
                       </div>
 
                       {/* Saved Custom Formulas */}
@@ -456,7 +471,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                           <Label className="text-sm font-medium">Saved Custom Formulas</Label>
                           <div className="space-y-1">
                             {savedFormulas.map((formula) => (
-                              <div key={formula.id} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
+                              <div key={formula.id} className="flex items-center justify-between p-2 card-glass rounded-lg text-label">
                                 <div className="flex-1 mr-2">
                                   <div className="font-medium truncate">
                                     {formula.name.replace('Custom Formula: ', '')}
@@ -468,7 +483,8 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                                 <div className="flex gap-1">
                                   <Button
                                     type="button"
-                                    className="btn-load-template h-6 w-12 text-xs"
+                                    variant="outline"
+                                    className="h-6 px-2 text-caption"
                                     size="sm"
                                     onClick={() => {
                                       updateCustomFormula(formula.settings.pointsSystem.formula.customFormula || '');
@@ -478,7 +494,8 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                                   </Button>
                                   <Button
                                     type="button"
-                                    className="btn-delete-template h-6 w-6 p-0"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                                     size="sm"
                                     onClick={() => handleDeleteTemplate(formula.id)}
                                   >
@@ -503,7 +520,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                           />
                           <Button
                             type="button"
-                            className="btn-save-template"
+                            variant="outline"
                             size="sm"
                             onClick={async () => {
                               if (templateName.trim() && settings.pointsSystem.formula.customFormula?.trim()) {
@@ -739,15 +756,17 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
         {/* League-level, so outside the tabs: it applies whichever tab is open. */}
         <LeagueDangerZone />
 
-        <div className="flex justify-between pt-4">
-          <Button
-            className="btn-reset-defaults gap-2"
-            onClick={resetToDefaults}
-          >
+        {/* Save & Close is the action that matters and takes the accent; Reset
+            to Defaults is quiet. They used to be two equally loud gradient
+            buttons, and the destructive one was on the left where the eye
+            starts. Settings save as they are changed either way — this only
+            closes the dialog. */}
+        <div className="flex items-center justify-between gap-3 pt-4 border-t border-border/40">
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={resetToDefaults}>
             Reset to Defaults
           </Button>
-          <Button className="btn-save-close" onClick={() => setIsOpen(false)}>
-            Save & Close
+          <Button onClick={() => setIsOpen(false)}>
+            Done
           </Button>
         </div>
       </DialogContent>

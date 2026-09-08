@@ -16,6 +16,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { isLeagueTournament } from '@/lib/tournamentMode';
+import { currencyOf, money } from '@/lib/currency';
 import { countGamesPlayed } from '@/lib/seasonProgress';
 import EmptyState from '@/components/ui/empty-state';
 import { totalsAcross } from '@/lib/resultStats';
@@ -50,6 +51,7 @@ function RealTimeLeagueTable({
   // For participant view pass the leagueId directly so useLeague can skip the
   // ownerId → leagues lookup (faster, and works even if ownerId isn't in the snapshot yet)
   const directLeagueId = tournament?.settings?.leagueId ?? null;
+  const sym = currencyOf(tournament?.state?.settings ?? tournament?.settings);
   const leagueData = useLeague(tournament?.ownerId, directLeagueId);
   // 'pending' is a placeholder returned while loading — fall through to the stored leagueId in that case
   const _rawLeagueId = (leagueData as any)?.league?.id;
@@ -331,6 +333,10 @@ function RealTimeLeagueTable({
 
   // Calculate stats for a player
   const getPlayerStat = (player: any, stat: string) => {
+    // Money here was hard-coded to £ in five columns while every other figure in
+    // the app honours settings.currency. `tournament` arrives as the hook object
+    // from the console and as the raw document from the participant view, so
+    // both shapes are asked.
     switch(stat) {
       case 'points':
         return player.displayPoints?.toString() || '0';
@@ -347,7 +353,7 @@ function RealTimeLeagueTable({
       case 'hits':
         return player.hits?.toString() || '0';
       case 'cashWinnings':
-        return `£${(player.cashWinnings || 0).toLocaleString()}`;
+        return money(player.cashWinnings || 0, sym);
       case 'bestFinish':
         return player.bestFinish === 999 ? 'N/A' : player.bestFinish?.toString() || 'N/A';
       case 'winRate':
@@ -371,20 +377,20 @@ function RealTimeLeagueTable({
       case 'addOns':
         return player.totalAddOns?.toString() || '0';
       case 'totalInvested':
-        return `£${(player.totalInvested || 0).toLocaleString()}`;
+        return money(player.totalInvested || 0, sym);
       case 'bountiesWon':
         // Money, so formatted like the other cash columns.
-        return `£${(player.bountiesWon || 0).toLocaleString()}`;
+        return money(player.bountiesWon || 0, sym);
       case 'attendancePercent':
         return `${player.attendancePercent || 0}%`;
       case 'currentStreak':
         return player.currentStreak?.toString() || '0';
       case 'biggestWin':
-        return `£${(player.biggestWin || 0).toLocaleString()}`;
+        return money(player.biggestWin || 0, sym);
       case 'worstFinish':
         return player.worstFinish?.toString() || '0';
       case 'profit':
-        return `£${(player.profit || 0) >= 0 ? '+' : ''}${(player.profit || 0).toLocaleString()}`;
+        return `${(player.profit || 0) >= 0 ? '+' : ''}${money(player.profit || 0, sym)}`;
       case 'roi':
         return `${(player.roi || 0) >= 0 ? '+' : ''}${player.roi || 0}%`;
       default:
@@ -413,7 +419,7 @@ function RealTimeLeagueTable({
       return { direction: 'down', icon: ArrowDown, color: 'text-red-500' };
     } else {
       // Show horizontal orange arrow for no movement
-      return { direction: 'same', icon: Minus, color: 'text-orange-500' };
+      return { direction: 'same', icon: Minus, color: 'text-primary' };
     }
   };
 
@@ -543,7 +549,7 @@ function RealTimeLeagueTable({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="mr-3 h-5 w-5 text-orange-500" />
+            <Trophy className="mr-3 h-5 w-5 text-primary" />
             {leagueName || 'League'} Standings
           </CardTitle>
         </CardHeader>
@@ -563,7 +569,7 @@ function RealTimeLeagueTable({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="mr-3 h-5 w-5 text-orange-500" />
+            <Trophy className="mr-3 h-5 w-5 text-primary" />
             {leagueName || 'League'} Standings - {currentSeasonName}
           </CardTitle>
         </CardHeader>
@@ -582,14 +588,14 @@ function RealTimeLeagueTable({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="mr-3 h-5 w-5 text-orange-500" />
+            <Trophy className="mr-3 h-5 w-5 text-primary" />
             {leagueName || 'League'} Standings - {currentSeasonName}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-10">
             <div className="relative inline-block mb-5">
-              <Trophy className="h-14 w-14 text-orange-500 opacity-20" />
+              <Trophy className="h-14 w-14 text-primary opacity-20" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="h-2.5 w-2.5 rounded-full bg-orange-500 animate-pulse" />
               </div>
@@ -624,7 +630,7 @@ function RealTimeLeagueTable({
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Trophy className="mr-3 h-5 w-5 text-orange-500" />
+              <Trophy className="mr-3 h-5 w-5 text-primary" />
               {leagueName || 'League'} Standings - {currentSeasonName}
             </div>
             <div className="flex items-center gap-3">

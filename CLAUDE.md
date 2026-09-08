@@ -310,6 +310,24 @@ undeclared sizes (8, 9, 10, 11px) had been reached for whenever `xs` was too big
 into `caption`. Prose gets `body` — an empty state is one of the few places the app explains itself,
 so it should not be set in the same 12px as a table cell.
 
+### The League tab says the season once
+
+`LeagueSection` is the LEAGUE header — the league's name, Manage League, and the collapse control. The
+SEASON belongs to `SeasonDashboard`, which holds its numbers: name, status, dates, the progress bar
+and the four figures. Both used to describe it, one above the other, the second in a tinted panel —
+and then four `Card`s nested inside the League card for four numbers. Five boxes before the standings,
+which is the thing the tab is opened for.
+
+The figures are an inline strip now: mono numerals, caption labels, no boxes, the treatment the
+Payouts panel uses. Collapsed, `LeagueSection` shows a one-line summary so folding the panel away does
+not lose which season is running.
+
+**Money in the league table comes from `lib/currency.ts`.** Five columns and the season's prize pool
+hard-coded `£` while every other figure in the app honours `settings.currency`, so a director working
+in dollars saw pounds in their own standings. `currencyOf(settings)` and `money(amount, symbol)` own
+it; `RealTimeLeagueTable` asks for both shapes of the `tournament` prop, because the console passes the
+hook and the participant view passes the raw document.
+
 ### A player's chips are written once, in `lib/playerBadges.ts`
 
 The director's row, the exported PNG and the participant's phone all render the chips beside a
@@ -378,6 +396,13 @@ Share tab put a `card-glass` panel inside a `card-live` card and the two translu
 Broadcasting badge, so it was signalling one state twice. It is now a plain card, and `live` survives
 on exactly one card: the participant's own check-in row, where it says "this is you" and has nothing
 nested in it.
+
+**The `.btn-*` classes are being retired, not extended.** Eight remain, all in the timer and the
+structure editors; the League dialog's seven are gone, replaced by the `variant` prop. They were also
+a live collision: `.btn-add-position` was declared TWICE with different colours — rose for the Buy-in
+section, green for the League dialog — and the second won for both, so Buy-in's button had silently
+been the wrong colour. Same class of bug as two rules fighting over one pseudo-element, and the same
+reason not to add a ninth.
 
 Adding a tenth tint, or a `.btn-*` gradient class, is how both of these grew the first time. If a new
 colour is genuinely needed, it needs a reason that survives being written down here.

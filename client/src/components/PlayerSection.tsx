@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, Download, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { currencyOf } from '@/lib/currency';
 import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
@@ -96,7 +97,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const autocompleteRef = useRef<HTMLDivElement>(null);
 
   // Cost helpers for confirmation dialogs
-  const sym = state.settings.currency || '£';
+  const sym = currencyOf(state.settings);
   const ps = state.prizeStructure;
   const {
     perEntryRake,
@@ -379,7 +380,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const handleExportImage = async () => {
     setIsExporting(true);
     try {
-      const sym = state.settings.currency || '£';
+      const sym = currencyOf(state.settings);
       const ps = state.prizeStructure;
       const buyIn = ps?.buyIn || 0;
       const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
@@ -735,7 +736,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         <div className="space-y-2">
           {/* Helper functions for rankings */}
           {(() => {
-            const currencySymbol = state.settings.currency || '£';
+            const currencySymbol = currencyOf(state.settings);
             
             const { rake: rakeAmount, net: totalPrizePool } =
               prizePoolFor(state.players, state.prizeStructure);
