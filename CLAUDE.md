@@ -190,6 +190,33 @@ recently created".
 That selection lives in `lib/liveTournament.ts`, not in the resume effect, because the auto-save asks
 the same question — see below.
 
+### `details.type` is overloaded, so nothing may key "is it saved" on it
+
+```ts
+type: 'standalone' | 'season' | 'database'
+```
+
+One field, two meanings: **league or standalone**, and **saved to Firestore**. The mode toggle writes
+the first over the second, and that un-saved the game. Three readers keyed on `'database'` and all
+three failed at once — the Firestore listener detached, `hasLoadedRemoteState` reset (which the three
+sync effects wait on), and `consoleTournamentId()` returned null.
+
+Nothing errored, because the writes were **blocked rather than attempted**. What the director saw was
+a roster fighting the snapshot: a removed player came back on the next read, and re-adding produced a
+second entry with a new id. Duplicates and "cannot remove" are one bug, and they are what "the writes
+stopped" looks like from the outside.
+
+**The honest marker is `details.id`** — a game with a document has one, and `resetTournament` drops it
+when a new game begins. The listener, the local mirror and `consoleTournamentId()` all key on that
+now; `type === 'database'` survives only as a fallback for a game whose details have not filled in
+yet. League-ness lives in `settings.isSeasonTournament`, which every reader of `isLeagueMode` already
+honours, and the toggle leaves `type` alone on a stored game.
+
+**A console that holds a tournament and has never read it now says so** after ten seconds — the same
+standing chip and banner as a blocked browser. `lib/syncHealth.ts` only hears about writes that threw,
+so a latch that never closes is invisible to it, and that silence is why this reached a director
+instead of a toast.
+
 ### Which document the console is driving is derived, not held
 
 `lib/liveTournament.ts`'s `consoleTournamentId()` answers it once, for the sync effects and the QR

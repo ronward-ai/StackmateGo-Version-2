@@ -141,6 +141,19 @@ describe('consoleTournamentId', () => {
     expect(consoleTournamentId({ detailsType: 'database', heldId: 'game_now' })).toBe('game_now');
   });
 
+  it('resolves a saved game whose type says league — the fields disagree by design', () => {
+    // details.type is overloaded: it says "league or standalone" AND "saved to
+    // Firestore", and the mode toggle writes the first over the second. A saved
+    // game whose slider was flipped to League must still find its document, or
+    // the syncs stop and the roster starts fighting the snapshot.
+    expect(
+      consoleTournamentId({ detailsType: 'season', detailsId: 'game_now', heldId: 'game_now' })
+    ).toBe('game_now');
+    expect(
+      consoleTournamentId({ detailsType: 'standalone', detailsId: 'game_now' })
+    ).toBe('game_now');
+  });
+
   it('lets the URL win, so the director route works before the document loads', () => {
     expect(
       consoleTournamentId({ urlId: 'from_url', detailsType: 'standalone', heldId: 'game_previous' })

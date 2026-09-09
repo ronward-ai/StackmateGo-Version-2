@@ -615,6 +615,25 @@ function PokerTimerInner({
     [tournamentId, tournament.state.details?.type, tournament.state.details?.id, dbTournamentId],
   );
 
+  // A console that holds a tournament but has never READ it is not syncing —
+  // and says nothing about it, because syncHealth only hears about writes that
+  // were attempted and threw. These were blocked instead: the three sync effects
+  // wait on hasLoadedRemoteState, so a listener that never attaches silences
+  // them with no error anywhere. That is how a roster fighting its own snapshot
+  // reached a director rather than a toast.
+  //
+  // Ten seconds is a slow connection's worth of grace; a real read lands in
+  // well under one.
+  const [unreadTournament, setUnreadTournament] = useState(false);
+  useEffect(() => {
+    if (!activeTournamentId || tournament.hasLoadedRemoteState) {
+      setUnreadTournament(false);
+      return;
+    }
+    const timer = setTimeout(() => setUnreadTournament(true), 10000);
+    return () => clearTimeout(timer);
+  }, [activeTournamentId, tournament.hasLoadedRemoteState]);
+
   // LET GO of a document this game no longer belongs to.
   //
   // dbTournamentId is this component's own state, and New Tournament navigates
@@ -1142,15 +1161,14 @@ function PokerTimerInner({
             passing as a toast: the director has to change a setting in another
             program before anything will save. Named plainly, because "the sync
             failed" sends nobody anywhere useful. */}
-        {(preflightFailed || syncBlocked) && (
+        {(preflightFailed || syncBlocked || unreadTournament) && (
           <div className="mb-6 rounded-xl border border-red-400/30 bg-red-400/[0.08] p-4 flex items-start gap-3">
             <ShieldAlert className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div className="text-body text-foreground/90">
               <div className="font-semibold text-red-400 mb-1">This game is not being saved</div>
-              An ad or tracker blocker in this browser is stopping StackMate reaching its database.
-              Allow this site in it (in uBlock Origin: click its icon, then the large power button)
-              and reload. The game keeps running on this device meanwhile, but nothing is being
-              stored and it will not survive a refresh.
+              {unreadTournament && !preflightFailed && !syncBlocked
+                ? 'This device has not been able to read the saved game, so nothing it does is being stored — and players you remove may come back. Reload the page; if that does not help, check for an ad or tracker blocker.'
+                : 'An ad or tracker blocker in this browser is stopping StackMate reaching its database. Allow this site in it (in uBlock Origin: click its icon, then the large power button) and reload. The game keeps running on this device meanwhile, but nothing is being stored and it will not survive a refresh.'}
             </div>
           </div>
         )}
@@ -1271,7 +1289,7 @@ function PokerTimerInner({
             </TabsContent>
 
             <TabsContent value="qr" className="mt-0 p-4 pt-5">
-              <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} syncBlocked={syncBlocked || preflightFailed} />
+              <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} syncBlocked={syncBlocked || preflightFailed || unreadTournament} />
             </TabsContent>
 
             <TabsContent value="settings" className="mt-0 p-4 pt-5">

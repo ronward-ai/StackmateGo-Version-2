@@ -99,10 +99,18 @@ export function findCurrentLiveTournament<T extends LiveTournamentCandidate>(
  * So the rule, once:
  *   - a tournament id in the URL is definitive — that route exists to open one
  *     specific game, and it must survive the moment before its document loads;
- *   - otherwise the game must actually BE a database game, and the id is the one
- *     on its details;
+ *   - otherwise the id ON THE GAME, if it has one;
+ *   - otherwise the held id, but only for a game whose type says it is stored;
  *   - a held id belonging to no current game is worth nothing. Returning it is
  *     what caused this.
+ *
+ * `detailsId` comes first deliberately. Keying on `type === 'database'` alone
+ * was wrong, because that field is OVERLOADED: it says both "league or
+ * standalone" and "saved to Firestore", and the mode toggle writes the first
+ * meaning over the second. Flipping the slider on a saved game therefore made
+ * this return null, the syncs stopped, and a removed player came back from the
+ * document while re-adding produced a duplicate. Having a document id is the
+ * honest marker — `resetTournament` drops it when a new game begins.
  */
 export function consoleTournamentId(input: {
   /** From the /tournament/:id/director route, if any. */
@@ -113,7 +121,7 @@ export function consoleTournamentId(input: {
   heldId?: string | null;
 }): string | null {
   if (input.urlId) return String(input.urlId);
-  if (input.detailsType !== 'database') return null;
   if (input.detailsId) return String(input.detailsId);
+  if (input.detailsType !== 'database') return null;
   return input.heldId ? String(input.heldId) : null;
 }

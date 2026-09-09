@@ -65,8 +65,24 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
     state.details?.type === 'season' ||
     state.settings?.isSeasonTournament === true;
 
+  // `details.type` is OVERLOADED: it says both "league or standalone" and "saved
+  // to Firestore". Writing the first meaning over the second un-saved the game —
+  // the Firestore listener only attaches for 'database', so it tore down,
+  // hasLoadedRemoteState reset, and the three sync effects that wait on it went
+  // quiet. A removed player then came back from the document on the next
+  // snapshot, and re-adding produced a duplicate.
+  //
+  // League-ness is carried by `settings.isSeasonTournament`, which every reader
+  // of isLeagueMode already honours, so the type is a redundant second copy of
+  // it. A stored game keeps 'database'.
+  const setMode = (localType: 'season' | 'standalone') => {
+    if (state.details?.type !== 'database') {
+      updateTournamentDetails({ ...state.details, type: localType });
+    }
+  };
+
   const handleEnableLeague = () => {
-    updateTournamentDetails({ ...state.details, type: 'season' });
+    setMode('season');
     if (league?.id) {
       updateSettings({ isSeasonTournament: true, leagueId: String(league.id) });
     }
@@ -91,7 +107,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
         <button
           className={cn(modeButton, !isLeagueMode ? modeActive : modeInactive)}
           onClick={() => {
-            updateTournamentDetails({ ...state.details, type: 'standalone' });
+            setMode('standalone');
             // Clear the whole league context, not just the flag. Leaving leagueId
             // behind is what made spectators see a league standings table on a
             // tournament switched back to Standalone.

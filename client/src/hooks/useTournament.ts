@@ -396,7 +396,7 @@ export function useTournament(tournamentId?: string) {
       isRunning: state.isRunning,
       targetEndTime: state.targetEndTime,
       isFinalTable: state.isFinalTable,
-      dbTournamentId: state.details?.type === 'database' ? state.details?.id?.toString() : undefined,
+      dbTournamentId: state.details?.id?.toString(),
       updatedAt: new Date().toISOString(),
     });
   }, [
@@ -417,8 +417,11 @@ export function useTournament(tournamentId?: string) {
     // we may have read before.
     setHasLoadedRemoteState(false);
 
-    // Only establish Firestore connection for database tournaments
-    if (state.details?.type === 'database' && state.details?.id) {
+    // A game with a document id has a document, whatever its type says. Keying
+    // this on `type === 'database'` meant the mode toggle — which writes
+    // 'season' or 'standalone' over it — tore the listener down on a saved game,
+    // and with it hasLoadedRemoteState and every write that waits on the latch.
+    if (state.details?.id) {
       const docRef = doc(db, 'activeTournaments', state.details.id.toString());
       
       const unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -543,7 +546,9 @@ export function useTournament(tournamentId?: string) {
         setIsConnected(false);
       };
     }
-  }, [state.details?.type, state.details?.id]);
+  // The id alone. `type` was a dependency too, so a mode flip re-subscribed and
+  // reset the latch for no reason — the document had not changed.
+  }, [state.details?.id]);
 
   // Listen for tournament sync events (from director actions) with debouncing
   const handleTournamentSync = (event: CustomEvent) => {
