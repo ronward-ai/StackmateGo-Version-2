@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { consoleTournamentId } from '@/lib/liveTournament';
+import { TournamentQR } from '@/components/ui/tournament-qr';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Radio, Smartphone } from 'lucide-react';
@@ -164,14 +165,8 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, sy
                   )}
                 </div>
                 <div className="flex flex-col items-center flex-shrink-0">
-                  <div className="w-32 h-32 border border-white/15 rounded-xl flex items-center justify-center bg-white p-1 shadow-lg">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=112x112&data=${encodeURIComponent(liveUrl!)}`}
-                      alt="StackMate Live QR Code"
-                      className="w-28 h-28"
-                      crossOrigin="anonymous"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
+                  <div className="border border-white/15 rounded-xl shadow-lg">
+                    <TournamentQR tournamentId={String(tournamentId)} size={128} className="rounded-xl p-2" />
                   </div>
                   <p className="text-caption text-muted-foreground mt-2 font-medium">Scan to join live</p>
                 </div>

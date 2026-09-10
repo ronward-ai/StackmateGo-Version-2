@@ -4,6 +4,7 @@ import TimerFace from "@/components/TimerFace";
 import { Button } from "@/components/ui/button";
 import { buttonCombinations } from "@/lib/buttonUtils";
 import { cn } from "@/lib/utils";
+import { TournamentQR } from "@/components/ui/tournament-qr";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -376,19 +377,13 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
           {!currentBreak && nextBreakInfo ? (
             <div className="font-medium text-amber-500 text-center text-sm mb-2">Next Break In: {nextBreakInfo.timeUntilBreak}</div>
           ) : null}
-          {state.details?.id && (
+          {/* Published, not merely saved. Every signed-in director's game has a
+              document id from the moment it has players, so keying on the id
+              showed a QR for a game participants are refused by. */}
+          {state.details?.id && state.details?.isPublished !== false && (
             <div className="flex flex-col items-center opacity-70 hover:opacity-100 transition-opacity">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`${window.location.protocol}//${window.location.host}/tournament/${state.details.id}/join`)}`}
-                alt="Viewer QR Code"
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-md bg-white p-1"
-                crossOrigin="anonymous"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                }}
-              />
-              <span className="text-xs mt-1 font-semibold">Scan to check in</span>
+              <TournamentQR tournamentId={String(state.details.id)} size={96} />
+              <span className="text-caption mt-1 font-semibold">Scan to check in</span>
             </div>
           )}
         </div>

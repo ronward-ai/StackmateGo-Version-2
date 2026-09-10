@@ -20,6 +20,7 @@ import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/localProgress';
 import { secondsLeftFrom } from '@/lib/tournamentClock';
+import { seatToReclaim } from '@/lib/seating';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -1054,6 +1055,21 @@ export function useTournament(tournamentId?: string) {
         return prev;
       }
 
+      // Where they were sitting, taken from the player when the caller does not
+      // say. Only TablesSection passed it, so busting someone out from the
+      // Players list lost their seat outright — and with it the rebuy's chance
+      // to put them back and undo's chance to restore them. The hook has the
+      // player; it never needed telling.
+      const recordedSeat = seatInfo ?? (
+        playerToEliminate.tableAssignment
+          ? {
+              tableIndex: playerToEliminate.tableAssignment.tableIndex,
+              seatIndex: playerToEliminate.tableAssignment.seatIndex,
+              totalSeatedPlayers: prev.players.filter(p => p.seated && p.isActive !== false).length,
+            }
+          : undefined
+      );
+
       // Single derivation, shared with the re-entry renumbering — see
       // lib/eliminationOrder.ts for why counting alone was not enough.
       const newPosition = nextEliminationPosition(prev.players);
@@ -1092,7 +1108,7 @@ export function useTournament(tournamentId?: string) {
               eliminatedBy: eliminatedById,
               prizeMoney,
               isActive: false,
-              seatInfo,
+              seatInfo: recordedSeat,
               eliminationLevel: prev.currentLevel + 1,
               playTime: prev.levels.slice(0, prev.currentLevel + 1)
                 .reduce((total, level) => total + level.duration, 0) - prev.secondsLeft
@@ -1260,8 +1276,12 @@ export function useTournament(tournamentId?: string) {
               eliminatedBy: undefined, // Clear elimination data
               prizeMoney: 0, // Reset prize money
               reEntries: (p.reEntries || 0) + 1, // Increment re-entry count
-              seated: false, // They need to be reseated
-              tableAssignment: undefined, // Clear table assignment
+              // Unseated ON PURPOSE, unlike a rebuy. A re-entry is a fresh entry
+              // into the tournament rather than more chips in the same chair,
+              // which is the same distinction that has a re-entry raked by
+              // default and a rebuy not. The director seats them anew.
+              seated: false,
+              tableAssignment: undefined,
               currentBounty: prev.prizeStructure?.enableBounties
                 ? ((prev.prizeStructure?.reEntryBounty !== false) ? (prev.prizeStructure?.bountyAmount || 0) : 0)
                 : undefined
@@ -1307,6 +1327,12 @@ export function useTournament(tournamentId?: string) {
       // vacates their finishing position.
       const renumbered = positionsAfterReEntry(prev.players, playerId);
 
+      // A rebuy is chips bought in the chair they never left, so they go back to
+      // it — unless someone has taken it while they were out, in which case they
+      // wait to be seated rather than double-booking a seat. lib/seating.ts
+      // answers that, for this and for undo alike.
+      const reclaimed = seatToReclaim(player, prev.players);
+
       // Update player to active status and increment rebuy count
       const updatedPlayers = renumbered.map(p =>
         p.id === playerId
@@ -1317,8 +1343,9 @@ export function useTournament(tournamentId?: string) {
               eliminatedBy: undefined,
               prizeMoney: 0,
               rebuys: (p.rebuys || 0) + 1,
-              seated: false,
-              tableAssignment: undefined,
+              seated: !!reclaimed,
+              tableAssignment: reclaimed ?? undefined,
+              seatInfo: undefined,
               currentBounty: prev.prizeStructure?.enableBounties
                 ? (prev.prizeStructure?.rebuyBounty ? (prev.prizeStructure?.bountyAmount || 0) : 0)
                 : undefined
@@ -1952,10 +1979,8 @@ export function useTournament(tournamentId?: string) {
         );
       }
 
-      // Check if the player had table assignment information
-      const shouldRestoreToSeat = playerToRestore.seatInfo &&
-        playerToRestore.seatInfo.tableIndex !== undefined &&
-        playerToRestore.seatInfo.seatIndex !== undefined;
+      // Their seat, if it is still free — the same question the rebuy asks.
+      const reclaimedSeat = seatToReclaim(playerToRestore, prev.players);
 
       // Restore the player to active status and remove their elimination data
       // Also decrement knockout count from the eliminating player
@@ -1967,11 +1992,8 @@ export function useTournament(tournamentId?: string) {
             position: undefined,
             eliminatedBy: undefined,
             prizeMoney: 0,
-            seated: shouldRestoreToSeat,
-            tableAssignment: shouldRestoreToSeat ? {
-              tableIndex: playerToRestore.seatInfo!.tableIndex,
-              seatIndex: playerToRestore.seatInfo!.seatIndex
-            } : undefined,
+            seated: !!reclaimedSeat,
+            tableAssignment: reclaimedSeat ?? undefined,
             seatInfo: undefined
           };
         } else if (player.id === playerToRestore.eliminatedBy && player.knockouts > 0) {

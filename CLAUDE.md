@@ -525,6 +525,25 @@ It is stored with the other settings in localStorage, and reaches the tournament
 `PokerTimer` syncs the whole `settings` object — which is how participants get it. A second director
 device starts on its own local value until it is set there too.
 
+### The QR code is generated on the device
+
+`components/ui/tournament-qr.tsx` draws it with the `qrcode` package, into an SVG. Both places that
+show a QR — the timer card and the Share tab — used to be `<img>` tags fetched from
+**api.qrserver.com**, with an `onError` that set `display: none`. One failed request took the app's
+main participant-facing affordance off the screen silently, and it stayed gone until the next render.
+Drawing it locally cannot fail, works at a venue with no internet, and stops a third party being told
+the URL of every game.
+
+The generator is **dynamically imported** inside the effect, so it is a 24kB chunk fetched only by a
+game that actually shows a QR rather than dead weight on every console.
+
+**It shows only for a PUBLISHED game.** The timer card keyed on `details.id`, which every signed-in
+director's game has from the moment it has players, so it offered a QR that participants are refused
+by — the trap the Go Live note above warns about. Both sites now test `isPublished !== false`.
+
+The timer card's code is 96px rather than the old 80: a real tournament URL is 88 characters and needs
+39 modules, which at 80px is 1.6 CSS pixels per module — tight for a phone camera across a table.
+
 ### The footer shows the build, and `index.html` is never cached
 
 `vite.config.ts` defines `__BUILD_ID__` from the git short SHA and `PokerTimer`'s footer renders it.
@@ -579,6 +598,26 @@ because it is persisted in each league's column settings.
 Historical results carry none of these fields and stay at 0. `completedTournaments` — a parallel
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
+
+### A rebuy keeps the chair; a re-entry does not
+
+`eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
+`seatToReclaim()` answers the one question that matters when they come back: **is that seat still
+free?** Someone may have been moved into it. Two players in one chair is worse than an unseated one,
+so a taken seat means they wait to be placed.
+
+`processRebuy` used to clear `seated` and `tableAssignment` outright, so a rebuy sent the player to be
+re-seated — and with a spare table configured, the seating put them at the empty one. A rebuy is chips
+bought in the chair they never left. **The app already knew how to do this**: the undo-elimination
+path restored a player to their exact seat, so one fact had two behaviours and the rebuy had the wrong
+one. Both call `seatToReclaim` now.
+
+**A re-entry stays unseated on purpose.** It is a fresh entry into the tournament rather than more
+chips in the same chair — the same distinction that has a re-entry raked by default and a rebuy not.
+
+`seatInfo` used to be **passed in by the caller**, and only `TablesSection` passed it; busting a
+player out from the Players list lost their seat outright, and undo could not restore it either. The
+hook has the player, so it takes the seat from them when the caller says nothing.
 
 ### A chop splits only the money still to be won
 
