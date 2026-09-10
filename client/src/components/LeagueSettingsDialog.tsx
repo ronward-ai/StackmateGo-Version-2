@@ -1,5 +1,5 @@
 import React, { Fragment, useMemo, useState, useCallback, useEffect } from 'react';
-import { POINTS_PRESETS } from '@/lib/pointsPresets';
+import { POINTS_PRESETS, presetFor } from '@/lib/pointsPresets';
 import { hasBonuses } from '@/lib/pointsBonuses';
 import {
   Dialog,
@@ -175,6 +175,9 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
    */
   /** A round number to reason with; the shape of a scheme does not depend on it. */
   const previewBuyIn = 25;
+
+  /** Which ready-made is in the formula box, if any. */
+  const loadedPreset = presetFor(settings.pointsSystem.formula.customFormula);
 
   const previewRows = useMemo(() => {
     const field = typeof previewPoints.totalPlayers === 'number' && previewPoints.totalPlayers >= 2
@@ -542,14 +545,36 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                         className="font-mono"
                       />
 
+                      {/* Name what is in the box when it came from a ready-made.
+                          Loading one used to drop a wall of symbols in with no
+                          indication of what they were — and anonymous symbols
+                          are most of what makes this panel alarming. An exact
+                          match only: edit a character and this goes, because it
+                          is no longer that scheme. */}
+                      {loadedPreset && (
+                        <div className="flex items-start gap-2 text-label text-muted-foreground">
+                          <Check className="h-3.5 w-3.5 text-primary flex-shrink-0 mt-0.5" />
+                          <span>
+                            This is the formula behind{' '}
+                            <span className="text-foreground font-medium">{loadedPreset.name}</span>.
+                            {' '}{loadedPreset.summary}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Available Variables */}
                       {/* A reference table, not a paragraph: this is the one
                           place in the app a director has to read carefully, and
                           the symbols belong in the mono face like every other
                           figure. */}
                       <div className="card-glass rounded-xl p-3">
+                        {/* "Available variables" listed six letters — and the
+                            ready-mades hand out Math.round and Math.sqrt, which
+                            it had never acknowledged existed. A reference that
+                            omits half of what appears in the box is most of what
+                            made this panel alarming. */}
                         <div className="text-caption uppercase tracking-wide text-muted-foreground mb-2">
-                          Available variables
+                          What you can use
                         </div>
                         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-label">
                           {[
@@ -566,6 +591,28 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                             </Fragment>
                           ))}
                         </div>
+
+                        <div className="text-caption uppercase tracking-wide text-muted-foreground mt-3 mb-2">
+                          And these
+                        </div>
+                        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-label">
+                          {[
+                            ['Math.round(x)', 'to the nearest whole number'],
+                            ['Math.sqrt(x)', 'square root'],
+                            ['Math.min(a, b)', 'the smaller of two'],
+                            ['Math.max(a, b)', 'the larger of two'],
+                            ['+ - * /', 'add, take away, times, divide'],
+                          ].map(([symbol, meaning]) => (
+                            <Fragment key={symbol}>
+                              <code className="font-mono font-bold text-primary whitespace-nowrap">{symbol}</code>
+                              <span className="text-muted-foreground">{meaning}</span>
+                            </Fragment>
+                          ))}
+                        </div>
+                        <p className="text-caption text-muted-foreground/70 mt-2">
+                          The four named are the ones the ready-mades use; anything else on JavaScript's
+                          Math works too.
+                        </p>
                       </div>
 
                       {/* Known schemes, ready to load.
@@ -615,6 +662,13 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                           The <code className="font-mono text-primary">?</code> means <em>then</em> and
                           the <code className="font-mono text-primary">:</code> means <em>otherwise</em>,
                           and they chain as long as you like.
+                        </p>
+                        <code className="block font-mono text-caption text-foreground/90 pt-1">
+                          Math.round(10 * p / f)
+                        </code>
+                        <p className="text-label text-muted-foreground">
+                          "Ten times the players divided by where they finished, rounded off." The
+                          ready-mades are built from these two shapes.
                         </p>
                         <p className="text-label text-muted-foreground">
                           Easiest way in: load one below and change its numbers.

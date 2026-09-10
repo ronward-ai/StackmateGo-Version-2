@@ -62,3 +62,16 @@ export const POINTS_PRESETS: PointsPreset[] = [
     bestFor: 'A league where surviving on your first buy-in should count for something.',
   },
 ];
+
+/**
+ * Which ready-made a formula is, if it is one.
+ *
+ * Loading a preset fills the box with symbols; naming what they are is most of
+ * what stops them being alarming. An exact match only — edit one character and
+ * it is no longer that scheme, and saying otherwise would be a small lie about
+ * what the league scores.
+ */
+export function presetFor(formula: string | null | undefined): PointsPreset | null {
+  if (!formula?.trim()) return null;
+  return POINTS_PRESETS.find(preset => preset.formula === formula) ?? null;
+}

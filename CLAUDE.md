@@ -823,9 +823,21 @@ The table's rows are scored with **no knockouts**, because knockouts vary per pl
 cannot know them. Rather than invent a number it says what is added on top: "+2 for turning up, +5 for
 each knockout — on top of every figure above."
 
-The custom panel carries **one worked line** rather than a manual — `f==1 ? 100 : f==2 ? 60 : 30`,
-read out in English — because the syntax is the daunting part and a variables list does not teach it.
-The ready-mades below it are the real answer: load one and change its numbers.
+The custom panel carries **two worked lines** rather than a manual — `f==1 ? 100 : f==2 ? 60 : 30`
+and `Math.round(10 * p / f)`, each read out in English — because the syntax is the daunting part and a
+list of symbols does not teach it. They are the two shapes the ready-mades are built from, so both
+have been seen once before one arrives. The ready-mades below are the real answer: load one and change
+its numbers.
+
+**The reference documents the functions, not only the variables.** It was headed "Available
+variables" and listed six letters, while the ready-mades hand out `Math.round` and `Math.sqrt` — which
+it had never acknowledged existed. A reference that omits half of what appears in the box is most of
+what made this panel alarming. The four functions the presets use are named; a line says anything else
+on `Math` works, because the engine passes the whole object.
+
+**A loaded ready-made says which one it is.** `presetFor()` matches the box against the preset list —
+exactly, so editing a character drops the line, since it is no longer that scheme. Anonymous symbols
+are most of what alarms; named ones are just a formula.
 
 ### Points presets are custom formulas, not system types
 

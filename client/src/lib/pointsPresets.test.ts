@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { POINTS_PRESETS } from './pointsPresets';
+import { POINTS_PRESETS, presetFor } from './pointsPresets';
 
 /**
  * The presets are evaluated the way the app evaluates them — see
@@ -117,5 +117,34 @@ describe('Rebuys cost you', () => {
     expect(evaluate(formula, 1, 20)).toBeGreaterThan(evaluate(formula, 1, 10));
     expect(evaluate(formula, 1, 12, { buyIn: 50, invested: 50 }))
       .toBeGreaterThan(evaluate(formula, 1, 12, { buyIn: 25, invested: 25 }));
+  });
+});
+
+describe('presetFor', () => {
+  const preset = POINTS_PRESETS[0];
+
+  it('recognises a formula it handed out', () => {
+    expect(presetFor(preset.formula)?.id).toBe(preset.id);
+  });
+
+  it('does not claim an edited formula is still that scheme', () => {
+    expect(presetFor(preset.formula.replace('36', '40'))).toBeNull();
+  });
+
+  it('is exact — whitespace makes it a different formula, because it is', () => {
+    expect(presetFor(` ${preset.formula} `)).toBeNull();
+  });
+
+  it('has nothing to say about an empty box', () => {
+    expect(presetFor('')).toBeNull();
+    expect(presetFor('   ')).toBeNull();
+    expect(presetFor(null)).toBeNull();
+    expect(presetFor(undefined)).toBeNull();
+  });
+
+  it('recognises every preset it holds', () => {
+    for (const p of POINTS_PRESETS) {
+      expect(presetFor(p.formula)?.id).toBe(p.id);
+    }
   });
 });
