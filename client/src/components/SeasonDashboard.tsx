@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
 import EmptyState from '@/components/ui/empty-state';
-import { countGamesPlayed, isSeasonComplete, clampedGameNumber, nextSeasonDates } from '@/lib/seasonProgress';
+import { countGamesPlayed, isSeasonComplete, clampedGameNumber, nextSeasonDates, seasonSubtitle } from '@/lib/seasonProgress';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
 import { Calendar, History } from 'lucide-react';
@@ -123,7 +123,11 @@ export default function SeasonDashboard({
             {isCompleted ? 'Completed' : 'Active'}
           </Badge>
         </div>
-        <p className="text-label text-muted-foreground mt-0.5">{formatSeasonDateRange(currentSeason)}</p>
+        {/* Absent for a season with no dates — the progress bar below already
+            says how long it is. */}
+        {formatSeasonDateRange(currentSeason) && (
+          <p className="text-label text-muted-foreground mt-0.5">{formatSeasonDateRange(currentSeason)}</p>
+        )}
 
         {(currentSeason.numberOfGames || 0) > 0 && (
           <div className="mt-4">
@@ -209,7 +213,11 @@ export default function SeasonDashboard({
               {pastSeasons.map(season => (
                 <SelectItem key={season.id} value={String(season.id)}>
                   <span className="font-medium">{season.name}</span>
-                  <span className="ml-2 text-muted-foreground text-xs">{formatSeasonDateRange(season)}</span>
+                  {/* The picker uses this to tell seasons apart, so a dateless
+                      season identifies itself by its length instead. */}
+                  <span className="ml-2 text-muted-foreground text-xs">
+                    {seasonSubtitle(formatSeasonDateRange(season), season.numberOfGames)}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

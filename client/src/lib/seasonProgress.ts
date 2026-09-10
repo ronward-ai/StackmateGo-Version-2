@@ -132,6 +132,24 @@ export function isSeasonComplete(
 }
 
 /**
+ * The line under a season's name: its dates, its length, or both.
+ *
+ * Either half can be absent — a league that does not run on a calendar has no
+ * dates, and a season need not declare a length — so the parts are joined only
+ * when they are there. Concatenating them directly left a season with no dates
+ * reading " · 12 games", leading separator and all.
+ */
+export function seasonSubtitle(
+  dateRange: string | null | undefined,
+  numberOfGames: number | null | undefined,
+): string {
+  return [
+    dateRange || '',
+    numberOfGames ? `${numberOfGames} games` : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/**
  * Game number for display, never exceeding the season total.
  *
  * Without this the counter runs past the schedule — a 13-game season showing
@@ -200,8 +218,11 @@ export function nextSeasonDates(season: SeasonLike & { startDate?: string | null
  * crosses into a new one. Anything else falls back to the quarter and year,
  * which is what pub leagues tend to use.
  */
-export function suggestNextName(currentName: string | undefined, nextStartDate: string): string {
-  const start = new Date(nextStartDate);
+export function suggestNextName(currentName: string | undefined, nextStartDate?: string): string {
+  // Optional: a league that does not run on a calendar has no next start date,
+  // and falls back to naming by today's quarter — or, far more usefully, to
+  // bumping the trailing number on the current name ("Season 3" → "Season 4").
+  const start = new Date(nextStartDate ?? '');
   const year = Number.isNaN(start.getTime()) ? new Date().getFullYear() : start.getUTCFullYear();
   const quarter = Number.isNaN(start.getTime()) ? 1 : Math.floor(start.getUTCMonth() / 3) + 1;
 

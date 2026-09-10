@@ -41,16 +41,22 @@ export function useSeasonRollover(currentSeason: any) {
     if (!currentSeason?.id) return;
     setBusy(true); setError(null);
     try {
+      // A season without dates rolls over perfectly well: the next one is the
+      // same length, starting whenever the first game is played. Refusing here
+      // was a dead end for a league that never had dates in the first place.
+      const hasDates = !!currentSeason.startDate && !!currentSeason.endDate;
       const dates = nextSeasonDates(currentSeason);
-      if (!dates) {
-        setError('This season has no usable dates, so the next one cannot be prefilled. Create it from Manage League → Seasons.');
+
+      if (hasDates && !dates) {
+        // Dates that exist but do not parse — the case this message was written
+        // for. Prefilling would be guesswork.
+        setError('This season\u2019s dates could not be read, so the next one cannot be prefilled. Create it from Manage League → Seasons.');
         return;
       }
 
       const created = await addSeason({
-        name: suggestNextName(currentSeason.name, dates.startDate),
-        startDate: dates.startDate,
-        endDate: dates.endDate,
+        name: suggestNextName(currentSeason.name, dates?.startDate),
+        ...(dates ? { startDate: dates.startDate, endDate: dates.endDate } : {}),
         numberOfGames: currentSeason.numberOfGames || 12,
         status: 'active',
       });

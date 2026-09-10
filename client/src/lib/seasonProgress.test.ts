@@ -7,6 +7,7 @@ import {
   clampedGameNumber,
   nextSeasonDates,
   suggestNextName,
+  seasonSubtitle,
   SYNTHETIC_SEASON_ID,
   type PlayerLike,
 } from './seasonProgress';
@@ -262,5 +263,59 @@ describe('suggestNextName', () => {
 
   it('tolerates an unparseable date', () => {
     expect(suggestNextName('Winter League', 'nonsense')).toMatch(/^Q[1-4] \d{4}$/);
+  });
+});
+
+describe('a season with no dates', () => {
+  // Not every league runs on a calendar: a 12-game season runs until the
+  // twelfth game is played, whenever that falls.
+  it('completes on its game count alone', () => {
+    const season = { numberOfGames: 12 };
+    expect(isSeasonComplete(season, 11)).toBe(false);
+    expect(isSeasonComplete(season, 12)).toBe(true);
+    expect(isSeasonComplete(season, 13)).toBe(true);
+  });
+
+  it('never completes on time, having none', () => {
+    expect(isSeasonComplete({ numberOfGames: 12, endDate: null }, 3)).toBe(false);
+  });
+
+  it('never completes at all with neither dates nor a game count', () => {
+    expect(isSeasonComplete({}, 50)).toBe(false);
+    expect(isSeasonComplete({ numberOfGames: 0 }, 50)).toBe(false);
+  });
+
+  it('still numbers its games', () => {
+    expect(clampedGameNumber(4, { numberOfGames: 12 })).toBe(4);
+    expect(clampedGameNumber(13, { numberOfGames: 12 })).toBe(12);
+  });
+
+  it('has no next dates to offer', () => {
+    expect(nextSeasonDates({ numberOfGames: 12 })).toBeNull();
+  });
+
+  it('names the next one by bumping the trailing number, with no date to go on', () => {
+    expect(suggestNextName('Season 3')).toBe('Season 4');
+  });
+});
+
+describe('seasonSubtitle', () => {
+  it('joins the range and the length when both are there', () => {
+    expect(seasonSubtitle('1 Jan - 31 Mar', 12)).toBe('1 Jan - 31 Mar · 12 games');
+  });
+
+  it('gives the length alone, with no leading separator', () => {
+    // The bug this exists to prevent: " · 12 games".
+    expect(seasonSubtitle('', 12)).toBe('12 games');
+    expect(seasonSubtitle(null, 12)).toBe('12 games');
+  });
+
+  it('gives the range alone', () => {
+    expect(seasonSubtitle('1 Jan - 31 Mar', null)).toBe('1 Jan - 31 Mar');
+    expect(seasonSubtitle('1 Jan - 31 Mar', 0)).toBe('1 Jan - 31 Mar');
+  });
+
+  it('is empty when there is nothing to say', () => {
+    expect(seasonSubtitle('', null)).toBe('');
   });
 });

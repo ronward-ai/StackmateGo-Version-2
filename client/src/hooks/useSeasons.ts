@@ -94,8 +94,13 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   const createSeasonMutation = useMutation({
     mutationFn: async (seasonData: {
       name: string;
-      startDate: string;
-      endDate: string;
+      // Optional: not every league runs on a calendar. A quarterly season is a
+      // date range with a schedule inside it; a 12-game season runs until the
+      // twelfth game is played, whenever that falls. sanitizeForFirestore turns
+      // an absent date into null, and isSeasonComplete only consults endDate
+      // when there is one.
+      startDate?: string;
+      endDate?: string;
       numberOfGames: number;
       status?: 'active' | 'completed';
     }) => {
@@ -253,25 +258,27 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   }, [leagueId, leagueDoc, activeSeasonId, seasons]);
 
   // Format season date range for display
+  /**
+   * The date range, or '' for a season that has none.
+   *
+   * It used to format unconditionally, so a season without dates read
+   * `Invalid Date - Invalid Date`. Callers test for a falsy result rather than
+   * rendering it blindly.
+   */
   const formatSeasonDateRange = useCallback((season: MinimalSeason) => {
-    const start = new Date(season.startDate).toLocaleDateString();
-    const end = new Date(season.endDate).toLocaleDateString();
-    return `${start} - ${end}`;
-  }, []);
-
-  // Check if a season is currently active based on dates
-  const isSeasonActive = useCallback((season: MinimalSeason) => {
-    const now = new Date();
-    const startDate = new Date(season.startDate);
-    const endDate = new Date(season.endDate);
-    return now >= startDate && now <= endDate;
+    if (!season?.startDate || !season?.endDate) return '';
+    const start = new Date(season.startDate);
+    const end = new Date(season.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
+    return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
   }, []);
 
   // Create a new season
   const addSeason = useCallback(async (seasonData: {
     name: string;
-    startDate: string;
-    endDate: string;
+    /** Optional — see createSeasonMutation. */
+    startDate?: string;
+    endDate?: string;
     numberOfGames: number;
     // Forwarded to createSeasonMutation, which has always accepted it — the
     // omission here was a type-level oversight, not intended behaviour.
@@ -361,7 +368,6 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     currentSeason,
     isLoading,
     formatSeasonDateRange,
-    isSeasonActive,
     addSeason,
     updateSeason,
     deleteSeason,

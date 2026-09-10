@@ -12,6 +12,7 @@ import { Plus, Archive, Trash2, Check } from 'lucide-react';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useSubscription } from '@/hooks/useSubscription';
+import { seasonSubtitle } from '@/lib/seasonProgress';
 
 /**
  * Season management, gathered in one place.
@@ -47,13 +48,22 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
     seasons.find(s => String(s.id) === String(id))?.name ?? 'this season';
 
   const handleCreate = async () => {
-    if (!name.trim() || !dateRange?.from || !dateRange?.to) return;
+    // A name is all that is required. Dates used to be compulsory here, and the
+    // button was not disabled, so pressing Create with none did nothing at all
+    // and said nothing — indistinguishable from a broken app.
+    if (!name.trim()) return;
     setBusy(true); setError(null);
     try {
+      // BOTH dates or neither. Half a range is worse than none: isSeasonComplete
+      // would read an end date with no beginning.
+      const hasRange = !!dateRange?.from && !!dateRange?.to;
+
       const created = await addSeason({
         name: name.trim(),
-        startDate: dateRange.from.toISOString().split('T')[0],
-        endDate: dateRange.to.toISOString().split('T')[0],
+        ...(hasRange ? {
+          startDate: dateRange!.from!.toISOString().split('T')[0],
+          endDate: dateRange!.to!.toISOString().split('T')[0],
+        } : {}),
         numberOfGames: typeof games === 'number' ? games : 12,
         status: 'active',
       });
@@ -125,8 +135,7 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {formatSeasonDateRange(season)}
-                    {season.numberOfGames ? ` · ${season.numberOfGames} games` : ''}
+                    {seasonSubtitle(formatSeasonDateRange(season), season.numberOfGames)}
                   </p>
                 </div>
 
@@ -198,11 +207,17 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Date Range</Label>
+            <Label className="text-xs text-muted-foreground">Date Range <span className="opacity-60">(optional)</span></Label>
             <DateRangePicker value={dateRange} onSelect={setDateRange} />
+            {/* Not every league runs on a calendar: a quarterly season is a date
+                range with a schedule inside it, while a 12-game season runs
+                until the twelfth game is played, whenever that falls. */}
+            <p className="text-caption text-muted-foreground mt-1">
+              Leave blank for a season that simply runs until its games are played.
+            </p>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1" disabled={busy} onClick={handleCreate}>Create Season</Button>
+            <Button size="sm" className="flex-1" disabled={busy || !name.trim()} onClick={handleCreate}>Create Season</Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setShowNew(false)}>Cancel</Button>
           </div>
         </Card>

@@ -726,6 +726,34 @@ already matches. If it is ever wanted it belongs in `speak.ts` and nowhere else.
 three sites before). The Settings Test button speaks the level the game is on, through the same
 path, so it tests the announcements rather than only the device.
 
+### A season's dates are optional
+
+Not every league runs on a calendar. A quarterly season is a date range with a schedule inside it; a
+12-game season runs until the twelfth game is played, whenever that falls. **A season needs only a
+name** — dates and a game count are each optional, and a season with neither simply never advertises
+itself as finished.
+
+The model was always ready for this: `isSeasonComplete` takes the game count first and consults
+`endDate` only when there is one, and `sanitizeForFirestore` stores an absent date as null. What
+stood in the way was the UI. `LeagueSeasonsTab.handleCreate` returned early without both dates **and
+the button was not disabled**, so pressing Create with none did nothing and said nothing —
+indistinguishable from a broken app. `formatSeasonDateRange` formatted unconditionally, so a dateless
+season read `Invalid Date - Invalid Date`; it returns `''` now, and callers test before rendering.
+
+**Both dates or neither.** Half a range is worse than none, because `isSeasonComplete` would then
+read an end date with no beginning.
+
+`seasonSubtitle()` joins the range and the length, dropping whichever is missing — concatenating them
+directly left a dateless season reading `· 12 games`, leading separator and all.
+
+Start Next Season works without dates too: same game count, no dates, named by `suggestNextName`,
+which bumps a trailing number (`Season 3` → `Season 4`) when it has no date to reason from. The error
+about unusable dates survives for the case it was written for — dates that exist but do not parse.
+
+`isSeasonActive` was deleted with this: it derived "is this season current" from dates, which the
+`activeSeasonId` pointer replaced, and nothing called it. A dates-only notion of "current" left lying
+about is how the four competing ones grew.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
