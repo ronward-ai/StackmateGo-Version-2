@@ -804,6 +804,29 @@ a beginner browsing the list should not land in a formula editor by accident.
 The table also catches the silent-zero: when every row reads 0 it says so, which is otherwise
 invisible.
 
+### Knockouts and turning up are bonuses, not a reason to write a formula
+
+`lib/pointsBonuses.ts`'s `withBonuses()` adds **points per knockout** and **points for turning up** on
+top of whatever scheme a league scores with — every type, custom included. Two rules almost every home
+league has.
+
+`knockoutPoints` and `participationPoints` were **declared on `PointsFormula` and read by nobody**,
+described in a comment as applying "on top of any formula type". No UI offered them and no arithmetic
+applied them, so wanting either meant writing a custom formula — which is a large part of why that
+panel is the one directors find daunting. Fourth instance of the same pattern, after the league
+columns, `showNextLevel`, and `b`/`c`/`z`.
+
+They apply to **custom too**, deliberately. A custom formula can reference `k` itself, so setting both
+counts knockouts twice — that is the director's business, and the points table shows it at once.
+
+The table's rows are scored with **no knockouts**, because knockouts vary per player and a table
+cannot know them. Rather than invent a number it says what is added on top: "+2 for turning up, +5 for
+each knockout — on top of every figure above."
+
+The custom panel carries **one worked line** rather than a manual — `f==1 ? 100 : f==2 ? 60 : 30`,
+read out in English — because the syntax is the daunting part and a variables list does not teach it.
+The ready-mades below it are the real answer: load one and change its numbers.
+
 ### Points presets are custom formulas, not system types
 
 `lib/pointsPresets.ts` holds three ready-made scoring schemes, loaded into the custom-formula field

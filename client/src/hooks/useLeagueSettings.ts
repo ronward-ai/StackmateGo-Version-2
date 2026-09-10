@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { withBonuses } from '@/lib/pointsBonuses';
 import {
   LeagueSettings,
   PointsSystem,
@@ -121,6 +122,10 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
       if (!currentSettings?.pointsSystem?.formula) {
         return 0;
       }
+      // The bonuses ride on top of every scheme, custom included — see
+      // lib/pointsBonuses.ts. They were declared on the type and read by
+      // nobody, so wanting points per knockout meant writing a formula.
+      const bonuses = currentSettings.pointsSystem.formula;
 
       const { formula } = currentSettings.pointsSystem;
 
@@ -129,36 +134,31 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
           const baseMultiplier = formula.baseMultiplier || 10;
           const winnerMultiplier = formula.winnerMultiplier || 1.5;
           const points = baseMultiplier * Math.log(totalPlayers - position + 2);
-          return position === 1
-            ? Math.floor(points * winnerMultiplier)
-            : Math.floor(points);
+          return withBonuses(position === 1 ? points * winnerMultiplier : points, knockouts, bonuses);
         }
 
         case 'squareRoot': {
           const baseMultiplier = formula.baseMultiplier || 10;
           const winnerMultiplier = formula.winnerMultiplier || 1.2;
           const points = baseMultiplier * Math.sqrt(totalPlayers - position + 1);
-          return position === 1
-            ? Math.floor(points * winnerMultiplier)
-            : Math.floor(points);
+          return withBonuses(position === 1 ? points * winnerMultiplier : points, knockouts, bonuses);
         }
 
         case 'linear': {
           const baseMultiplier = formula.baseMultiplier || 10;
           const winnerMultiplier = formula.winnerMultiplier || 1.0;
           const points = baseMultiplier * (totalPlayers - position + 1);
-          return position === 1
-            ? Math.floor(points * winnerMultiplier)
-            : Math.floor(points);
+          return withBonuses(position === 1 ? points * winnerMultiplier : points, knockouts, bonuses);
         }
 
         case 'fixed': {
-          return formula.positionPoints?.[position - 1] ?? formula.fixedPoints ?? 0;
+          const points = formula.positionPoints?.[position - 1] ?? formula.fixedPoints ?? 0;
+          return withBonuses(points, knockouts, bonuses);
         }
 
         case 'custom': {
           if (!formula.customFormula?.trim()) {
-            return 0;
+            return withBonuses(0, knockouts, bonuses);
           }
 
           try {
@@ -180,7 +180,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
             // floored and shown as "Infinity" points.
             const num = Number(result);
             if (!Number.isFinite(num)) return 0;
-            return Math.max(0, Math.floor(num));
+            return withBonuses(num, knockouts, bonuses);
           } catch (error) {
             console.error('Error evaluating custom formula:', error, 'Formula:', formula.customFormula);
             return 0;

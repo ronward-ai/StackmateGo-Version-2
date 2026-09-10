@@ -1,5 +1,6 @@
 import React, { Fragment, useMemo, useState, useCallback, useEffect } from 'react';
 import { POINTS_PRESETS } from '@/lib/pointsPresets';
+import { hasBonuses } from '@/lib/pointsBonuses';
 import {
   Dialog,
   DialogContent,
@@ -364,6 +365,50 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                   </Select>
                 </div>
 
+                {/* Bonuses, which apply to EVERY scheme including custom.
+                    Almost every home league has one of these rules, and neither
+                    was reachable without writing a formula — which is a large
+                    part of why that panel is the one people find daunting. The
+                    fields existed on the type all along and nothing read them. */}
+                <div className="grid grid-cols-2 gap-4 p-4 card-glass rounded-xl">
+                  <div className="space-y-2">
+                    <Label>
+                      Points per knockout
+                      <span className="block text-caption font-normal text-muted-foreground">
+                        For every player they bust out. 0 for none.
+                      </span>
+                    </Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={settings.pointsSystem.formula.knockoutPoints ?? 0}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        updateFormulaParameter('knockoutPoints', raw === '' ? 0 : parseInt(raw, 10));
+                      }}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>
+                      Points for turning up
+                      <span className="block text-caption font-normal text-muted-foreground">
+                        Everyone who plays, however they finish.
+                      </span>
+                    </Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={settings.pointsSystem.formula.participationPoints ?? 0}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        updateFormulaParameter('participationPoints', raw === '' ? 0 : parseInt(raw, 10));
+                      }}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                </div>
+
                 {/* Formula Parameters for Algorithmic Systems */}
                 {(settings.pointsSystem.formula.type === 'logarithmic' ||
                   settings.pointsSystem.formula.type === 'squareRoot' ||
@@ -554,6 +599,28 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                         ))}
                       </div>
 
+                      {/* One worked line, because the syntax is the daunting
+                          part and a variables list does not teach it. Deliberately
+                          not a manual: the ready-mades below are the real
+                          starting point, and the table shows every edit at once. */}
+                      <div className="card-glass rounded-xl p-3 space-y-1.5">
+                        <div className="text-caption uppercase tracking-wide text-muted-foreground">
+                          How one reads
+                        </div>
+                        <code className="block font-mono text-caption text-foreground/90">
+                          f==1 ? 100 : f==2 ? 60 : 30
+                        </code>
+                        <p className="text-label text-muted-foreground">
+                          "If they finished 1st give 100, else if 2nd give 60, else give 30."
+                          The <code className="font-mono text-primary">?</code> means <em>then</em> and
+                          the <code className="font-mono text-primary">:</code> means <em>otherwise</em>,
+                          and they chain as long as you like.
+                        </p>
+                        <p className="text-label text-muted-foreground">
+                          Easiest way in: load one below and change its numbers.
+                        </p>
+                      </div>
+
                       {/* Saved Custom Formulas */}
                       {savedFormulas.length > 0 && (
                         <div className="space-y-2">
@@ -741,6 +808,23 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                         </div>
                       ))}
                     </div>
+
+                    {/* The rows are scored with no knockouts, because knockouts
+                        vary per player and a table cannot know them. Rather than
+                        invent a number, say what is added on top. */}
+                    {hasBonuses(settings.pointsSystem.formula) && (
+                      <p className="text-label text-muted-foreground">
+                        {[
+                          (settings.pointsSystem.formula.participationPoints || 0) > 0
+                            ? `+${settings.pointsSystem.formula.participationPoints} for turning up`
+                            : '',
+                          (settings.pointsSystem.formula.knockoutPoints || 0) > 0
+                            ? `+${settings.pointsSystem.formula.knockoutPoints} for each knockout`
+                            : '',
+                        ].filter(Boolean).join(', ')}
+                        {' — on top of every figure above.'}
+                      </p>
+                    )}
 
                     {previewRows.length > 0 && previewRows.every(r => r.points === 0) && (
                       // A formula that throws scores 0 for everyone and says
