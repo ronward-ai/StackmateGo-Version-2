@@ -754,6 +754,28 @@ about unusable dates survives for the case it was written for — dates that exi
 `activeSeasonId` pointer replaced, and nothing called it. A dates-only notion of "current" left lying
 about is how the four competing ones grew.
 
+### The game count can be worked out from the dates
+
+`gamesInRange(startDate, endDate, { weekdays, everyNWeeks })` counts the playing nights in a range,
+and the season form offers it whenever a date range is set: pick the nights, pick weekly or
+fortnightly, press Use.
+
+It is a **suggestion that fills an editable field**, never a rule. A cancelled week, a Christmas
+break and a double-header are all normal and none of them are knowable from a pattern — the same
+reason nothing ends a season automatically.
+
+Worth knowing why it earns its place: **1 Jan to 31 Mar 2026 is thirteen weeks but twelve
+Wednesdays.** That is exactly the arithmetic a director does in their head and gets wrong.
+
+Two details in the implementation. All dates are read as **UTC midnight**, like `nextSeasonDates`, so
+a timezone west of Greenwich cannot shift a date onto the previous day and lose a week. And
+`everyNWeeks` is anchored to the **week** the range starts in, not to each weekday independently —
+otherwise a fortnightly Tuesday-and-Thursday league would have its two nights land on alternating
+weeks.
+
+The chosen nights are not stored on the season. Nothing needs them after the count, and a stored
+schedule that reality diverges from is a second source of truth.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season

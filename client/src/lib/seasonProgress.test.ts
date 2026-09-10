@@ -8,6 +8,7 @@ import {
   nextSeasonDates,
   suggestNextName,
   seasonSubtitle,
+  gamesInRange,
   SYNTHETIC_SEASON_ID,
   type PlayerLike,
 } from './seasonProgress';
@@ -317,5 +318,58 @@ describe('seasonSubtitle', () => {
 
   it('is empty when there is nothing to say', () => {
     expect(seasonSubtitle('', null)).toBe('');
+  });
+});
+
+describe('gamesInRange', () => {
+  const WED = 3;
+  const TUE = 2;
+  const THU = 4;
+
+  it('counts the Wednesdays in a quarter', () => {
+    // 1 Jan 2026 is a Thursday, so the Wednesdays are 7/14/21/28 Jan,
+    // 4/11/18/25 Feb and 4/11/18/25 Mar — twelve, not the thirteen a director
+    // would guess from "thirteen weeks".
+    expect(gamesInRange('2026-01-01', '2026-03-31', { weekdays: [WED] })).toBe(12);
+  });
+
+  it('includes a matching day on the first and last date of the range', () => {
+    // 7 Jan 2026 is a Wednesday.
+    expect(gamesInRange('2026-01-07', '2026-01-07', { weekdays: [WED] })).toBe(1);
+    expect(gamesInRange('2026-01-07', '2026-01-13', { weekdays: [WED] })).toBe(1);
+    expect(gamesInRange('2026-01-01', '2026-01-07', { weekdays: [WED] })).toBe(1);
+  });
+
+  it('counts two nights a week', () => {
+    expect(gamesInRange('2026-01-01', '2026-01-31', { weekdays: [TUE, THU] })).toBe(9);
+  });
+
+  it('halves it for a fortnightly league', () => {
+    expect(gamesInRange('2026-01-01', '2026-03-31', { weekdays: [WED], everyNWeeks: 2 })).toBe(6);
+  });
+
+  it('keeps a fortnightly pair on the SAME week, not alternating ones', () => {
+    // Tue 6th and Thu 8th are one playing week; the 13th and 15th are skipped;
+    // the 20th and 22nd play again. Anchoring each weekday separately would
+    // scatter them.
+    expect(gamesInRange('2026-01-01', '2026-01-31', { weekdays: [TUE, THU], everyNWeeks: 2 })).toBe(5);
+  });
+
+  it('is zero when there is nothing to count', () => {
+    expect(gamesInRange('2026-01-01', '2026-03-31', { weekdays: [] })).toBe(0);
+    expect(gamesInRange(null, '2026-03-31', { weekdays: [WED] })).toBe(0);
+    expect(gamesInRange('2026-01-01', null, { weekdays: [WED] })).toBe(0);
+    expect(gamesInRange('not a date', '2026-03-31', { weekdays: [WED] })).toBe(0);
+    expect(gamesInRange('2026-03-31', '2026-01-01', { weekdays: [WED] })).toBe(0);
+  });
+
+  it('ignores weekdays that are not days', () => {
+    expect(gamesInRange('2026-01-01', '2026-03-31', { weekdays: [WED, 9, -1, 3] })).toBe(12);
+  });
+
+  it('does not lose a week to a timezone', () => {
+    // A date-only string parsed as local time can land on the previous day west
+    // of Greenwich; both ends are read as UTC midnight.
+    expect(gamesInRange('2026-01-07T00:00:00Z', '2026-01-07T23:59:59Z', { weekdays: [WED] })).toBe(1);
   });
 });

@@ -165,6 +165,67 @@ export function clampedGameNumber(
 }
 
 /**
+ * How many games a date range holds, given when the league plays.
+ *
+ * A director setting up a quarterly season should not have to count Wednesdays
+ * on a calendar. Tell it the nights you play and how often, and it counts them.
+ *
+ * A SUGGESTION, never a rule: the number it produces fills the games field and
+ * can be typed over. A cancelled week, a Christmas break or a double-header are
+ * all normal, and none of them are knowable from a pattern — which is the same
+ * reason nothing ends a season automatically.
+ *
+ * All arithmetic in UTC, like `nextSeasonDates`, so a local timezone cannot
+ * shift a date across midnight and lose or gain a week.
+ */
+export interface SchedulePattern {
+  /** 0 = Sunday … 6 = Saturday. More than one for a league playing twice a week. */
+  weekdays: number[];
+  /** 1 = every week, 2 = every other week. Whole weeks only. */
+  everyNWeeks?: number;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function gamesInRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  pattern: SchedulePattern,
+): number {
+  if (!startDate || !endDate) return 0;
+
+  const start = new Date(`${String(startDate).slice(0, 10)}T00:00:00Z`);
+  const end = new Date(`${String(endDate).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  if (end.getTime() < start.getTime()) return 0;
+
+  const days = Array.from(new Set(pattern.weekdays ?? []))
+    .filter(d => Number.isInteger(d) && d >= 0 && d <= 6);
+  if (days.length === 0) return 0;
+
+  const every = Math.max(1, Math.floor(pattern.everyNWeeks ?? 1));
+
+  // The Monday of the week the range begins in, as the parity anchor. Anchoring
+  // per weekday instead would let a fortnightly Tuesday and Thursday land on
+  // alternating weeks — "every other week" means the WEEK repeats, not each day
+  // independently.
+  const mondayOffset = (start.getUTCDay() + 6) % 7;
+  const anchor = start.getTime() - mondayOffset * DAY_MS;
+
+  let count = 0;
+  // A season longer than twenty years is a mistake, not a schedule.
+  for (let week = 0; week < 1040; week += every) {
+    const weekStart = anchor + week * 7 * DAY_MS;
+    if (weekStart > end.getTime()) break;
+    for (const day of days) {
+      const when = weekStart + ((day + 6) % 7) * DAY_MS;
+      if (when >= start.getTime() && when <= end.getTime()) count++;
+    }
+  }
+  return count;
+}
+
+/**
  * Dates for the season that follows this one.
  *
  * Quarterly leagues repeat, so the next season is "the same again, shifted
