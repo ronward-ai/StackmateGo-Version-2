@@ -1,4 +1,5 @@
 import React, { Fragment, useState, useCallback, useEffect } from 'react';
+import { POINTS_PRESETS } from '@/lib/pointsPresets';
 import {
   Dialog,
   DialogContent,
@@ -463,6 +464,34 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                             </Fragment>
                           ))}
                         </div>
+                      </div>
+
+                      {/* Known schemes, ready to load.
+                          Deliberately NOT entries in the points-system dropdown:
+                          that lists KINDS of scoring — logarithmic, square root,
+                          linear, fixed, custom — and a specific formula is an
+                          instance of the last one rather than a sibling of the
+                          others. They sit with the director's own saved formulas
+                          and load the same way. */}
+                      <div className="space-y-2">
+                        <Label className="text-label font-medium">Start from a known scheme</Label>
+                        {POINTS_PRESETS.map(preset => (
+                          <div key={preset.id} className="flex items-start justify-between gap-2 p-2 card-glass rounded-lg">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-label">{preset.name}</div>
+                              <div className="text-caption text-muted-foreground">{preset.summary}</div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-caption flex-shrink-0"
+                              onClick={() => updateCustomFormula(preset.formula)}
+                            >
+                              Load
+                            </Button>
+                          </div>
+                        ))}
                       </div>
 
                       {/* Saved Custom Formulas */}

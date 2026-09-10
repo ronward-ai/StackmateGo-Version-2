@@ -780,6 +780,31 @@ weeks.
 The chosen nights are not stored on the season. Nothing needs them after the count, and a stored
 schedule that reality diverges from is a second source of truth.
 
+### Points presets are custom formulas, not system types
+
+`lib/pointsPresets.ts` holds known scoring schemes — currently The Tournament Director's classic
+`switch(r, 1, n*36, …)`, translated to this app's `f` and `p`. They load into the custom-formula field
+beside the director's own saved formulas, using the same Load button.
+
+**They are deliberately NOT entries in the points-system dropdown.** That lists KINDS of scoring —
+logarithmic, square root, linear, fixed, custom — and a specific formula is an instance of the last
+one rather than a sibling of the others. Listing one there would be like putting "Wednesday" beside
+"weekly".
+
+`pointsPresets.test.ts` **evaluates each preset the way `calculatePoints` does** and pins the TD
+scheme band by band across 2–40 players and positions 1–25, so an edit cannot quietly change what a
+league scores. It also asserts the properties any preset must have: it evaluates to a number rather
+than throwing, and never scores a later finish above an earlier one.
+
+That matters because a custom formula that throws **scores 0 for everyone, silently** —
+`useLeagueSettings` catches, logs to the console and returns 0.
+
+Two evaluators exist for one formula, and they disagree. The dialog's "Formula valid" tick
+string-replaces `p`/`f`/`b`/`c`/`k`/`z` with fixed numbers, tests **first place only**, and rejects the
+long variable names (`position`, `totalPlayers`, …) that the real engine accepts. The **Points
+Preview** below it calls the real `calculatePoints` and is the one to trust. Collapsing the two is
+worth doing — same class as the rake formula and the duplicated timer.
+
 ### `'default-season'`
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
