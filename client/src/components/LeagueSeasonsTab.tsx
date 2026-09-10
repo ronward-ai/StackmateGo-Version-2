@@ -282,22 +282,29 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
                 })}
               </div>
 
-              <div className="flex gap-1">
-                {[{ n: 1, label: 'Every week' }, { n: 2, label: 'Every 2 weeks' }].map(option => (
-                  <button
-                    key={option.n}
-                    type="button"
-                    onClick={() => setEveryNWeeks(option.n)}
-                    className={cn(
-                      'h-7 px-2.5 rounded-md border text-caption font-medium transition-colors',
-                      everyNWeeks === option.n
-                        ? 'bg-primary/10 text-primary border-primary/30'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              {/* A number, not a set of buttons. "Every week" and "Every 2 weeks"
+                  could not justify the pair: if fortnightly earns a button then
+                  so does every three weeks, or monthly. gamesInRange always
+                  accepted any N — only this control stopped at two. */}
+              <div className="flex items-center gap-2">
+                <span className="text-label text-muted-foreground">Every</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={everyNWeeks}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                    // Empty reads as weekly rather than blocking: gamesInRange
+                    // clamps below 1 anyway, so the count never vanishes while
+                    // the field is being retyped.
+                    setEveryNWeeks(raw === '' ? 1 : Number(raw));
+                  }}
+                  onFocus={e => e.target.select()}
+                  className="h-7 w-12 text-center text-label px-1"
+                />
+                <span className="text-label text-muted-foreground">
+                  {everyNWeeks === 1 ? 'week' : 'weeks'}
+                </span>
               </div>
 
               {suggestedGames > 0 && (

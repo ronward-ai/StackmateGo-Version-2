@@ -348,6 +348,12 @@ describe('gamesInRange', () => {
     expect(gamesInRange('2026-01-01', '2026-03-31', { weekdays: [WED], everyNWeeks: 2 })).toBe(6);
   });
 
+  it('takes any N, not just one and two', () => {
+    // The UI once offered "every week" and "every 2 weeks" and nothing else,
+    // which could not justify stopping at two. Roughly monthly:
+    expect(gamesInRange('2026-01-01', '2026-03-31', { weekdays: [WED], everyNWeeks: 4 })).toBe(3);
+  });
+
   it('keeps a fortnightly pair on the SAME week, not alternating ones', () => {
     // Tue 6th and Thu 8th are one playing week; the 13th and 15th are skipped;
     // the 20th and 22nd play again. Anchoring each weekday separately would

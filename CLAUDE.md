@@ -757,8 +757,12 @@ about is how the four competing ones grew.
 ### The game count can be worked out from the dates
 
 `gamesInRange(startDate, endDate, { weekdays, everyNWeeks })` counts the playing nights in a range,
-and the season form offers it whenever a date range is set: pick the nights, pick weekly or
-fortnightly, press Use.
+and the season form offers it whenever a date range is set: pick the nights, say how many weeks apart
+they are, press Use.
+
+The frequency is **a number, not a set of options**. It shipped as "Every week" and "Every 2 weeks",
+a pair that could not justify itself — if fortnightly earns a button then so does every three weeks,
+or monthly. `gamesInRange` always took any N; only the control stopped at two.
 
 It is a **suggestion that fills an editable field**, never a rule. A cancelled week, a Christmas
 break and a double-header are all normal and none of them are knowable from a pattern — the same
