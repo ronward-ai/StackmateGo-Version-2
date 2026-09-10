@@ -780,6 +780,30 @@ weeks.
 The chosen nights are not stored on the season. Nothing needs them after the count, and a stored
 schedule that reality diverges from is a second source of truth.
 
+### The Points tab is chosen by looking, not by reading
+
+The schemes were labelled **Logarithmic, Square Root and Linear** — curve families, which is how the
+maths thinks and not how a director does. Nobody setting up a home league wants to pick between
+logarithms; they want the winner to get a lot more than second, or everyone to score close together.
+They are named for what they do now, with `mathName` keeping the technical term for anyone who came
+from software that used it.
+
+**The preview is a table of what each place scores**, for an adjustable field size, and it reads out
+of `calculatePoints` — the same function the league scores with, so it cannot drift from a real game.
+It replaced a single position and one big number, which hid the shape of a scheme entirely.
+
+Building it caught a description that was simply false. "Logarithmic" claimed to *reward top finishes
+heavily*; with the defaults a field of twelve scores **38, 24, 23, 23, 21** — second through fifth are
+nearly level, and almost all of the gap is the winner's bonus. A director choosing on that sentence
+would have got the opposite of what they wanted. It is called "Close together" now.
+
+`baseMultiplier` and `winnerMultiplier` are labelled by their effect — "Points scale", "Winner's
+bonus (1 = no bonus)" — rather than by their name. And Custom reads "Custom formula (advanced)", since
+a beginner browsing the list should not land in a formula editor by accident.
+
+The table also catches the silent-zero: when every row reads 0 it says so, which is otherwise
+invisible.
+
 ### Points presets are custom formulas, not system types
 
 `lib/pointsPresets.ts` holds known scoring schemes — currently The Tournament Director's classic

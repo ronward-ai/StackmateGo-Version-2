@@ -1,4 +1,4 @@
-import React, { Fragment, useState, useCallback, useEffect } from 'react';
+import React, { Fragment, useMemo, useState, useCallback, useEffect } from 'react';
 import { POINTS_PRESETS } from '@/lib/pointsPresets';
 import {
   Dialog,
@@ -161,11 +161,40 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
   }, [isOpen, loadSavedFormulas]);
 
   // Points system preview with error handling
-  const previewPointsCalculation = useCallback(() => {
-    const position = typeof previewPoints.position === 'number' ? previewPoints.position : 1;
-    const totalPlayers = typeof previewPoints.totalPlayers === 'number' ? previewPoints.totalPlayers : 10;
-    return calculatePoints(position, totalPlayers, 0);
-  }, [calculatePoints, previewPoints]);
+  /**
+   * What each place scores, straight from the scoring engine.
+   *
+   * Not a second implementation: `calculatePoints` is the same function the
+   * league scores with, so the table cannot disagree with a real game — which
+   * is more than can be said for the "Formula valid" check above it.
+   *
+   * The first eight places, then the last, which is where the schemes differ:
+   * a set-points scheme pays nothing past ninth while the others still score
+   * the bubble.
+   */
+  const previewRows = useMemo(() => {
+    const field = typeof previewPoints.totalPlayers === 'number' && previewPoints.totalPlayers >= 2
+      ? Math.min(previewPoints.totalPlayers, 1000)
+      : 10;
+
+    const positions = Array.from(
+      new Set([...Array.from({ length: Math.min(8, field) }, (_, i) => i + 1), field]),
+    ).sort((a, b) => a - b);
+
+    const ordinal = (n: number) => {
+      const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th'
+        : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+      return `${n}${suffix}`;
+    };
+
+    return positions.map(position => ({
+      position,
+      label: position === 1 ? 'Winner'
+        : position === field ? `${ordinal(position)} — last`
+        : ordinal(position),
+      points: calculatePoints(position, field, 0),
+    }));
+  }, [calculatePoints, previewPoints.totalPlayers, settings.pointsSystem]);
 
   // Handle saving custom formula template
   const handleSaveTemplate = useCallback(async (name: string, formula: string) => {
@@ -289,15 +318,15 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
           <TabsContent value="points" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Points System Configuration</CardTitle>
+                <CardTitle>Points</CardTitle>
                 <CardDescription>
-                  Choose how points are calculated for tournament finishes
+                  How a finishing position turns into league points. Pick one and look at the table.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Points System Type Selection */}
                 <div className="space-y-2">
-                  <Label>Points System Type</Label>
+                  <Label>How should points work?</Label>
                   <Select
                     value={settings.pointsSystem.formula.type}
                     onValueChange={(value) => setPointsSystemType(value as keyof typeof POINTS_SYSTEMS)}
@@ -311,8 +340,15 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                         return (
                         <SelectItem key={key} value={key}>
                           <div className="flex flex-col">
-                            <span className="font-medium">{system.name}</span>
-                            <span className="text-xs text-muted-foreground">{system.description}</span>
+                            <span className="font-medium">
+                              {system.name}
+                              {/* The technical term stays, quietly, for anyone
+                                  who came from software that used it. */}
+                              {system.mathName && system.mathName !== system.name && (
+                                <span className="text-muted-foreground font-normal"> · {system.mathName}</span>
+                              )}
+                            </span>
+                            <span className="text-caption text-muted-foreground">{system.description}</span>
                           </div>
                         </SelectItem>
                         );
@@ -327,7 +363,16 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                   settings.pointsSystem.formula.type === 'linear') && (
                   <div className="grid grid-cols-2 gap-4 p-4 card-glass rounded-xl">
                     <div className="space-y-2">
-                      <Label>Base Multiplier</Label>
+                      {/* "Base Multiplier" and "Winner Multiplier" said what they
+                          were, not what they do. The table below shows the
+                          effect either way, but a label should not need a table
+                          to be understood. */}
+                      <Label>
+                        Points scale
+                        <span className="block text-caption font-normal text-muted-foreground">
+                          Bigger numbers all round. Does not change the order.
+                        </span>
+                      </Label>
                       <Input
                         type="text"
                         inputMode="numeric"
@@ -341,7 +386,12 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Winner Multiplier</Label>
+                      <Label>
+                        Winner's bonus
+                        <span className="block text-caption font-normal text-muted-foreground">
+                          1 = no bonus. 1.5 = half as much again for first place.
+                        </span>
+                      </Label>
                       <Input
                         type="text"
                         inputMode="decimal"
@@ -625,82 +675,70 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                   </div>
                 )}
 
-                {/* Points Preview */}
+                {/* What it actually pays.
+                    This was ONE position at a time and a big number, so the
+                    shape of a scheme was invisible: you could not see that
+                    "Close together" really does finish 24, 23, 23 through the
+                    middle, and you certainly could not compare two schemes.
+                    The choice is made by looking, like the timer piping
+                    swatches — and it reads out of the REAL scoring engine, so
+                    it cannot drift from what a game will score. */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Points Preview</CardTitle>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">What this scores</CardTitle>
+                    <CardDescription>
+                      Every figure below comes from the scoring the league will actually use.
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Position</Label>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={previewPoints.position === 0 ? '' : previewPoints.position}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/[^0-9]/g, '');
-                            if (value === '') {
-                              setPreviewPoints(prev => ({ ...prev, position: 0 }));
-                              return;
-                            }
-                            const num = parseInt(value);
-                            if (!isNaN(num)) {
-                              setPreviewPoints(prev => ({ ...prev, position: num }));
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const value = parseInt(e.target.value);
-                            if (isNaN(value) || value < 1) {
-                              setPreviewPoints(prev => ({ ...prev, position: 1 }));
-                            } else if (value > previewPoints.totalPlayers) {
-                              setPreviewPoints(prev => ({ ...prev, position: previewPoints.totalPlayers }));
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                        />
-                      </div>
-                      <div>
-                        <Label>Total Players</Label>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={previewPoints.totalPlayers === 0 ? '' : previewPoints.totalPlayers}
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/[^0-9]/g, '');
-                            if (value === '') {
-                              setPreviewPoints(prev => ({ ...prev, totalPlayers: 0 }));
-                              return;
-                            }
-                            const num = parseInt(value);
-                            if (!isNaN(num)) {
-                              setPreviewPoints(prev => ({
-                                ...prev,
-                                totalPlayers: num,
-                                position: prev.position > num ? num : prev.position
-                              }));
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const value = parseInt(e.target.value);
-                            if (isNaN(value) || value < 2) {
-                              setPreviewPoints(prev => ({ ...prev, totalPlayers: 10, position: Math.min(prev.position, 10) }));
-                            } else if (value > 1000) {
-                              setPreviewPoints(prev => ({ ...prev, totalPlayers: 1000, position: Math.min(prev.position, 1000) }));
-                            }
-                          }}
-                          onFocus={(e) => e.target.select()}
-                        />
-                      </div>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-label text-muted-foreground">In a game of</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={previewPoints.totalPlayers === 0 ? '' : previewPoints.totalPlayers}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9]/g, '');
+                          setPreviewPoints(prev => ({
+                            ...prev,
+                            totalPlayers: raw === '' ? 0 : Math.min(1000, parseInt(raw, 10)),
+                          }));
+                        }}
+                        onBlur={(e) => {
+                          const value = parseInt(e.target.value, 10);
+                          if (isNaN(value) || value < 2) {
+                            setPreviewPoints(prev => ({ ...prev, totalPlayers: 10 }));
+                          }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="h-8 w-16 text-center text-label"
+                      />
+                      <Label className="text-label text-muted-foreground">players</Label>
                     </div>
-                    <div className="text-center p-4 bg-muted rounded">
-                      <div className="text-2xl font-bold">
-                        {previewPointsCalculation()} points
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Position {previewPoints.position} out of {previewPoints.totalPlayers} players
-                      </div>
+
+                    <div className="card-glass rounded-xl divide-y divide-border/40">
+                      {previewRows.map(row => (
+                        <div
+                          key={row.position}
+                          className="flex items-center justify-between px-3 py-1.5"
+                        >
+                          <span className="text-label text-muted-foreground">
+                            {row.label}
+                          </span>
+                          <span className="font-mono text-label font-bold text-foreground">
+                            {row.points}
+                          </span>
+                        </div>
+                      ))}
                     </div>
+
+                    {previewRows.length > 0 && previewRows.every(r => r.points === 0) && (
+                      // A formula that throws scores 0 for everyone and says
+                      // nothing — this is the one place that shows it.
+                      <p className="text-label text-destructive">
+                        Nothing scores any points. Check the formula above.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </CardContent>

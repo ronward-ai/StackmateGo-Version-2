@@ -128,11 +128,28 @@ export const STAT_LABELS: Record<string, string> = {
 };
 
 // Predefined points systems
+/**
+ * The scoring schemes, named for what they DO.
+ *
+ * They were labelled Logarithmic, Square Root and Linear — curve families, which
+ * is how the maths thinks and not how a director does. Nobody setting up a home
+ * league wants to pick between logarithms; they want the winner to get a lot
+ * more than second, or everyone to score close together.
+ *
+ * `mathName` keeps the technical term for anyone who does think that way, and
+ * the Points tab shows a live table of what each one actually pays — the choice
+ * is made by looking, like the timer piping swatches.
+ */
 export const POINTS_SYSTEMS = {
   logarithmic: {
     id: 'logarithmic',
-    name: 'Logarithmic',
-    description: 'Points calculated using logarithmic formula - rewards top finishes heavily',
+    name: 'Close together',
+    mathName: 'Logarithmic',
+    // Honest about what the numbers do. With the defaults a field of 12 scores
+    // 38, 24, 23, 23, 21 — second to fifth are nearly level, and the gap is
+    // almost entirely the winner's bonus. It used to claim it "rewards top
+    // finishes heavily", which the table plainly contradicts.
+    description: 'Everyone finishes on similar points, with a clear bonus for the winner',
     formula: {
       type: 'logarithmic' as const,
       baseMultiplier: 10,
@@ -141,8 +158,9 @@ export const POINTS_SYSTEMS = {
   },
   squareRoot: {
     id: 'square-root',
-    name: 'Square Root',
-    description: 'Points calculated using square root formula - balanced reward system',
+    name: 'Balanced',
+    mathName: 'Square root',
+    description: 'A steady drop down the field, without a runaway winner',
     formula: {
       type: 'squareRoot' as const,
       baseMultiplier: 10,
@@ -151,8 +169,9 @@ export const POINTS_SYSTEMS = {
   },
   linear: {
     id: 'linear',
-    name: 'Linear',
-    description: 'Points decrease linearly by position - simple and predictable',
+    name: 'Even steps',
+    mathName: 'Linear',
+    description: 'Every place is worth the same amount more than the one below it',
     formula: {
       type: 'linear' as const,
       baseMultiplier: 10,
@@ -161,8 +180,9 @@ export const POINTS_SYSTEMS = {
   },
   fixed: {
     id: 'fixed',
-    name: 'Fixed Points',
-    description: 'Fixed points per position - configurable point values for each finishing position',
+    name: 'Set points per place',
+    mathName: 'Fixed',
+    description: 'You choose exactly what each finishing position scores',
     formula: {
       type: 'fixed' as const,
       positionPoints: [25, 18, 13, 9, 6, 4, 3, 2, 1] // Default: positions 1-9 get these points, 10+ get 0
@@ -170,8 +190,9 @@ export const POINTS_SYSTEMS = {
   },
   custom: {
     id: 'custom',
-    name: 'Custom Formula',
-    description: 'User-defined mathematical formula for points calculation',
+    name: 'Custom formula (advanced)',
+    mathName: 'Custom',
+    description: 'Write the scoring yourself, or load a known scheme',
     formula: {
       type: 'custom' as const,
       customFormula: '10 * (totalPlayers - position + 1)'
