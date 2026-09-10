@@ -585,8 +585,8 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       // passed because the formula editor ADVERTISES them as `b`, `c` and `z`.
       // They were not, so all three were 0 in every result ever recorded: a
       // formula dividing by `c` produced Infinity and one multiplying by `b`
-      // produced nothing. Dr Neau's scheme — the one where rebuying costs a
-      // player points — could not work at all.
+      // produced nothing — so a scheme where rebuying costs a player points
+      // could not work at all.
       //
       // Same helpers the league columns use, so "what did this cost" has one
       // answer. `investedIn` never returns 0, which is what makes `p/c` safe.

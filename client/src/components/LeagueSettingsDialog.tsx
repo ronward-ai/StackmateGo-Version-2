@@ -537,9 +537,9 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-label">{preset.name}</div>
                               <div className="text-caption text-muted-foreground">{preset.summary}</div>
-                              {preset.note && (
-                                <div className="text-caption text-muted-foreground/60 mt-0.5">{preset.note}</div>
-                              )}
+                              <div className="text-caption text-muted-foreground/60 mt-0.5">
+                                {preset.bestFor}
+                              </div>
                             </div>
                             <Button
                               type="button"

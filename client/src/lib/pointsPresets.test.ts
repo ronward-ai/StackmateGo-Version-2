@@ -41,12 +41,12 @@ describe('every preset', () => {
   });
 });
 
-describe('Tournament Director (classic)', () => {
-  const formula = POINTS_PRESETS.find(p => p.id === 'td-classic')!.formula;
+describe('Scales with the field', () => {
+  const formula = POINTS_PRESETS.find(p => p.id === 'field-bands')!.formula;
 
-  it('matches the original switch, band for band', () => {
-    // switch(r, 1, n*36, 2, n*24, 3, n*20, 4, n*16, 5, n*12, 6, n*10,
-    //           7, n*8, 8, n*6, 9…15, n*2, 16…20, n, 0)
+  it('pays each band exactly, position by position', () => {
+    // 36× the field for the win, then 24, 20, 16, 12, 10, 8, 6 — with 9th to
+    // 15th on 2× and 16th to 20th on 1×. Nothing past twentieth.
     const multiplier = (position: number): number => {
       const table: Record<number, number> = { 1: 36, 2: 24, 3: 20, 4: 16, 5: 12, 6: 10, 7: 8, 8: 6 };
       if (table[position]) return table[position];
@@ -97,7 +97,7 @@ describe('Rewards the bigger night', () => {
 });
 
 describe('Rebuys cost you', () => {
-  const formula = POINTS_PRESETS.find(p => p.id === 'dr-neau')!.formula;
+  const formula = POINTS_PRESETS.find(p => p.id === 'cost-weighted')!.formula;
 
   it('takes points off for a rebuy, from the same finishing position', () => {
     // The whole point of the scheme, and the reason the scoring had to be given

@@ -806,27 +806,30 @@ invisible.
 
 ### Points presets are custom formulas, not system types
 
-`lib/pointsPresets.ts` holds ready-made scoring schemes — "Scales with the field", the
-`switch(r, 1, n*36, …)` formula carried over from The Tournament Director and translated to this app's
-`f` and `p`. They load into the custom-formula field beside the director's own saved formulas, using
-the same Load button. Two more came from home-league sources rather than memory: **"Rewards the
-bigger night"** (`round(10*sqrt(p)/sqrt(f)) - 9`, where last place always scores exactly 1) and
-**"Rebuys cost you"** (Dr Neau's, scaled ×100 because the app floors to whole points and the raw
-figures tie below about 8; the order is identical either way).
+`lib/pointsPresets.ts` holds three ready-made scoring schemes, loaded into the custom-formula field
+beside the director's own saved formulas by the same Load button:
 
-**A preset is named for what it does**, like the built-in schemes. It shipped as "Tournament Director
-(classic)", which put another product's name in the interface and told a director nothing about how
-their league would score. The provenance is one quiet line underneath, because it helps someone
-migrating recognise their own scheme — it is not the headline.
+- **Scales with the field** — fixed multipliers of the field size, in bands, nothing past twentieth.
+- **Rewards the bigger night** — `round(10*sqrt(p)/sqrt(f)) - 9`, where last place always scores
+  exactly 1. The `-9` is what does that: at `f === p` the bracket is 10 whatever the field size.
+- **Rebuys cost you** — cost-weighted, scaled ×100 because the app floors to whole points and the raw
+  figures tie below about 8. The order is identical either way.
+
+**A preset says what it does and what it suits, and names nobody.** Each carries a `bestFor` line —
+"a league where surviving on your first buy-in should count for something" — which is the useful thing
+to say in a footnote's place. They shipped naming the software and the person each formula came from,
+in the interface, in an unrendered `source` field, in comments and in a test's `describe` block. A
+director choosing how their league scores does not need to know whose formula it is, and the app is
+not the place to advertise anyone.
 
 **They are deliberately NOT entries in the points-system dropdown.** That lists KINDS of scoring —
 logarithmic, square root, linear, fixed, custom — and a specific formula is an instance of the last
 one rather than a sibling of the others. Listing one there would be like putting "Wednesday" beside
 "weekly".
 
-`pointsPresets.test.ts` **evaluates each preset the way `calculatePoints` does** and pins the TD
-scheme band by band across 2–40 players and positions 1–25, so an edit cannot quietly change what a
-league scores. It also asserts the properties any preset must have: it evaluates to a number rather
+`pointsPresets.test.ts` **evaluates each preset the way `calculatePoints` does** and pins the banded
+scheme position by position across 2–40 players and positions 1–25, so an edit cannot quietly change
+what a league scores. It also asserts the properties any preset must have: it evaluates to a number rather
 than throwing, and never scores a later finish above an earlier one.
 
 That matters because a custom formula that throws **scores 0 for everyone, silently** —
@@ -837,8 +840,8 @@ That matters because a custom formula that throws **scores 0 for everyone, silen
 **All six variables reach the scoring, and that is recent.** `b`, `c` and `z` were advertised in the
 formula editor and passed by nobody: the points stored on a result came from
 `calculatePointsFromSettings(position, totalPlayers, knockouts)` and nothing else, so all three were 0
-in every result ever recorded. Dr Neau's scheme — the one where rebuying costs a player points —
-divided by zero.
+in every result ever recorded, and the cost-weighted scheme — the one where rebuying costs a player
+points — divided by zero.
 
 `PlayerSection` meanwhile DID pass the buy-in for the chip beside a player's name, so a `b`-weighted
 formula would have shown one number on the console and scored another in the standings. One fact, two
