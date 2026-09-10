@@ -17,12 +17,19 @@ export interface PointsPreset {
   formula: string;
   /** What it pays, in words — the thing worth checking before trusting it. */
   summary: string;
+  /** Where it comes from, for a director migrating from other software. */
+  note?: string;
 }
 
 export const POINTS_PRESETS: PointsPreset[] = [
   {
     id: 'td-classic',
-    name: 'Tournament Director (classic)',
+    // Named for what it DOES, like the built-in schemes. It was "Tournament
+    // Director (classic)", which put another product's name in the interface and
+    // told a director nothing about how their league would score. The provenance
+    // is worth one line — it helps someone migrating recognise their own scheme
+    // — but it is not the headline.
+    name: 'Scales with the field',
     source: 'The Tournament Director',
     // Translated from that software's
     //   switch(r, 1, n*36, 2, n*24, … , 20, n, 0)
@@ -30,6 +37,7 @@ export const POINTS_PRESETS: PointsPreset[] = [
     // values collapse into the two ranges at the end. pointsPresets.test.ts pins
     // every band, so an edit here cannot quietly change what a league scores.
     formula: '(f==1?p*36:f==2?p*24:f==3?p*20:f==4?p*16:f==5?p*12:f==6?p*10:f==7?p*8:f==8?p*6:f<=15?p*2:f<=20?p:0)',
-    summary: 'Scales with the field: winner 36× the player count, down to 6× for 8th, 2× to 15th, 1× to 20th, then nothing.',
+    summary: 'Winner takes 36× the number of players, down to 6× for 8th, 2× to 15th and 1× to 20th. A big night is worth more than a quiet one.',
+    note: 'Carried over from The Tournament Director software.',
   },
 ];

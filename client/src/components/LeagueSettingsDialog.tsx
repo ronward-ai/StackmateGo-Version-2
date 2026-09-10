@@ -524,12 +524,15 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                           others. They sit with the director's own saved formulas
                           and load the same way. */}
                       <div className="space-y-2">
-                        <Label className="text-label font-medium">Start from a known scheme</Label>
+                        <Label className="text-label font-medium">Start from a ready-made scheme</Label>
                         {POINTS_PRESETS.map(preset => (
                           <div key={preset.id} className="flex items-start justify-between gap-2 p-2 card-glass rounded-lg">
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-label">{preset.name}</div>
                               <div className="text-caption text-muted-foreground">{preset.summary}</div>
+                              {preset.note && (
+                                <div className="text-caption text-muted-foreground/60 mt-0.5">{preset.note}</div>
+                              )}
                             </div>
                             <Button
                               type="button"

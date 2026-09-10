@@ -806,9 +806,15 @@ invisible.
 
 ### Points presets are custom formulas, not system types
 
-`lib/pointsPresets.ts` holds known scoring schemes — currently The Tournament Director's classic
-`switch(r, 1, n*36, …)`, translated to this app's `f` and `p`. They load into the custom-formula field
-beside the director's own saved formulas, using the same Load button.
+`lib/pointsPresets.ts` holds ready-made scoring schemes — currently "Scales with the field", the
+`switch(r, 1, n*36, …)` formula carried over from The Tournament Director and translated to this app's
+`f` and `p`. They load into the custom-formula field beside the director's own saved formulas, using
+the same Load button.
+
+**A preset is named for what it does**, like the built-in schemes. It shipped as "Tournament Director
+(classic)", which put another product's name in the interface and told a director nothing about how
+their league would score. The provenance is one quiet line underneath, because it helps someone
+migrating recognise their own scheme — it is not the headline.
 
 **They are deliberately NOT entries in the points-system dropdown.** That lists KINDS of scoring —
 logarithmic, square root, linear, fixed, custom — and a specific formula is an instance of the last
