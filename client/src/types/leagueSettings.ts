@@ -15,7 +15,14 @@ export interface PointsFormula {
   winnerMultiplier?: number;
   // For fixed system
   fixedPoints?: number; // Legacy support
-  positionPoints?: number[]; // Array of points for each position [1st, 2nd, 3rd, ...]
+  /**
+   * @deprecated Superseded by `positionBands`, which can also scale points with
+   * the field size. Still READ — `bandsOf()` converts a stored array into
+   * one-place bands so no league has to be rewritten — but never written.
+   */
+  positionPoints?: number[];
+  /** Places X to Y score N, flat or as a multiple of the field. */
+  positionBands?: Array<{ from: number; to: number | null; points: number; perPlayer?: boolean }>;
   // For custom system
   customFormula?: string;
   // Bonus points — apply on top of any formula type

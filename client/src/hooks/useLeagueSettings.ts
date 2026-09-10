@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { withBonuses } from '@/lib/pointsBonuses';
+import { bandsOf, pointsForBand } from '@/lib/pointsBands';
 import {
   LeagueSettings,
   PointsSystem,
@@ -152,7 +153,13 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
         }
 
         case 'fixed': {
-          const points = formula.positionPoints?.[position - 1] ?? formula.fixedPoints ?? 0;
+          // Bands, which a stored positionPoints array converts into on read —
+          // see lib/pointsBands.ts. `fixedPoints` is the older-still shape and
+          // only answers when there is nothing else at all.
+          const bands = bandsOf(formula);
+          const points = bands.length
+            ? pointsForBand(bands, position, totalPlayers)
+            : (formula.fixedPoints ?? 0);
           return withBonuses(points, knockouts, bonuses);
         }
 

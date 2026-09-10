@@ -1,6 +1,8 @@
 import React, { Fragment, useMemo, useState, useCallback, useEffect } from 'react';
 import { POINTS_PRESETS, presetFor } from '@/lib/pointsPresets';
 import { hasBonuses } from '@/lib/pointsBonuses';
+import { bandsOf, DEFAULT_POSITION_POINTS, type PointsBand } from '@/lib/pointsBands';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -175,6 +177,21 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
    */
   /** A round number to reason with; the shape of a scheme does not depend on it. */
   const previewBuyIn = 25;
+
+  /**
+   * The bands the fixed scheme scores by. A league that stored the older
+   * positionPoints array sees it as one-place bands; editing writes bands, and
+   * the old field is left alone rather than migrated.
+   */
+  const bands = bandsOf(settings.pointsSystem.formula);
+  const setBands = (next: PointsBand[]) => updateFormulaParameter('positionBands', next as any);
+  const updateBand = (index: number, change: Partial<PointsBand>) =>
+    setBands(bands.map((band, i) => (i === index ? { ...band, ...change } : band)));
+  /** Digits only, with a floor — an empty box reads as the floor rather than blocking. */
+  const digits = (value: string, min: number) => {
+    const raw = value.replace(/[^0-9]/g, '');
+    return raw === '' ? min : Math.max(min, Number(raw));
+  };
 
   /** Which ready-made is in the formula box, if any. */
   const loadedPreset = presetFor(settings.pointsSystem.formula.customFormula);
@@ -463,71 +480,107 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
 
                 {/* Fixed Points Configuration */}
                 {settings.pointsSystem.formula.type === 'fixed' && (
-                  <div className="p-4 card-glass rounded-xl space-y-4">
+                  <div className="p-4 card-glass rounded-xl space-y-3">
+                    <div>
+                      <Label>What each place scores</Label>
+                      {/* Bands rather than a box per position. The grid this
+                          replaced could already repeat a number to make a band;
+                          what it could not do was make the points a MULTIPLE OF
+                          THE FIELD, which is exactly what sent a director to the
+                          formula editor. A stored array shows up here as
+                          one-place bands — see lib/pointsBands.ts. */}
+                      <div className="text-caption text-muted-foreground mt-0.5">
+                        Places not covered by a band score nothing. Where bands overlap, the first one wins.
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <Label>Position-Based Points</Label>
-                      <div className="text-xs text-muted-foreground mb-2">
-                        Configure points for each finishing position. Positions beyond this array will receive 0 points.
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(settings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1]).map((points, index) => (
-                          <div key={index} className="flex items-center space-x-2">
-                            <Label className="text-xs w-8">{index + 1}:</Label>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={points === 0 ? '' : points}
-                              onChange={(e) => {
-                                const newPoints = [...(settings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1])];
-                                const raw = e.target.value.replace(/[^0-9]/g, '');
-                                newPoints[index] = raw === '' ? 0 : (parseInt(raw, 10) || 0);
-                                updateFormulaParameter('positionPoints', newPoints);
-                              }}
-                              onFocus={(e) => e.target.select()}
-                              min={0}
-                              max={100}
-                              className="text-xs h-8"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex space-x-2 mt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const currentPoints = settings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1];
-                            updateFormulaParameter('positionPoints', [...currentPoints, 0]);
-                          }}
-                        >
-                          Add Position
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const currentPoints = settings.pointsSystem.formula.positionPoints || [25, 18, 13, 9, 6, 4, 3, 2, 1];
-                            if (currentPoints.length > 1) {
-                              updateFormulaParameter('positionPoints', currentPoints.slice(0, -1));
-                            }
-                          }}
-                        >
-                          Remove Position
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            updateFormulaParameter('positionPoints', [25, 18, 13, 9, 6, 4, 3, 2, 1]);
-                          }}
-                        >
-                          Reset to Default
-                        </Button>
-                      </div>
+                      {bands.map((band, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            aria-label="First place in this band"
+                            value={band.from}
+                            onChange={(e) => updateBand(index, { from: digits(e.target.value, 1) })}
+                            onFocus={(e) => e.target.select()}
+                            className="h-8 w-12 text-center text-label px-1"
+                          />
+                          <span className="text-label text-muted-foreground">to</span>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            aria-label="Last place in this band, blank for all the rest"
+                            placeholder="rest"
+                            value={band.to === null ? '' : band.to}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, '');
+                              updateBand(index, { to: raw === '' ? null : Number(raw) });
+                            }}
+                            onFocus={(e) => e.target.select()}
+                            className="h-8 w-14 text-center text-label px-1"
+                          />
+                          <span className="text-label text-muted-foreground">score</span>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            aria-label="Points"
+                            value={band.points}
+                            onChange={(e) => updateBand(index, { points: digits(e.target.value, 0) })}
+                            onFocus={(e) => e.target.select()}
+                            className="h-8 w-14 text-center text-label px-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => updateBand(index, { perPlayer: !band.perPlayer })}
+                            className={cn(
+                              'h-8 px-2 rounded-md border text-caption font-medium transition-colors whitespace-nowrap',
+                              band.perPlayer
+                                ? 'bg-primary/10 text-primary border-primary/30'
+                                : 'border-border text-muted-foreground hover:text-foreground'
+                            )}
+                            title={band.perPlayer ? 'Points are multiplied by the number of players' : 'A flat number of points'}
+                          >
+                            {band.perPlayer ? '× players' : 'flat'}
+                          </button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
+                            onClick={() => setBands(bands.filter((_, i) => i !== index))}
+                            aria-label="Remove this band"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const last = bands[bands.length - 1];
+                          const from = last?.to != null ? last.to + 1 : (last?.from ?? 0) + 1;
+                          setBands([...bands, { from, to: from, points: 0, perPlayer: false }]);
+                        }}
+                      >
+                        Add band
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => setBands(
+                          DEFAULT_POSITION_POINTS.map((points, i) => ({ from: i + 1, to: i + 1, points, perPlayer: false }))
+                        )}
+                      >
+                        Reset
+                      </Button>
                     </div>
                   </div>
                 )}

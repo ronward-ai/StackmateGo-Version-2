@@ -804,6 +804,30 @@ a beginner browsing the list should not land in a formula editor by accident.
 The table also catches the silent-zero: when every row reads 0 it says so, which is otherwise
 invisible.
 
+### Points per place is a bands table, and bands can scale with the field
+
+`lib/pointsBands.ts` holds the shape: **places X to Y score N**, flat or as a multiple of the number
+of players. A blank "to" means "and everything after"; a place no band covers scores nothing, which is
+how "top twenty only" gets said.
+
+**First matching band wins**, in the order listed. Overlaps are then harmless and predictable rather
+than an error state the editor has to police.
+
+It replaced a box per position, and the difference that matters is the multiplier. The grid could
+already express a band by repeating a number seven times; what it could not do was make points scale
+with how many played — **which is exactly what sent a director to the formula editor.** The "Scales
+with the field" ready-made is now pure configuration: `pointsBands.test.ts` builds it from bands and
+asserts it scores identically to the formula, position by position, across 2–40 players.
+
+The two other ready-mades are square roots. Boxes cannot express those without inventing controls for
+functions, so they stay as formulas to load. This removes the commonest reason to write one, not the
+ability to.
+
+**`bandsOf()` normalises on read**, the same trade `payoutsOf()` makes: a league that stored
+`positionPoints` sees it as one-place bands and keeps scoring exactly what it scored. A test asserts
+that equivalence, and it fails if the conversion is touched. **Never write `positionPoints` again** —
+read it, convert it, leave it alone.
+
 ### Knockouts and turning up are bonuses, not a reason to write a formula
 
 `lib/pointsBonuses.ts`'s `withBonuses()` adds **points per knockout** and **points for turning up** on
