@@ -175,8 +175,11 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
               Math
             );
 
+            // isFinite, not just isNaN: a formula dividing by a variable that
+            // is zero yields Infinity, which is not NaN and would have been
+            // floored and shown as "Infinity" points.
             const num = Number(result);
-            if (isNaN(num)) return 0;
+            if (!Number.isFinite(num)) return 0;
             return Math.max(0, Math.floor(num));
           } catch (error) {
             console.error('Error evaluating custom formula:', error, 'Formula:', formula.customFormula);

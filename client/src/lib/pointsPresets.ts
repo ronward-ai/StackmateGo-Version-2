@@ -40,4 +40,31 @@ export const POINTS_PRESETS: PointsPreset[] = [
     summary: 'Winner takes 36× the number of players, down to 6× for 8th, 2× to 15th and 1× to 20th. A big night is worth more than a quiet one.',
     note: 'Carried over from The Tournament Director software.',
   },
+  {
+    id: 'sqrt-field',
+    name: 'Rewards the bigger night',
+    source: 'The Tournament Director, via home-league forums',
+    // round(10 * sqrt(n) / sqrt(r)) - 9, with n the field and r the finish.
+    // The -9 is what makes last place score exactly 1 rather than 10: at r == n
+    // the ratio is 1, so the bracket is 10.
+    formula: '(Math.round(10 * Math.sqrt(p) / Math.sqrt(f)) - 9)',
+    summary: 'A big field is worth more, and the drop from first to second is steep. Last place always scores 1.',
+    note: 'Uses only the field size and where you finished.',
+  },
+  {
+    id: 'dr-neau',
+    name: 'Rebuys cost you',
+    source: "Dr Neau's formula, widely adopted by home leagues",
+    // buy-in * sqrt(players / total cost) / (1 + finish), scaled.
+    //
+    // Scaled by 100 because this app floors to whole points: unscaled, a field
+    // of twelve scores 8, 5, 4, 3, 2, 2, 1, 1… and half the field ties. The
+    // ORDER is identical either way — it is the resolution that changes.
+    //
+    // The only scheme here that reads `c`, which is why the scoring had to be
+    // given it first: with c at 0 this divided by zero.
+    formula: '(100 * b * Math.sqrt(p / c) / (1 + f))',
+    summary: 'Rewards a big field and a big buy-in, and takes points off for every rebuy and add-on.',
+    note: "Dr Neau's formula, scaled ×100 so the points land on whole numbers.",
+  },
 ];

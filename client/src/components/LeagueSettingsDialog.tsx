@@ -172,6 +172,9 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
    * a set-points scheme pays nothing past ninth while the others still score
    * the bubble.
    */
+  /** A round number to reason with; the shape of a scheme does not depend on it. */
+  const previewBuyIn = 25;
+
   const previewRows = useMemo(() => {
     const field = typeof previewPoints.totalPlayers === 'number' && previewPoints.totalPlayers >= 2
       ? Math.min(previewPoints.totalPlayers, 1000)
@@ -192,7 +195,11 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
       label: position === 1 ? 'Winner'
         : position === field ? `${ordinal(position)} — last`
         : ordinal(position),
-      points: calculatePoints(position, field, 0),
+      // Representative values for b, c and z. Passing nothing left them at 0,
+      // so this table showed 0 for any formula that used them — the opposite of
+      // the trust it exists to earn. Nobody has rebought in a hypothetical, so
+      // invested equals the buy-in.
+      points: calculatePoints(position, field, 0, previewBuyIn, previewBuyIn, previewBuyIn * field),
     }));
   }, [calculatePoints, previewPoints.totalPlayers, settings.pointsSystem]);
 

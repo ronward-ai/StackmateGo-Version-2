@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { X, Download, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { currencyOf } from '@/lib/currency';
+import { buyInOf, investedIn } from '@/lib/resultStats';
 import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
@@ -465,7 +466,12 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             : null,
           rebuys: player.rebuys,
           points: isLeagueMode && pos > 0
-            ? calculatePoints(pos, state.players.length, player.knockouts || 0, buyIn, 0, 0)
+            // The same six the standings score with, or the chip beside a name
+            // and the league table would disagree for any formula using them.
+            ? calculatePoints(
+                pos, state.players.length, player.knockouts || 0,
+                buyIn, investedIn({ buyIn, rebuys: player.rebuys, addons: player.addons }), buyIn * state.players.length,
+              )
             : 0,
           bountiesCollected: exportBounties,
           prize: exportPrize,
@@ -839,7 +845,12 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                       rebuys: player.rebuys,
                       bountiesCollected,
                       points: isLeagueMode && player.position && player.position > 0
-                        ? calculatePoints(player.position, state.players.length, player.knockouts || 0, state.prizeStructure?.buyIn || 0, 0, 0)
+                        ? calculatePoints(
+                            player.position, state.players.length, player.knockouts || 0,
+                            buyInOf({ buyIn: state.prizeStructure?.buyIn }),
+                            investedIn({ buyIn: state.prizeStructure?.buyIn, rebuys: player.rebuys, addons: player.addons }),
+                            buyInOf({ buyIn: state.prizeStructure?.buyIn }) * state.players.length,
+                          )
                         : 0,
                       prize,
                       bounty,

@@ -806,10 +806,13 @@ invisible.
 
 ### Points presets are custom formulas, not system types
 
-`lib/pointsPresets.ts` holds ready-made scoring schemes — currently "Scales with the field", the
+`lib/pointsPresets.ts` holds ready-made scoring schemes — "Scales with the field", the
 `switch(r, 1, n*36, …)` formula carried over from The Tournament Director and translated to this app's
 `f` and `p`. They load into the custom-formula field beside the director's own saved formulas, using
-the same Load button.
+the same Load button. Two more came from home-league sources rather than memory: **"Rewards the
+bigger night"** (`round(10*sqrt(p)/sqrt(f)) - 9`, where last place always scores exactly 1) and
+**"Rebuys cost you"** (Dr Neau's, scaled ×100 because the app floors to whole points and the raw
+figures tie below about 8; the order is identical either way).
 
 **A preset is named for what it does**, like the built-in schemes. It shipped as "Tournament Director
 (classic)", which put another product's name in the interface and told a director nothing about how
@@ -827,7 +830,21 @@ league scores. It also asserts the properties any preset must have: it evaluates
 than throwing, and never scores a later finish above an earlier one.
 
 That matters because a custom formula that throws **scores 0 for everyone, silently** —
-`useLeagueSettings` catches, logs to the console and returns 0.
+`useLeagueSettings` catches, logs to the console and returns 0. The engine rejects on
+`Number.isFinite`, not merely `isNaN`, because a formula dividing by a zero variable yields `Infinity`
+— which is not NaN and was floored and shown as points.
+
+**All six variables reach the scoring, and that is recent.** `b`, `c` and `z` were advertised in the
+formula editor and passed by nobody: the points stored on a result came from
+`calculatePointsFromSettings(position, totalPlayers, knockouts)` and nothing else, so all three were 0
+in every result ever recorded. Dr Neau's scheme — the one where rebuying costs a player points —
+divided by zero.
+
+`PlayerSection` meanwhile DID pass the buy-in for the chip beside a player's name, so a `b`-weighted
+formula would have shown one number on the console and scored another in the standings. One fact, two
+answers, again. Both call sites now use `lib/resultStats.ts`'s `buyInOf` and `investedIn`, the same
+helpers the league columns use, and the preview passes representative values rather than nothing —
+it claimed to show real scoring while feeding the engine zeroes.
 
 Two evaluators exist for one formula, and they disagree. The dialog's "Formula valid" tick
 string-replaces `p`/`f`/`b`/`c`/`k`/`z` with fixed numbers, tests **first place only**, and rejects the

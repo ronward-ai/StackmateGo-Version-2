@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { buyInOf, investedIn } from '@/lib/resultStats';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useAuth } from '@/hooks/useAuth';
@@ -447,7 +448,12 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       if (!playerId || typeof position !== 'number' || typeof totalPlayers !== 'number') return;
       if (position < 1 || totalPlayers < 1 || position > totalPlayers) return;
 
-      const points = calculatePointsFromSettings(position, totalPlayers, 0);
+      // Same three extras as the other call site — see there for why. This
+      // path is not told the buy-in, so buyInOf's fallback stands in.
+      const buyIn = buyInOf({});
+      const points = calculatePointsFromSettings(
+        position, totalPlayers, 0, buyIn, buyIn, buyIn * totalPlayers,
+      );
       const playerFound = leaguePlayers.find(p => p.id === playerId);
       if (!playerFound) return;
 
@@ -573,8 +579,34 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         if (alreadyRecorded) return;
       }
 
-      // Calculate points
-      const points = calculatePointsFromSettings(position, totalPlayers, playersEliminatedCount);
+      // Calculate points.
+      //
+      // The buy-in, what the player actually put in, and the prize pool are
+      // passed because the formula editor ADVERTISES them as `b`, `c` and `z`.
+      // They were not, so all three were 0 in every result ever recorded: a
+      // formula dividing by `c` produced Infinity and one multiplying by `b`
+      // produced nothing. Dr Neau's scheme — the one where rebuying costs a
+      // player points — could not work at all.
+      //
+      // Same helpers the league columns use, so "what did this cost" has one
+      // answer. `investedIn` never returns 0, which is what makes `p/c` safe.
+      const costs = {
+        buyIn: buyInAmount,
+        rebuys: stats?.rebuys || 0,
+        addons: stats?.addons || 0,
+        rebuyAmount: stats?.rebuyAmount || 0,
+        addonAmount: stats?.addonAmount || 0,
+      };
+      const points = calculatePointsFromSettings(
+        position,
+        totalPlayers,
+        playersEliminatedCount,
+        buyInOf(costs),
+        investedIn(costs),
+        // The pool as this game's own entries paid for it. prizePoolFor works
+        // from live players, which a recorded result no longer has.
+        buyInOf(costs) * totalPlayers,
+      );
 
       // Add the tournament result
       await addResultMutation.mutateAsync({
