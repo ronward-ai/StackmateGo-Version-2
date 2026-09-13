@@ -106,11 +106,26 @@ service cloud.firestore {
     // Note create is checked against request.resource (the document being
     // written) and update/delete against resource (the one already stored) —
     // there is no stored document to consult on a create.
+    //
+    // leagueId is PINNED on update, and that is not belt-and-braces. Checking
+    // ownsLeague(resource.data.leagueId) asks who owns the league the document is
+    // in NOW, and says nothing about the league it is being moved TO. So a
+    // registered user could create a result in their own league — correctly
+    // allowed — and then update it, setting leagueId to a victim's league and
+    // points to anything they liked. The rule would read the stored leagueId,
+    // still their own, and pass. The document lands in the victim's standings.
+    //
+    // The create path was closed against exactly this attack; the update path
+    // reopened it one write later.
+    function staysInLeague() {
+      return request.resource.data.leagueId == resource.data.leagueId;
+    }
+
     match /seasons/{seasonId} {
       allow read: if true;
       allow create: if request.resource.data.leagueId is string
         && ownsLeague(request.resource.data.leagueId);
-      allow update: if ownsLeague(resource.data.leagueId);
+      allow update: if ownsLeague(resource.data.leagueId) && staysInLeague();
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
@@ -118,7 +133,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.resource.data.leagueId is string
         && ownsLeague(request.resource.data.leagueId);
-      allow update: if ownsLeague(resource.data.leagueId);
+      allow update: if ownsLeague(resource.data.leagueId) && staysInLeague();
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
@@ -126,7 +141,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.resource.data.leagueId is string
         && ownsLeague(request.resource.data.leagueId);
-      allow update: if ownsLeague(resource.data.leagueId);
+      allow update: if ownsLeague(resource.data.leagueId) && staysInLeague();
       allow delete: if ownsLeague(resource.data.leagueId);
     }
 
@@ -157,8 +172,21 @@ service cloud.firestore {
       allow list: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
       allow create: if isRegistered() && isDocOwner();
       allow update: if (
-        // Owner can change anything
+        // Owner can change anything EXCEPT who owns it.
+        //
+        // isExistingDocOwner() validates the STORED ownerId and said nothing
+        // about the incoming one, so the comment above claiming ownerId is
+        // unwritable was not what the rule did. A director could hand a live
+        // game to another account from the console — reinstating the very
+        // transfer-code handover that was removed because it cost a live game —
+        // or write a bad uid and lock themselves out permanently, since update,
+        // delete and list all key on it.
+        //
+        // completedTournaments and tournamentTemplates below already pin it by
+        // requiring isDocOwner() alongside isExistingDocOwner(). This is the
+        // same pin, spelled explicitly because this branch is a disjunction.
         isAuthenticated() && isExistingDocOwner()
+        && request.resource.data.ownerId == resource.data.ownerId
       ) || (
         // Player check-in (PlayerClaimView, reached from the QR code).
         //

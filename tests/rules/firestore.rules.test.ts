@@ -235,6 +235,17 @@ describe('player check-in', () => {
     await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { ownerId: OTHER_DIRECTOR }));
   });
 
+  // The case the test above misses, and the one the rule missed with it.
+  // isExistingDocOwner() validates the STORED ownerId and said nothing about
+  // the incoming one, so the OWNER could give the game away — reinstating the
+  // transfer-code handover that was removed because it cost a live game.
+  it('stops the owner giving the game away, or orphaning it', async () => {
+    await assertFails(updateDoc(doc(director(), 'activeTournaments', TOURNAMENT), { ownerId: OTHER_DIRECTOR }));
+    await assertFails(updateDoc(doc(director(), 'activeTournaments', TOURNAMENT), { ownerId: 'nobody-at-all' }));
+    // Everything else about the game is still theirs to change.
+    await assertSucceeds(updateDoc(doc(director(), 'activeTournaments', TOURNAMENT), { isRunning: false }));
+  });
+
   it('rejects deletion by anyone but the owner', async () => {
     await assertFails(deleteDoc(doc(anon(), 'activeTournaments', TOURNAMENT)));
     await assertFails(deleteDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT)));
@@ -299,6 +310,57 @@ describe('league data integrity', () => {
     const db = stranger();
     await assertFails(updateDoc(doc(db, 'leaguePlayers', 'player-1'), { totalPoints: 9999 }));
     await assertFails(deleteDoc(doc(db, 'tournamentResults', 'result-1')));
+  });
+});
+
+describe('moving documents between leagues', () => {
+  // ownsLeague(resource.data.leagueId) asks who owns the league a document is
+  // in NOW. It said nothing about the league it was being moved TO — so a
+  // registered user could create a result in their own league, which is
+  // correctly allowed, then update it into a victim's league with any points
+  // they liked. The create path was closed against exactly this attack and the
+  // update path reopened it one write later.
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'tournamentResults', 'their-result'), {
+        leagueId: OTHER_LEAGUE, position: 5, points: 1,
+      });
+      await setDoc(doc(db, 'leaguePlayers', 'their-player'), {
+        name: 'Mallory', leagueId: OTHER_LEAGUE, totalPoints: 0,
+      });
+      await setDoc(doc(db, 'seasons', 'their-season'), {
+        name: 'Their Season', leagueId: OTHER_LEAGUE, status: 'active',
+      });
+    });
+  });
+
+  it('stops a result being moved into a league the writer does not own', async () => {
+    await assertFails(updateDoc(doc(stranger(), 'tournamentResults', 'their-result'), {
+      leagueId: LEAGUE, points: 9999,
+    }));
+  });
+
+  it('stops a player being moved into another league', async () => {
+    await assertFails(updateDoc(doc(stranger(), 'leaguePlayers', 'their-player'), { leagueId: LEAGUE }));
+  });
+
+  it('stops a season being moved into another league', async () => {
+    await assertFails(updateDoc(doc(stranger(), 'seasons', 'their-season'), { leagueId: LEAGUE }));
+  });
+
+  it('still lets an owner edit their own documents in place', async () => {
+    await assertSucceeds(updateDoc(doc(director(), 'tournamentResults', 'result-1'), { points: 25 }));
+    await assertSucceeds(updateDoc(doc(director(), 'leaguePlayers', 'player-1'), { name: 'Alicia' }));
+    await assertSucceeds(updateDoc(doc(director(), 'seasons', 'season-1'), { name: 'Spring' }));
+  });
+
+  // Restating leagueId unchanged must still work: the app writes whole objects
+  // in places, so a pin that only tolerated absence would break real writes.
+  it('allows a write that restates the same leagueId', async () => {
+    await assertSucceeds(updateDoc(doc(director(), 'tournamentResults', 'result-1'), {
+      leagueId: LEAGUE, points: 30,
+    }));
   });
 });
 
