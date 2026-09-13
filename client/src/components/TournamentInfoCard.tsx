@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { isUnlimited } from '@/lib/entryLimits';
 import { countEntries, prizePoolFor } from "@/lib/prizePool";
 import { gameNumberFor } from "@/lib/seasonProgress";
 import ChipChopCalculator from './ChipChopCalculator';
@@ -601,7 +602,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                         <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Re-entries</span>
                       </div>
                       <DetailRow label="Cost" value={`${sym}${p?.rebuyAmount || buyIn}`} compact />
-                      {(p?.maxReEntries ?? 0) > 0 && <DetailRow label="Max / player" value={p!.maxReEntries!} compact />}
+                      {!isUnlimited(p?.maxReEntries) && <DetailRow label="Max / player" value={p!.maxReEntries!} compact />}
                       <DetailRow label="Used" value={totalReEntries} compact />
                     </div>
                   )}

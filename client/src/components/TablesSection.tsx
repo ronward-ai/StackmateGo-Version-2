@@ -19,6 +19,7 @@ import SeatPlayersDialog from "./SeatPlayersDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import FinalTableDialog from "./FinalTableDialog";
 import { cn } from "@/lib/utils";
+import { canRebuy, canReEnter } from '@/lib/entryLimits';
 
 interface TablesSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -578,9 +579,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                           {!moveMode && (
                             <div className="ml-2 flex items-center gap-1 flex-shrink-0">
                               {/* Rebuy button */}
-                              {state.prizeStructure?.allowRebuys &&
-                                player.isActive === false &&
-                                (player.rebuys || 0) < (state.prizeStructure?.maxRebuys || 3) && (
+                              {player.isActive === false &&
+                                canRebuy(state.prizeStructure, player, state.currentLevel) && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button
@@ -613,9 +613,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                                 </AlertDialog>
                               )}
                               {/* Re-entry button */}
-                              {state.prizeStructure?.allowReEntry &&
-                                player.isActive === false &&
-                                (player.reEntries || 0) < (state.prizeStructure?.maxReEntries ?? 99) && (
+                              {player.isActive === false &&
+                                canReEnter(state.prizeStructure, player, state.currentLevel) && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button

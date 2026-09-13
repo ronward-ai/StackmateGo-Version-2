@@ -12,6 +12,7 @@ import { entryCosts, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
 import { badgesFor, badgeText } from '@/lib/playerBadges';
+import { canRebuy, addOnsOpen } from '@/lib/entryLimits';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
@@ -893,7 +894,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                           <Button
                             variant="outline"
                             size="sm"
-                            disabled={(player.rebuys || 0) >= (state.prizeStructure?.maxRebuys || 3)}
+                            disabled={!canRebuy(state.prizeStructure, player, state.currentLevel)}
                             className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
                           >
                             Re-buy
@@ -1002,8 +1003,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
             active players, who have no row button, and it already confirms. */}
 
         {/* Add-on Section - Compact - Only show when add-ons are enabled and level reached */}
-        {state.prizeStructure?.allowAddons &&
-          (state.currentLevel + 1) >= (state.prizeStructure?.addonAvailableLevel ?? 1) &&
+        {addOnsOpen(state.prizeStructure, state.currentLevel) &&
           state.players.filter(p => p.isActive !== false).length > 0 && (
           <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
             <div className="flex items-center justify-between mb-2">

@@ -20,6 +20,8 @@ import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/localProgress';
 import { secondsLeftFrom } from '@/lib/tournamentClock';
+import { canRebuy, canReEnter } from '@/lib/entryLimits';
+import { defaultPrizeStructure } from '@/lib/prizeStructure';
 import { seatToReclaim } from '@/lib/seating';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
@@ -115,27 +117,10 @@ const loadSavedPrizeStructure = (): PrizeStructure => {
     console.error('Error loading saved prize structure:', error);
   }
 
-  return {
-    buyIn: 10,
-    rebuyAmount: 10,
-    addonAmount: 0,
-    maxRebuys: 3,
-    rebuyPeriodLevels: 5,
-    allowRebuys: true,
-    allowAddons: false,
-    startingChips: 10000,
-    rebuyChips: 10000,
-    addonChips: 10000,
-    addonAvailableLevel: 6,
-    // manualPayouts, NOT `structure`. This default used to write `structure`,
-    // which nothing in the app reads — so a game run straight from the defaults
-    // advertised 60/30/10 and then paid nobody. See payoutsOf().
-    manualPayouts: [
-      { position: 1, percentage: 60 },
-      { position: 2, percentage: 30 },
-      { position: 3, percentage: 10 }
-    ]
-  };
+  // One default, shared with the Buy-in tab. There used to be two and they
+  // disagreed on rebuys, the cap, the period and the payout split — see
+  // lib/prizeStructure.ts.
+  return defaultPrizeStructure();
 };
 
 // Save prize structure
@@ -1257,7 +1242,9 @@ export function useTournament(tournamentId?: string) {
         return prev;
       }
 
-      if (!prev.prizeStructure?.allowReEntry) {
+      // maxReEntries and reEntryPeriodLevels were enforced NOWHERE before — only
+      // the table view's button hid, so any other route in reached no limit.
+      if (!canReEnter(prev.prizeStructure, player, prev.currentLevel)) {
         return prev;
       }
 
@@ -1315,11 +1302,10 @@ export function useTournament(tournamentId?: string) {
         return prev;
       }
 
-      // Check if rebuys are allowed and player hasn't exceeded max rebuys
-      const maxRebuys = prev.prizeStructure?.maxRebuys || 3;
-      const currentRebuys = player.rebuys || 0;
-
-      if (!prev.prizeStructure?.allowRebuys || currentRebuys >= maxRebuys) {
+      // The cap and the rebuy window, both from lib/entryLimits.ts. This used to
+      // read `maxRebuys || 3`, so a cap of 0 — which is how the Buy-in tab
+      // stores "unlimited" — allowed exactly three.
+      if (!canRebuy(prev.prizeStructure, player, prev.currentLevel)) {
         return prev;
       }
 
@@ -1354,7 +1340,7 @@ export function useTournament(tournamentId?: string) {
       );
 
       playerReturnUndoRef.current = {
-        label: `${player.name} — rebuy #${currentRebuys + 1}`,
+        label: `${player.name} — rebuy #${(player.rebuys || 0) + 1}`,
         previous: prev.players,
         resulting: updatedPlayers,
       };

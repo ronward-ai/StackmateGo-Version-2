@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { calculatePrizePool } from "@/lib/prizePool";
+import { limitLabel, periodLabel } from '@/lib/entryLimits';
+import { DEFAULT_PRIZE_STRUCTURE } from '@/lib/prizeStructure';
 import { topPercentPayouts } from '@/lib/payoutTemplates';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -116,32 +118,37 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
   const [bountyAmount, setBountyAmount] = useState(0);
   const [bountyType, setBountyType] = useState<'standard' | 'progressive'>('standard');
 
-  const [allowRebuys, setAllowRebuys] = useState(false);
+  // Every fallback below comes from DEFAULT_PRIZE_STRUCTURE. This panel used to
+  // carry its own, and they disagreed with the engine's on rebuys (off vs on),
+  // the cap (0 vs 3), the period (3 vs 5) and the payout split (50/30/20 vs
+  // 60/30/10) — so a game run from the defaults showed one split here and paid
+  // another. See lib/prizeStructure.ts.
+  const D = DEFAULT_PRIZE_STRUCTURE;
+
+  const [allowRebuys, setAllowRebuys] = useState(!!D.allowRebuys);
   const [rebuyRake, setRebuyRake] = useState(false);
   const [rebuyRakeAmount, setRebuyRakeAmount] = useState(0);
   const [rebuyBounty, setRebuyBounty] = useState(false);
-  const [rebuyAmount, setRebuyAmount] = useState(10);
-  const [rebuyChips, setRebuyChips] = useState(10000);
-  const [maxRebuys, setMaxRebuys] = useState(0);
-  const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(3);
+  const [rebuyAmount, setRebuyAmount] = useState(D.rebuyAmount ?? 10);
+  const [rebuyChips, setRebuyChips] = useState(D.rebuyChips ?? 10000);
+  const [maxRebuys, setMaxRebuys] = useState(D.maxRebuys ?? 0);
+  const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(D.rebuyPeriodLevels ?? 0);
 
-  const [allowReEntry, setAllowReEntry] = useState(false);
+  const [allowReEntry, setAllowReEntry] = useState(!!D.allowReEntry);
   const [reEntryRake, setReEntryRake] = useState(true);
   const [reEntryRakeAmount, setReEntryRakeAmount] = useState(0);
   const [reEntryBounty, setReEntryBounty] = useState(true);
-  const [maxReEntries, setMaxReEntries] = useState(0);
-  const [reEntryPeriodLevels, setReEntryPeriodLevels] = useState(4);
+  const [maxReEntries, setMaxReEntries] = useState(D.maxReEntries ?? 0);
+  const [reEntryPeriodLevels, setReEntryPeriodLevels] = useState(D.reEntryPeriodLevels ?? 0);
 
-  const [allowAddons, setAllowAddons] = useState(false);
-  const [addonAmount, setAddonAmount] = useState(10);
-  const [addonChips, setAddonChips] = useState(10000);
-  const [addonAvailableLevel, setAddonAvailableLevel] = useState(6);
+  const [allowAddons, setAllowAddons] = useState(!!D.allowAddons);
+  const [addonAmount, setAddonAmount] = useState(D.addonAmount || 10);
+  const [addonChips, setAddonChips] = useState(D.addonChips ?? 10000);
+  const [addonAvailableLevel, setAddonAvailableLevel] = useState(D.addonAvailableLevel ?? 6);
 
-  const [manualPayouts, setManualPayouts] = useState<{ position: number; percentage: number }[]>([
-    { position: 1, percentage: 50 },
-    { position: 2, percentage: 30 },
-    { position: 3, percentage: 20 }
-  ]);
+  const [manualPayouts, setManualPayouts] = useState<{ position: number; percentage: number }[]>(
+    () => (D.manualPayouts ?? []).map(x => ({ ...x })),
+  );
 
   const [isApplying, setIsApplying] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
@@ -155,8 +162,9 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
   useEffect(() => {
     const p = state.prizeStructure;
     if (!p) return;
-    setBuyInAmount(p.buyIn || 10);
-    setStartingChips(p.startingChips || 10000);
+    // ?? not ||: a free game has a buy-in of 0, and `|| 10` silently made it £10.
+    setBuyInAmount(p.buyIn ?? D.buyIn);
+    setStartingChips(p.startingChips || (D.startingChips ?? 10000));
     setRakeType(p.rakeType || 'percentage');
     setRakePercentage(p.rakePercentage || 0);
     setRakeAmount(p.rakeAmount || 0);
@@ -167,20 +175,21 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
     setRebuyRake(p.rebuyRake || false);
     setRebuyRakeAmount(p.rebuyRakeAmount ?? 0);
     setRebuyBounty(p.rebuyBounty ?? false);
-    setRebuyAmount(p.rebuyAmount || 10);
-    setRebuyChips(p.rebuyChips || 10000);
-    setMaxRebuys(p.maxRebuys || 0);
-    setRebuyPeriodLevels(p.rebuyPeriodLevels || 3);
+    setRebuyAmount(p.rebuyAmount ?? (D.rebuyAmount ?? 10));
+    setRebuyChips(p.rebuyChips || (D.rebuyChips ?? 10000));
+    // ?? throughout: 0 means unlimited and must not be replaced by a default.
+    setMaxRebuys(p.maxRebuys ?? (D.maxRebuys ?? 0));
+    setRebuyPeriodLevels(p.rebuyPeriodLevels ?? (D.rebuyPeriodLevels ?? 0));
     setAllowReEntry(p.allowReEntry || false);
     setReEntryRake(p.reEntryRake ?? true);
     setReEntryRakeAmount(p.reEntryRakeAmount ?? 0);
     setReEntryBounty(p.reEntryBounty ?? true);
-    setMaxReEntries(p.maxReEntries || 0);
-    setReEntryPeriodLevels(p.reEntryPeriodLevels || 4);
+    setMaxReEntries(p.maxReEntries ?? (D.maxReEntries ?? 0));
+    setReEntryPeriodLevels(p.reEntryPeriodLevels ?? (D.reEntryPeriodLevels ?? 0));
     setAllowAddons(p.allowAddons || false);
-    setAddonAmount(p.addonAmount || 10);
-    setAddonChips(p.addonChips || 10000);
-    setAddonAvailableLevel(p.addonAvailableLevel || 6);
+    setAddonAmount(p.addonAmount ?? (D.addonAmount || 10));
+    setAddonChips(p.addonChips || (D.addonChips ?? 10000));
+    setAddonAvailableLevel(p.addonAvailableLevel ?? (D.addonAvailableLevel ?? 6));
     if (p.manualPayouts?.length) setManualPayouts(p.manualPayouts);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prizeStructureKey]);
@@ -396,7 +405,8 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Rebuy Period</Label>
-                  <NumberInput value={rebuyPeriodLevels} onChange={setRebuyPeriodLevels} suffix="lvls" min={1} />
+                  {/* min 0: zero is how "all game" is said, the same as the cap. */}
+                  <NumberInput value={rebuyPeriodLevels} onChange={setRebuyPeriodLevels} suffix="lvls" min={0} placeholder="∞" />
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Max Rebuys</Label>
@@ -404,7 +414,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Available during first {rebuyPeriodLevels} levels · Max: {maxRebuys || 'unlimited'}
+                {periodLabel(rebuyPeriodLevels)} · Max: {limitLabel(maxRebuys)}
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <Checkbox
@@ -468,7 +478,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Re-entry Period</Label>
-                  <NumberInput value={reEntryPeriodLevels} onChange={setReEntryPeriodLevels} suffix="lvls" min={1} />
+                  <NumberInput value={reEntryPeriodLevels} onChange={setReEntryPeriodLevels} suffix="lvls" min={0} placeholder="∞" />
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1 block">Max Re-entries</Label>
@@ -476,7 +486,10 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Full buy-in cost, fresh starting stack. Max 0 = unlimited.
+                Full buy-in cost, fresh starting stack.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {periodLabel(reEntryPeriodLevels)} · Max: {limitLabel(maxReEntries)}
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <Checkbox

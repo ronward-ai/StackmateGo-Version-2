@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, LogIn } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { isUnlimited } from '@/lib/entryLimits';
 import { countEntries, prizePoolFor } from "@/lib/prizePool";
 
 const ordinal = (n: number) => ['1st','2nd','3rd'][n-1] ?? `${n}th`;
@@ -217,7 +218,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                       <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Re-entries</span>
                     </div>
                     <DetailRow label="Cost" value={`${sym}${p.rebuyAmount || buyIn}`} />
-                    {(p.maxReEntries ?? 0) > 0 && <DetailRow label="Max / player" value={p.maxReEntries} />}
+                    {!isUnlimited(p.maxReEntries) && <DetailRow label="Max / player" value={p.maxReEntries} />}
                     <DetailRow label="Used" value={totalReEntries} />
                   </div>
                 )}
