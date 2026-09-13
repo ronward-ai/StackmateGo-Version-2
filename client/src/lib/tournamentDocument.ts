@@ -17,13 +17,6 @@ import type { TournamentState } from '@/types';
  * only sets isPublished.
  */
 
-export function generateSecureCode(length = 6): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes confusable 0/O/1/I
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes).map(b => chars[b % chars.length]).join('');
-}
-
 // Convert a plain JS value to Firestore REST API field format
 function toFirestoreValue(val: any): any {
   if (val === null || val === undefined) return { nullValue: null };
@@ -138,8 +131,6 @@ export function buildTournamentDocument(
       bountyAmount: 0,
       manualPayouts: [],
     },
-    participantCode: generateSecureCode(),
-    directorCode: generateSecureCode(),
     ownerId,
     /**
      * Whether players may watch this game.

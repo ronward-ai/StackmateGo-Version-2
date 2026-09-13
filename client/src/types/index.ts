@@ -232,8 +232,6 @@ export interface TournamentDetails {
   createdAt?: string;
   createdBy?: string;
   ownerId?: string;
-  directorCode?: string;
-  participantCode?: string;
   /**
    * Whether players may watch this game.
    *

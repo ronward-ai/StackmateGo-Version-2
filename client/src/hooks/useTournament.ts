@@ -332,7 +332,6 @@ export function useTournament(tournamentId?: string) {
                 createdAt: tournamentData.createdAt,
                 createdBy: tournamentData.createdBy,
                 ownerId: tournamentData.ownerId,
-                directorCode: tournamentData.directorCode
               }
             };
 

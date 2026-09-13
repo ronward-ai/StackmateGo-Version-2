@@ -11,7 +11,6 @@ import ComingSoonGate from '@/components/ComingSoonGate';
 // just to check in or watch the clock. Each page becomes its own chunk, fetched
 // only when its route is matched.
 const PokerTimer = lazy(() => import('./pages/PokerTimer'));
-const TournamentParticipant = lazy(() => import('./pages/TournamentParticipant'));
 const TournamentParticipantView = lazy(() => import('./pages/TournamentParticipantView'));
 const TournamentDirector = lazy(() => import('./pages/TournamentDirector'));
 const PlayerClaimView = lazy(() => import('./pages/PlayerClaimView'));
@@ -62,9 +61,7 @@ function App() {
               <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
               <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
               <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
-              <Route path="/tournament/:tournamentId/participant" component={TournamentParticipant} />
               <Route path="/tournament/:tournamentId/participant-view" component={TournamentParticipantView} />
-              <Route path="/tournament-participant" component={TournamentParticipant} />
               <Route component={NotFoundPage} />
             </Switch>
           </Suspense>
