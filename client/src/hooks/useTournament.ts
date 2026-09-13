@@ -21,6 +21,7 @@ import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/localProgress';
 import { secondsLeftFrom } from '@/lib/tournamentClock';
 import { canRebuy, canReEnter } from '@/lib/entryLimits';
+import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
 import { seatToReclaim } from '@/lib/seating';
 
@@ -248,7 +249,6 @@ export function useTournament(tournamentId?: string) {
   // Timer interval reference
   const timerIntervalRef = useRef<any>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   /**
@@ -348,12 +348,12 @@ export function useTournament(tournamentId?: string) {
     }
   }, [tournamentId]);
 
-  // Set up audio on mount
+  // Clean up the timer interval on unmount.
+  //
+  // This used to also construct `new Audio("https://actions.google.com/...")`
+  // that was never played — a third-party request on every console mount, for a
+  // sound that would not have loaded at a venue with no internet anyway.
   useEffect(() => {
-    // Create audio element
-    audioRef.current = new Audio("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg");
-
-    // Clean up on unmount
     return () => {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
@@ -634,37 +634,7 @@ export function useTournament(tournamentId?: string) {
 
           // 30 second warning alert
           if (prevState.secondsLeft > 30 && newSecondsLeft <= 30 && prevState.settings.enableSounds) {
-            // Create gentle notification sound similar to level complete but with 2 beeps
-            try {
-              const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-              const createSoftWarningChime = (frequency: number, startTime: number) => {
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-
-                oscillator.frequency.value = frequency;
-                oscillator.type = 'sine'; // Smooth, pleasant sound
-                gainNode.gain.value = 0.25; // Softer volume
-
-                // Gentle fade out
-                gainNode.gain.setValueAtTime(0.25, startTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.6);
-
-                oscillator.start(startTime);
-                oscillator.stop(startTime + 0.6);
-              };
-
-              // Play 2 gentle warning chimes with pleasant tones (E5 twice)
-              const now = audioContext.currentTime;
-              createSoftWarningChime(659, now); // E5 - first beep
-              createSoftWarningChime(659, now + 0.7); // E5 - second beep
-
-            } catch (error) {
-              // Audio context not available
-            }
+            playThirtySecondWarning();
 
             if (prevState.settings.enableVoice) {
               // 1.2s clears the two-tone warning chime above.
@@ -689,38 +659,7 @@ export function useTournament(tournamentId?: string) {
 
             // Level completed sound - gentle but noticeable
             if (prevState.settings.enableSounds) {
-              try {
-                const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-                // Create a pleasant completion sound - ascending notes
-                const createLevelCompleteChime = (frequency: number, startTime: number) => {
-                  const oscillator = audioContext.createOscillator();
-                  const gainNode = audioContext.createGain();
-
-                  oscillator.connect(gainNode);
-                  gainNode.connect(audioContext.destination);
-
-                  oscillator.frequency.value = frequency;
-                  oscillator.type = 'sine'; // Smooth, pleasant sound
-                  gainNode.gain.value = 0.4; // Moderate volume
-
-                  // Gentle fade out
-                  gainNode.gain.setValueAtTime(0.4, startTime);
-                  gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.8);
-
-                  oscillator.start(startTime);
-                  oscillator.stop(startTime + 0.8);
-                };
-
-                // Play pleasant ascending chimes (C-E-G chord)
-                const now = audioContext.currentTime;
-                createLevelCompleteChime(523, now); // C5
-                createLevelCompleteChime(659, now + 0.3); // E5
-                createLevelCompleteChime(784, now + 0.6); // G5
-
-              } catch (error) {
-                // Audio context not available
-              }
+              playLevelComplete();
             }
 
             // If there are more levels

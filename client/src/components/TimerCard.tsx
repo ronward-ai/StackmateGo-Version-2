@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Progress } from "@/components/ui/progress";
 import TimerFace from "@/components/TimerFace";
 import { Button } from "@/components/ui/button";
@@ -171,30 +171,21 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   const [showTimeInput, setShowTimeInput] = useState(false);
   const [timeInput, setTimeInput] = useState('');
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [voiceLanguage, setVoiceLanguage] = useState('en-GB');
   const [voiceSpeed, setVoiceSpeed] = useState(1);
-  const [voiceVolume, setVoiceVolume] = useState(1);
-  const [nextLevelAnnouncement, setNextLevelAnnouncement] = useState('3 minutes');
-  const [lastAnnouncementTime, setLastAnnouncementTime] = useState<number | null>(null);
-  const [isAlarmActive, setIsAlarmActive] = useState(false);
-  const [alarmDuration, setAlarmDuration] = useState(10);
-  const [isLevelComplete, setIsLevelComplete] = useState(false);
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const alarmRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    if (state.settings.enableSounds) {
-      audioRef.current = new Audio('/notification.mp3');
-      audioRef.current.volume = volume;
-
-      alarmRef.current = new Audio('/level-complete.mp3');
-      alarmRef.current.volume = volume;
-      alarmRef.current.loop = true;
-    }
-  }, [state.settings.enableSounds, volume]);
+  // Eight pieces of state and two audio refs used to sit here — voiceVolume,
+  // nextLevelAnnouncement, lastAnnouncementTime, isAlarmActive, alarmDuration,
+  // isLevelComplete, and Audio elements for /notification.mp3 and
+  // /level-complete.mp3. Every one was set and never read, and `.play()` was
+  // never called on either ref; the two files were 153-byte HTML placeholders
+  // reading "you'll need to add actual MP3 files". The sounds that work are
+  // oscillators, now in lib/chimes.ts, fired from useTournament's tick.
+  //
+  // This is the SECOND clearance of dead audio declarations from this file —
+  // voiceEnabled, ttsEnabled and a SpeechSynthesisUtterance ref went the same
+  // way, and their survival is why this was once written up as an unbuilt
+  // feature. Do not declare audio state here; it belongs where the clock ticks.
 
   const handleToggleTimer = () => {
     if (state.isRunning) {
@@ -206,22 +197,10 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
 
   const handleNextLevel = () => {
     skipToNextLevel();
-    setIsLevelComplete(false);
-    setIsAlarmActive(false);
-    if (alarmRef.current) {
-      alarmRef.current.pause();
-      alarmRef.current.currentTime = 0;
-    }
   };
 
   const handleResetTimer = () => {
     resetTimer();
-    setIsLevelComplete(false);
-    setIsAlarmActive(false);
-    if (alarmRef.current) {
-      alarmRef.current.pause();
-      alarmRef.current.currentTime = 0;
-    }
   };
 
   const adjustTime = (minutes: number) => {
