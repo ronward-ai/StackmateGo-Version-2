@@ -1059,9 +1059,13 @@ export function useTournament(tournamentId?: string) {
       // lib/eliminationOrder.ts for why counting alone was not enough.
       const newPosition = nextEliminationPosition(prev.players);
 
-      // Calculate points (simplified system)
-      const totalPlayers = prev.players.length;
-      const points = Math.max(0, (totalPlayers - newPosition + 1) * 10);
+      // No points are written onto the player. The league owns scoring, and a
+      // per-player copy made here is a rival source of truth by construction —
+      // it cannot see the league's scheme, its bonuses or its bands. Two
+      // formulas used to live here, a linear (players - position + 1) * 10 on
+      // elimination and a flat players * 36 for the winner, neither agreeing
+      // with any scheme a league can actually be set to. Nothing ever read
+      // either. See the note on Player in types/index.ts.
 
       // Calculate prize money if position qualifies
       let prizeMoney = 0;
@@ -1089,7 +1093,6 @@ export function useTournament(tournamentId?: string) {
               seated: false,
               tableAssignment: undefined,
               position: newPosition,
-              points,
               eliminatedBy: eliminatedById,
               prizeMoney,
               isActive: false,
@@ -1164,7 +1167,6 @@ export function useTournament(tournamentId?: string) {
               ? {
                   ...player,
                   position: 1, // First place
-                  points: totalPlayers * 36, // 1st place points
                   prizeMoney: firstPlacePrize,
                   isActive: false // Mark as inactive so tournament shows as complete
                 }

@@ -12,7 +12,23 @@ export interface Player {
   knockouts: number;
   seated?: boolean;
   position?: number;
-  points?: number;
+  /**
+   * REMOVED. Points belong to the league, not to a player in a live game.
+   *
+   * Two formulas used to write this — `(players - position + 1) * 10` on
+   * elimination and `players * 36` for the winner — and neither matched any
+   * scheme a league can be set to; `36 * p` is the first-place figure of one
+   * preset and nothing else. They were a third and fourth points evaluator
+   * beside `calculatePoints` and the settings dialog's validator.
+   *
+   * Nothing read either. The points chip beside a name comes from
+   * `calculatePoints` at the call site (PlayerSection), and the standings come
+   * from `recordResultByName`, so both were already right.
+   *
+   * If a live points figure is ever wanted, derive it through `calculatePoints`
+   * at the point of display. Do not store it on the player.
+   */
+  points?: never;
   eliminatedBy?: string;
   prizeMoney?: number;
   isActive?: boolean;
