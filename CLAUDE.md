@@ -584,8 +584,10 @@ That is exactly how Rebuys, Re-entries, Add-ons and Bounties displayed 0 for eve
 league. All four are tracked live on the player and were dropped at the moment of recording, taking
 Invested, Profit and ROI down with them, since investment is buy-in *plus* what was put in again.
 
-Two traps in that write. `sanitizeForFirestore` strips `undefined`, so a count must be coerced with
-`|| 0` or the field is silently absent for everyone who never rebought. And the mapping renames
+Two traps in that write. `sanitizeForFirestore` turns `undefined` into **`null`** — it does not strip
+it, which this note used to claim — so a count must be coerced with `|| 0` or the column reads 0 for
+everyone who never rebought. The difference matters beyond the wording: writing `null` *overwrites*
+whatever Firestore held, where an absent key would have left it alone. And the mapping renames
 `knockouts` to `playersEliminatedCount`, which is why the table reads both.
 
 `lib/resultStats.ts` owns the arithmetic and its fallbacks — an unpriced rebuy is charged at the
@@ -598,6 +600,74 @@ because it is persisted in each league's column settings.
 Historical results carry none of these fields and stay at 0. `completedTournaments` — a parallel
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
+
+### Zero means unlimited, and one module says so
+
+`lib/entryLimits.ts` answers whether a player may rebuy or re-enter. **Zero, negative and absent all
+mean no limit** — for the cap AND for the period.
+
+That rule used to live only in the Buy-in tab's head. `maxRebuys` was read at three sites, each
+spelling the fallback `|| 3`, while `0` is exactly how that tab stores "unlimited" — an `∞`
+placeholder and a line reading `Max: {maxRebuys || 'unlimited'}`. `0 || 3` is `3`, so **a director
+who asked for unlimited got three.** Re-entries had the mirror bug with `?? 99`, which keeps the zero
+and therefore read it as "none allowed", while the two info cards printed a cap only when it was
+above zero and read the same zero as "unlimited". One number, three meanings, four files.
+
+**`rebuyPeriodLevels` and `reEntryPeriodLevels` are enforced now, and were not before.** The Buy-in
+tab has always printed "Available during first N levels" and nothing ever checked the level — while
+their sibling `addonAvailableLevel` was checked, which is what makes it an omission rather than a
+decision. `maxReEntries` was enforced nowhere at all: only the table view's button hid.
+
+So that enforcement could not close on a game whose director never chose a window,
+`DEFAULT_PRIZE_STRUCTURE` carries **no period**. A window only bites when it was deliberately set.
+
+**Levels are zero-indexed in state and one-indexed on screen.** Every function here takes the raw
+`state.currentLevel` and does the `+ 1` internally, because that off-by-one was previously spelled
+inline at the one site that worked and is exactly what gets copied wrong on the fourth.
+
+### There is one default prize structure
+
+`lib/prizeStructure.ts`. There were two — `useTournament`'s and the Buy-in tab's own `useState`
+defaults — and they disagreed on rebuys (on vs off), the cap (3 vs 0), the period (5 vs 3) and the
+payout split (**60/30/10 vs 50/30/20**), so a game run from the defaults showed one split on the
+Payouts panel and paid another. The tab's loader spelled a third set of fallbacks on top.
+
+Those loader fallbacks are `??`, never `||`: `p.buyIn || 10` turned a **free game back into a £10
+one** every time the tab was reopened.
+
+### Points belong to the league, never to a player
+
+`Player.points` is typed `never`. Two formulas used to write it — `(players - position + 1) * 10` on
+elimination and `players * 36` for the winner — and neither matched any scheme a league can be set
+to; `36 * p` is the first-place figure of exactly one preset. With `calculatePoints` and the settings
+dialog's validator that made **four** points evaluators, two of them invisible, and the winner's
+wrong figure was broadcast to every participant device.
+
+Nothing read either. If a live points figure is ever wanted, derive it through `calculatePoints` at
+the point of display.
+
+### The logo is bounded before it is stored
+
+`lib/imageDownscale.ts`. The upload used to read straight through with `readAsDataURL` — no limit, no
+downscaling — into `settings.branding.logoUrl`, which rides into the tournament document inside
+`settings`. A 4 MB phone photo is ~5.4 MB of base64 against **Firestore's 1 MiB document limit**, so
+the write fails — and it is the *whole* document that fails, not just the logo.
+
+512px longest edge, 150KB budget, WebP first so transparency survives. Verified in real Chromium:
+4000×3000 of pure noise, the worst case compression can face, encodes to 122KB at the first quality
+step. An image that still will not fit is **refused out loud**, because the failure it replaces was
+completely silent.
+
+### The screen is kept awake while the clock runs
+
+`hooks/useWakeLock.ts`, on the console and the participant view alike. Nothing asked for this before
+and the tablet slept mid-level.
+
+A wake lock is **released automatically whenever the page is hidden and is not restored**, so the
+`visibilitychange` listener is the load-bearing half — without it the lock survives until the first
+person checks their phone. The request **rejects** when refused (no gesture yet, battery saver,
+Firefox, iOS before 16.4), and every path fails silently: it is called from inside a running clock and
+must never take the timer down.
 
 ### A rebuy keeps the chair; a re-entry does not
 
@@ -938,10 +1008,23 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
 | `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
-| `handover.ts` | Director handover: issuing, redeeming and burning transfer codes. |
 | `liveTournament.ts` | Which of an account's tournaments is the one being run right now. |
 | `chop.ts` | Splitting the remaining prize money: ICM equity, proportional chop, and what is still on the table. |
 | `resultStats.ts` | What a league result says a player spent and collected: investment, rebuys, add-ons, bounty money. |
+| `entryLimits.ts` | Who may rebuy or re-enter, and until when. **Zero means unlimited**, for the cap and the period alike. |
+| `prizeStructure.ts` | `DEFAULT_PRIZE_STRUCTURE` — the one default a game starts from. |
+| `currency.ts` | The currency symbol and how money is spelled. |
+| `ordinal.ts` | "1st", "2nd", "21st". |
+| `tournamentClock.ts` | Seconds left, derived from the end time while running and the stored countdown while paused. |
+| `localProgress.ts` | The local mirror of the game being run, and when it may be offered back. |
+| `syncHealth.ts` | Whether a sync failure is worth telling the director about. |
+| `speak.ts` / `announcements.ts` | The voice, and the wording it speaks. |
+| `chimes.ts` | The two sounds the game makes. |
+| `imageDownscale.ts` | Bounding an uploaded logo before it is stored. |
+| `playerBadges.ts` | The chips beside a player's name. |
+| `pointsBands.ts` / `pointsBonuses.ts` / `pointsPresets.ts` | Points per place, the two bonuses, and the ready-made schemes. |
+| `seating.ts` | Whether a returning player's chair is still free. |
+| `tournamentDocument.ts` | The single creation path for a tournament document. |
 
 ### One shared listener per query
 
@@ -1015,6 +1098,18 @@ season, so the screen and the database cannot disagree.
 
 `replit.md` was deleted: it described a "WebSocket" architecture this app has never had and
 duplicated CLAUDE.md badly. `.replit` stays — it is live config, not documentation.
+
+**`TournamentParticipant.tsx` went the same way**, and was the last of that ghost: 405 lines built
+round a `WebSocket` that never existed, reachable at two routes nothing linked to. Its join-by-code
+flow was *denied by the rules* rather than merely unused — looking a game up by code is a `list` on
+`activeTournaments`, which is owner-only — and the user was told "Tournament not found with that
+access code", pointing them at the wrong problem. `participantCode` and `directorCode` went with it;
+both were minted on every tournament and checked by nothing.
+
+`docs/audit-2026-09.md` is the September 2026 audit: every finding with a file:line, a severity and a
+fix, plus a section recording what was checked and found clean. It carries a status header naming
+what has been cleared and what is still open, and why. Read it before hunting for something to
+improve — it is a to-do list, unlike the archived plan below.
 
 `docs/league-seasons-rework-plan.md` is the archived plan the League & Seasons rework was executed
 from. Read it for *why* the model looks the way it does — the single `activeSeasonId` pointer, the
