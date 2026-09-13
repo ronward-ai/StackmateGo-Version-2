@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { currencyOf } from '@/lib/currency';
+import { payoutsOf } from '@/lib/payoutTemplates';
 import { useParams } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -446,7 +447,11 @@ function TournamentParticipantView() {
       rakeAmount: rake,
       rakeType: ps.rakeType || 'percentage',
       rakePercentage: ps.rakePercentage || 0,
-      payouts: tournament.prizeStructure?.manualPayouts || [],
+      // payoutsOf, not manualPayouts: a structure saved before the default was
+      // corrected keeps its percentages in `structure`, and reading the raw
+      // field showed payouts to the director — whose two load paths DO
+      // normalise — and none at all to the players.
+      payouts: payoutsOf(tournament.prizeStructure),
     };
   })();
 

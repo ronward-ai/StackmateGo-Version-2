@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculatePrizePool, countEntries, entryCosts, prizePoolFor } from './prizePool';
+import { calculatePrizePool, countEntries, entryCosts, payoutAmount, prizePoolFor } from './prizePool';
 
 /**
  * Characterisation tests for the canonical prize pool calculation.
@@ -243,5 +243,32 @@ describe('prizePoolFor', () => {
       buyIn: 10, rakeType: 'fixed', rakeAmount: 5,
     });
     expect(pool.rake).toBe(25);
+  });
+});
+
+describe('payoutAmount', () => {
+  it('takes a percentage of the pool, floored', () => {
+    expect(payoutAmount(100, 60)).toBe(60);
+    expect(payoutAmount(95, 60)).toBe(57);
+    expect(payoutAmount(95, 30)).toBe(28);
+    expect(payoutAmount(95, 10)).toBe(9);
+  });
+
+  // The odd chip stays on the table, which is what a real game does.
+  it('never pays out more than the pool', () => {
+    const pool = 95;
+    const paid = [60, 30, 10].reduce((s, pct) => s + payoutAmount(pool, pct), 0);
+    expect(paid).toBeLessThanOrEqual(pool);
+  });
+
+  // The divergence this replaces: the director's card guarded with
+  // `(po.percentage || 0)` and the participant's copy did not, so an undefined
+  // percentage showed NaN on the players' screens and 0 on the director's.
+  it('reads an absent or nonsense percentage as nothing, never NaN', () => {
+    expect(payoutAmount(100, undefined)).toBe(0);
+    expect(payoutAmount(100, null)).toBe(0);
+    expect(payoutAmount(100, NaN)).toBe(0);
+    expect(payoutAmount(100, -20)).toBe(0);
+    expect(payoutAmount(NaN, 50)).toBe(0);
   });
 });

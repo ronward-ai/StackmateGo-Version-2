@@ -163,3 +163,23 @@ export function prizePoolFor(
     rakeAmount: ps.rakeAmount || 0,
   });
 }
+
+/**
+ * What a payout position is worth out of a prize pool.
+ *
+ * Seven sites spelled `Math.floor(pool * percentage / 100)` by hand and they had
+ * already begun to disagree on the INPUT rather than the arithmetic: the
+ * director's info card guarded with `(po.percentage || 0)` while the
+ * participant's copy of the same card used the bare value, so an undefined
+ * percentage produced `NaN` on the players' screens and `0` on the director's.
+ * That is the nine-site prize-pool formula regrowing one level down.
+ *
+ * Floors, because the app pays whole units — a pot of 95 split 60/30/10 pays
+ * 57 / 28 / 9 and leaves 1 on the table, which is what a real cash game does
+ * with the odd chip.
+ */
+export function payoutAmount(pool: number, percentage: number | null | undefined): number {
+  const pct = Number(percentage);
+  if (!Number.isFinite(pool) || !Number.isFinite(pct) || pct <= 0) return 0;
+  return Math.floor(pool * pct / 100);
+}

@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited } from '@/lib/entryLimits';
-import { countEntries, prizePoolFor } from "@/lib/prizePool";
+import { payoutsOf } from '@/lib/payoutTemplates';
+import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { gameNumberFor } from "@/lib/seasonProgress";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
@@ -386,7 +387,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
   // the chop calculator both read this — they used to compute it separately
   // from the same two inputs, which is how two figures for one number start.
   const payoutAmounts = useMemo(
-    () => (p?.manualPayouts || []).map((po: any) => Math.floor(pool * (po.percentage || 0) / 100)),
+    () => payoutsOf(p).map((po) => payoutAmount(pool, po.percentage)),
     [p?.manualPayouts, pool],
   );
 

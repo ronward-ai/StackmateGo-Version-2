@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DEFAULT_CURRENCY } from '@/lib/currency';
-import { calculatePrizePool } from "@/lib/prizePool";
+import { calculatePrizePool, payoutAmount } from '@/lib/prizePool';
 import { limitLabel, periodLabel } from '@/lib/entryLimits';
 import { ordinal } from '@/lib/ordinal';
 import { DEFAULT_PRIZE_STRUCTURE } from '@/lib/prizeStructure';
@@ -606,7 +606,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
           <div className="space-y-2">
             {manualPayouts.map((payout, i) => {
               const label = ordinal(i + 1);
-              const amount = netPool > 0 ? Math.floor(netPool * payout.percentage / 100) : null;
+              const amount = netPool > 0 ? payoutAmount(netPool, payout.percentage) : null;
               return (
                 <div key={i} className="flex items-center gap-3">
                   {i === 0 ? (

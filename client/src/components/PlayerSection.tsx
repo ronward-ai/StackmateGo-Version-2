@@ -8,7 +8,7 @@ import { X, Download, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-reac
 import { cn } from '@/lib/utils';
 import { currencyOf } from '@/lib/currency';
 import { buyInOf, investedIn } from '@/lib/resultStats';
-import { entryCosts, prizePoolFor } from '@/lib/prizePool';
+import { entryCosts, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
 import { badgesFor, badgeText } from '@/lib/playerBadges';
@@ -422,7 +422,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
         }
         if (pos > 0 && ps?.manualPayouts) {
           const payout = ps.manualPayouts.find((p: any) => p.position === pos);
-          if (payout?.percentage > 0) exportPrize = Math.floor(prizePool * payout.percentage / 100);
+          exportPrize = payoutAmount(prizePool, payout?.percentage);
         }
 
         const row = document.createElement('div');
@@ -766,7 +766,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
               if (player.position && player.position > 0 && state.prizeStructure?.manualPayouts) {
                 const positionPayout = state.prizeStructure.manualPayouts.find((p: any) => p.position === player.position);
                 if (positionPayout && positionPayout.percentage > 0) {
-                  prize = Math.floor((totalPrizePool * positionPayout.percentage) / 100);
+                  prize = payoutAmount(totalPrizePool, positionPayout.percentage);
                 }
               }
 

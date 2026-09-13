@@ -14,7 +14,7 @@ import { sanitizeForFirestore } from '../lib/utils';
 
 import { useAuth } from './useAuth';
 import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
-import { prizePoolFor } from '@/lib/prizePool';
+import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
@@ -1010,7 +1010,7 @@ export function useTournament(tournamentId?: string) {
         if (payout && payout.percentage > 0) {
           const { net: totalPrizePool } = prizePoolFor(prev.players, prev.prizeStructure);
 
-          prizeMoney = Math.floor((totalPrizePool * payout.percentage) / 100);
+          prizeMoney = payoutAmount(totalPrizePool, payout.percentage);
         }
       }
 
@@ -1075,7 +1075,7 @@ export function useTournament(tournamentId?: string) {
           if (firstPlacePayout && firstPlacePayout.percentage > 0) {
             const { net: totalPrizePool } = prizePoolFor(prev.players, prev.prizeStructure);
 
-            firstPlacePrize = Math.floor((totalPrizePool * firstPlacePayout.percentage) / 100);
+            firstPlacePrize = payoutAmount(totalPrizePool, firstPlacePayout.percentage);
           }
         }
 

@@ -10,6 +10,7 @@ import type { TimerPiping } from '@/types';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { downscaleImage } from '@/lib/imageDownscale';
+import { eventNameOf } from '@/lib/eventName';
 
 /**
  * The piping treatments, in the order they escalate.
@@ -35,9 +36,11 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
   // Named eventName throughout: this is the EVENT shown on the big screen, not
   // the league. Reads the legacy `leagueName` key so existing tournaments keep
   // their value; only `eventName` is written from here on.
-  const [eventName, setEventName] = useState(
-    (state?.settings?.branding as any)?.eventName ?? state?.settings?.branding?.leagueName ?? ''
-  );
+  // Through eventNameOf, not re-spelled. This was the same read minus the
+  // league fallback at lib/eventName.ts:30 — so in league mode the edit box and
+  // the header could show different things, which is the precise bug that
+  // module was written to end.
+  const [eventName, setEventName] = useState(() => eventNameOf(state?.settings, null));
   const [logoUrl, setLogoUrl] = useState(state?.settings?.branding?.logoUrl || '');
   const [logoError, setLogoError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);

@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, LogIn } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited } from '@/lib/entryLimits';
-import { countEntries, prizePoolFor } from "@/lib/prizePool";
+import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 
 const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 
@@ -115,7 +115,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                 </div>
                 <div className="space-y-1.5">
                   {p.manualPayouts.map((po: any, i: number) => {
-                    const amount = Math.floor(pool * po.percentage / 100);
+                    const amount = payoutAmount(pool, po.percentage);
                     const finisher = players.find((pl: any) => pl.position === i + 1);
                     const bountyBonus = (() => {
                       if (!finisher || !p.enableBounties || !p.bountyAmount) return 0;
