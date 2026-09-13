@@ -113,18 +113,12 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
 
   // POST /api/stripe-webhook
   // Stripe sends events here; we update Firestore on subscription lifecycle events
+  //
+  // The raw body arrives as a Buffer from the parser mounted on this path in
+  // server/bodyParsers.ts. It must NOT be collected here: route middleware runs
+  // after the app-level express.json(), which has already drained the stream.
   app.post(
     '/api/stripe-webhook',
-    // Raw body required for signature verification — must come before express.json
-    (req, res, next) => {
-      let data = '';
-      req.setEncoding('utf8');
-      req.on('data', chunk => { data += chunk; });
-      req.on('end', () => {
-        (req as any).rawBody = data;
-        next();
-      });
-    },
     async (req, res) => {
       if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
         res.status(503).json({ error: 'Payments not configured' });
@@ -135,7 +129,7 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
       let event: Stripe.Event;
       try {
         event = stripe.webhooks.constructEvent(
-          (req as any).rawBody,
+          req.body,
           sig as string,
           process.env.STRIPE_WEBHOOK_SECRET
         );
