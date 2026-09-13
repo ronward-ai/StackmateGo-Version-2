@@ -49,7 +49,6 @@ const DEFAULT_SETTINGS: Settings = {
   // start by itself catches the table out.
   pauseAfterBreak: true,
   enableVoice: false,
-  showSeconds: true,
   showNextLevel: true,
   tables: {
     numberOfTables: 2,
@@ -890,7 +889,6 @@ export function useTournament(tournamentId?: string) {
         prizeMoney: 0,
         rebuys: 0,
         addons: 0,
-        totalInvestment: prev.prizeStructure?.buyIn || 0,
         currentBounty: (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive') ? (prev.prizeStructure?.bountyAmount || 0) : undefined,
         bountyWinnings: 0
       };
@@ -1035,9 +1033,6 @@ export function useTournament(tournamentId?: string) {
               prizeMoney,
               isActive: false,
               seatInfo: recordedSeat,
-              eliminationLevel: prev.currentLevel + 1,
-              playTime: prev.levels.slice(0, prev.currentLevel + 1)
-                .reduce((total, level) => total + level.duration, 0) - prev.secondsLeft
             }
           : player.id === eliminatedById && eliminatedById
             ? { ...player, knockouts: (player.knockouts || 0) + 1 }
@@ -1336,7 +1331,6 @@ export function useTournament(tournamentId?: string) {
           ? {
               ...p,
               addons: (p.addons || 0) + 1,
-              totalInvestment: (p.totalInvestment || (prev.prizeStructure?.buyIn || 0)) + (prev.prizeStructure?.addonAmount || 0)
             }
           : p
       );

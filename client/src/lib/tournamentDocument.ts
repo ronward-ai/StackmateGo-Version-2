@@ -107,7 +107,6 @@ export function buildTournamentDocument(
     settings: {
       enableSounds: state.settings.enableSounds,
       enableVoice: state.settings.enableVoice,
-      showSeconds: state.settings.showSeconds,
       showNextLevel: state.settings.showNextLevel,
       currency: state.settings.currency || '£',
       tables: state.settings.tables || {

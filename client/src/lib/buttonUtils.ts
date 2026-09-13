@@ -115,11 +115,3 @@ export const buttonCombinations = {
     finalTable: "warning" as ButtonVariant,
   },
 };
-
-/**
- * Get button variant for common UI patterns
- */
-export function getPatternVariant(pattern: keyof typeof buttonCombinations, action: string): ButtonVariant {
-  const combination = buttonCombinations[pattern];
-  return (combination as any)[action] || "outline";
-}

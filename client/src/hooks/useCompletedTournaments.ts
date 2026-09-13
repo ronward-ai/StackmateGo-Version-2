@@ -74,7 +74,6 @@ export function useCompletedTournaments() {
       seasonId: (state.settings as any)?.seasonId,
       seasonName: (state.settings as any)?.seasonName,
       leagueId: (state.settings as any)?.leagueId,
-      startTime: state.details?.startTime,
       endTime: new Date().toISOString(),
       playerCount: players.length,
       winner: players.find(p => p.position === 1)?.name,

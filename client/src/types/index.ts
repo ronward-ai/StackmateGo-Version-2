@@ -39,10 +39,6 @@ export interface Player {
   reEntries?: number;
   currentBounty?: number;
   bountyWinnings?: number;
-  totalInvestment?: number;
-  canRebuy?: boolean;
-  eliminationLevel?: number; // Level at which player was eliminated
-  playTime?: number; // Total play time in seconds
   chipCount?: number; // Current chip count (for active players)
   claimedBy?: string; // Firebase anonymous UID of player who claimed this seat
 }
@@ -75,7 +71,6 @@ export interface Settings {
    *  starting the next level automatically. */
   pauseAfterBreak?: boolean;
   enableVoice?: boolean;
-  showSeconds: boolean;
   showNextLevel: boolean;
   bigBlindAnte?: boolean;
   applyDurationToAll?: boolean;
@@ -179,7 +174,6 @@ export interface CompletedTournament {
   seasonId?: string;
   seasonName?: string;
   leagueId?: string;
-  startTime?: string;
   endTime: string;
   playerCount: number;
   winner?: string;
@@ -217,14 +211,10 @@ export interface TournamentDetails {
   name?: string;
   startTime?: string;
   endTime?: string;
-  league?: string;
-  season?: string;
   prizePool?: number;
-  totalEntrants?: number;
   type: 'standalone' | 'season' | 'database'; // Tournament classification
   seasonId?: string | number; // ID of the season this tournament belongs to
-  seasonName?: string; // Name of the season for display
-  tournamentNumber?: number; // Which tournament in the season (e.g., Game 5)
+  seasonName?: string; // Name of the season for display // Which tournament in the season (e.g., Game 5)
   id?: number | string; // Database ID for database tournaments
   localGameId?: string; // Stable per-game ID for result tracking, set before "Go Live"
   tables?: any[];

@@ -16,7 +16,6 @@ interface Player {
   prizeMoney?: number;
   rebuys?: number;
   addons?: number;
-  totalInvestment?: number;
   tableAssignment?: {
     tableIndex: number;
     seatIndex: number;

@@ -415,90 +415,6 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     return null;
   }, [currentLeagueId, createLeagueMutation.isPending, queryClient, user?.id]);
 
-  const addLeaguePlayer = useCallback(async (name: string) => {
-    try {
-      const leagueId = await waitForLeague();
-      if (!leagueId) return;
-
-      if (!name || typeof name !== 'string' || name.trim().length === 0) return;
-
-      const existingPlayer = leaguePlayers.find((p: any) =>
-        p.name.toLowerCase() === name.toLowerCase()
-      );
-      if (existingPlayer) return;
-
-      // Fallback Firestore check in case leaguePlayers state is stale
-      const snap = await getDocs(
-        query(collections.leaguePlayers,
-          where('leagueId', '==', String(leagueId)),
-          where('name', '==', name.trim())
-        )
-      );
-      if (!snap.empty) return;
-
-      await createPlayerMutation.mutateAsync({ name: name.trim() });
-    } catch (error) {
-      console.error('❌ Error in addLeaguePlayer:', error);
-    }
-  }, [currentLeagueId, leaguePlayers, createPlayerMutation, waitForLeague]);
-
-  const recordResult = useCallback(async (playerId: string, position: number, totalPlayers: number) => {
-    try {
-      if (!currentLeagueId) return;
-      if (!playerId || typeof position !== 'number' || typeof totalPlayers !== 'number') return;
-      if (position < 1 || totalPlayers < 1 || position > totalPlayers) return;
-
-      // Same three extras as the other call site — see there for why. This
-      // path is not told the buy-in, so buyInOf's fallback stands in.
-      const buyIn = buyInOf({});
-      const points = calculatePointsFromSettings(
-        position, totalPlayers, 0, buyIn, buyIn, buyIn * totalPlayers,
-      );
-      const playerFound = leaguePlayers.find(p => p.id === playerId);
-      if (!playerFound) return;
-
-      await addResultMutation.mutateAsync({
-        leaguePlayerId: playerId,
-        position,
-        totalPlayers,
-        points,
-        knockouts: 0,
-        prizeMoney: 0,
-        buyIn: 10,
-        tournamentDate: new Date(),
-        tournamentName: 'Tournament Result',
-        seasonId: activeSeasonId
-      });
-    } catch (error) {
-      console.error('❌ Error in recordResult:', error);
-      throw error;
-    }
-  }, [currentLeagueId, calculatePointsFromSettings, leaguePlayers, addResultMutation, activeSeasonId]);
-
-  const getLeagueStandings = useCallback(() => {
-    return [...leaguePlayers].sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      const aGames = a.tournamentResults.length;
-      const bGames = b.tournamentResults.length;
-      if (aGames !== bGames) return aGames - bGames;
-      const aBest = Math.min(...a.tournamentResults.map(r => r.position), 999);
-      const bBest = Math.min(...b.tournamentResults.map(r => r.position), 999);
-      return aBest - bBest;
-    });
-  }, [leaguePlayers]);
-
-  const removeResult = useCallback(async (playerId: string, resultId: string) => {
-    if (!currentLeagueId) return;
-    try {
-      await deleteDoc(doc(db, 'tournamentResults', resultId));
-      queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
-      queryClient.invalidateQueries({ queryKey: ['leagueResults', currentLeagueId] });
-    } catch (error) {
-      console.error('❌ Error in removeResult:', error);
-      throw error;
-    }
-  }, [currentLeagueId, cloudResults, queryClient]);
-
   const recordResultByName = useCallback(async (
     playerName: string,
     position: number,
@@ -662,17 +578,6 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     }
   }, [currentLeagueId, queryClient, leaguePlayers]);
 
-  const resetLeague = useCallback(() => {
-    try {
-      // For cloud storage, we don't reset the entire league
-      // This would require clearing all players and results via API
-      return false;
-    } catch (error) {
-      console.error('Error resetting league:', error);
-      return false;
-    }
-  }, []);
-
   // Delete the currently active league and all its associated data
   const deleteLeague = useCallback(async (leagueId: string) => {
     if (!user?.id) return;
@@ -725,37 +630,32 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     isActive: false
   };
 
+  // Everything this hook hands out is consumed by something. It used to export
+  // 26 names of which 8 were used, and the unused half was not inert:
+  //
+  //  - `recordResult` was a SECOND writer into tournamentResults, contradicting
+  //    the one-writer rule this hook exists to keep. It wrote `buyIn: 10`
+  //    hard-coded and zeroes for everything else.
+  //  - `getLeagueStandings` sorted on leaguePlayers.totalPoints, which is
+  //    vestigial and permanently 0, so it returned an arbitrary order.
+  //  - a "Legacy compatibility" block of no-op stubs — `addPlayer: () => false`,
+  //    `removePlayer: () => {}`, `addPoints: () => {}`, `clearError: () => {}`,
+  //    `processTournamentResults: () => {}` — which is the worst shape of all:
+  //    a real-looking name that silently does nothing and looks like it worked.
   return {
     league,
     userLeagues,
     switchLeague,
     createLeague,
+    renameLeague,
     deleteLeague,
     leaguePlayers,
-    addLeaguePlayer,
-    recordResult,
     recordResultByName,
     removeTournamentResultForPlayer,
-    removeResult,
-    getLeagueStandings,
-    resetLeague,
     calculatePoints: calculatePointsFromSettings,
     isLoading,
     error,
     activeSeasonId,
     setActiveSeason,
-    // Legacy compatibility
-    players: leaguePlayers,
-    processElimination: (playerName: string, position: number, totalPlayers: number, playersEliminatedCount: number = 0, prizeMoney: number = 0) => 
-      recordResultByName(playerName, position, totalPlayers, playersEliminatedCount, prizeMoney),
-    processTournamentResults: () => {},
-    clearLeagueData: resetLeague,
-    addPlayer: () => false,
-    removePlayer: () => {},
-    addPoints: () => {},
-    recordTournamentResult: recordResult,
-    renameLeague,
-    clearError: () => {},
-    calculateTournamentPoints: calculatePointsFromSettings
   };
 }

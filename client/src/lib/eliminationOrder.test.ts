@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   nextEliminationPosition,
   positionsAfterReEntry,
-  playersShiftedByReEntry,
   rostersMatchForUndo,
   type PositionedPlayer,
 } from './eliminationOrder';
@@ -145,46 +144,6 @@ describe('positionsAfterReEntry', () => {
     players = bust(players, 'p4'); // 1st
 
     expect(players.find(p => p.id === 'p4')?.position).toBe(1);
-  });
-});
-
-describe('playersShiftedByReEntry', () => {
-  it('names exactly the players whose position changes', () => {
-    let players = roster(10);
-    players = bust(players, 'p1'); // 10th
-    players = bust(players, 'p2'); // 9th
-    players = bust(players, 'p3'); // 8th
-
-    expect(playersShiftedByReEntry(players, 'p1').sort()).toEqual(['p2', 'p3']);
-  });
-
-  it('excludes the returning player', () => {
-    let players = roster(4);
-    players = bust(players, 'p1');
-    expect(playersShiftedByReEntry(players, 'p1')).not.toContain('p1');
-  });
-
-  it('is empty when nobody finished after the returning player', () => {
-    let players = roster(4);
-    players = bust(players, 'p1'); // 4th, nobody after them yet
-    expect(playersShiftedByReEntry(players, 'p1')).toEqual([]);
-  });
-
-  it('agrees with what positionsAfterReEntry actually changes', () => {
-    let players = roster(8);
-    players = bust(players, 'p1');
-    players = bust(players, 'p2');
-    players = bust(players, 'p3');
-
-    const named = playersShiftedByReEntry(players, 'p1').sort();
-    const after = positionsAfterReEntry(players, 'p1');
-    const actuallyChanged = players
-      .filter(p => p.id !== 'p1')
-      .filter(p => after.find(a => a.id === p.id)?.position !== p.position)
-      .map(p => p.id)
-      .sort();
-
-    expect(named).toEqual(actuallyChanged);
   });
 });
 

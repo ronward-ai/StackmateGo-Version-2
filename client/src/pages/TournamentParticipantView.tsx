@@ -34,7 +34,6 @@ interface TournamentData {
   settings: {
     enableSounds: boolean;
     enableVoice: boolean;
-    showSeconds: boolean;
     showNextLevel: boolean;
     currency: string;
     /** The director's clock piping, synced with the rest of settings. */

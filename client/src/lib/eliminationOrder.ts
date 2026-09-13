@@ -88,28 +88,6 @@ export function positionsAfterReEntry<T extends PositionedPlayer>(
 }
 
 /**
- * The ids of players whose position `positionsAfterReEntry` would change,
- * excluding the returning player.
- *
- * Their league results were already written with the old position, so the
- * caller has to have them re-recorded. Kept here so the rule lives in one
- * place rather than being re-derived at the call site.
- */
-export function playersShiftedByReEntry<T extends PositionedPlayer>(
-  players: T[],
-  playerId: string,
-): string[] {
-  const returning = players.find(p => p.id === playerId);
-  if (!returning || typeof returning.position !== 'number' || returning.position <= 0) {
-    return [];
-  }
-  const vacated = returning.position;
-  return players
-    .filter(p => p.id !== playerId && isFinished(p) && (p.position as number) < vacated)
-    .map(p => p.id);
-}
-
-/**
  * Do these two rosters agree on everything an undo depends on?
  *
  * Undoing a rebuy or re-entry restores a whole players array, so it must only
