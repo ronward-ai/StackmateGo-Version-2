@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="StackMate Go">
+  <!-- A stack of chips, which is the thing the app counts down for. Drawn as
+       three bars rather than the wordmark: the logo is 1096x145 and unreadable
+       at 16px. Colours are the app's own tokens — background 210 11% 10%,
+       primary 25 95% 53%. -->
+  <rect width="64" height="64" rx="14" fill="#17191C"/>
+  <rect x="14" y="38" width="36" height="9" rx="4.5" fill="#F97316"/>
+  <rect x="14" y="26" width="36" height="9" rx="4.5" fill="#F97316" opacity="0.72"/>
+  <rect x="14" y="14" width="36" height="9" rx="4.5" fill="#F97316" opacity="0.44"/>
+</svg>

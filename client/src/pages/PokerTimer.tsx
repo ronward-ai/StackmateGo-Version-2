@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -305,6 +306,10 @@ function PokerTimerInner({
   tournament: NonNullable<ReturnType<typeof useTournament>>;
   tournamentId?: string;
 }) {
+  // Keep the screen on while the clock runs. A tournament timer that goes dark
+  // ten minutes into a level is the one thing this app must not do.
+  useWakeLock(tournament.state.isRunning);
+
   const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague, userLeagues, leaguePlayers } = useLeague();
   const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);

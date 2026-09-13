@@ -1,0 +1,16 @@
+{
+  "name": "StackMate Go",
+  "short_name": "StackMate",
+  "description": "Poker tournament timer and league manager.",
+  "start_url": "/?home=1",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#17191C",
+  "theme_color": "#17191C",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -10,6 +10,7 @@ import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Button } from '@/components/ui/button'; // Assuming Button component is available
 import { useAuth } from '@/hooks/useAuth';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
 import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
@@ -83,6 +84,11 @@ function TournamentParticipantView() {
   const params = useParams<{ tournamentId?: string; id?: string }>();
   const id = params.tournamentId || params.id;
   const [tournament, setTournament] = useState<TournamentData | null>(null);
+
+  // Players prop their phone up to watch the clock too, and a phone sleeps far
+  // sooner than a laptop. Same hook, same silent failure on a browser that
+  // refuses.
+  useWakeLock(!!tournament?.isRunning);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
