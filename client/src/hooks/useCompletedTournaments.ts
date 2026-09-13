@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { currencyOf } from '@/lib/currency';
 import { query, where, orderBy, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, collections } from '@/lib/firebase';
 import { useAuth } from './useAuth';
@@ -78,7 +79,7 @@ export function useCompletedTournaments() {
       playerCount: players.length,
       winner: players.find(p => p.position === 1)?.name,
       buyIn,
-      currency: state.settings?.currency || '£',
+      currency: currencyOf(state.settings),
       prizePool: gross,
       rake,
       totalRebuys,

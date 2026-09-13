@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { ordinal } from '@/lib/ordinal';
+import { currencyOf } from '@/lib/currency';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, LogIn } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited } from '@/lib/entryLimits';
 import { countEntries, prizePoolFor } from "@/lib/prizePool";
 
-const ordinal = (n: number) => ['1st','2nd','3rd'][n-1] ?? `${n}th`;
 const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 
 function DetailRow({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
@@ -25,7 +26,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const gameNumber = tournament.settings?.gameNumber as number | undefined;
   const totalGames = (tournament.settings?.numberOfGames as number | undefined) || 12;
 
-  const sym = tournament.settings?.currency || '£';
+  const sym = currencyOf(tournament.settings);
   const p = tournament.prizeStructure || {};
   const buyIn = p.buyIn || 0;
   const rebuyAmt = p.rebuyAmount || 0;

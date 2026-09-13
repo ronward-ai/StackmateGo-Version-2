@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { currencyOf } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -28,7 +29,7 @@ function HistoryRow({
   onDelete: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const sym = entry.currency || '£';
+  const sym = currencyOf({ currency: entry.currency });
 
   return (
     <Card className="p-3">

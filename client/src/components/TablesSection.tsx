@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { currencyOf, money } from '@/lib/currency';
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,7 +53,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const tables = state.settings.tables || { numberOfTables: 3, seatsPerTable: 6, tableNames: ['Table 1','Table 2','Table 3'] };
 
-  const sym = state.settings.currency || '£';
+  const sym = currencyOf(state.settings);
   const ps = state.prizeStructure;
   const {
     perEntryRake,
@@ -758,7 +759,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                     </div>
                   </div>
                   {player.prizeMoney ? (
-                    <span className="text-xs text-green-400 font-mono">£{player.prizeMoney}</span>
+                    <span className="text-xs text-green-400 font-mono">{money(player.prizeMoney, sym)}</span>
                   ) : null}
                 </div>
               ))}

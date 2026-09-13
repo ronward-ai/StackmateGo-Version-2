@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { currencyOf } from '@/lib/currency';
 import { useParams } from 'wouter';
 import { UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -363,7 +364,7 @@ function TournamentParticipantView() {
 
   const currentLevel = getCurrentLevel();
   const nextLevel = getNextLevelInfo();
-  const currencySymbol = tournament.settings?.currency || '£';
+  const currencySymbol = currencyOf(tournament.settings);
 
   // Create tournament object for read-only components with proper player data structure
   const tournamentForComponents = {
@@ -371,7 +372,7 @@ function TournamentParticipantView() {
       players: tournament.players || [],
       settings: {
         ...tournament.settings,
-        currency: tournament.settings?.currency || '£',
+        currency: currencyOf(tournament.settings),
         tables: tournament.settings?.tables || {
           numberOfTables: 1,
           seatsPerTable: 9,

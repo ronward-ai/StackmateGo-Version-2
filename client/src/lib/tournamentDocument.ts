@@ -1,4 +1,5 @@
 import { getAuth } from 'firebase/auth';
+import { currencyOf } from '@/lib/currency';
 import { projectId, databaseId } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { eventNameOf } from '@/lib/eventName';
@@ -108,7 +109,7 @@ export function buildTournamentDocument(
       enableSounds: state.settings.enableSounds,
       enableVoice: state.settings.enableVoice,
       showNextLevel: state.settings.showNextLevel,
-      currency: state.settings.currency || '£',
+      currency: currencyOf(state.settings),
       tables: state.settings.tables || {
         numberOfTables: 1,
         seatsPerTable: 9,

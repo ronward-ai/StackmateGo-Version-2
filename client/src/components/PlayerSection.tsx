@@ -13,6 +13,7 @@ import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
 import { badgesFor, badgeText } from '@/lib/playerBadges';
 import { canRebuy, addOnsOpen } from '@/lib/entryLimits';
+import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
@@ -405,8 +406,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
 
       sorted.forEach(player => {
         const pos = player.position || 0;
-        const rankText = pos === 1 ? '1st' : pos === 2 ? '2nd' : pos === 3 ? '3rd'
-          : pos > 0 ? `${pos}th` : 'Active';
+        const rankText = pos > 0 ? ordinal(pos) : 'Active';
         const rankBg = pos === 1 ? '#f59e0b' : pos === 2 ? '#d1d5db' : pos === 3 ? '#d97706'
           : pos > 0 ? '#7f1d1d' : '#16a34a';
         const rankFg = pos <= 2 ? '#000' : '#fff';

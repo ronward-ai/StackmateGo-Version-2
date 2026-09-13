@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { ordinal } from '@/lib/ordinal';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
@@ -37,7 +38,6 @@ interface TournamentInfoCardProps {
 type TournamentProp = TournamentInfoCardProps['tournament'];
 type SharedLeagueProps = Omit<TournamentInfoCardProps, 'tournament'>;
 
-const ordinal = (n: number) => ['1st','2nd','3rd'][n-1] ?? `${n}th`;
 
 function DetailRow({ label, value, highlight, compact }: { label: string; value: string | number; highlight?: boolean; compact?: boolean }) {
   return (

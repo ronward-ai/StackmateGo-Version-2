@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { currencyOf } from '@/lib/currency';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Trophy, Target, ChevronUp, ChevronDown } from 'lucide-react';
@@ -43,7 +44,7 @@ interface PlayerSectionReadOnlyProps {
 export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadOnlyProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const { players, settings, prizeStructure } = tournament.state;
-  const currencySymbol = settings?.currency || '£';
+  const currencySymbol = currencyOf(settings);
 
   // Separate active and eliminated players
   const activePlayers = players.filter(p => p.isActive !== false);

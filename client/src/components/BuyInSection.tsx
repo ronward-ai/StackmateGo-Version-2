@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { DEFAULT_CURRENCY } from '@/lib/currency';
 import { calculatePrizePool } from "@/lib/prizePool";
 import { limitLabel, periodLabel } from '@/lib/entryLimits';
+import { ordinal } from '@/lib/ordinal';
 import { DEFAULT_PRIZE_STRUCTURE } from '@/lib/prizeStructure';
 import { topPercentPayouts } from '@/lib/payoutTemplates';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,7 +114,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
   const [rakeType, setRakeType] = useState<'percentage' | 'fixed'>('percentage');
   const [rakePercentage, setRakePercentage] = useState(0);
   const [rakeAmount, setRakeAmount] = useState(0);
-  const [currencySymbol, setCurrencySymbol] = useState('£');
+  const [currencySymbol, setCurrencySymbol] = useState(DEFAULT_CURRENCY);
 
   const [enableBounties, setEnableBounties] = useState(false);
   const [bountyAmount, setBountyAmount] = useState(0);
@@ -603,8 +605,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
 
           <div className="space-y-2">
             {manualPayouts.map((payout, i) => {
-              const ordinals = ['1st', '2nd', '3rd'];
-              const label = ordinals[i] || `${i + 1}th`;
+              const label = ordinal(i + 1);
               const amount = netPool > 0 ? Math.floor(netPool * payout.percentage / 100) : null;
               return (
                 <div key={i} className="flex items-center gap-3">

@@ -1,5 +1,6 @@
 import React, { Fragment, useMemo, useState, useCallback, useEffect } from 'react';
 import { POINTS_PRESETS, presetFor } from '@/lib/pointsPresets';
+import { ordinal } from '@/lib/ordinal';
 import { hasBonuses } from '@/lib/pointsBonuses';
 import { bandsOf, DEFAULT_POSITION_POINTS, type PointsBand } from '@/lib/pointsBands';
 import { cn } from '@/lib/utils';
@@ -204,12 +205,6 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
     const positions = Array.from(
       new Set([...Array.from({ length: Math.min(8, field) }, (_, i) => i + 1), field]),
     ).sort((a, b) => a - b);
-
-    const ordinal = (n: number) => {
-      const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th'
-        : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
-      return `${n}${suffix}`;
-    };
 
     return positions.map(position => ({
       position,
