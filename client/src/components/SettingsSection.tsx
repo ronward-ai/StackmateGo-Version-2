@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import type { TimerPiping } from '@/types';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
+import { downscaleImage } from '@/lib/imageDownscale';
 
 /**
  * The piping treatments, in the order they escalate.
@@ -38,6 +39,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
     (state?.settings?.branding as any)?.eventName ?? state?.settings?.branding?.leagueName ?? ''
   );
   const [logoUrl, setLogoUrl] = useState(state?.settings?.branding?.logoUrl || '');
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +66,30 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
   // proved the device could speak, not that the game would sound like this.
   const testVoice = (msg?: string) => {
     speak(msg ?? levelAnnouncement(state.levels, state.currentLevel), { cancel: true });
+  };
+
+  /**
+   * The logo is bounded before it is stored, never after.
+   *
+   * It used to be read straight through with readAsDataURL, no size limit and no
+   * downscaling — and it rides into the tournament document inside `settings`.
+   * A phone photo is comfortably past Firestore's 1 MiB document limit, so the
+   * WHOLE game write failed and nothing on screen connected that to the picture.
+   * See lib/imageDownscale.ts.
+   */
+  const handleLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Clear the input so picking the same file twice still fires a change.
+    e.target.value = '';
+    if (!file) return;
+    setLogoError(null);
+    try {
+      const { dataUrl } = await downscaleImage(file);
+      setLogoUrl(dataUrl);
+    } catch (err: any) {
+      // Said out loud, on purpose. The failure this replaces was silent.
+      setLogoError(err?.message || 'That image could not be used.');
+    }
   };
 
   const applyBranding = async () => {
@@ -196,7 +222,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                           variant="destructive"
                           size="icon"
                           className="absolute top-2 right-2 h-8 w-8"
-                          onClick={() => setLogoUrl('')}
+                          onClick={() => { setLogoUrl(''); setLogoError(null); }}
                         >
                           <X className="h-3 w-3" />
                         </Button>
@@ -215,18 +241,14 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                       <span className="text-sm text-muted-foreground">Upload Event Logo</span>
                     </Button>
                   )}
+                  {logoError && (
+                    <p className="text-xs text-destructive">{logoError}</p>
+                  )}
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (ev) => setLogoUrl(ev.target?.result as string);
-                        reader.readAsDataURL(file);
-                      }
-                    }}
+                    onChange={handleLogoFile}
                     className="hidden"
                   />
                 </div>
