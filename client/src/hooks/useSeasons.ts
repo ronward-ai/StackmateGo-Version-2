@@ -62,8 +62,19 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
 
   // One shared listener per league, regardless of how many components call this
   // hook. See lib/sharedSnapshot.ts.
+  //
+  // Gated on isUserAuthenticated: the rule requires SOME session for `list`
+  // now (get: if true stayed public) — one unauthenticated REST call used to
+  // be able to paginate out every league's season structure across the whole
+  // app. The participant view signs every visitor in anonymously, and that
+  // sign-in is a fire-and-forget effect elsewhere with no guarantee it has
+  // finished by the time this hook mounts — attaching before it has would hit
+  // permission-denied instead of data, which is exactly the race an earlier
+  // version of this app hit once and fixed by making reads fully public.
+  // Idling the key (null) until a session exists sidesteps that: the listener
+  // starts the moment auth is ready rather than failing and never retrying.
   const { data: dbSeasons, isLoading } = useSharedSnapshot<Season[]>(
-    leagueId ? `seasons:${leagueId}` : null,
+    (leagueId && isUserAuthenticated) ? `seasons:${leagueId}` : null,
     (emit, fail) => onSnapshot(
       query(collections.seasons, where('leagueId', '==', String(leagueId))),
       snapshot => emit(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Season))),

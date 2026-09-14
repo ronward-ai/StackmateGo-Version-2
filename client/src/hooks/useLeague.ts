@@ -106,8 +106,11 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     enabled: !!targetOwnerId && isUserAuthenticated && !directLeagueId
   });
 
-  // When a direct league ID is given (participant view), use it immediately —
-  // no auth check needed since leaguePlayers and tournamentResults are publicly readable.
+  // When a direct league ID is given (participant view), use it immediately.
+  // leaguePlayers/tournamentResults list now needs SOME session (get() stays
+  // public) — see the gate on isUserAuthenticated below — but currentLeagueId
+  // itself needs no auth check; it is just which league those listeners scope
+  // to, decided locally from a leagueId the caller already has.
   const currentLeague = directLeagueId
     ? { id: directLeagueId, name: 'League' }
     : (userLeagues.find((l: any) => l.id === selectedLeagueId) || userLeagues[0] || null);
@@ -212,10 +215,17 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   // Real-time listeners for league players and tournament results. Both are
   // shared per league via lib/sharedSnapshot, so the 9 components calling this
   // hook hold 2 Firestore listeners between them rather than 18.
-  // No auth required (rules: allow read: if true).
+  //
+  // `list` now requires SOME session (get stayed public) — one unauthenticated
+  // REST call used to be able to paginate out every player's real name and
+  // every result across the whole app. Gated on isUserAuthenticated so the
+  // listener idles until the participant view's fire-and-forget anonymous
+  // sign-in has actually completed, rather than attaching early and hitting
+  // permission-denied — exactly the race an earlier version of this app hit
+  // once and fixed by making reads fully public instead of fixing the race.
   const { data: cloudPlayers, isLoading: playersLoading, error: playersError } =
     useSharedSnapshot<any[]>(
-      currentLeagueId ? `leaguePlayers:${currentLeagueId}` : null,
+      (currentLeagueId && isUserAuthenticated) ? `leaguePlayers:${currentLeagueId}` : null,
       (emit, fail) => onSnapshot(
         query(collections.leaguePlayers, where('leagueId', '==', String(currentLeagueId))),
         snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
@@ -226,7 +236,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   const { data: cloudResults, isLoading: resultsLoading } =
     useSharedSnapshot<any[]>(
-      currentLeagueId ? `tournamentResults:${currentLeagueId}` : null,
+      (currentLeagueId && isUserAuthenticated) ? `tournamentResults:${currentLeagueId}` : null,
       (emit, fail) => onSnapshot(
         query(collections.tournamentResults, where('leagueId', '==', String(currentLeagueId))),
         snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data() }))),

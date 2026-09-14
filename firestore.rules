@@ -121,8 +121,21 @@ service cloud.firestore {
       return request.resource.data.leagueId == resource.data.leagueId;
     }
 
+    // get vs list, split like leagues and activeTournaments below. `read: if
+    // true` covered list as well as get, so one unauthenticated REST call
+    // could paginate out every player's real name across every league in the
+    // app, plus every result and every season structure — not just the ones a
+    // caller has any connection to. A participant genuinely does need to LIST
+    // these (filtered by leagueId), and Firestore rules cannot see a query's
+    // where clause — only which documents a list call would return — so the
+    // filter itself cannot be enforced here. What can be enforced is that the
+    // caller has SOME session: the participant view already signs every
+    // visitor in anonymously, so this costs a real user nothing and turns "one
+    // curl, no account" into "mint a session first" — it does not stop a
+    // determined scraper, but it ends casual, anonymous bulk enumeration.
     match /seasons/{seasonId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if isAuthenticated();
       allow create: if request.resource.data.leagueId is string
         && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId) && staysInLeague();
@@ -130,7 +143,8 @@ service cloud.firestore {
     }
 
     match /leaguePlayers/{playerId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if isAuthenticated();
       allow create: if request.resource.data.leagueId is string
         && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId) && staysInLeague();
@@ -138,7 +152,8 @@ service cloud.firestore {
     }
 
     match /tournamentResults/{resultId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if isAuthenticated();
       allow create: if request.resource.data.leagueId is string
         && ownsLeague(request.resource.data.leagueId);
       allow update: if ownsLeague(resource.data.leagueId) && staysInLeague();
@@ -226,16 +241,32 @@ service cloud.firestore {
     }
 
     // League Settings
-    // Public read, matching seasons/leaguePlayers/tournamentResults above.
-    // The participant view renders standings using the DIRECTOR's points system,
-    // so RealTimeLeagueTable reads the director's settings doc as an anonymous
-    // user. Restricting read to the owner silently denied that and fell back to
-    // DEFAULT_LEAGUE_SETTINGS, so participants could be shown different points
-    // totals than the director. These documents hold points formulas and column
-    // display preferences — no personal or sensitive data.
+    //
+    // get is public. The participant view renders standings using the
+    // DIRECTOR's points system, so RealTimeLeagueTable reads the director's
+    // settings doc as an anonymous user. Restricting read to the owner
+    // silently denied that and fell back to DEFAULT_LEAGUE_SETTINGS, so
+    // participants could be shown different points totals than the director.
+    //
+    // list is OWNER-ONLY, unlike seasons/leaguePlayers/tournamentResults
+    // above, because this collection uniquely carries something worse than
+    // game data: every director's Firebase uid. `read: if true` covering list
+    // as well as get meant one unauthenticated call could harvest the uid of
+    // every director who has ever configured a league, plus their leagueIds
+    // and points config. lib/leagueSettingsId.ts's deterministic id is what
+    // makes owner-only list safe to do without breaking the participant read
+    // above: a director's CURRENT settings for a given league live at one
+    // predictable document id, so a participant fetches it with get() and
+    // never needs to list this collection at all. Only the director's own
+    // management UI — saved formula templates, editing, switching between
+    // several leagues' settings — genuinely needs to enumerate its own docs,
+    // and isRegistered() && resource.data.userId == request.auth.uid is
+    // exactly "your own", nothing more.
+    //
     // Writes remain owner-only.
     match /leagueSettings/{settingId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if isRegistered() && resource.data.userId == request.auth.uid;
       allow create: if isRegistered() && isDocUser();
       allow update: if isRegistered() && isExistingDocUser()
         && request.resource.data.userId == resource.data.userId;

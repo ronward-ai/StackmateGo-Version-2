@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { withBonuses } from '@/lib/pointsBonuses';
 import { bandsOf, pointsForBand } from '@/lib/pointsBands';
 import { evaluateFormula } from '@/lib/formulaEval';
+import { defaultSettingsDocId } from '@/lib/leagueSettingsId';
 import {
   LeagueSettings,
   PointsSystem,
@@ -54,6 +55,15 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
 
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
   const storageKey = leagueId ? `leagueSettings:${leagueId}` : 'leagueSettings';
+
+  // Two shapes of read, not one. `overrideOwnerId` set means "show me a
+  // SPECIFIC director's current settings" — the participant view, or the
+  // console's own read-only displays (RealTimeLeagueTable, calculatePoints
+  // call sites) — and fetches exactly one document by its deterministic id.
+  // Absent means "I am managing MY OWN settings" — the League Settings
+  // dialog — which genuinely needs to list every saved doc (templates
+  // included), and is scoped to the caller's own account by the rule.
+  const isParticipantRead = !!overrideOwnerId;
 
   // Store saved settings from database
   const [savedSettings, setSavedSettings] = useState<Array<{
@@ -286,11 +296,16 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     });
   }, [savedSettings]);
 
-  // Load saved settings from database. The Firestore query is keyed only by
-  // userId, so every instance for the same owner shares one listener even when
-  // their leagueIds differ — the league scoping below is applied locally.
+  // The director's OWN list of saved settings, templates included. Never
+  // used for a participant's read (see isParticipantRead above) — the rule
+  // only grants `list` to the account that owns the documents, so this key
+  // stays idle (null) for anyone reading someone else's settings.
+  //
+  // Keyed only by userId, so every instance for the same owner shares one
+  // listener even when their leagueIds differ — the league scoping below is
+  // applied locally.
   const { data: settingsDocs } = useSharedSnapshot<any[]>(
-    targetOwnerId ? `leagueSettings:${targetOwnerId}` : null,
+    (!isParticipantRead && targetOwnerId) ? `leagueSettings:${targetOwnerId}` : null,
     (emit, fail) => onSnapshot(
       query(collections.leagueSettings, where('userId', '==', targetOwnerId)),
       snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]),
@@ -302,7 +317,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
   // Scope to this league when leagueId is provided. Legacy docs with no leagueId
   // are only used as a fallback when no league-scoped docs exist.
   useEffect(() => {
-    if (!targetOwnerId) return;
+    if (isParticipantRead || !targetOwnerId) return;
     try {
       let scoped = settingsDocs;
       if (leagueId) {
@@ -318,13 +333,39 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     } catch (error) {
       console.error('Error processing settings snapshot:', error);
     }
-  }, [settingsDocs, leagueId, targetOwnerId]);
+  }, [settingsDocs, leagueId, targetOwnerId, isParticipantRead]);
+
+  // A participant — or the console's own read-only displays — reads exactly
+  // the one document they need, by its deterministic id. Public get, no
+  // session required; never a list, so this can never enumerate another
+  // director's settings.
+  const { data: remoteDefaultDoc } = useSharedSnapshot<{ settings: LeagueSettings } | null>(
+    (isParticipantRead && targetOwnerId)
+      ? `leagueSettingsDoc:${defaultSettingsDocId(targetOwnerId, leagueId ?? null)}`
+      : null,
+    (emit, fail) => onSnapshot(
+      doc(db, 'leagueSettings', defaultSettingsDocId(targetOwnerId as string, leagueId ?? null)),
+      snap => emit(snap.exists() ? (snap.data() as any) : null),
+      error => { console.error('Failed to load settings:', error); fail(error); },
+    ),
+    null,
+  );
+
+  useEffect(() => {
+    if (!isParticipantRead) return;
+    // Normalised on read: a league whose director has not saved settings
+    // since default settings moved to this id scheme has no document here
+    // yet, and falls back to defaults — the SAME degradation this hook
+    // already had for a settings read that failed outright. Nothing is
+    // migrated; the next time the director saves, the doc appears here.
+    setSettings(remoteDefaultDoc ? remoteDefaultDoc.settings : DEFAULT_LEAGUE_SETTINGS);
+  }, [remoteDefaultDoc, isParticipantRead]);
 
   const loadSavedSettings = useCallback(async () => {
     // no-op: settings are kept in sync by the real-time Firestore listener above
   }, []);
 
-  // Save settings to database — upserts the existing default doc when isDefault is true.
+  // Save settings to database.
   // Accepts an optional settingsToSave to avoid stale closure when called right after updateSettings().
   const saveSettingsToDatabase = useCallback(async (name: string, isDefault: boolean = false, settingsToSave?: LeagueSettings) => {
     if (!user?.id) return;
@@ -333,28 +374,49 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
 
     try {
       if (isDefault) {
-        // Find existing default doc scoped to this league (or unscoped legacy) and update it
+        // The CURRENT settings for a league always write to the deterministic
+        // id — see lib/leagueSettingsId.ts — never to an auto-generated one,
+        // because that id is what makes a participant's get() work without
+        // this collection needing to be listable by strangers.
+        const targetId = defaultSettingsDocId(user.id, leagueId ?? null);
+
+        // Found by CONTENT (isDefault + league scope), not by id, so this
+        // still finds a pre-migration doc sitting under its old auto-generated
+        // id the first time a league is saved after this shipped.
         const existingDefault = savedSettings.find(s =>
           s.isDefault && (leagueId ? s.leagueId === leagueId : !s.leagueId)
         );
-        if (existingDefault) {
-          await setDoc(
-            doc(db, 'leagueSettings', String(existingDefault.id)),
-            sanitizeForFirestore({
-              userId: user.id,
-              leagueId: leagueId ?? null,
-              name: existingDefault.name,
-              settings: toSave,
-              isDefault: true,
-              updatedAt: serverTimestamp()
-            }),
-            { merge: true }
-          );
-          return;
+
+        const payload: Record<string, unknown> = {
+          userId: user.id,
+          leagueId: leagueId ?? null,
+          name: existingDefault?.name ?? name,
+          settings: toSave,
+          isDefault: true,
+          updatedAt: serverTimestamp(),
+        };
+        // Only set createdAt when there is nothing to preserve it from — an
+        // explicit key here, even undefined, would sanitizeForFirestore into
+        // null and OVERWRITE a real createdAt on every subsequent save.
+        if (!existingDefault) payload.createdAt = serverTimestamp();
+
+        await setDoc(doc(db, 'leagueSettings', targetId), sanitizeForFirestore(payload), { merge: true });
+
+        // Migrate off an old auto-id doc for this league, if one was found —
+        // a director who saved before this shipped. Leaving it would cost
+        // nothing on its own (get-only reads never see it, and it is no
+        // longer listed as a match once the new doc exists) — deleted anyway
+        // so the director's own list-based lookup above can never find TWO
+        // "isDefault" docs for the same league at once.
+        if (existingDefault && String(existingDefault.id) !== targetId) {
+          deleteDoc(doc(db, 'leagueSettings', String(existingDefault.id))).catch(() => {});
         }
+        return;
       }
 
-      // No existing doc — create a new one
+      // Templates (and any non-default save) keep an auto-generated id —
+      // there can legitimately be many per director, and none of them are
+      // ever read by a participant.
       const newSetting = sanitizeForFirestore({
         userId: user.id,
         leagueId: leagueId ?? null,

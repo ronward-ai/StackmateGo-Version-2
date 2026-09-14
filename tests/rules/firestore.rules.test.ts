@@ -97,6 +97,56 @@ describe('participant reads (QR flow)', () => {
   });
 });
 
+describe('enumeration is closed off (H2)', () => {
+  // read: if true used to cover BOTH get and list on seasons, leaguePlayers,
+  // tournamentResults and leagueSettings — so one unauthenticated REST call
+  // could paginate out every player's real name, every result, every season
+  // structure and every director's Firebase uid across the WHOLE app, not
+  // just a league a caller has any connection to. get is deliberately
+  // unaffected throughout this block; only list changes.
+
+  it('still lets anyone get a document by id, unauthenticated', async () => {
+    const db = anon();
+    await assertSucceeds(getDoc(doc(db, 'seasons', 'season-1')));
+    await assertSucceeds(getDoc(doc(db, 'leaguePlayers', 'player-1')));
+    await assertSucceeds(getDoc(doc(db, 'tournamentResults', 'result-1')));
+  });
+
+  it('stops listing seasons, leaguePlayers and tournamentResults with no session at all', async () => {
+    await assertFails(getDocs(query(collection(anon(), 'seasons'), where('leagueId', '==', LEAGUE))));
+    await assertFails(getDocs(query(collection(anon(), 'leaguePlayers'), where('leagueId', '==', LEAGUE))));
+    await assertFails(getDocs(query(collection(anon(), 'tournamentResults'), where('leagueId', '==', LEAGUE))));
+  });
+
+  it('an anonymous SESSION is enough to list them — costs a real participant nothing', async () => {
+    // The participant view signs every visitor in anonymously on arrival, so
+    // this is the bar that actually matters: it must not break the app.
+    await assertSucceeds(getDocs(query(collection(anonAuth(), 'seasons'), where('leagueId', '==', LEAGUE))));
+    await assertSucceeds(getDocs(query(collection(anonAuth(), 'leaguePlayers'), where('leagueId', '==', LEAGUE))));
+    await assertSucceeds(getDocs(query(collection(anonAuth(), 'tournamentResults'), where('leagueId', '==', LEAGUE))));
+  });
+
+  it('leagueSettings list is OWNER-ONLY, not merely "some session" — it carries a Firebase uid', async () => {
+    const notOwner = query(collection(anonAuth(), 'leagueSettings'), where('userId', '==', DIRECTOR));
+    await assertFails(getDocs(notOwner));
+    await assertFails(getDocs(query(collection(stranger(), 'leagueSettings'), where('userId', '==', DIRECTOR))));
+    await assertFails(getDocs(query(collection(anon(), 'leagueSettings'), where('userId', '==', DIRECTOR))));
+    await assertSucceeds(getDocs(query(collection(director(), 'leagueSettings'), where('userId', '==', DIRECTOR))));
+  });
+
+  it("a participant reaches a director's CURRENT settings by get(), never by listing", async () => {
+    // The deterministic id lib/leagueSettingsId.ts computes — a participant
+    // who knows the tournament's ownerId and leagueId (both public) can reach
+    // this document with a single unauthenticated get(), no list required.
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'leagueSettings', `${DIRECTOR}_${LEAGUE}`), {
+        userId: DIRECTOR, leagueId: LEAGUE, isDefault: true, settings: { pointsSystem: {} },
+      });
+    });
+    await assertSucceeds(getDoc(doc(anon(), 'leagueSettings', `${DIRECTOR}_${LEAGUE}`)));
+  });
+});
+
 describe('only the director may change a live game', () => {
   // A branch used to allow any isAuthenticated() caller to write the timer,
   // blinds and player list. isAuthenticated() includes anonymous sessions, and

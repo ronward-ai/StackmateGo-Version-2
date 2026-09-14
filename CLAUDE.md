@@ -760,6 +760,53 @@ does this seat say claimed it" — never a player's name, chips, position, or el
 it fully still means writing server-side with the Admin SDK, which needs a service account key that
 org policy on this project blocks.
 
+### Four collections could be listed by anyone, and one of them leaked a uid
+
+`seasons`, `leaguePlayers`, `tournamentResults` and `leagueSettings` all had `allow read: if true` —
+which covers **`list`**, not just `get`. A participant genuinely does need to list these, filtered by
+`leagueId` (or `userId` for settings), and Firestore rules cannot see a query's `where` clause — only
+which documents a `list` call would return — so there was no way to permit "the filtered read a
+participant makes" without also permitting "list everything, unfiltered, no account, no connection to
+the app at all". One unauthenticated REST call could paginate out every player's real name across
+every league, plus every result, every season structure, and — worse — every director's Firebase uid.
+
+**Two different fixes, because the collections aren't the same shape.**
+
+`leagueSettings` got the real fix, not a compromise: a director's CURRENT settings for a league now
+live at a **deterministic document id** — `lib/leagueSettingsId.ts`'s `defaultSettingsDocId(ownerId,
+leagueId)` — computable by anyone who already knows the tournament's `ownerId` and `leagueId`, both of
+which are public. A participant reaches it with a plain `get()`, never a `list`, so `list` on this
+collection could become **owner-only** (`isRegistered() && resource.data.userId == request.auth.uid`)
+without breaking anything. This is possible here and not for the other three because a league has
+exactly ONE current settings document that matters to a participant — `seasons`/`leaguePlayers`/
+`tournamentResults` are genuinely one-to-many and cannot collapse to a single id.
+
+Saved formula **templates** (`isDefault: false`) keep an auto-generated id — there can be many per
+director, none are ever read by a participant, and the owner-only `list` already covers them.
+
+`seasons`/`leaguePlayers`/`tournamentResults` took the other shape: **`list` now requires any Firebase
+session** (`isAuthenticated()` — anonymous counts). This does not stop a determined scraper, who can
+mint a free anonymous session in one call same as a real participant does — it stops **casual,
+unauthenticated, no-account enumeration**, which is what the actual exposure was.
+
+**That gate reintroduced a race this app hit once before and fixed the wrong way.** The comment that
+used to justify `read: if true` said so directly: "Public read so QR participants see live standings
+**before anonymous auth completes**." The participant view's `signInAnonymously()` call is
+fire-and-forget in a `useEffect`, and nothing waited for it — so gating `list` on `isAuthenticated`
+without also fixing the timing would have reintroduced exactly that failure, just via a permission
+error instead of a design choice. The fix is the SAME mechanism `lib/sharedSnapshot.ts`'s `key: string
+| null` already provides for "don't query yet, `leagueId` isn't known": the four `useSharedSnapshot`
+calls in `useSeasons.ts` and `useLeague.ts` now pass `null` until `isAuthenticated` is true, and
+`useSyncExternalStore` re-subscribes automatically the moment it flips — no retry logic needed, because
+nothing ever failed in the first place.
+
+**leagueSettings' write side migrates on the next save, never in bulk.** `saveSettingsToDatabase`
+targets the deterministic id going forward; a league whose director saved before this shipped still
+has its old default doc under an auto-generated id, found by CONTENT (matching `isDefault` and
+`leagueId`) rather than by id. The first save after this ships writes the new doc and deletes the old
+one — a participant reading in between sees `DEFAULT_LEAGUE_SETTINGS` (the SAME fallback this hook
+already had for "settings could not be read at all"), never nothing and never an error.
+
 ### A rebuy keeps the chair; a re-entry does not
 
 `eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
@@ -1118,6 +1165,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tournamentDocument.ts` | The single creation path for a tournament document. |
 | `seatClaims.ts` | Who has checked in as whom — `claims`, a top-level map, playerId to device id. |
 | `formulaEval.ts` | A custom points formula, evaluated without ever handing the string to a JS engine. |
+| `leagueSettingsId.ts` | Where a director's CURRENT settings for one league live — a predictable document id, not a query. |
 
 ### One shared listener per query
 
