@@ -906,9 +906,65 @@ The webhook **fails loudly**: no Admin credentials, or a failed write, returns 5
 Returning 200 makes Stripe consider the event delivered, and it never sends it again — a dropped
 upgrade with no trace.
 
-Payments are still switched off. `customer.subscription.updated` is deliberately not handled, so a
-subscription that goes `past_due` keeps pro until it is actually deleted; decide on that before
-going live.
+**Railway hosts the app; Firebase is the database only.** `.github/workflows/deploy.yml` pushes the
+static build to Firebase Hosting on every push to `main` — a stale, unused leftover, confirmed rather
+than assumed. `/api/*` (checkout, the webhook) does not exist on that target at all, so if anyone ever
+mistakes it for production, payments will look completely broken for a reason that has nothing to do
+with the code. The file is left as-is; this is a note so a future "why doesn't the webhook fire"
+investigation doesn't burn an hour rediscovering it.
+
+**"Are payments active" is asked of the server, not guessed from a build-time variable.**
+`useSubscription.ts` used to derive it from `!!import.meta.env.VITE_API_BASE_URL` — a variable that
+answers "where does the API live" (empty is *correct* on Railway, where client and server share an
+origin) and has nothing to do with payments. The two questions being conflated is what made turning
+Stripe on a trap: setting the real `STRIPE_*` variables on Railway did nothing to the *client*, because
+its flag was baked into the build from a variable nobody was setting either way. `GET
+/api/payments-status` (`server/routes.ts`'s `paymentsConfigured()` — checking all three `STRIPE_*`
+variables at once, the single place that question is answered) is the real signal now, fetched once
+and cached at module scope. Turning Stripe on is now sufficient by itself: no separate client rebuild,
+no second flag to remember. A fetch failure (network error, or an older deployment without the route
+yet) is treated the same as "not configured" — every registered user stays Pro, exactly today's
+behaviour, never silently un-Pro'd by an unrelated connectivity blip.
+
+The `onSnapshot` listener on `users/{uid}` no longer demotes on a transient error either — it used to
+call `setIsPro(false)` there, which flashed a paying customer's Pro features off for the length of a
+reconnect. It now leaves the last known value alone and logs; a blip self-heals on the next successful
+snapshot.
+
+**`/api/create-checkout-session` takes `uid` and `email` from a verified Firebase ID token, never from
+the request body.** It used to trust the body directly — anyone could POST any uid and any email, a
+free "make Stripe email this address" primitive with no rate limit, and a completed payment would
+upgrade whatever uid was named. `verifiedUser()` in `server/routes.ts` checks the
+`Authorization: Bearer <token>` header with `getAuth().verifyIdToken()` — the same lazily-initialised
+Admin app `getAdminDb()` already stands up, since `initializeApp()` is project-wide, not tied to either
+product — and rejects an **anonymous** token the same way the Firestore rules reject anonymous writes
+elsewhere (`isRegistered()`'s shape, applied server-side because this endpoint has no rules to lean
+on): a QR participant's throwaway session is a real, verifiable Firebase session, but there is no
+persistent account to attach a subscription to. `lib/rateLimit.ts` caps it at 5 attempts per uid per
+10 minutes, in memory — an honest match for a single Railway instance, not a shortcut; it would need a
+shared store before this ever runs on more than one.
+
+**`customer.subscription.updated` is handled now**, per a policy that needed deciding rather than
+guessing: a failed payment (`past_due`, `unpaid`) loses Pro **immediately** — usually accidental,
+Stripe keeps retrying the card, nothing is lost by re-upgrading once it's fixed. A deliberate
+cancellation is different: the customer already paid for the current period, so Pro lasts **until the
+period actually ends**. That second case needs no special handling — Stripe leaves `status: 'active'`
+for the whole remaining period regardless of `cancel_at_period_end`, and only transitions once the
+period is over, at which point `customer.subscription.deleted` fires (unchanged, always free). See
+`server/lib/subscriptionStatus.ts`'s `statusForSubscription()` — it only ever sees `status`, never the
+`cancel_at_period_end` flag, which is the point being written down: "keep Pro until period end" falls
+out of NOT special-casing cancellation, not from adding logic for it.
+
+**Ordering, not just dedupe.** Every Stripe event carries `event.created`; before writing, the webhook
+reads the user's stored `lastStripeEventAt` and skips anything not strictly newer
+(`isNewerEvent()`, same module). Stripe does not guarantee delivery order and retries for up to three
+days — without this, a retried `invoice.paid` arriving after a `customer.subscription.deleted` had
+already been processed would re-grant Pro permanently, because the retry has no way to know anything
+superseded it. Combined with the write already being `set(..., {merge:true})`, this also makes an
+exact duplicate delivery a no-op, without a separate event-id ledger collection to maintain.
+
+`checkout.session.completed` only grants Pro when `obj.payment_status === 'paid'` — it used to grant
+unconditionally on that event type alone.
 
 ### The app speaks through `lib/speak.ts`, and picks no voice
 
@@ -1166,6 +1222,16 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `seatClaims.ts` | Who has checked in as whom — `claims`, a top-level map, playerId to device id. |
 | `formulaEval.ts` | A custom points formula, evaluated without ever handing the string to a JS engine. |
 | `leagueSettingsId.ts` | Where a director's CURRENT settings for one league live — a predictable document id, not a query. |
+
+**The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
+Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already
+recorded) and `rateLimit.ts` (a minimal per-key limit, in memory) are pure and colocated-tested exactly
+like their client-side counterparts — `vitest.config.ts`'s `include` covers `server/**/*.test.{ts,tsx}`
+alongside `client/src/**`. Route-level behaviour (headers, status codes, which handler runs) is tested
+separately in `tests/server/`, with `stripe` and `firebase-admin` mocked via `vi.mock` — the same shape
+as `tests/server/bodyParsers.test.ts`, and the reason both layers exist rather than one: the pure
+functions prove the DECISION is right, the route tests prove it is actually WIRED to the right place,
+which is exactly where an audit-shaped bug hides.
 
 ### One shared listener per query
 

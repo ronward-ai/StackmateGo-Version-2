@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Check, Loader2, Smartphone, Trophy, BarChart3, BookTemplate, Zap } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { auth } from '@/lib/firebase';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -29,10 +30,23 @@ export function UpgradeModal({ open, onClose, featureHint }: UpgradeModalProps) 
     setIsLoading(true);
     setError(null);
     try {
+      // The server verifies this token and takes the uid and email from it —
+      // it no longer trusts either from the request body. Anyone could
+      // previously POST any uid and any email here; a completed payment
+      // would have upgraded whatever account was named.
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setError('Please sign in again and retry.');
+        return;
+      }
+      const idToken = await currentUser.getIdToken();
+
       const res = await fetch(`${API_BASE}/api/create-checkout-session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.id, email: ('email' in user ? user.email : undefined) }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
       });
       const data = await res.json();
       if (data.url) {

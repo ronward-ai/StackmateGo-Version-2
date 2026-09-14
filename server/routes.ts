@@ -3,6 +3,9 @@ import { Server as HTTPServer } from 'http';
 import Stripe from 'stripe';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { statusForSubscription, isNewerEvent } from './lib/subscriptionStatus';
+import { checkRateLimit } from './lib/rateLimit';
 
 /**
  * This project's data does NOT live in the (default) Firestore database.
@@ -18,19 +21,79 @@ import { getFirestore } from 'firebase-admin/firestore';
 const KNOWN_DATABASE_ID = 'ai-studio-127bb0ae-6c5c-42d1-a030-fd85760f05b1';
 const DATABASE_ID = (process.env.FIREBASE_DATABASE_ID || '').trim() || KNOWN_DATABASE_ID;
 
-// Lazy-init Firebase Admin (only when env vars are present)
-function getAdminDb() {
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) return null;
+// Lazy-init Firebase Admin (only when env vars are present). One app backs
+// both the Firestore handle below and getAdminAuth() — initializeApp() is
+// project-wide, not tied to either product.
+function ensureAdminApp(): boolean {
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) return false;
   try {
     if (!getApps().length) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
       initializeApp({ credential: cert(serviceAccount) });
     }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getAdminDb() {
+  if (!ensureAdminApp()) return null;
+  try {
     return getFirestore(DATABASE_ID);
   } catch {
     return null;
   }
 }
+
+/**
+ * Verifies a Firebase ID token from an `Authorization: Bearer <token>` header
+ * and returns the decoded token, or null if it is missing, invalid, expired,
+ * or belongs to an anonymous session.
+ *
+ * `/api/create-checkout-session` used to take `uid` and `email` straight from
+ * the request body — anyone could POST any uid and any email, which made it a
+ * free "make Stripe email this address" primitive with no rate limit, and a
+ * completed payment would upgrade whatever uid was supplied. The uid and
+ * email this returns are the only ones the route trusts from here on.
+ *
+ * Anonymous sessions are rejected the same way the Firestore rules reject
+ * them elsewhere (`isRegistered()`): a QR participant's throwaway anonymous
+ * session is a real, verifiable Firebase session, but there is no persistent
+ * account to attach a subscription to.
+ */
+async function verifiedUser(req: { headers: Record<string, unknown> }): Promise<{ uid: string; email?: string } | null> {
+  const header = req.headers['authorization'];
+  const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return null;
+  if (!ensureAdminApp()) return null;
+  try {
+    const decoded = await getAuth().verifyIdToken(token);
+    if (decoded.firebase?.sign_in_provider === 'anonymous') return null;
+    return { uid: decoded.uid, email: decoded.email };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether Stripe is configured at all — the single source of truth for
+ * "are payments active", exposed to the client at GET /api/payments-status.
+ *
+ * `useSubscription.ts` used to infer this from VITE_API_BASE_URL, a variable
+ * that answers "where does the API live" (empty is CORRECT on Railway, where
+ * client and server share an origin) and has nothing to do with payments.
+ * Setting the real Stripe variables on Railway did nothing to the client,
+ * because the client's flag was baked into the build from a variable nobody
+ * was setting either way. Asking the server at runtime instead means turning
+ * Stripe on here is sufficient by itself — no separate client rebuild, no
+ * second flag to remember.
+ */
+function paymentsConfigured(): boolean {
+  return !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID && process.env.STRIPE_WEBHOOK_SECRET);
+}
+
+const CHECKOUT_RATE_LIMIT = { max: 5, windowMs: 10 * 60 * 1000 };
 
 /**
  * The Firebase uid a Stripe event belongs to.
@@ -75,24 +138,44 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
     });
   });
 
+  // GET /api/payments-status
+  // The single source of truth for "are payments active" — see
+  // paymentsConfigured() above. Public and unauthenticated: it answers a
+  // yes/no question about server configuration, nothing about any user.
+  app.get('/api/payments-status', (req, res) => {
+    res.json({ enabled: paymentsConfigured() });
+  });
+
   // POST /api/create-checkout-session
-  // Body: { uid: string, email?: string }
+  // Requires: Authorization: Bearer <Firebase ID token>
   // Returns: { url: string }
   app.post('/api/create-checkout-session', async (req, res) => {
-    if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PRICE_ID) {
+    if (!paymentsConfigured()) {
       res.status(503).json({ error: 'Payments not configured' });
       return;
     }
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-    const { uid, email } = req.body as { uid: string; email?: string };
-    if (!uid) { res.status(400).json({ error: 'uid required' }); return; }
+
+    // uid and email come from the VERIFIED token, never the request body —
+    // see verifiedUser() for why that used to be a real problem.
+    const user = await verifiedUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'Sign in to upgrade' });
+      return;
+    }
+
+    if (!checkRateLimit(user.uid, CHECKOUT_RATE_LIMIT)) {
+      res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+      return;
+    }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
     try {
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         payment_method_types: ['card'],
-        ...(email ? { customer_email: email } : {}),
-        line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+        ...(user.email ? { customer_email: user.email } : {}),
+        line_items: [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
         // On the session AND on the subscription it creates.
         //
         // The webhook acts on subscription and invoice events, and those events
@@ -100,8 +183,8 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
         // does not propagate one to the other. With the uid only on the session,
         // every event the webhook cared about arrived without one, so a customer
         // could pay and never be marked pro.
-        metadata: { uid },
-        subscription_data: { metadata: { uid } },
+        metadata: { uid: user.uid },
+        subscription_data: { metadata: { uid: user.uid } },
         success_url: `${process.env.APP_URL || 'https://stackmatego.com'}/?pro=1`,
         cancel_url: `${process.env.APP_URL || 'https://stackmatego.com'}/`,
       });
@@ -120,18 +203,18 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
   app.post(
     '/api/stripe-webhook',
     async (req, res) => {
-      if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+      if (!paymentsConfigured()) {
         res.status(503).json({ error: 'Payments not configured' });
         return;
       }
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
       const sig = req.headers['stripe-signature'];
       let event: Stripe.Event;
       try {
         event = stripe.webhooks.constructEvent(
           req.body,
           sig as string,
-          process.env.STRIPE_WEBHOOK_SECRET
+          process.env.STRIPE_WEBHOOK_SECRET!
         );
       } catch (err: any) {
         res.status(400).send(`Webhook Error: ${err.message}`);
@@ -158,19 +241,43 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
         return;
       }
 
-      const setStatus = (subscriptionStatus: 'pro' | 'free') =>
-        db.collection('users').doc(uid).set(
-          { subscriptionStatus, updatedAt: new Date().toISOString() },
+      const userRef = db.collection('users').doc(uid);
+
+      const setStatus = async (subscriptionStatus: 'pro' | 'free') => {
+        // Ordering, not just dedupe. Stripe does not guarantee delivery order
+        // and retries for up to three days — without this, a retried
+        // invoice.paid arriving after a customer.subscription.deleted had
+        // already been processed would re-grant Pro permanently, because the
+        // retry has no way to know anything superseded it. set(...,
+        // {merge:true}) already makes an EXACT duplicate delivery idempotent
+        // in value; this is what makes an OUT-OF-ORDER one idempotent too.
+        const existing = await userRef.get();
+        const storedCreated = existing.exists ? (existing.data()?.lastStripeEventAt ?? null) : null;
+        if (!isNewerEvent(event.created, storedCreated)) {
+          console.warn('Stripe webhook: ignoring stale/duplicate event', event.type, event.id, 'for', uid);
+          return;
+        }
+        await userRef.set(
+          { subscriptionStatus, updatedAt: new Date().toISOString(), lastStripeEventAt: event.created },
           { merge: true }
         );
+      };
 
       try {
-        if (
-          event.type === 'checkout.session.completed' ||
-          event.type === 'customer.subscription.created' ||
-          event.type === 'invoice.paid'
-        ) {
+        if (event.type === 'checkout.session.completed') {
+          // Only when Stripe says the money actually arrived — this event
+          // used to grant Pro unconditionally.
+          if (obj.payment_status === 'paid') await setStatus('pro');
+        } else if (event.type === 'customer.subscription.created' || event.type === 'invoice.paid') {
           await setStatus('pro');
+        } else if (event.type === 'customer.subscription.updated') {
+          // Was unhandled entirely — a subscription going past_due or unpaid
+          // kept Pro forever, because only a hard `deleted` ever took it away.
+          // See server/lib/subscriptionStatus.ts for the policy: a failed
+          // payment loses Pro immediately; a cancel-at-period-end subscription
+          // needs no special case here, because Stripe leaves status at
+          // 'active' for the whole remaining period regardless.
+          await setStatus(statusForSubscription(obj.status));
         } else if (event.type === 'customer.subscription.deleted') {
           await setStatus('free');
         }

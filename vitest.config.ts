@@ -10,7 +10,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['client/src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
+    include: ['client/src/**/*.test.{ts,tsx}', 'server/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
     // Rules tests talk to the Firestore emulator and are opt-in, since they
     // need `firebase emulators:start` running. Run them with `npm run test:rules`.
     exclude: ['**/node_modules/**', 'tests/rules/**'],
