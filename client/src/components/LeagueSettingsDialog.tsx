@@ -3,6 +3,7 @@ import { POINTS_PRESETS, presetFor } from '@/lib/pointsPresets';
 import { ordinal } from '@/lib/ordinal';
 import { hasBonuses } from '@/lib/pointsBonuses';
 import { bandsOf, DEFAULT_POSITION_POINTS, type PointsBand } from '@/lib/pointsBands';
+import { evaluateFormula } from '@/lib/formulaEval';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -793,61 +794,54 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                         </div>
                       </div>
 
-                      {/* Formula Validation Status */}
+                      {/* Formula Validation Status.
+                          This used to run its own SEPARATE new Function call —
+                          a second evaluator that could (and did) disagree with
+                          the real scoring engine: it string-substituted p/f/b/
+                          c/k/z with fixed numbers rather than binding them,
+                          rejected the long variable names the real engine
+                          accepts, tested only f=1, and rejected a bare '%'
+                          that worked fine. It now calls the exact function
+                          calculatePoints does — lib/formulaEval.ts — so this
+                          tick can never again say something the Points
+                          Preview table below disagrees with. Same sample game
+                          the preview uses, not a second hypothetical one. */}
                       <div className="flex items-center gap-2 text-sm">
                         {(() => {
-                          try {
-                            if (!settings.pointsSystem.formula.customFormula?.trim()) {
-                              return (
-                                <div className="flex items-center gap-1 text-muted-foreground">
-                                  <Info className="h-3 w-3" />
-                                  <span>Enter a formula to see validation</span>
-                                </div>
-                              );
-                            }
-
-                            // Test the formula with sample values
-                            const formula = settings.pointsSystem.formula.customFormula;
-                            let evalFormula = formula
-                              .replace(/\bp\b/g, '10')
-                              .replace(/\bf\b/g, '1')
-                              .replace(/\bb\b/g, '25')
-                              .replace(/\bc\b/g, '25')
-                              .replace(/\bk\b/g, '0')
-                              .replace(/\bz\b/g, '250');
-
-                            // Basic safety check
-                            const cleanedFormula = evalFormula.replace(/Math\.[a-zA-Z]+\([^)]*\)/g, '1');
-                            const allowedPattern = /^[0-9+\-*/().\s?:,[\]<>=!&|]+$/;
-
-                            if (!allowedPattern.test(cleanedFormula)) {
-                              return (
-                                <div className="flex items-center gap-1 text-red-600">
-                                  <X className="h-4 w-4 text-red-500 flex-shrink-0" />
-                                  <span>Formula error: Invalid characters detected</span>
-                                </div>
-                              );
-                            }
-
-                            // Using a more controlled eval approach
-                            const safeEval = new Function('Math', '"use strict"; return (' + evalFormula + ')');
-                            const testResult = Math.floor(Number(safeEval(Math))) || 0;
-
-
+                          const formula = settings.pointsSystem.formula.customFormula;
+                          if (!formula?.trim()) {
                             return (
-                              <div className="flex items-center gap-1 text-green-600">
-                                <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                <span>Formula valid</span>
-                              </div>
-                            );
-                          } catch (err) {
-                            return (
-                              <div className="flex items-center gap-1 text-red-600">
-                                <X className="h-4 w-4 text-red-500 flex-shrink-0" />
-                                <span>Formula error: {err instanceof Error ? err.message : 'Invalid syntax'}</span>
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Info className="h-3 w-3" />
+                                <span>Enter a formula to see validation</span>
                               </div>
                             );
                           }
+
+                          const field = typeof previewPoints.totalPlayers === 'number' && previewPoints.totalPlayers >= 2
+                            ? Math.min(previewPoints.totalPlayers, 1000)
+                            : 10;
+                          const evaluation = evaluateFormula(formula, {
+                            position: 1, totalPlayers: field,
+                            knockouts: 0, buyIn: previewBuyIn, totalCost: previewBuyIn,
+                            prizepool: previewBuyIn * field,
+                          });
+
+                          if (evaluation.ok === false) {
+                            return (
+                              <div className="flex items-center gap-1 text-red-600">
+                                <X className="h-4 w-4 text-red-500 flex-shrink-0" />
+                                <span>Formula error: {evaluation.error}</span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex items-center gap-1 text-green-600">
+                              <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                              <span>Formula valid</span>
+                            </div>
+                          );
                         })()}
                       </div>
                     </div>

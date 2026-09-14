@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { withBonuses } from '@/lib/pointsBonuses';
 import { bandsOf, pointsForBand } from '@/lib/pointsBands';
+import { evaluateFormula } from '@/lib/formulaEval';
 import {
   LeagueSettings,
   PointsSystem,
@@ -168,30 +169,22 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
             return withBonuses(0, knockouts, bonuses);
           }
 
-          try {
-            // Create safe evaluation context with variables
-            const safeEval = new Function(
-              'f', 'p', 'k', 'b', 'c', 'z',
-              'position', 'totalPlayers', 'knockouts', 'buyIn', 'totalCost', 'prizepool',
-              'Math', 
-              `"use strict"; return (${formula.customFormula})`
-            );
-            const result = safeEval(
-              position, totalPlayers, knockouts, buyIn, totalCost, prizepool,
-              position, totalPlayers, knockouts, buyIn, totalCost, prizepool,
-              Math
-            );
-
-            // isFinite, not just isNaN: a formula dividing by a variable that
-            // is zero yields Infinity, which is not NaN and would have been
-            // floored and shown as "Infinity" points.
-            const num = Number(result);
-            if (!Number.isFinite(num)) return 0;
-            return withBonuses(num, knockouts, bonuses);
-          } catch (error) {
-            console.error('Error evaluating custom formula:', error, 'Formula:', formula.customFormula);
+          // lib/formulaEval.ts, not new Function. This ran a director's stored
+          // string through the JS engine directly, and RealTimeLeagueTable
+          // loads the DIRECTOR's settings and scores with them in the
+          // PARTICIPANT's browser by design — so any signed-in director could
+          // put arbitrary JavaScript in a points formula and have it execute
+          // on this origin in every visitor's browser. The parser can only
+          // ever produce arithmetic; there is no path from a formula string to
+          // executing anything, however the string is contrived.
+          const evaluation = evaluateFormula(formula.customFormula, {
+            position, totalPlayers, knockouts, buyIn, totalCost, prizepool,
+          });
+          if (evaluation.ok === false) {
+            console.error('Error evaluating custom formula:', evaluation.error, 'Formula:', formula.customFormula);
             return 0;
           }
+          return withBonuses(evaluation.value, knockouts, bonuses);
         }
 
         default:

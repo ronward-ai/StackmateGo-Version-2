@@ -1,10 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { POINTS_PRESETS, presetFor } from './pointsPresets';
+import { evaluateFormula } from './formulaEval';
 
 /**
  * The presets are evaluated the way the app evaluates them — see
  * useLeagueSettings' calculatePoints — so a preset that would score 0 in a real
  * league fails here instead.
+ *
+ * That comment is only true if this calls the SAME evaluator the app does.
+ * It used to build its own separate `new Function`, which is exactly the
+ * "two evaluators can disagree" shape the app itself was fixed for — a test
+ * hand-rolling its own copy of the thing it is meant to be pinning down.
  */
 const evaluate = (
   formula: string,
@@ -12,11 +18,13 @@ const evaluate = (
   p: number,
   { buyIn = 25, invested = 25 }: { buyIn?: number; invested?: number } = {},
 ): number => {
-  const fn = new Function('f', 'p', 'k', 'b', 'c', 'z', 'Math', `"use strict"; return (${formula})`);
-  const result = Number(fn(f, p, 0, buyIn, invested, buyIn * p, Math));
-  // isFinite, not isNaN: a formula dividing by zero yields Infinity, which the
-  // engine also has to reject. See useLeagueSettings.
-  return Number.isFinite(result) ? Math.max(0, Math.floor(result)) : 0;
+  const result = evaluateFormula(formula, {
+    position: f, totalPlayers: p, knockouts: 0,
+    buyIn, totalCost: invested, prizepool: buyIn * p,
+  });
+  // Not ok (parse failure, unknown identifier, or non-finite) scores 0, the
+  // same as a throwing formula does in useLeagueSettings.
+  return result.ok === false ? 0 : Math.max(0, Math.floor(result.value));
 };
 
 describe('every preset', () => {

@@ -669,6 +669,49 @@ person checks their phone. The request **rejects** when refused (no gesture yet,
 Firefox, iOS before 16.4), and every path fails silently: it is called from inside a running clock and
 must never take the timer down.
 
+### A custom points formula is parsed, never executed
+
+`lib/formulaEval.ts` evaluates `customFormula` with a small recursive-descent parser. It used to be
+`new Function('f','p', ..., 'Math', 'return (' + formula + ')')` — the formula string handed straight
+to the JS engine, with nothing validating it first. The dialog's "Formula valid" tick ran its own
+SEPARATE `new Function` of its own, used only for that tick and never consulted by the real scoring
+path — the two could and did disagree (the tick rejected `%`, which worked; tested only `f=1`, so a
+formula dividing by `f-1` was "valid" and scored 0 for the whole league; rejected the long variable
+names the real engine accepts).
+
+**The trust boundary that mattered:** `RealTimeLeagueTable.tsx` loads the DIRECTOR's league settings
+and scores with them in the PARTICIPANT's browser, by design — participants watch the director's own
+scheme live. So any signed-in director could put arbitrary JavaScript in a points formula and have it
+run on this origin, in the browser of everyone who scans their QR code, with access to that visitor's
+Firebase session. A stranger could not poison someone else's settings (writes are `userId`-scoped), so
+this was director → participant, not attacker → anyone — but it was a real stored-code-execution path.
+
+**The parser can only ever produce arithmetic.** However a formula string is contrived, there is no
+path from it to executing anything — the worst outcome is a formula that fails to parse.
+
+**Whitelisted `Math` is the FULL real set, minus `random`, not just the four the dialog names.** The
+"What you can use" reference has always promised "anything else on JavaScript's Math works too," and a
+live league may already have a saved formula using a `Math` member other than the four named ones.
+Restricting to a small hand-picked set would have silently changed what an existing league scores —
+exactly the class of regression `pointsPresets.test.ts` exists to catch. Every entry is a pure numeric
+function with no route to anything outside `Math`, explicitly enumerated rather than "call anything on
+Math". `Math.random` is excluded for a correctness reason, not a security one: `calculatePoints` runs
+fresh on every render with no memoisation, so a random component would make a league's own points
+flicker on screen.
+
+**Both `new Function` call sites moved onto the same function.** `pointsPresets.test.ts`'s own
+`evaluate()` helper used to hand-roll a THIRD copy — its comment claimed to test presets "the way the
+app evaluates them," which was only true by coincidence. It now calls `evaluateFormula` too, so all
+three places a formula was ever run agree by construction.
+
+**A one-entry parse cache**, keyed on the formula string: `calculatePoints` runs per player per render
+with no memoisation of its own, so re-parsing an unchanged formula on every call was pure waste.
+
+This project's `tsconfig.json` has no `strict`/`strictNullChecks`. Under that config, TypeScript does
+NOT reliably narrow a discriminated union on a bare boolean check (`if (!r.ok)` / `if (r.ok)`) — proven
+in isolation against this exact tsconfig, not assumed. Use an explicit literal comparison
+(`r.ok === false`) or the `'error' in result` form instead, both of which narrow correctly here.
+
 ### Check-in claims a seat through a map, never through the players array
 
 `activeTournaments/{id}.claims` is a top-level field, `playerId -> deviceId`, owned by
@@ -1074,6 +1117,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `seating.ts` | Whether a returning player's chair is still free. |
 | `tournamentDocument.ts` | The single creation path for a tournament document. |
 | `seatClaims.ts` | Who has checked in as whom — `claims`, a top-level map, playerId to device id. |
+| `formulaEval.ts` | A custom points formula, evaluated without ever handing the string to a JS engine. |
 
 ### One shared listener per query
 
