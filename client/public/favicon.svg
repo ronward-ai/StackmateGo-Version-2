@@ -13,13 +13,25 @@
        UI bars rather than chip edges. A poker chip's profile is a flat slab
        with just enough rounding to soften the corner.
 
-       7 tall with 4-unit gaps, not 8 and 3: a fourth bar costs spacing, and at
-       16px — a real browser tab — bars any heavier close up into a solid
-       block. Trimming the chips buys that air back. Check any change to these
-       numbers at 16px, not at 180. -->
+       THICKNESS is measured against the real thing, not guessed. A 39mm clay
+       chip is 3.3mm thick — a thickness-to-diameter ratio of 0.085. These bars
+       are 5 units on a 36-unit width, so 0.139: thinner than the 0.194 this
+       shipped with, and as close to a real chip as survives being rasterised.
+       True 0.085 is 3 units, which at 16px is a 0.75px line that blurs into a
+       ruled row rather than a chip. 4 units (0.111) works too and is the floor.
+
+       The GAPS are the deliberate lie. Real chips sit flush against each other,
+       but a flush stack of four thin chips reads as stripes and stops being
+       countable — the separation is what lets four of them fill a square frame.
+       Thickness could move toward the real thing for free; spacing could not.
+
+       Stack PITCH is 11 units (bar + gap), which is why thinning a bar widens
+       its gap rather than shrinking the stack — the chips stay where they are.
+
+       Check any change to these numbers at 16px, not at 180. -->
   <rect width="64" height="64" rx="14" fill="#17191C"/>
-  <rect x="13" y="45" width="36" height="7" rx="1" fill="#F97316"/>
-  <rect x="15" y="34" width="36" height="7" rx="1" fill="#F97316" opacity="0.78"/>
-  <rect x="12" y="23" width="36" height="7" rx="1" fill="#F97316" opacity="0.56"/>
-  <rect x="16" y="12" width="36" height="7" rx="1" fill="#F97316" opacity="0.36"/>
+  <rect x="13" y="46" width="36" height="5" rx="1" fill="#F97316"/>
+  <rect x="15" y="35" width="36" height="5" rx="1" fill="#F97316" opacity="0.78"/>
+  <rect x="12" y="24" width="36" height="5" rx="1" fill="#F97316" opacity="0.56"/>
+  <rect x="16" y="13" width="36" height="5" rx="1" fill="#F97316" opacity="0.36"/>
 </svg>
