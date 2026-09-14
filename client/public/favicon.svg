@@ -23,15 +23,19 @@
        The GAPS are the deliberate lie. Real chips sit flush against each other,
        but a flush stack of four thin chips reads as stripes and stops being
        countable — the separation is what lets four of them fill a square frame.
-       Thickness could move toward the real thing for free; spacing could not.
+       Thickness could move most of the way toward the real thing; spacing only
+       part of the way. 4.8 units is as tight as this has been taken, and the
+       gap is now just under the chip's own height — close it much further and
+       the four stop reading as separate chips at 16px, which is the whole job.
 
-       Stack PITCH is 11 units (bar + gap), which is why thinning a bar widens
-       its gap rather than shrinking the stack — the chips stay where they are.
+       Stack PITCH is bar + gap, 9.8 units. Changing one of the two changes the
+       pitch, so the padding has to be recomputed to keep the stack centred:
+       padding = (64 - (4*height + 3*gap)) / 2.
 
        Check any change to these numbers at 16px, not at 180. -->
   <rect width="64" height="64" rx="14" fill="#17191C"/>
-  <rect x="13" y="46" width="36" height="5" rx="1" fill="#F97316"/>
-  <rect x="15" y="35" width="36" height="5" rx="1" fill="#F97316" opacity="0.78"/>
-  <rect x="12" y="24" width="36" height="5" rx="1" fill="#F97316" opacity="0.56"/>
-  <rect x="16" y="13" width="36" height="5" rx="1" fill="#F97316" opacity="0.36"/>
+  <rect x="13" y="44.2" width="36" height="5" rx="1" fill="#F97316"/>
+  <rect x="15" y="34.4" width="36" height="5" rx="1" fill="#F97316" opacity="0.78"/>
+  <rect x="12" y="24.6" width="36" height="5" rx="1" fill="#F97316" opacity="0.56"/>
+  <rect x="16" y="14.8" width="36" height="5" rx="1" fill="#F97316" opacity="0.36"/>
 </svg>
