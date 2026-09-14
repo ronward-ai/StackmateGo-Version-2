@@ -2,9 +2,12 @@
   <!-- A stack of chips, which is the thing the app counts down for. Drawn as
        three bars rather than the wordmark: the logo is 1096x145 and unreadable
        at 16px. Colours are the app's own tokens — background 210 11% 10%,
-       primary 25 95% 53%. -->
+       primary 25 95% 53%. rx=1 on the bars, not a half-height pill: full-pill
+       ends read as rounded UI bars, not chip edges, and undercut "stack" —
+       a poker chip's profile is a flat slab with just enough rounding to
+       soften the corner. -->
   <rect width="64" height="64" rx="14" fill="#17191C"/>
-  <rect x="14" y="38" width="36" height="9" rx="4.5" fill="#F97316"/>
-  <rect x="14" y="26" width="36" height="9" rx="4.5" fill="#F97316" opacity="0.72"/>
-  <rect x="14" y="14" width="36" height="9" rx="4.5" fill="#F97316" opacity="0.44"/>
+  <rect x="14" y="38" width="36" height="9" rx="1" fill="#F97316"/>
+  <rect x="14" y="26" width="36" height="9" rx="1" fill="#F97316" opacity="0.72"/>
+  <rect x="14" y="14" width="36" height="9" rx="1" fill="#F97316" opacity="0.44"/>
 </svg>
