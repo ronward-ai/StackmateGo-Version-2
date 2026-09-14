@@ -1,13 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="StackMate Go">
   <!-- A stack of chips, which is the thing the app counts down for. Drawn as
-       three bars rather than the wordmark: the logo is 1096x145 and unreadable
-       at 16px. Colours are the app's own tokens — background 210 11% 10%,
-       primary 25 95% 53%. rx=1 on the bars, not a half-height pill: full-pill
-       ends read as rounded UI bars, not chip edges, and undercut "stack" —
-       a poker chip's profile is a flat slab with just enough rounding to
-       soften the corner. -->
+       bars rather than the wordmark: the logo is 1096x145 and unreadable at
+       16px. Colours are the app's own tokens — background 210 11% 10%,
+       primary 25 95% 53%.
+
+       FOUR bars, not three, and they do not line up. Three horizontal bars is
+       the hamburger-menu convention, so the icon was fighting its own idea —
+       and a menu icon is never ragged, which is what the stagger buys. Each
+       chip sits a couple of units off centre the way a real stack does.
+
+       rx=1 on the bars, not a half-height pill: full-pill ends read as rounded
+       UI bars rather than chip edges. A poker chip's profile is a flat slab
+       with just enough rounding to soften the corner.
+
+       7 tall with 4-unit gaps, not 8 and 3: a fourth bar costs spacing, and at
+       16px — a real browser tab — bars any heavier close up into a solid
+       block. Trimming the chips buys that air back. Check any change to these
+       numbers at 16px, not at 180. -->
   <rect width="64" height="64" rx="14" fill="#17191C"/>
-  <rect x="14" y="38" width="36" height="9" rx="1" fill="#F97316"/>
-  <rect x="14" y="26" width="36" height="9" rx="1" fill="#F97316" opacity="0.72"/>
-  <rect x="14" y="14" width="36" height="9" rx="1" fill="#F97316" opacity="0.44"/>
+  <rect x="13" y="45" width="36" height="7" rx="1" fill="#F97316"/>
+  <rect x="15" y="34" width="36" height="7" rx="1" fill="#F97316" opacity="0.78"/>
+  <rect x="12" y="23" width="36" height="7" rx="1" fill="#F97316" opacity="0.56"/>
+  <rect x="16" y="12" width="36" height="7" rx="1" fill="#F97316" opacity="0.36"/>
 </svg>
