@@ -19,6 +19,8 @@ import TimerFace from '@/components/TimerFace';
 import type { TimerPiping } from '@/types';
 import { cn } from '@/lib/utils';
 import { secondsLeftFrom } from '@/lib/tournamentClock';
+import { getDeviceId } from '@/lib/deviceId';
+import { myPlayerId } from '@/lib/seatClaims';
 
 interface TournamentData {
   id: string;
@@ -29,6 +31,8 @@ interface TournamentData {
   targetEndTime?: number;
   isRunning: boolean;
   players: any[];
+  /** playerId -> deviceId. See lib/seatClaims.ts. */
+  claims?: Record<string, string>;
   tables: any[];
   buyIn: number;
   blindLevels: any[];
@@ -537,12 +541,15 @@ function TournamentParticipantView() {
 
         {/* Personalised player card */}
         {(() => {
-          const uid = (user as any)?.uid;
           const claimedId = id ? localStorage.getItem(`claimedPlayer_${id}`) : null;
-          const me = claimedId
-            ? tournament?.players?.find((p: any) => p.id === claimedId)
-            : uid
-            ? tournament?.players?.find((p: any) => p.claimedBy === uid)
+          // Fallback by device id, not by Firebase auth uid — claims (old
+          // scheme and new) are keyed by lib/deviceId.ts's device id, a
+          // different identity space from the anonymous session's uid. That
+          // mismatch meant this fallback could never match anything; it was
+          // dead code wearing a working comparison operator.
+          const resolvedId = claimedId || myPlayerId(tournament, getDeviceId());
+          const me = resolvedId
+            ? tournament?.players?.find((p: any) => p.id === resolvedId)
             : null;
           if (!me) return null;
           const seat = me.tableAssignment || me.seatInfo;

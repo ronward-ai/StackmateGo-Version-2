@@ -669,6 +669,54 @@ person checks their phone. The request **rejects** when refused (no gesture yet,
 Firefox, iOS before 16.4), and every path fails silently: it is called from inside a running clock and
 must never take the timer down.
 
+### Check-in claims a seat through a map, never through the players array
+
+`activeTournaments/{id}.claims` is a top-level field, `playerId -> deviceId`, owned by
+`lib/seatClaims.ts`. It replaced `Player.claimedBy`, a field living *inside* each entry of the
+players array.
+
+That placement was the actual hole, not merely an incomplete fix. A check-in write had the exact
+same shape as every other players-array write — the rule admitting it (`hasOnly(['players'])`, array
+length preserved) constrained the shape of the array, not the contents of an existing entry. Any QR
+visitor could obtain an anonymous session, and the director's own snapshot handler
+(`useTournament.ts`) treats an incoming `isActive: false` as a genuine elimination and spreads an
+incoming active entry wholesale — so a hostile check-in write reached the director's screen and the
+league standings as if the director had done it themselves. A guest at the table with the QR code and
+a browser console could bust another player out.
+
+`claims` carries no gameplay data at all — a playerId and a deviceId, nothing else — so the rule now
+admits nothing from a check-in write **but** that map (`hasOnly(['claims'])`, `claims is map`,
+`claims.size() <= players.size()`), and there is nothing left in the branch for a hostile write to
+reach.
+
+**The write touches one key, not the whole map**, via a dotted field path —
+`tx.update(ref, { [claimFieldPath(id)]: deviceId })`. Firestore treats a dotted-path update as a
+merge into the existing map, so two participants checking in at the same moment touch different keys
+and cannot clobber each other — this was verified against the real emulator before it was trusted,
+not assumed from the SDK's documentation, because `affectedKeys()` reporting only the top-level
+`claims` key regardless of which nested key actually changed was the fact the whole design leant on.
+`PlayerClaimView`'s claim is a **transaction**, not a bare write, for the same reason the old
+read-modify-write on the full players array was flagged as a race (M9 in the audit): it reads the
+live claim before writing and rejects stealing a seat a *different* device already holds, rather than
+silently overwriting it.
+
+**Normalised on read**, the same trade `payoutsOf()`/`bandsOf()` make: a tournament document written
+before this shipped may still carry `Player.claimedBy` from the old scheme, and no stored document is
+rewritten to keep it working. `claimedByFor()` prefers `claims`, falling back to the deprecated
+per-player field. **Never write `Player.claimedBy` again.**
+
+The participant view's own "this is you" lookup had a second, unrelated bug living in the same field:
+its fallback compared a player's `claimedBy` (a device id) against the visitor's *Firebase auth uid* —
+two different identity spaces that could never match. It always returned nothing and nobody noticed,
+because the primary lookup (a `claimedPlayer_{id}` localStorage key set by the claim itself) covers
+the ordinary case. Fixed alongside this, through `myPlayerId()`.
+
+The remaining gap is real and is now much narrower: anyone can still obtain an anonymous session, so a
+determined participant can claim or unclaim a seat that is not theirs. The worst that reaches is "who
+does this seat say claimed it" — never a player's name, chips, position, or elimination state. Closing
+it fully still means writing server-side with the Admin SDK, which needs a service account key that
+org policy on this project blocks.
+
 ### A rebuy keeps the chair; a re-entry does not
 
 `eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
@@ -1025,6 +1073,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `pointsBands.ts` / `pointsBonuses.ts` / `pointsPresets.ts` | Points per place, the two bonuses, and the ready-made schemes. |
 | `seating.ts` | Whether a returning player's chair is still free. |
 | `tournamentDocument.ts` | The single creation path for a tournament document. |
+| `seatClaims.ts` | Who has checked in as whom — `claims`, a top-level map, playerId to device id. |
 
 ### One shared listener per query
 
@@ -1068,11 +1117,13 @@ season, so the screen and the database cannot disagree.
 ## Known gaps, deliberately left
 
 - **Check-in writes are only as strong as an anonymous session.** `PlayerClaimView` signs in
-  anonymously and sends a token, and the rule requires one — but anyone can obtain an anonymous
-  session, so a determined participant can still edit a field inside an existing entry. The array
-  length is preserved, so deletion and injection stay blocked. Closing it fully means writing
-  server-side with the Admin SDK, which needs a service account key; **key creation is blocked by an
-  organisation policy on this project**, so that route is not currently open.
+  anonymously, and the rule requires that session — but anyone can obtain one, so a determined
+  participant can still claim or unclaim a seat that is not theirs. That is the whole gap now: the
+  write reaches only the `claims` map (see "Check-in claims a seat through a map" above), which holds
+  nothing but a playerId and a deviceId, so there is no route from here to a player's name, chips,
+  position or elimination state — the thing this gap used to actually cost. Closing it fully still
+  means writing server-side with the Admin SDK, which needs a service account key; **key creation is
+  blocked by an organisation policy on this project**, so that route is not currently open.
 
   **This makes check-in depend on the Anonymous provider being enabled** (Firebase Console →
   Authentication → Sign-in method). It was the one participant flow that needed no auth at all, and

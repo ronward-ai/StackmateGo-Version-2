@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserCheck, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { getDeviceId } from '@/lib/deviceId';
+import { claimedByFor, claimFieldPath, type ClaimsMap } from '@/lib/seatClaims';
 import EmptyState from '@/components/ui/empty-state';
 
 interface TournamentPlayer {
@@ -31,17 +32,6 @@ const fromVal = (v: any): any => {
   return null;
 };
 
-const toVal = (v: any): any => {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-  if (typeof v === 'string') return { stringValue: v };
-  if (Array.isArray(v)) return { arrayValue: { values: v.map(toVal) } };
-  const fields: any = {};
-  for (const k of Object.keys(v)) fields[k] = toVal(v[k]);
-  return { mapValue: { fields } };
-};
-
 export default function PlayerClaimView() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = params.tournamentId;
@@ -49,6 +39,11 @@ export default function PlayerClaimView() {
 
   const deviceId = getDeviceId();
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+  // Who has checked in as whom. See lib/seatClaims.ts — this used to live
+  // INSIDE each player entry, which is what let a check-in write touch
+  // anything else in the players array too. It is its own top-level document
+  // field now, and this view never writes to `players` again.
+  const [claims, setClaims] = useState<ClaimsMap>({});
   const [tournamentName, setTournamentName] = useState('');
   const [claiming, setClaiming] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<string | null>(null);
@@ -81,6 +76,7 @@ export default function PlayerClaimView() {
           const fields: any = {};
           for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromVal(fv as any);
           setPlayers((fields.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
+          setClaims(fields.claims || {});
           setTournamentName(fields.details?.name || fields.name || 'Tournament');
           setDataLoaded(true);
         } else if (restRes.status === 404) {
@@ -100,6 +96,7 @@ export default function PlayerClaimView() {
           if (snap.exists()) {
             const data = snap.data();
             setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
+            setClaims(data.claims || {});
             setTournamentName(data.details?.name || data.name || 'Tournament');
           }
         }, (err) => {
@@ -116,30 +113,28 @@ export default function PlayerClaimView() {
   }, [tournamentId]);
 
   /**
-   * An ID token for the check-in write, signing the visitor in anonymously if
-   * they are not already.
+   * Signs the visitor in anonymously if they are not already, so the claim
+   * write below carries a session the rule can check.
    *
-   * The write used to go out with no token at all, and the rule admitted it
-   * unauthenticated. Anyone who could see the QR code could therefore PATCH the
-   * players array of a live game from anywhere, with nothing tying the write to
-   * a session. Anonymous auth costs the participant nothing — the live view
-   * already signs every visitor in this way — and it is what lets the rule
-   * require a session at all.
+   * The write used to go out with no session at all, and the rule admitted it
+   * unauthenticated. Anyone who could see the QR code could therefore PATCH
+   * the tournament from anywhere, with nothing tying the write to a session.
+   * Anonymous auth costs the participant nothing — the live view already
+   * signs every visitor in this way.
    *
-   * It was deferred once because anonymous auth was the leading suspect for the
-   * "quota limit exceeded" reports, and check-in was the one participant flow
-   * that did not depend on it. That turned out to be the database's shared
-   * quota billing and nothing to do with auth, so the reason expired.
+   * It was deferred once because anonymous auth was the leading suspect for
+   * the "quota limit exceeded" reports, and check-in was the one participant
+   * flow that did not depend on it. That turned out to be the database's
+   * shared quota billing and nothing to do with auth, so the reason expired.
    */
-  const claimToken = async (): Promise<string> => {
+  const ensureSession = async (): Promise<void> => {
     const { signInAnonymously } = await import('firebase/auth');
     // The app's own auth instance, not getAuth() — this route reaches Firebase
     // only through dynamic imports, and picking up the default app implicitly
     // is one initialisation-order bug waiting to happen.
     const { auth } = await import('@/lib/firebase');
     try {
-      const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
-      return user.getIdToken();
+      if (!auth.currentUser) await signInAnonymously(auth);
     } catch (err: any) {
       // Anonymous sign-in is a hard dependency of check-in now, where it never
       // used to be. If the provider is switched off in the Firebase console
@@ -154,56 +149,39 @@ export default function PlayerClaimView() {
   };
 
   /**
-   * Writes the players array back via the Firestore REST API.
+   * Claims one seat, touching only `claims.<playerId>` — a single key in the
+   * top-level claims map, never the players array. The rule constrains a
+   * check-in write to that map and nothing else, so there is no longer a
+   * field on a player entry for this write to reach.
    *
-   * The rule still constrains this to the `players` field with the array length
-   * preserved, which is what blocks deletion and injection. Requiring a session
-   * does not by itself stop a determined participant editing a field inside an
-   * existing entry — anyone can obtain an anonymous session — so this raises the
-   * bar and makes the write attributable rather than closing the hole outright.
-   *
-   * Closing it properly means doing the write server-side with the Admin SDK,
-   * which needs a service account key. Key creation is blocked by an
-   * organisation policy on this project, so that route is not currently open.
+   * A transaction, not a bare update: the old array-based version read the
+   * players array, then wrote it back with no check that the seat was still
+   * free at the moment of writing — two people tapping the same name within
+   * the same round-trip could have the second silently steal the seat from
+   * the first. Reading the live claim inside the transaction and rejecting a
+   * write that would steal an existing DIFFERENT device's claim closes that
+   * race rather than narrowing it. The same device re-claiming its own seat
+   * (a retry, or a seat claimed under the old players-array scheme) is not a
+   * conflict and proceeds.
    */
-  const patchPlayers = async (updatedPlayers: TournamentPlayer[]): Promise<void> => {
-    const { projectId, databaseId } = await import('@/lib/firebase');
-    const token = await claimToken();
-    const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
-    const res = await fetch(
-      `${base}/activeTournaments/${tournamentId}?updateMask.fieldPaths=players`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ fields: { players: toVal(updatedPlayers) } }),
-      }
-    );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `HTTP ${res.status}`);
-    }
-  };
-
-  const readCurrentPlayers = async (): Promise<TournamentPlayer[]> => {
-    const { projectId, databaseId } = await import('@/lib/firebase');
-    const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${encodeURIComponent(databaseId)}/documents`;
-    const res = await fetch(`${base}/activeTournaments/${tournamentId}`);
-    if (!res.ok) throw new Error('Tournament not found');
-    const raw = await res.json();
-    return fromVal({ arrayValue: { values: raw.fields?.players?.arrayValue?.values || [] } });
-  };
-
   const handleClaim = async (player: TournamentPlayer) => {
     if (!tournamentId) return;
     setClaiming(player.id);
     setClaimError(null);
     try {
-      const current = await readCurrentPlayers();
-      const updated = current.map(p => p.id === player.id ? { ...p, claimedBy: deviceId } : p);
-      await patchPlayers(updated);
+      await ensureSession();
+      const { runTransaction, doc: firestoreDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const docRef = firestoreDoc(db, 'activeTournaments', tournamentId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(docRef);
+        if (!snap.exists()) throw new Error('Tournament not found.');
+        const existing = claimedByFor(snap.data() as any, player.id);
+        if (existing && existing !== deviceId) {
+          throw new Error('Someone already checked in as this player. Refresh and try again.');
+        }
+        tx.update(docRef, { [claimFieldPath(player.id)]: deviceId });
+      });
       localStorage.setItem(`claimedPlayer_${tournamentId}`, player.id);
       setClaimed(player.id);
     } catch (e: any) {
@@ -221,9 +199,12 @@ export default function PlayerClaimView() {
   const handleUnclaim = async () => {
     if (!tournamentId || !claimed) return;
     try {
-      const current = await readCurrentPlayers();
-      const updated = current.map(p => p.id === claimed ? { ...p, claimedBy: null } : p);
-      await patchPlayers(updated);
+      await ensureSession();
+      const { updateDoc, doc: firestoreDoc, deleteField } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      await updateDoc(firestoreDoc(db, 'activeTournaments', tournamentId), {
+        [claimFieldPath(claimed)]: deleteField(),
+      });
       localStorage.removeItem(`claimedPlayer_${tournamentId}`);
       setClaimed(null);
     } catch (e) {
@@ -231,9 +212,13 @@ export default function PlayerClaimView() {
     }
   };
 
+  const tournamentForClaims = { claims, players };
   const claimedPlayer = players.find(p => p.id === claimed);
-  const unclaimed = players.filter(p => !p.claimedBy);
-  const alreadyClaimed = players.filter(p => p.claimedBy && p.claimedBy !== deviceId);
+  const unclaimed = players.filter(p => !claimedByFor(tournamentForClaims, p.id));
+  const alreadyClaimed = players.filter(p => {
+    const by = claimedByFor(tournamentForClaims, p.id);
+    return by && by !== deviceId;
+  });
 
   if (!dataLoaded) {
     return (

@@ -132,22 +132,47 @@ describe('only the director may change a live game', () => {
   });
 
   it('still lets a participant check in, which is a different branch', async () => {
-    // Guards against tightening this so far that the QR flow breaks.
+    // Guards against tightening this so far that the QR flow breaks. Check-in
+    // writes `claims` now, never `players` — see the 'player check-in'
+    // describe block below for the full behaviour of that branch.
     await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+      claims: { p1: 'device-abc' },
+    }));
+  });
+
+  it('stops an anonymous participant editing claims alongside anything else', async () => {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+      claims: { p1: 'device-abc' },
+      isRunning: true,
+    }));
+  });
+
+  // THE regression test for this branch's redesign. Before, check-in wrote
+  // `players` directly (array length preserved, contents unconstrained) — so
+  // any anonymous session could rename a player, change their chips, or flip
+  // isActive to fake an elimination, and the director's own client treated an
+  // incoming isActive:false as real. `players` is not reachable from this
+  // branch at all any more, under any shape of write.
+  it('stops an anonymous participant writing to players at all, even just to set a claim', async () => {
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
       players: [
         { id: 'p1', name: 'Alice', isActive: true, claimedBy: 'device-abc' },
         { id: 'p2', name: 'Bob', isActive: true },
       ],
     }));
-  });
-
-  it('stops an anonymous participant editing players alongside anything else', async () => {
+    // Not by renaming someone.
     await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
       players: [
-        { id: 'p1', name: 'Alice', isActive: true },
+        { id: 'p1', name: 'Mallory', isActive: true },
         { id: 'p2', name: 'Bob', isActive: true },
       ],
-      isRunning: true,
+    }));
+    // Not by faking an elimination.
+    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+      players: [
+        { id: 'p1', name: 'Alice', isActive: false },
+        { id: 'p2', name: 'Bob', isActive: true },
+      ],
     }));
   });
 });
@@ -181,15 +206,43 @@ describe('listing tournaments', () => {
 });
 
 describe('player check-in', () => {
-  const CLAIM = [
-    { id: 'p1', name: 'Alice', isActive: true, claimedBy: 'device-abc' },
-    { id: 'p2', name: 'Bob', isActive: true },
-  ];
+  // `claims` is a top-level map, playerId -> deviceId — see lib/seatClaims.ts.
+  // It replaced a `claimedBy` field living INSIDE each players-array entry,
+  // which meant a check-in write had the same shape as every other
+  // players-array write and the rule could not tell "set my claim" apart from
+  // "rename this player" or "eliminate this player". See the regression test
+  // in the describe block above ('stops an anonymous participant writing to
+  // players at all, even just to set a claim') for the attack this closed.
 
-  it('allows a signed-in-anonymously claim that only marks claimedBy', async () => {
+  it('allows a signed-in-anonymously claim', async () => {
     await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      players: CLAIM,
+      claims: { p1: 'device-abc' },
     }));
+  });
+
+  // PlayerClaimView writes a single dotted field path — claims.<playerId> —
+  // rather than the whole map, so that two people checking in at once touch
+  // different keys and cannot clobber each other. Firestore treats that as a
+  // merge into the existing map; affectedKeys() still reports only the
+  // top-level `claims` key, so hasOnly(['claims']) is unaffected by which
+  // shape of write hits the map.
+  it('allows the single-key dotted-path write PlayerClaimView actually sends', async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'activeTournaments', TOURNAMENT), {
+        claims: { p2: 'device-existing' },
+      }, { merge: true });
+    });
+    await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
+      'claims.p1': 'device-abc',
+    }));
+    let data: any;
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      const snap = await getDoc(doc(ctx.firestore(), 'activeTournaments', TOURNAMENT));
+      data = snap.data();
+    });
+    // The sibling key set outside the rules check must survive untouched —
+    // proof this is a merge, not a whole-map replace.
+    expect(data.claims).toEqual({ p1: 'device-abc', p2: 'device-existing' });
   });
 
   // The write used to go out with no token at all, so anyone who could see the
@@ -198,34 +251,28 @@ describe('player check-in', () => {
   // before writing, which costs the participant nothing.
   it('rejects a check-in with no session at all', async () => {
     await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
-      players: CLAIM,
+      claims: { p1: 'device-abc' },
     }));
   });
 
-  it('rejects deleting players from the tournament', async () => {
-    // The destructive case: anyone with the QR link wiping the field mid-game.
-    await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { players: [] }));
+  it('rejects a claims value that is not a map', async () => {
     await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      players: [{ id: 'p1', name: 'Alice', isActive: true }],
+      claims: 'device-abc',
     }));
   });
 
-  it('rejects injecting extra players', async () => {
+  // Bounded to at most one entry per seat in the game — there is no
+  // legitimate reason for more, and it stops a claims map being padded with
+  // junk keys.
+  it('rejects a claims map larger than the player count', async () => {
     await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      players: [
-        { id: 'p1', name: 'Alice', isActive: true },
-        { id: 'p2', name: 'Bob', isActive: true },
-        { id: 'p3', name: 'Mallory', isActive: true },
-      ],
+      claims: { p1: 'device-a', p2: 'device-b', p3: 'device-c' }, // only 2 players seeded
     }));
   });
 
   it('rejects a check-in write that touches any other field', async () => {
     await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      players: [
-        { id: 'p1', name: 'Alice', isActive: true },
-        { id: 'p2', name: 'Bob', isActive: true },
-      ],
+      claims: { p1: 'device-abc' },
       isRunning: true,
     }));
   });

@@ -40,7 +40,18 @@ export interface Player {
   currentBounty?: number;
   bountyWinnings?: number;
   chipCount?: number; // Current chip count (for active players)
-  claimedBy?: string; // Firebase anonymous UID of player who claimed this seat
+  /**
+   * @deprecated Read only, for tournaments started before check-in moved off
+   * the players array. A check-in write here had the exact shape of every
+   * other players-array write, so the rule admitting it could not tell "set
+   * my claim" from "rename this player" or "eliminate this player" — any QR
+   * visitor's anonymous session could reach either. See lib/seatClaims.ts,
+   * which is where claims live now: `activeTournaments/{id}.claims`, a
+   * top-level map of playerId to device id. Never write this field again;
+   * read a seat's claim through `claimedByFor()`, which checks the new map
+   * first and falls back to this one.
+   */
+  claimedBy?: string;
 }
 
 export interface TableConfig {

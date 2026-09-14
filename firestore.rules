@@ -191,24 +191,36 @@ service cloud.firestore {
         // Player check-in (PlayerClaimView, reached from the QR code).
         //
         // Requires a session — anonymous is enough, and the participant view
-        // already signs every visitor in that way. This branch used to admit a
-        // completely unauthenticated write, so anyone who could see the QR code
-        // could PATCH a live game's players array from anywhere, with nothing
-        // tying the write to a session.
+        // already signs every visitor in that way.
         //
-        // Only the players field may change, AND the array length must be
-        // preserved. Without the size check this let a participant replace the
-        // whole array: wiping the field mid-tournament, or injecting entries
-        // that then feed through into league standings.
+        // `claims` is a top-level map, playerId -> deviceId, and it is the ONLY
+        // thing this branch may touch. It used to admit `players` instead
+        // (hasOnly(['players']), array length preserved) — but that write had
+        // exactly the same shape as every other players-array write, so the
+        // rule could not tell "set my claim" apart from "rename this player" or
+        // "eliminate this player". Any QR visitor could obtain an anonymous
+        // session, and the director's own client (useTournament.ts) treats an
+        // incoming isActive:false as a genuine elimination and spreads an
+        // incoming active entry wholesale — so a hostile check-in write reached
+        // the director's screen and the league standings as if the director had
+        // done it. `claims` carries no gameplay data at all, so there is
+        // nothing left in this branch for a hostile write to reach.
+        //
+        // `claims.size() <= players.size()` bounds it to at most one entry per
+        // seat in the game — there is no legitimate reason for more.
         //
         // Still not airtight — anyone can obtain an anonymous session, so a
-        // determined participant can edit a field inside an existing entry.
-        // Closing that means writing server-side with the Admin SDK, which needs
-        // a service account key; key creation is blocked by org policy on this
-        // project. See the note in PlayerClaimView.
+        // determined participant can claim or unclaim any seat, including one
+        // that is not theirs. That is a much narrower hole than the one it
+        // replaces: the worst it reaches is "who does this seat say claimed
+        // it", never a player's name, chips, position or elimination state.
+        // Closing it fully means writing server-side with the Admin SDK, which
+        // needs a service account key; key creation is blocked by org policy on
+        // this project. See the note in PlayerClaimView.
         isAuthenticated()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players'])
-        && request.resource.data.players.size() == resource.data.players.size()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claims'])
+        && request.resource.data.claims is map
+        && request.resource.data.claims.size() <= resource.data.players.size()
       );
       allow delete: if isRegistered() && isExistingDocOwner();
     }
