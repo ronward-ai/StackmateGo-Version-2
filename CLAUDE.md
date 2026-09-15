@@ -807,6 +807,80 @@ has its old default doc under an auto-generated id, found by CONTENT (matching `
 one — a participant reading in between sees `DEFAULT_LEAGUE_SETTINGS` (the SAME fallback this hook
 already had for "settings could not be read at all"), never nothing and never an error.
 
+### Local storage belongs to an account, not to a browser
+
+Every key holding a director's setup used to be global to the browser and recorded nothing about who
+wrote it, and all of them are read back unconditionally when the console mounts. Signing out cleared
+exactly one — the live-game pin — and `useAuth` said why: the rest should stay "so signing back in
+resumes where you left off". True, and right, **up until the person signing back in is somebody
+else.** A second account on the same browser inherited the first one's roster, blind structure,
+buy-in, payouts, event name, points system and recent player names. That is what a league sharing a
+director login hits on day one.
+
+`lib/scopedStorage.ts` buckets those keys by uid — `tournamentSettings::<uid>` — with `::local` for a
+signed-out session. **Nothing is cleared on sign-out**, which is the point: this app has lost a live
+game to over-eager clearing before, and the two rules that keep bucketing safe are both about not
+destroying things.
+
+- **Signing in ADOPTS the signed-out bucket** when the account has nothing of its own. A standalone
+  game built before signing in has to survive the act of signing in — losing it there would be the
+  exact failure the local mirror was added to prevent.
+- **Adoption copies, never moves.** A wrong guess can cost a director their local defaults; it can
+  never cost them data.
+
+Storage written before this shipped has no bucket and belongs to whoever was using the browser, which
+is unknowable after the fact. The first signed-in account that finds its own bucket empty adopts it
+and records the claim, so a second account does not inherit the same setup again. The unbucketed keys
+are left where they are.
+
+**Callbacks read the uid through a ref, never a captured value.** Several have empty dependency
+arrays, so a captured uid would be the first render's for the life of the component and every save
+after a switch would land in the previous director's bucket. Widening those arrays instead would
+churn the callbacks, and churn in this hook is what once had a live game writing to Firestore twice a
+second.
+
+Deliberately NOT bucketed: `playerDeviceId` and `claimedPlayer_*` are device identities that seat
+check-in depends on, `leaguePanelExpanded` is a UI preference, `smgo_unlocked` is the site gate, and
+`activeDirectorTournamentId` is already cleared on logout and ownership-checked in
+`TournamentDirector`.
+
+### The setup follows the account; the mirror stays on the device
+
+Everything else a director owns already followed the account — the running game and its roster
+(`activeTournaments`), history (`completedTournaments`, `tournamentResults`), the league and its
+points system, saved structures (`tournamentTemplates`). The setup a new game *starts from* did not,
+which is an odd gap in an app whose whole premise is running a game from whatever device is to hand,
+and it is what a club sharing a login needs most.
+
+`hooks/useDirectorSetupSync.ts` keeps settings, blind levels and prize structure in
+`userSettings/{uid}` — a document that already existed for the ad-blocker preflight's `lastSeenAt`,
+with owner-only rules already in place, so this added a field rather than a collection.
+`lib/setupSync.ts` owns the decisions and is free of React and Firebase, because the dangerous part
+is not the read or the write but choosing which copy wins.
+
+Four things are load-bearing:
+
+- **Pull only onto an empty table** (`canApplyRemoteSetup`). The setup carries the blind structure and
+  the payouts, so applying it to a game under way would rewrite the terms of that game. Pulling is a
+  sign-in-time convenience, never an ongoing sync.
+- **Push only after the pull has SETTLED**, which is not the same as started. A ref set when the read
+  begins is already set while the read is in flight, and the push effect would cheerfully send this
+  device's defaults up over the account's real setup in that window. That bug was written, and a test
+  caught it; keep the two refs distinct.
+- **A failed read closes the push direction for the session.** Not knowing what the account holds is
+  exactly when pushing is unsafe. Losing a night's settings changes is recoverable; overwriting a
+  league's structure with a device's defaults is not.
+- **`updatedAt` is excluded from the write guard's fingerprint.** It changes on every save by
+  definition, so including it would defeat the comparison entirely — and an unguarded sync effect in
+  this app once wrote twice a second.
+
+`tournamentLocalProgress` is deliberately **not** synced. It is the offline safety net for when
+Firestore is unreachable, so it cannot depend on Firestore.
+
+**Cost is not the reason to hesitate here.** One document per account: one read at sign-in, one
+debounced write per change. Firestore's free allowance is 50k reads and 20k writes a day. The
+live-game sync that runs while a tournament is actually played dwarfs it.
+
 ### A rebuy keeps the chair; a re-entry does not
 
 `eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
@@ -1222,6 +1296,8 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `seatClaims.ts` | Who has checked in as whom — `claims`, a top-level map, playerId to device id. |
 | `formulaEval.ts` | A custom points formula, evaluated without ever handing the string to a JS engine. |
 | `leagueSettingsId.ts` | Where a director's CURRENT settings for one league live — a predictable document id, not a query. |
+| `scopedStorage.ts` | Which account a localStorage key belongs to, and what signing in may adopt. |
+| `setupSync.ts` | Whether the director's setup travels up to the account, down to this device, or stays put. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already

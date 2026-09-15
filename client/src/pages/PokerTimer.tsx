@@ -42,6 +42,7 @@ import {
 } from '@/lib/syncHealth';
 import { recoverableProgress } from '@/lib/localProgress';
 import { lastSignedInUid } from '@/lib/scopedStorage';
+import { useDirectorSetupSync } from '@/hooks/useDirectorSetupSync';
 import { consoleTournamentId } from '@/lib/liveTournament';
 import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
@@ -324,6 +325,21 @@ function PokerTimerInner({
   // resolution useTournament uses, for the same reason: `user` is null until
   // Firebase restores the session, so the last-known uid is the opening guess.
   const storageUid = isAnonymous ? null : (user?.id ?? lastSignedInUid());
+
+  // The setup follows the ACCOUNT, so a director signing in on another device
+  // finds their structure, buy-in and payouts already there — see
+  // hooks/useDirectorSetupSync.ts. Pulls only onto an empty table; pushes
+  // debounced and only after the account has been consulted.
+  useDirectorSetupSync({
+    settings: tournament.state.settings,
+    levels: tournament.state.levels,
+    prizeStructure: tournament.state.prizeStructure,
+    playerCount: tournament.state.players.length,
+    isDatabaseTournament: tournament.state.details?.type === 'database',
+    applySettings: tournament.updateSettings,
+    applyLevels: tournament.setBlindLevels,
+    applyPrizeStructure: tournament.updatePrizeStructure,
+  });
 
   // What an account buys you, said once where it will be read.
   //
