@@ -41,6 +41,7 @@ import {
   type SyncHealth,
 } from '@/lib/syncHealth';
 import { recoverableProgress } from '@/lib/localProgress';
+import { lastSignedInUid } from '@/lib/scopedStorage';
 import { consoleTournamentId } from '@/lib/liveTournament';
 import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
@@ -318,6 +319,11 @@ function PokerTimerInner({
   // Held in a ref so the elimination effect reads it without re-subscribing.
   const displaySeasonRef = useRef<any>(null);
   const { user, isAnonymous, isLoading: authLoading } = useAuth();
+
+  // Which account's local mirror this console may be offered — the same
+  // resolution useTournament uses, for the same reason: `user` is null until
+  // Firebase restores the session, so the last-known uid is the opening guess.
+  const storageUid = isAnonymous ? null : (user?.id ?? lastSignedInUid());
 
   // What an account buys you, said once where it will be read.
   //
@@ -717,8 +723,8 @@ function PokerTimerInner({
   useEffect(() => {
     if (!activeTournamentId || !tournament.hasLoadedRemoteState) return;
     if (recoveryDismissed) return;
-    setRecoverable(recoverableProgress(activeTournamentId, tournament.state.players.length));
-  }, [activeTournamentId, tournament.hasLoadedRemoteState, tournament.state.players.length, recoveryDismissed]);
+    setRecoverable(recoverableProgress(activeTournamentId, tournament.state.players.length, storageUid));
+  }, [activeTournamentId, tournament.hasLoadedRemoteState, tournament.state.players.length, recoveryDismissed, storageUid]);
 
   // Directly sync players to Firestore whenever they change.
   // This is a reliable belt-and-suspenders sync that bypasses the broadcast chain.

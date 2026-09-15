@@ -1,4 +1,5 @@
 import type { Player } from '@/types';
+import { readScoped, removeScoped, writeScoped } from './scopedStorage';
 
 /**
  * The live part of a local game — everything the settings/levels/prize-structure
@@ -9,7 +10,10 @@ import type { Player } from '@/types';
  * that reachable by an ordinary action: six players and two bust-outs, gone.
  *
  * Keyed by localGameId so starting a new game never inherits the last one's
- * roster.
+ * roster, and stored per account (lib/scopedStorage.ts) so a second director
+ * signing in on the same browser never inherits the first one's. The uid is
+ * passed in rather than looked up here, because this module stays free of React
+ * and Firebase — the lib/ convention that keeps it testable without mocking.
  */
 export const LOCAL_PROGRESS_KEY = 'tournamentLocalProgress';
 
@@ -27,10 +31,10 @@ export interface LocalProgress {
   updatedAt?: string;
 }
 
-export function loadLocalProgress(localGameId?: string): LocalProgress | null {
+export function loadLocalProgress(localGameId?: string, uid: string | null = null): LocalProgress | null {
   if (!localGameId) return null;
   try {
-    const raw = localStorage.getItem(LOCAL_PROGRESS_KEY);
+    const raw = readScoped(LOCAL_PROGRESS_KEY, uid);
     if (!raw) return null;
     const saved = JSON.parse(raw) as LocalProgress;
     if (saved?.localGameId !== localGameId || !Array.isArray(saved.players)) return null;
@@ -40,10 +44,8 @@ export function loadLocalProgress(localGameId?: string): LocalProgress | null {
   }
 }
 
-export function saveLocalProgress(progress: LocalProgress) {
-  try {
-    localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(progress));
-  } catch {}
+export function saveLocalProgress(progress: LocalProgress, uid: string | null = null) {
+  writeScoped(LOCAL_PROGRESS_KEY, JSON.stringify(progress), uid);
 }
 
 /**
@@ -65,10 +67,8 @@ export function saveLocalProgress(progress: LocalProgress) {
  * other end instead: it is never restored into a live tournament automatically.
  * See `recoverableProgress`.
  */
-export function clearLocalProgress() {
-  try {
-    localStorage.removeItem(LOCAL_PROGRESS_KEY);
-  } catch {}
+export function clearLocalProgress(uid: string | null = null) {
+  removeScoped(LOCAL_PROGRESS_KEY, uid);
 }
 
 /**
@@ -91,10 +91,11 @@ export function clearLocalProgress() {
 export function recoverableProgress(
   dbTournamentId: string | null | undefined,
   remotePlayerCount: number,
+  uid: string | null = null,
 ): LocalProgress | null {
   if (!dbTournamentId || remotePlayerCount > 0) return null;
   try {
-    const raw = localStorage.getItem(LOCAL_PROGRESS_KEY);
+    const raw = readScoped(LOCAL_PROGRESS_KEY, uid);
     if (!raw) return null;
     const saved = JSON.parse(raw) as LocalProgress;
     if (saved?.dbTournamentId !== dbTournamentId) return null;

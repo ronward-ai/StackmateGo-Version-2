@@ -13,6 +13,7 @@ import { doc, onSnapshot, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { sanitizeForFirestore } from '../lib/utils';
 
 import { useAuth } from './useAuth';
+import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
 import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
@@ -63,9 +64,9 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 // Load saved settings from localStorage
-const loadSavedSettings = (): Partial<Settings> => {
+const loadSavedSettings = (uid: string | null): Partial<Settings> => {
   try {
-    const saved = localStorage.getItem('tournamentSettings');
+    const saved = readScoped('tournamentSettings', uid);
     return saved ? JSON.parse(saved) : {};
   } catch (error) {
     console.error('Error loading saved settings:', error);
@@ -74,18 +75,18 @@ const loadSavedSettings = (): Partial<Settings> => {
 };
 
 // Save settings to localStorage
-const saveSettings = (settings: Settings) => {
+const saveSettings = (settings: Settings, uid: string | null) => {
   try {
-    localStorage.setItem('tournamentSettings', JSON.stringify(settings));
+    writeScoped('tournamentSettings', JSON.stringify(settings), uid);
   } catch (error) {
     console.error('Error saving settings:', error);
   }
 };
 
 // Load saved blind levels
-const loadSavedBlindLevels = (): BlindLevel[] => {
+const loadSavedBlindLevels = (uid: string | null): BlindLevel[] => {
   try {
-    const saved = localStorage.getItem('tournamentBlindLevels');
+    const saved = readScoped('tournamentBlindLevels', uid);
     return saved ? JSON.parse(saved) : DEFAULT_LEVELS;
   } catch (error) {
     console.error('Error loading saved blind levels:', error);
@@ -94,18 +95,18 @@ const loadSavedBlindLevels = (): BlindLevel[] => {
 };
 
 // Save blind levels
-const saveBlindLevels = (levels: BlindLevel[]) => {
+const saveBlindLevels = (levels: BlindLevel[], uid: string | null) => {
   try {
-    localStorage.setItem('tournamentBlindLevels', JSON.stringify(levels));
+    writeScoped('tournamentBlindLevels', JSON.stringify(levels), uid);
   } catch (error) {
     console.error('Error saving blind levels:', error);
   }
 };
 
 // Load saved prize structure
-const loadSavedPrizeStructure = (): PrizeStructure => {
+const loadSavedPrizeStructure = (uid: string | null): PrizeStructure => {
   try {
-    const saved = localStorage.getItem('tournamentPrizeStructure');
+    const saved = readScoped('tournamentPrizeStructure', uid);
     if (saved) {
       // Normalised on read rather than migrated: a structure saved before the
       // default was fixed keeps its payouts in `structure`, and rewriting
@@ -124,9 +125,9 @@ const loadSavedPrizeStructure = (): PrizeStructure => {
 };
 
 // Save prize structure
-const savePrizeStructure = (prizeStructure: PrizeStructure) => {
+const savePrizeStructure = (prizeStructure: PrizeStructure, uid: string | null) => {
   try {
-    localStorage.setItem('tournamentPrizeStructure', JSON.stringify(prizeStructure));
+    writeScoped('tournamentPrizeStructure', JSON.stringify(prizeStructure), uid);
   } catch (error) {
     console.error('Error saving prize structure:', error);
   }
@@ -193,9 +194,35 @@ const broadcastParticipantUpdate = async (tournamentId: number | string) => {
 };
 
 export function useTournament(tournamentId?: string) {
-  const { user } = useAuth();
+  const { user, isAnonymous } = useAuth();
+
+  // WHICH account's stored setup this console reads — see lib/scopedStorage.ts.
+  //
+  // `user` is null for the first moments of every cold load, signed in or not,
+  // because Firebase restores the session asynchronously and this runs in the
+  // hook body. Falling back to the last-known uid means a returning director
+  // reads their own setup immediately instead of being shown a default
+  // tournament until auth catches up; if auth then resolves to somebody else,
+  // the effect below re-reads.
+  //
+  // Anonymous never reads a bucket. useTournament is the director console only
+  // (the participant view has its own hook), so this is belt and braces.
+  const storageUid = isAnonymous ? null : (user?.id ?? lastSignedInUid());
+
+  // Read through a ref inside callbacks and effects, never the captured value.
+  //
+  // Several of the callbacks below have empty dependency arrays, so a captured
+  // storageUid would be whatever it was on the FIRST render, for the life of
+  // the component — and every save after an account switch would land in the
+  // previous director's bucket, which is the bug this is all here to fix.
+  // Widening those arrays instead would churn the callbacks, and referential
+  // churn in this hook is what once had a live game writing to Firestore twice
+  // a second. A ref costs nothing and is always current.
+  const storageUidRef = useRef(storageUid);
+  storageUidRef.current = storageUid;
+
   // Load saved settings and merge with defaults
-  const savedSettings = loadSavedSettings();
+  const savedSettings = loadSavedSettings(storageUid);
   const mergedSettings = { ...DEFAULT_SETTINGS, ...savedSettings };
 
   // Persist localGameId so it survives page refreshes — only generate a new one
@@ -203,21 +230,21 @@ export function useTournament(tournamentId?: string) {
   // recording effect from writing a duplicate result with a phantom new ID after
   // a browser refresh, which would inflate the games-played count.
   const getOrCreateLocalGameId = () => {
-    const stored = localStorage.getItem('tournamentLocalGameId');
+    const stored = readScoped('tournamentLocalGameId', storageUidRef.current);
     if (stored) return stored;
     const newId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    try { localStorage.setItem('tournamentLocalGameId', newId); } catch {}
+    writeScoped('tournamentLocalGameId', newId, storageUidRef.current);
     return newId;
   };
 
   // Create an initial state with saved preferences
-  const savedLevels = loadSavedBlindLevels();
+  const savedLevels = loadSavedBlindLevels(storageUid);
 
   // Restore a local game in progress. NEVER for a database tournament: its truth
   // is Firestore, and seeding it from localStorage is the same hazard the
   // hasLoadedRemoteState latch exists to prevent — a device writing its own idea
   // of the roster over the real game.
-  const restored = tournamentId ? null : loadLocalProgress(getOrCreateLocalGameId());
+  const restored = tournamentId ? null : loadLocalProgress(getOrCreateLocalGameId(), storageUid);
 
   const initialState: TournamentState = {
     levels: savedLevels,
@@ -229,7 +256,7 @@ export function useTournament(tournamentId?: string) {
     // resuming paused is honest and the director presses play.
     isRunning: false,
     settings: mergedSettings,
-    prizeStructure: loadSavedPrizeStructure(),
+    prizeStructure: loadSavedPrizeStructure(storageUid),
     isFinalTable: restored?.isFinalTable ?? false,
     details: tournamentId ? {
       type: 'database',
@@ -321,7 +348,7 @@ export function useTournament(tournamentId?: string) {
               },
                         prizeStructure: tournamentData.prizeStructure
                           ? withNormalisedPayouts(tournamentData.prizeStructure)
-                          : loadSavedPrizeStructure(),
+                          : loadSavedPrizeStructure(storageUidRef.current),
               isFinalTable: false,
               details: {
                 type: 'database',
@@ -382,7 +409,7 @@ export function useTournament(tournamentId?: string) {
       isFinalTable: state.isFinalTable,
       dbTournamentId: state.details?.id?.toString(),
       updatedAt: new Date().toISOString(),
-    });
+    }, storageUidRef.current);
   }, [
     state.players,
     state.currentLevel,
@@ -1352,7 +1379,7 @@ export function useTournament(tournamentId?: string) {
     }
 
     const levels = keepStructure ? state.levels : DEFAULT_LEVELS;
-    const prizeStructure = keepStructure ? (state.prizeStructure || loadSavedPrizeStructure()) : { buyIn: 0 };
+    const prizeStructure = keepStructure ? (state.prizeStructure || loadSavedPrizeStructure(storageUidRef.current)) : { buyIn: 0 };
     const settings = keepStructure ? state.settings : DEFAULT_SETTINGS;
     const isLeagueReset = keepStructure && state.details?.type === 'season';
     const preservedType = isLeagueReset ? 'season' : 'standalone';
@@ -1362,11 +1389,11 @@ export function useTournament(tournamentId?: string) {
     // (every game after the first produced the same empty key and was skipped as
     // a duplicate) and meant repeat "Go Live" reused one Firestore document.
     const newLocalGameId = `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    try { localStorage.setItem('tournamentLocalGameId', newLocalGameId); } catch {}
+    writeScoped('tournamentLocalGameId', newLocalGameId, storageUidRef.current);
     // The previous game is over. The mirror is keyed by localGameId so it would
     // not match anyway, but leaving a dead roster in storage is how one came
     // back to life once already.
-    clearLocalProgress();
+    clearLocalProgress(storageUidRef.current);
 
     setState({
       levels,
@@ -1486,7 +1513,7 @@ export function useTournament(tournamentId?: string) {
 
       const newLevels = [...prev.levels, newLevel];
       // Auto-save blind levels
-      saveBlindLevels(newLevels);
+      saveBlindLevels(newLevels, storageUidRef.current);
 
       return {
         ...prev,
@@ -1530,7 +1557,7 @@ export function useTournament(tournamentId?: string) {
   // Set all blind levels at once
   const setBlindLevels = useCallback((newLevels: BlindLevel[]) => {
     setState(prev => {
-      saveBlindLevels(newLevels);
+      saveBlindLevels(newLevels, storageUidRef.current);
       return {
         ...prev,
         levels: newLevels
@@ -1544,7 +1571,7 @@ export function useTournament(tournamentId?: string) {
       const newLevels = prev.levels.map((level, i) =>
         i === index ? { ...level, ...updates } : level
       );
-      saveBlindLevels(newLevels);
+      saveBlindLevels(newLevels, storageUidRef.current);
       const isCurrentLevelDuration =
         index === prev.currentLevel && typeof updates.duration === 'number';
       const secondsLeft = isCurrentLevelDuration ? updates.duration! : prev.secondsLeft;
@@ -1565,7 +1592,7 @@ export function useTournament(tournamentId?: string) {
     setState(prev => {
       const newSettings = { ...prev.settings, ...updates };
       // Validate and save settings to localStorage
-      saveSettings(newSettings);
+      saveSettings(newSettings, storageUidRef.current);
 
       const newState = {
         ...prev,
@@ -1594,9 +1621,9 @@ export function useTournament(tournamentId?: string) {
       const merged = { type: 'standalone' as const, ...prev.details || {}, ...details };
       // Ensure localGameId is set when switching to season mode
       if (merged.type === 'season' && !merged.localGameId) {
-        const stored = localStorage.getItem('tournamentLocalGameId');
+        const stored = readScoped('tournamentLocalGameId', storageUidRef.current);
         const id = stored || `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        if (!stored) { try { localStorage.setItem('tournamentLocalGameId', id); } catch {} }
+        if (!stored) writeScoped('tournamentLocalGameId', id, storageUidRef.current);
         merged.localGameId = id;
       }
       const newState = { ...prev, details: merged as TournamentDetails };
@@ -1638,13 +1665,13 @@ export function useTournament(tournamentId?: string) {
   const updatePrizeStructure = useCallback((prizeStructure: Partial<PrizeStructure>) => {
     setState(prev => {
       const newPrizeStructure = {
-        ...prev.prizeStructure || loadSavedPrizeStructure(),
+        ...prev.prizeStructure || loadSavedPrizeStructure(storageUidRef.current),
         ...prizeStructure
       };
 
       // Validate prize structure before saving
       if (newPrizeStructure.buyIn && newPrizeStructure.buyIn > 0) {
-        savePrizeStructure(newPrizeStructure);
+        savePrizeStructure(newPrizeStructure, storageUidRef.current);
       }
 
       const newState = {

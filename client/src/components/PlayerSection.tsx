@@ -17,6 +17,8 @@ import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +36,13 @@ interface PlayerSectionProps {
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
   const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
   const { toast } = useToast();
+  const { user, isAnonymous } = useAuth();
+
+  // Resolved at call time rather than captured: loadRecentPlayers and
+  // saveRecentPlayer are plain functions re-created each render, but the effect
+  // that calls the first one has an empty dependency array, so reading through
+  // a function keeps both honest about who is signed in NOW.
+  const recentPlayersUid = () => (isAnonymous ? null : (user?.id ?? lastSignedInUid()));
 
   /**
    * Put a player back in, and offer one tap to take it back.
@@ -127,9 +136,13 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   }, []);
 
   // Load recent players from localStorage
+  //
+  // Per account — see lib/scopedStorage.ts. These are the real names of real
+  // people at someone's game, and they were offered as autocomplete to whoever
+  // signed in next on the same browser.
   const loadRecentPlayers = () => {
     try {
-      const stored = localStorage.getItem('recentPlayers');
+      const stored = readScoped('recentPlayers', recentPlayersUid());
       if (stored) {
         const parsed = JSON.parse(stored) as RecentPlayer[];
         setRecentPlayers(parsed);
@@ -152,7 +165,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       ].slice(0, 20); // Keep only 20 most recent
 
       setRecentPlayers(updated);
-      localStorage.setItem('recentPlayers', JSON.stringify(updated));
+      writeScoped('recentPlayers', JSON.stringify(updated), recentPlayersUid());
     } catch (error) {
       console.error('Failed to save recent player:', error);
     }

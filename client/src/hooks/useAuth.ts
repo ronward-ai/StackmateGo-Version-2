@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { auth } from "../lib/firebase";
+import { claimStorageFor, rememberSignedInUid } from "../lib/scopedStorage";
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -37,6 +38,14 @@ export function useAuth() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Hand this browser's stored setup to whoever just signed in, BEFORE the
+      // state update that lets the console read it — see lib/scopedStorage.ts.
+      //
+      // Anonymous sessions are skipped deliberately. A QR participant holds a
+      // real, verifiable Firebase session, but it is a throwaway one with no
+      // director's setup behind it, and letting it claim a bucket would hand
+      // the previous director's storage to a stranger's phone.
+      if (user && !user.isAnonymous) claimStorageFor(user.uid);
       setFirebaseUser(user);
       setIsLoading(false);
     });
@@ -113,8 +122,18 @@ export function useAuth() {
     //
     // Only the "reopen this automatically" pointer goes. The saved tournament,
     // blind structure and prize settings stay, so signing back in resumes where
-    // you left off.
+    // you left off — and since they are now stored per account
+    // (lib/scopedStorage.ts), "where you left off" means YOUR setup rather than
+    // whatever the last person to use this browser had. That distinction is the
+    // whole reason the buckets exist: this used to hand a second account the
+    // first one's roster and structure.
     try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
+    // Forget WHO was signed in, but not what they saved. Their setup stays in
+    // their own bucket and is waiting for them next time; what must not survive
+    // is this browser believing the next person to arrive is them, because the
+    // setup is read before Firebase has restored a session and the last-known
+    // uid is what that read guesses with.
+    rememberSignedInUid(null);
     await signOut(auth);
   };
 

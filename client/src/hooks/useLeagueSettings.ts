@@ -11,6 +11,7 @@ import {
   POINTS_SYSTEMS
 } from '@/types/leagueSettings';
 import { useAuth } from './useAuth';
+import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
@@ -19,12 +20,12 @@ import { useSharedSnapshot } from '@/lib/sharedSnapshot';
 /** Stable empty reference — required by useSharedSnapshot. */
 const EMPTY_SETTINGS_DOCS: any[] = [];
 
-function loadFromStorage(storageKey: string): LeagueSettings {
+function loadFromStorage(storageKey: string, uid: string | null): LeagueSettings {
   try {
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
       return DEFAULT_LEAGUE_SETTINGS;
     }
-    const saved = localStorage.getItem(storageKey);
+    const saved = readScoped(storageKey, uid);
     if (!saved) return DEFAULT_LEAGUE_SETTINGS;
 
     const parsed = JSON.parse(saved);
@@ -56,6 +57,12 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
   const targetOwnerId = overrideOwnerId || (isAnonymous ? null : user?.id);
   const storageKey = leagueId ? `leagueSettings:${leagueId}` : 'leagueSettings';
 
+  // The cache is per account as well as per league — see lib/scopedStorage.ts.
+  // A league id alone was not enough: two accounts on one browser shared the
+  // bare `leagueSettings` key outright, so a second director inherited the
+  // first one's points system before Firestore had said anything.
+  const storageUid = isAnonymous ? null : (user?.id ?? lastSignedInUid());
+
   // Two shapes of read, not one. `overrideOwnerId` set means "show me a
   // SPECIFIC director's current settings" — the participant view, or the
   // console's own read-only displays (RealTimeLeagueTable, calculatePoints
@@ -74,7 +81,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     leagueId?: string;
   }>>([]);
 
-  const [settings, setSettings] = useState<LeagueSettings>(() => loadFromStorage(storageKey));
+  const [settings, setSettings] = useState<LeagueSettings>(() => loadFromStorage(storageKey, storageUid));
 
   // Always-current ref so calculatePoints never reads a stale closure value
   const settingsRef = useRef<LeagueSettings>(settings);
@@ -82,31 +89,31 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
 
   // When the league context changes, reload settings from the scoped storage key
   useEffect(() => {
-    setSettings(loadFromStorage(storageKey));
-  }, [storageKey]);
+    setSettings(loadFromStorage(storageKey, storageUid));
+  }, [storageKey, storageUid]);
 
   // Save settings to localStorage under the scoped key
   useEffect(() => {
     try {
       if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && settings) {
-        localStorage.setItem(storageKey, JSON.stringify(settings));
+        writeScoped(storageKey, JSON.stringify(settings), storageUid);
       }
     } catch (error) {
       console.error('Failed to save league settings:', error);
     }
-  }, [settings, storageKey]);
+  }, [settings, storageKey, storageUid]);
 
   // Listen for settings reload events
   useEffect(() => {
     const handleSettingsChange = () => {
       try {
         if (typeof window === 'undefined') return;
-        const saved = localStorage.getItem(storageKey);
+        const saved = readScoped(storageKey, storageUid);
         if (!saved) return;
         const parsed = JSON.parse(saved);
         if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) return;
         if (!parsed.pointsSystem.formula) return;
-        setSettings(loadFromStorage(storageKey));
+        setSettings(loadFromStorage(storageKey, storageUid));
       } catch (error) {
         console.error('Failed to reload league settings:', error);
       }
@@ -116,7 +123,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
       window.addEventListener('leagueSettingsChanged', handleSettingsChange);
       return () => window.removeEventListener('leagueSettingsChanged', handleSettingsChange);
     }
-  }, [storageKey]);
+  }, [storageKey, storageUid]);
 
   // Calculate points based on current points system.
   // Reads from settingsRef so this callback is always stable and never stale —

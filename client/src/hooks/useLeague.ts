@@ -3,6 +3,7 @@ import { buyInOf, investedIn } from '@/lib/resultStats';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useAuth } from '@/hooks/useAuth';
+import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
@@ -69,9 +70,18 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   // stay in sync via a same-tab custom event — without this, switching leagues
   // in one component (e.g. the header dropdown) wouldn't update tables mounted
   // elsewhere that hold their own useState copy.
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(() => {
-    try { return localStorage.getItem('activeLeagueId'); } catch { return null; }
-  });
+  // Per account — see lib/scopedStorage.ts. A stored id belonging to another
+  // account was already discarded further down (it is resolved against the
+  // signed-in user's own leagues), but it still decided which
+  // leagueSettings:<leagueId> cache was read, so the previous director's points
+  // system could be shown under your own league's name.
+  const storageUid = isAnonymous ? null : (user?.id ?? lastSignedInUid());
+  const storageUidRef = useRef(storageUid);
+  storageUidRef.current = storageUid;
+
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(
+    () => readScoped('activeLeagueId', storageUid),
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -85,7 +95,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
   const switchLeague = useCallback((id: string) => {
     setSelectedLeagueId(id);
-    try { localStorage.setItem('activeLeagueId', id); } catch {}
+    writeScoped('activeLeagueId', id, storageUidRef.current);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('leagueSwitched', { detail: id }));
     }
