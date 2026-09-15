@@ -11,6 +11,7 @@ import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { downscaleImage } from '@/lib/imageDownscale';
 import { eventNameOf } from '@/lib/eventName';
+import DangerZone from '@/components/DangerZone';
 
 /**
  * The piping treatments, in the order they escalate.
@@ -303,6 +304,10 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Last, and below everything else, because it is the one block
+                here nobody should reach by accident. */}
+            <DangerZone />
           </div>
         </CardContent>
       </Card>

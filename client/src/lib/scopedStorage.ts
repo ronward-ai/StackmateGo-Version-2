@@ -214,3 +214,55 @@ export function claimStorageFor(uid: string | null | undefined): void {
     if (adoptedLegacy) safeSet(LEGACY_CLAIM_KEY, bucketFor(uid));
   }
 }
+
+/**
+ * Put this device back to factory for one account, keeping every result.
+ *
+ * Clears the account's bucket, the signed-out bucket, the pre-bucket keys and
+ * the claim marker. This is the one place in this module that deletes, and it
+ * is safe to do so because a person has explicitly asked for it — everything
+ * that matters (leagues, seasons, players, results, saved structures, the game
+ * being run) lives in Firestore under the account, not here.
+ *
+ * TWO KEYS SURVIVE ON PURPOSE.
+ *
+ * `smgo_unlocked` is the site access gate. Clearing it would lock a director
+ * out of their own app behind a password prompt as the reward for tidying up.
+ *
+ * `playerDeviceId` is this browser's identity, and seat check-in is built on
+ * it: `claims` maps a playerId to a device id, so regenerating it would orphan
+ * every seat this device had claimed. `claimedPlayer_*` is left for the same
+ * reason — it belongs to the participant half of the phone and is not the
+ * director's to clear.
+ *
+ * The caller is responsible for the OTHER half: the account's copy in
+ * `userSettings/{uid}`. Clearing only the device leaves that intact, and the
+ * next sign-in pulls back exactly what was just cleared.
+ */
+export function clearScopedStorage(uid: string | null | undefined): void {
+  const targets = new Set<string>();
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const stored = localStorage.key(i);
+      if (!stored) continue;
+      const marker = stored.lastIndexOf('::');
+      if (marker === -1) {
+        // Pre-bucket storage. SCOPED_KEYS below covers the fixed names; this
+        // catches the runtime-built ones, `leagueSettings:<leagueId>`, which
+        // cannot be listed up front.
+        if (isScopedKey(stored)) targets.add(stored);
+        continue;
+      }
+      const bare = stored.slice(0, marker);
+      const bucket = stored.slice(marker + 2);
+      if (!isScopedKey(bare)) continue;
+      if (bucket === bucketFor(uid) || bucket === LOCAL_BUCKET) targets.add(stored);
+    }
+  } catch {}
+
+  for (const key of SCOPED_KEYS) targets.add(key);
+  targets.add(LEGACY_CLAIM_KEY);
+
+  for (const key of targets) safeRemove(key);
+}

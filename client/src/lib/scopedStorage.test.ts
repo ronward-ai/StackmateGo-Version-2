@@ -4,6 +4,7 @@ import {
   bucketFor,
   canReadLegacy,
   claimStorageFor,
+  clearScopedStorage,
   isScopedKey,
   lastSignedInUid,
   readScoped,
@@ -164,5 +165,62 @@ describe('claimStorageFor', () => {
     expect(readScoped('tournamentSettings', 'bob')).toBeNull();
     expect(readScoped('tournamentLocalProgress', 'bob')).toBeNull();
     expect(readScoped('tournamentSettings', 'alice')).toBe('{"alice":true}');
+  });
+});
+
+describe('clearScopedStorage', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('clears this account and the signed-out bucket', () => {
+    writeScoped('tournamentSettings', '{"a":1}', 'alice');
+    writeScoped('tournamentBlindLevels', '[1]', null);
+    clearScopedStorage('alice');
+    expect(readScoped('tournamentSettings', 'alice')).toBeNull();
+    expect(readScoped('tournamentBlindLevels', null)).toBeNull();
+  });
+
+  it('leaves another account alone', () => {
+    // Resetting your own device must not reach into a colleague's bucket on a
+    // shared laptop.
+    writeScoped('tournamentSettings', '{"bob":1}', 'bob');
+    clearScopedStorage('alice');
+    expect(readScoped('tournamentSettings', 'bob')).toBe('{"bob":1}');
+  });
+
+  it('clears pre-bucket storage and the claim, so nothing is re-adopted', () => {
+    localStorage.setItem('tournamentSettings', '{"legacy":true}');
+    claimStorageFor('alice');
+    clearScopedStorage('alice');
+    expect(localStorage.getItem('tournamentSettings')).toBeNull();
+    expect(localStorage.getItem('legacySetupAdoptedBy')).toBeNull();
+    expect(readScoped('tournamentSettings', 'bob')).toBeNull();
+  });
+
+  it('clears the runtime-built league settings keys, bucketed and not', () => {
+    localStorage.setItem('leagueSettings:old', '{"legacy":true}');
+    writeScoped('leagueSettings:league9', '{"points":1}', 'alice');
+    clearScopedStorage('alice');
+    expect(localStorage.getItem('leagueSettings:old')).toBeNull();
+    expect(readScoped('leagueSettings:league9', 'alice')).toBeNull();
+  });
+
+  it('keeps the site gate, or resetting locks you out of your own app', () => {
+    localStorage.setItem('smgo_unlocked', '1');
+    clearScopedStorage('alice');
+    expect(localStorage.getItem('smgo_unlocked')).toBe('1');
+  });
+
+  it('keeps the device id, which seat check-in maps claims to', () => {
+    localStorage.setItem('playerDeviceId', 'device-1');
+    localStorage.setItem('claimedPlayer_t1', 'p3');
+    clearScopedStorage('alice');
+    expect(localStorage.getItem('playerDeviceId')).toBe('device-1');
+    expect(localStorage.getItem('claimedPlayer_t1')).toBe('p3');
+  });
+
+  it('works signed out, clearing the local bucket', () => {
+    writeScoped('tournamentSettings', '{"local":1}', null);
+    clearScopedStorage(null);
+    expect(readScoped('tournamentSettings', null)).toBeNull();
   });
 });

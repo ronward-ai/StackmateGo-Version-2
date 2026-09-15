@@ -881,6 +881,31 @@ Firestore is unreachable, so it cannot depend on Firestore.
 debounced write per change. Firestore's free allowance is 50k reads and 20k writes a day. The
 live-game sync that runs while a tournament is actually played dwarfs it.
 
+### Deleting an account's data has ONE safe order, and it is not alphabetical
+
+`lib/accountWipe.ts`'s `DELETION_ORDER` is load-bearing. `seasons`, `leaguePlayers` and
+`tournamentResults` are deleted under `allow delete: if ownsLeague(resource.data.leagueId)`, and
+`ownsLeague()` does a cross-document `get()` on the league to find out who owns it.
+
+**Delete the leagues first and every remaining child row becomes undeletable by any client, forever**
+— owned by a league that no longer exists, invisible to the app, still stored and still billed. So
+everything league-scoped goes first, `leagues` goes after, and the collections keyed on `ownerId` or
+`userId` can go whenever. `leagueScopedStagesComeFirst()` is exported purely so a test asserts this
+rather than a reviewer having to notice it.
+
+For the same reason the wipe **stops at the first stage that fails and names it**. Stopping *before*
+`leagues` is exactly what keeps the remainder deletable on a retry.
+
+**`users/{uid}` is deliberately not in the list.** It is read-only to clients by rule and holds
+`subscriptionStatus`, whose only writer is the Stripe webhook. Clearing someone's tournament history
+must not clear what they have paid for.
+
+**Reset and Delete are separate controls**, because they cost different things: Reset returns the app
+to factory and keeps every result, Delete removes the results. One combined button would mean anyone
+wanting a clean console had to give up their league's history to get it. Reset clears the local
+buckets **and** `userSettings/{uid}.setup` — clearing only the device leaves the account's copy, and
+the next sign-in pulls back exactly what was just cleared.
+
 ### A rebuy keeps the chair; a re-entry does not
 
 `eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
@@ -1298,6 +1323,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `leagueSettingsId.ts` | Where a director's CURRENT settings for one league live — a predictable document id, not a query. |
 | `scopedStorage.ts` | Which account a localStorage key belongs to, and what signing in may adopt. |
 | `setupSync.ts` | Whether the director's setup travels up to the account, down to this device, or stays put. |
+| `accountWipe.ts` | What deleting an account removes, and the one order that does not strand it. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already
