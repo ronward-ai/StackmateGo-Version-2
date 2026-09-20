@@ -601,6 +601,33 @@ Historical results carry none of these fields and stay at 0. `completedTournamen
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
 
+### Late entry is a stated window that WARNS, and that is the whole feature
+
+There is no late-entry mechanism, and there does not need to be one: a director adds players, and
+`addPlayer` has never cared what level it is. What was missing was the app saying when that stops
+being expected — so `lateEntryLevels` is a number in the Buy-in tab and a line in Tournament Info,
+and nothing more.
+
+**But printing a window makes it a promise, and this codebase has already paid for printing one it
+never checked.** `rebuyPeriodLevels` and `reEntryPeriodLevels` were displayed as "Available during
+first N levels" for years while nothing looked at the level — an omission rather than a decision,
+since their sibling `addonAvailableLevel` *was* checked. Stating late entry and then silently
+allowing a player at level 9 would be the identical bug with a new name.
+
+So it warns. `lateEntryClosedReason()` names the level it closed at, the director confirms, and the
+player is added. **A refusal would be wrong**: a rebuy past its cap is a rule the director set about
+the game, while someone walking through the door late is a fact about the world, and the director is
+the one standing there. There is deliberately no `allowLateEntry` switch for the same reason —
+adding a player always has to be possible, and the window only bites when it was set, like every
+other period here.
+
+**Both ways of adding a player go through one gate.** Typing a name and picking one from the
+autocomplete used to call `addPlayer` independently, so a check on one would simply be walked around
+by the other. `attemptAddPlayer` in `PlayerSection` is the only route in now.
+
+It is shown to the **director** and not to participants, which was a deliberate call: it is
+information for whoever is running the night, not a public commitment made on a phone.
+
 ### Zero means unlimited, and one module says so
 
 `lib/entryLimits.ts` answers whether a player may rebuy or re-enter. **Zero, negative and absent all

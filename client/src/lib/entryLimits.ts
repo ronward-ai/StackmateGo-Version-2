@@ -40,6 +40,7 @@ export interface EntryLimitStructure {
   reEntryPeriodLevels?: number;
   allowAddons?: boolean;
   addonAvailableLevel?: number;
+  lateEntryLevels?: number;
 }
 
 /** Only the counts. A `Player` satisfies it; so does `{}`. */
@@ -177,4 +178,42 @@ export function reEntryUnavailableReason(
     return `Re-entry period ended (first ${structure.reEntryPeriodLevels} levels)`;
   }
   return null;
+}
+
+/**
+ * Is late entry still open?
+ *
+ * There is no `allowLateEntry` switch and there should not be: adding a player
+ * is always possible, because a director may genuinely need to. The window only
+ * bites when it was deliberately set — the same reason
+ * `DEFAULT_PRIZE_STRUCTURE` carries no rebuy or re-entry period.
+ *
+ * Zero and absent mean open all game, like every other limit here.
+ */
+export function lateEntryOpen(
+  structure: EntryLimitStructure | null | undefined,
+  currentLevel: number,
+): boolean {
+  return withinPeriod(currentLevel, structure?.lateEntryLevels);
+}
+
+/**
+ * Why late entry is closed, for the confirmation shown before adding anyway.
+ *
+ * This is a WARNING, not a refusal — the caller adds the player if the director
+ * confirms. That is the difference between late entry and its siblings: a
+ * rebuy past its cap is a rule the director set about the game, while someone
+ * walking through the door late is a fact about the world.
+ *
+ * What it must not do is stay silent. Tournament Info states this window, and
+ * an app that prints a window and then ignores it without comment is the exact
+ * omission `rebuyPeriodLevels` and `reEntryPeriodLevels` were for years — see
+ * the note at the top of this file.
+ */
+export function lateEntryClosedReason(
+  structure: EntryLimitStructure | null | undefined,
+  currentLevel: number,
+): string | null {
+  if (lateEntryOpen(structure, currentLevel)) return null;
+  return `Late entry closed at the end of level ${structure?.lateEntryLevels}`;
 }

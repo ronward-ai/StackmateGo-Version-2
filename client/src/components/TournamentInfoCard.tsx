@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { ordinal } from '@/lib/ordinal';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw, Clock } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { isUnlimited } from '@/lib/entryLimits';
+import { isUnlimited, lateEntryOpen } from '@/lib/entryLimits';
 import { payoutsOf } from '@/lib/payoutTemplates';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { gameNumberFor } from "@/lib/seasonProgress";
@@ -592,6 +592,33 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                   </div>
                 )}
               </div>
+
+              {/* Late entry, stated where the director will read it.
+                  
+                  Shown only when a window was actually set — "all game" is the
+                  default and saying so on every tournament is noise. The app
+                  backs this up: adding a player after it closes warns first
+                  (see attemptAddPlayer in PlayerSection), because printing a
+                  window and then ignoring it silently is exactly what the rebuy
+                  and re-entry periods did for years. */}
+              {!isUnlimited(p?.lateEntryLevels) && (
+                <div className="mt-2 rounded-lg border border-orange-400/20 bg-orange-400/5 p-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Clock className="h-3.5 w-3.5 text-orange-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Late entry</span>
+                  </div>
+                  <DetailRow
+                    label={lateEntryOpen(p, state.currentLevel) ? 'Closes after' : 'Closed after'}
+                    value={`Level ${p!.lateEntryLevels}`}
+                    compact
+                  />
+                  <DetailRow
+                    label="Status"
+                    value={lateEntryOpen(p, state.currentLevel) ? 'Open' : 'Closed'}
+                    compact
+                  />
+                </div>
+              )}
 
               {/* Optional sections */}
               {(p?.allowReEntry || p?.allowAddons || p?.enableBounties) && (

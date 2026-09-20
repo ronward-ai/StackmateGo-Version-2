@@ -165,6 +165,8 @@ export interface PrizeStructure {
   rebuyChips?: number;
   addonChips?: number;
   addonAvailableLevel?: number;
+  /** Levels during which a player may still be added. Zero or absent = all game. */
+  lateEntryLevels?: number;
 }
 
 /**

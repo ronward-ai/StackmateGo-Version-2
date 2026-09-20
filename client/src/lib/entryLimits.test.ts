@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isUnlimited, limitLabel, periodLabel, canRebuy, canReEnter, addOnsOpen,
   rebuyUnavailableReason, reEntryUnavailableReason,
+  lateEntryOpen, lateEntryClosedReason,
 } from './entryLimits';
 
 const rebuysOn = { allowRebuys: true };
@@ -206,6 +207,49 @@ describe('reEntryUnavailableReason', () => {
           expect(reEntryUnavailableReason(structure, { reEntries }, level) === null)
             .toBe(canReEnter(structure, { reEntries }, level));
         }
+      }
+    }
+  });
+});
+
+describe('lateEntryOpen', () => {
+  it('is open all game when no window was set', () => {
+    // The window only bites when a director deliberately set one — the same
+    // reason DEFAULT_PRIZE_STRUCTURE carries no rebuy or re-entry period.
+    expect(lateEntryOpen({}, 0)).toBe(true);
+    expect(lateEntryOpen({}, 99)).toBe(true);
+    expect(lateEntryOpen({ lateEntryLevels: 0 }, 99)).toBe(true);
+  });
+
+  it('is open during the window and closed after it', () => {
+    // Levels are zero-indexed in state and one-indexed on screen: level 6 on
+    // screen is currentLevel 5, and is the last one still open.
+    expect(lateEntryOpen({ lateEntryLevels: 6 }, 5)).toBe(true);
+    expect(lateEntryOpen({ lateEntryLevels: 6 }, 6)).toBe(false);
+  });
+
+  it('needs no allow switch, because adding a player always has to be possible', () => {
+    expect(lateEntryOpen({ allowRebuys: false, allowReEntry: false, lateEntryLevels: 3 }, 0)).toBe(true);
+  });
+});
+
+describe('lateEntryClosedReason', () => {
+  it('says nothing while the window is open', () => {
+    expect(lateEntryClosedReason({ lateEntryLevels: 6 }, 5)).toBeNull();
+    expect(lateEntryClosedReason({}, 50)).toBeNull();
+  });
+
+  it('names the level it closed at', () => {
+    expect(lateEntryClosedReason({ lateEntryLevels: 6 }, 9))
+      .toBe('Late entry closed at the end of level 6');
+  });
+
+  it('agrees with lateEntryOpen in every case', () => {
+    for (const lateEntryLevels of [undefined, 0, 1, 3, 6]) {
+      for (const level of [0, 1, 2, 5, 6, 9]) {
+        const structure = { lateEntryLevels };
+        expect(lateEntryClosedReason(structure, level) === null)
+          .toBe(lateEntryOpen(structure, level));
       }
     }
   });

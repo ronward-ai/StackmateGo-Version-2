@@ -12,7 +12,7 @@ import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
 import { badgesFor, badgeText } from '@/lib/playerBadges';
-import { addOnsOpen } from '@/lib/entryLimits';
+import { addOnsOpen, lateEntryClosedReason } from '@/lib/entryLimits';
 import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
@@ -88,6 +88,8 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     tournamentLeagueId ? String(tournamentLeagueId) : null
   );
   const [playerName, setPlayerName] = useState('');
+  /** A player waiting on the late-entry confirmation. */
+  const [pendingLateEntry, setPendingLateEntry] = useState<string | null>(null);
 
   const isLeagueMode =
     state.details?.type === 'season' ||
@@ -234,27 +236,48 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
     };
   }, []);
 
-  const handleAddPlayer = () => {
-    const trimmed = playerName.trim();
-    if (trimmed && !state.players.some(p => p.name.toLowerCase() === trimmed.toLowerCase())) {
-      addPlayer(trimmed);
-      saveRecentPlayer(trimmed);
-      setPlayerName('');
-      setShowAutocomplete(false);
-    }
+  /**
+   * The ONE way a player gets added, which both entry paths go through.
+   *
+   * Typing a name and picking one from the autocomplete used to add the player
+   * independently, so a gate on one would simply be walked around by the other
+   * — the shape of trap this codebase has paid for more than once.
+   *
+   * Late entry closing is a WARNING, not a refusal. Tournament Info states the
+   * window, so the app must not ignore it silently; but someone genuinely
+   * arriving at the door late is a fact about the world, and the director is
+   * the one who gets to decide.
+   */
+  const lateEntryClosed = lateEntryClosedReason(state.prizeStructure, state.currentLevel);
+
+  const commitAddPlayer = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (state.players.some(p => p.name.toLowerCase() === trimmed.toLowerCase())) return;
+    addPlayer(trimmed);
+    saveRecentPlayer(trimmed);
+    setPlayerName('');
+    setShowAutocomplete(false);
   };
+
+  const attemptAddPlayer = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (state.players.some(p => p.name.toLowerCase() === trimmed.toLowerCase())) return;
+    if (lateEntryClosed) {
+      setPendingLateEntry(trimmed);
+      setShowAutocomplete(false);
+      return;
+    }
+    commitAddPlayer(trimmed);
+  };
+
+  const handleAddPlayer = () => attemptAddPlayer(playerName);
 
   const handleSelectName = (name: string) => {
     setPlayerName(name);
     setShowAutocomplete(false);
-    // Auto-add the player
-    setTimeout(() => {
-      if (!state.players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
-        addPlayer(name);
-        saveRecentPlayer(name);
-        setPlayerName('');
-      }
-    }, 100);
+    setTimeout(() => attemptAddPlayer(name), 100);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -1081,6 +1104,37 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Late entry closed — warn, do not refuse. See attemptAddPlayer. */}
+      <AlertDialog
+        open={!!pendingLateEntry}
+        onOpenChange={open => { if (!open) setPendingLateEntry(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Late entry has closed</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>{lateEntryClosed}. You are on level {state.currentLevel + 1}.</p>
+                <p>
+                  Add <span className="font-medium text-foreground">{pendingLateEntry}</span> anyway?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingLateEntry) commitAddPlayer(pendingLateEntry);
+                setPendingLateEntry(null);
+              }}
+            >
+              Add anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

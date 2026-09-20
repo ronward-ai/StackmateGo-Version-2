@@ -135,6 +135,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
   const [rebuyChips, setRebuyChips] = useState(D.rebuyChips ?? 10000);
   const [maxRebuys, setMaxRebuys] = useState(D.maxRebuys ?? 0);
   const [rebuyPeriodLevels, setRebuyPeriodLevels] = useState(D.rebuyPeriodLevels ?? 0);
+  const [lateEntryLevels, setLateEntryLevels] = useState(D.lateEntryLevels ?? 0);
 
   const [allowReEntry, setAllowReEntry] = useState(!!D.allowReEntry);
   const [reEntryRake, setReEntryRake] = useState(true);
@@ -182,6 +183,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
     // ?? throughout: 0 means unlimited and must not be replaced by a default.
     setMaxRebuys(p.maxRebuys ?? (D.maxRebuys ?? 0));
     setRebuyPeriodLevels(p.rebuyPeriodLevels ?? (D.rebuyPeriodLevels ?? 0));
+    setLateEntryLevels(p.lateEntryLevels ?? (D.lateEntryLevels ?? 0));
     setAllowReEntry(p.allowReEntry || false);
     setReEntryRake(p.reEntryRake ?? true);
     setReEntryRakeAmount(p.reEntryRakeAmount ?? 0);
@@ -229,6 +231,7 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
       buyIn: buyInAmount, startingChips,
       rakeType, rakePercentage, rakeAmount,
       enableBounties, bountyAmount, bountyType,
+      lateEntryLevels,
       allowRebuys, rebuyRake, rebuyRakeAmount, rebuyBounty, rebuyAmount, rebuyChips, maxRebuys, rebuyPeriodLevels,
       allowReEntry, reEntryRake, reEntryRakeAmount, reEntryBounty, maxReEntries, reEntryPeriodLevels,
       allowAddons, addonAmount, addonChips, addonAvailableLevel,
@@ -285,6 +288,19 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
 
           <FieldRow label="Starting Stack">
             <NumberInput value={startingChips} onChange={setStartingChips} suffix="chips" min={1000} step={1000} />
+          </FieldRow>
+
+          {/* Zero is "all game", as with every other window here. There is no
+              on/off switch on purpose: adding a player always has to be
+              possible, and a closed window WARNS rather than refuses — see
+              lateEntryClosedReason. */}
+          <FieldRow
+            label="Late Entry"
+            hint={periodLabel(lateEntryLevels) === 'All game'
+              ? 'Players can be added at any point'
+              : `Adding a player after this warns first`}
+          >
+            <NumberInput value={lateEntryLevels} onChange={setLateEntryLevels} suffix="lvls" min={0} placeholder="∞" />
           </FieldRow>
 
           <FieldRow
