@@ -14,13 +14,16 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
-import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties, Check, Scale, MousePointerClick } from "lucide-react";
+import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties, Check, Scale, MousePointerClick, UserMinus } from "lucide-react";
 import { TableConfig, Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import FinalTableDialog from "./FinalTableDialog";
+import PlayerEntryActions from '@/components/PlayerEntryActions';
+import { ordinal } from '@/lib/ordinal';
+import { activeCount, promptDismissedFor } from '@/lib/finalTable';
 import { cn } from "@/lib/utils";
-import { canRebuy, canReEnter } from '@/lib/entryLimits';
+import { canRebuy } from '@/lib/entryLimits';
 
 interface TablesSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -76,12 +79,32 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   const [editTableName, setEditTableName]         = useState('');
   const [seatDialogOpen, setSeatDialogOpen]       = useState(false);
   const [isFinalTableDialogOpen, setIsFinalTableDialogOpen] = useState(false);
+  // "Not yet" has to STICK. The prompt is driven off a predicate over
+  // state.players, so a bare boolean was cleared by the next render that
+  // touched the roster — a chip edit, a knockout — and the dialog reopened
+  // behind a director who had gone to sell the busted player a rebuy. Latching
+  // against the player count it was dismissed at keeps it shut while the field
+  // is that size, and re-arms it if the field changes again.
+  const [finalTableDismissedAt, setFinalTableDismissedAt] = useState<number | null>(null);
 
   const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
   const [playerToBustOut, setPlayerToBustOut]     = useState<Player | null>(null);
   const [hitmanId, setHitmanId]                   = useState<string | null>(null);
 
   const [undoBustOutDialogOpen, setUndoBustOutDialogOpen] = useState(false);
+
+  // Most recently busted first, which is the one a director is almost always
+  // reaching for — they just knocked them out.
+  const justBusted = state.players
+    .filter(p => p.isActive === false)
+    .reduce<typeof state.players[number] | null>(
+      (latest, p) => (!latest || (p.position || 0) > (latest.position || 0) ? p : latest),
+      null,
+    );
+
+  const bustedPlayers = state.players
+    .filter(p => p.isActive === false)
+    .sort((a, b) => (b.position || 0) - (a.position || 0));
 
   const [moveMode, setMoveMode]                         = useState(false);
   const [selectedPlayerToMove, setSelectedPlayerToMove] = useState<Player | null>(null);
@@ -114,8 +137,10 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   // Final table prompt
   useEffect(() => {
-    if (shouldPromptForFinalTable()) setIsFinalTableDialogOpen(true);
-  }, [shouldPromptForFinalTable]);
+    if (!shouldPromptForFinalTable()) return;
+    if (promptDismissedFor(finalTableDismissedAt, state.players)) return;
+    setIsFinalTableDialogOpen(true);
+  }, [shouldPromptForFinalTable, finalTableDismissedAt, state.players]);
 
   // Table balance check
   useEffect(() => {
@@ -579,73 +604,18 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
                           {!moveMode && (
                             <div className="ml-2 flex items-center gap-1 flex-shrink-0">
-                              {/* Rebuy button */}
-                              {player.isActive === false &&
-                                canRebuy(state.prizeStructure, player, state.currentLevel) && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="secondary"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="h-7 px-1.5 text-caption font-bold"
-                                    >
-                                      R
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Re-buy for {player.name}?</AlertDialogTitle>
-                                      <AlertDialogDescription asChild>
-                                        <div className="space-y-1 text-sm">
-                                          <div className="flex justify-between"><span>Rebuy cost</span><span>{sym}{ps?.rebuyAmount || 0}</span></div>
-                                          {rebuyRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{rebuyRakeAmt}</span></div>}
-                                          {rebuyBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{rebuyBountyAmt}</span></div>}
-                                          <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                            <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt + rebuyBountyAmt}</span>
-                                          </div>
-                                        </div>
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => processRebuy(player.id)}>Confirm Re-buy</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              )}
-                              {/* Re-entry button */}
-                              {player.isActive === false &&
-                                canReEnter(state.prizeStructure, player, state.currentLevel) && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="secondary"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="h-7 px-1.5 text-caption font-bold"
-                                    >
-                                      RE
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Re-entry for {player.name}?</AlertDialogTitle>
-                                      <AlertDialogDescription asChild>
-                                        <div className="space-y-1 text-sm">
-                                          <div className="flex justify-between"><span>Re-entry cost</span><span>{sym}{ps?.buyIn || 0}</span></div>
-                                          {reEntryRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{reEntryRakeAmt}</span></div>}
-                                          {reEntryBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{reEntryBountyAmt}</span></div>}
-                                          <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                            <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt + reEntryBountyAmt}</span>
-                                          </div>
-                                        </div>
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => processReEntry(player.id)}>Confirm Re-entry</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                              {/* One implementation, shared with the busted
+                                  strip below — see PlayerEntryActions. */}
+                              {player.isActive === false && (
+                                <PlayerEntryActions
+                                  player={player}
+                                  prizeStructure={state.prizeStructure}
+                                  settings={state.settings}
+                                  currentLevel={state.currentLevel}
+                                  onRebuy={processRebuy}
+                                  onReEntry={processReEntry}
+                                  variant="compact"
+                                />
                               )}
                               {/* KO button — only for active players */}
                               {player.isActive !== false && (
@@ -678,6 +648,52 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               </div>
             )}
           </div>
+
+          {/* Busted players, and the way back in.
+              
+              The seating screen already had a rebuy button, drawn INSIDE a seat
+              and gated on isActive === false — and it could never appear,
+              because eliminatePlayer clears `seated` and `tableAssignment`, so a
+              busted player leaves the grid the instant they bust. There was no
+              seat left to hang it on, and the only route back in was the players
+              list. This is where they actually are. */}
+          {bustedPlayers.length > 0 && !moveMode && (
+            <div className="mt-4 pt-4 border-t border-border/30">
+              <div className="flex items-center gap-2 mb-2">
+                <UserMinus className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-caption uppercase tracking-wide text-muted-foreground">
+                  Busted — most recent first
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {bustedPlayers.map(player => (
+                  <div
+                    key={player.id}
+                    className="flex items-center justify-between gap-2 p-2 rounded-lg border border-white/10 bg-black/20"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-sm truncate">{player.name}</span>
+                      {player.position && (
+                        <span className="text-caption text-muted-foreground font-mono flex-shrink-0">
+                          {ordinal(player.position)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <PlayerEntryActions
+                        player={player}
+                        prizeStructure={state.prizeStructure}
+                        settings={state.settings}
+                        currentLevel={state.currentLevel}
+                        onRebuy={processRebuy}
+                        onReEntry={processReEntry}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
         </CardContent>
       </Card>
@@ -826,9 +842,18 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
       <FinalTableDialog
         isOpen={isFinalTableDialogOpen}
-        onClose={() => setIsFinalTableDialogOpen(false)}
-        playerCount={state.players.filter(p => p.isActive !== false).length}
+        onClose={() => {
+          setIsFinalTableDialogOpen(false);
+          setFinalTableDismissedAt(activeCount(state.players));
+        }}
+        playerCount={activeCount(state.players)}
         onConfirm={goToFinalTable}
+        triggeredBy={justBusted}
+        onRebuyTrigger={
+          justBusted && canRebuy(state.prizeStructure, justBusted, state.currentLevel)
+            ? () => processRebuy(justBusted.id)
+            : undefined
+        }
       />
 
       {/* Break Table Dialog */}

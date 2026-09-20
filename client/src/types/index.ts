@@ -254,6 +254,8 @@ export interface TournamentState {
   settings: Settings;
   prizeStructure?: PrizeStructure;
   isFinalTable?: boolean;
+  /** Where everyone sat before the final-table redraw, so it can be undone. */
+  preFinalTableSeating?: { playerId: string; seated: boolean; tableIndex?: number; seatIndex?: number }[];
   details?: TournamentDetails;
   notes?: string;
 }

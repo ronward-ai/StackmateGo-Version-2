@@ -125,3 +125,56 @@ export function addOnsOpen(
   if (isUnlimited(from)) return true;
   return currentLevel + 1 >= (from as number);
 }
+
+/**
+ * WHY a player cannot rebuy, in the words the director should read.
+ *
+ * The rule and its wording belong together — the same reason `limitLabel` and
+ * `periodLabel` live here rather than at the four sites that print them.
+ *
+ * This exists because the two render sites disagreed about what to do when
+ * `canRebuy` said no. The players list drew the button DISABLED and silent; the
+ * seating screen HID it. One state, two treatments, and neither said anything,
+ * so a director who had set rebuys to 1 and used it saw a greyed-out button on
+ * one screen and nothing at all on the other, with no way to tell whether the
+ * rule was working or the app was broken.
+ *
+ * Returns null when the player may rebuy, so a call site can read
+ * `const reason = rebuyUnavailableReason(...)` and use it as both the test and
+ * the label.
+ *
+ * Order matters: the most fundamental reason wins. "Rebuys are off" is a truer
+ * answer than "the period ended" for a game that never allowed them.
+ */
+export function rebuyUnavailableReason(
+  structure: EntryLimitStructure | null | undefined,
+  player: EntryCounts | null | undefined,
+  currentLevel: number,
+): string | null {
+  if (!structure?.allowRebuys) return 'Rebuys are off';
+  if (!underCap(player?.rebuys, structure.maxRebuys)) {
+    const max = structure.maxRebuys as number;
+    return `Rebuys used (${player?.rebuys || 0} of ${max})`;
+  }
+  if (!withinPeriod(currentLevel, structure.rebuyPeriodLevels)) {
+    return `Rebuy period ended (first ${structure.rebuyPeriodLevels} levels)`;
+  }
+  return null;
+}
+
+/** The re-entry twin. Same shape, same ordering, same reason for existing. */
+export function reEntryUnavailableReason(
+  structure: EntryLimitStructure | null | undefined,
+  player: EntryCounts | null | undefined,
+  currentLevel: number,
+): string | null {
+  if (!structure?.allowReEntry) return 'Re-entries are off';
+  if (!underCap(player?.reEntries, structure.maxReEntries)) {
+    const max = structure.maxReEntries as number;
+    return `Re-entries used (${player?.reEntries || 0} of ${max})`;
+  }
+  if (!withinPeriod(currentLevel, structure.reEntryPeriodLevels)) {
+    return `Re-entry period ended (first ${structure.reEntryPeriodLevels} levels)`;
+  }
+  return null;
+}

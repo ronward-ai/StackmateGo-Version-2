@@ -25,6 +25,13 @@ import { canRebuy, canReEnter } from '@/lib/entryLimits';
 import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
 import { seatToReclaim } from '@/lib/seating';
+import {
+  activeCount as activePlayerCount,
+  outgrowsFinalTable,
+  restoreSeating,
+  shouldPromptForFinalTable as finalTableIsDue,
+  snapshotSeating,
+} from '@/lib/finalTable';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
 const DEFAULT_LEVELS: BlindLevel[] = [
@@ -1693,20 +1700,11 @@ export function useTournament(tournamentId?: string) {
   }, []);
 
   // Check if we should prompt for final table
-  const shouldPromptForFinalTable = useCallback(() => {
-    const activePlayers = state.players.filter(p => p.isActive !== false);
-    const eliminatedPlayers = state.players.filter(p => p.isActive === false);
-    const seatsPerTable = state.settings.tables?.seatsPerTable || 6;
-
-    // Only trigger final table prompt if:
-    // 1. Active players equal seats at one table
-    // 2. We haven't already gone to final table
-    // 3. At least one player has been eliminated (to avoid triggering on initial seating)
-    return activePlayers.length === seatsPerTable &&
-           activePlayers.length > 1 &&
-           !state.isFinalTable &&
-           eliminatedPlayers.length > 0;
-  }, [state.players, state.settings.tables, state.isFinalTable]);
+  const shouldPromptForFinalTable = useCallback(() => finalTableIsDue(
+    state.players,
+    state.settings.tables?.seatsPerTable || 6,
+    state.isFinalTable,
+  ), [state.players, state.settings.tables, state.isFinalTable]);
 
   // Set final table mode and reseat players
   const goToFinalTable = useCallback(() => {
@@ -1743,7 +1741,31 @@ export function useTournament(tournamentId?: string) {
       return {
         ...prev,
         players: updatedPlayers,
-        isFinalTable: true
+        isFinalTable: true,
+        // Taken BEFORE the redraw above overwrote it. A final table draw is
+        // supposed to be random, which is exactly why the arrangement it
+        // replaces has to be kept: without this, undoing the bust-out that
+        // caused the collapse left everyone on their new random seat.
+        preFinalTableSeating: snapshotSeating(prev.players),
+      };
+    });
+  }, []);
+
+  /**
+   * Put the tables back as they were before the collapse.
+   *
+   * Clears the snapshot on the way out, so it can never be applied twice or
+   * linger as a rival arrangement — the hazard the local mirror note warns
+   * about, in a smaller form.
+   */
+  const undoFinalTable = useCallback(() => {
+    setState(prev => {
+      if (!prev.isFinalTable && !prev.preFinalTableSeating) return prev;
+      return {
+        ...prev,
+        players: restoreSeating(prev.players, prev.preFinalTableSeating),
+        isFinalTable: false,
+        preFinalTableSeating: undefined,
       };
     });
   }, []);
@@ -1959,7 +1981,23 @@ export function useTournament(tournamentId?: string) {
           )
         : restoredPlayers;
 
-      const newState = { ...prev, players: finalPlayers };
+      // Undoing the bust-out that CAUSED the collapse has to undo the collapse
+      // too. Restoring the player puts more of them in the game than one table
+      // seats, so the tournament is plainly not at its final table any more —
+      // and their own chair, which seatToReclaim just returned, is on a table
+      // everyone else was moved off.
+      const seatsPerTable = prev.settings.tables?.seatsPerTable || 6;
+      const overflows = outgrowsFinalTable(activePlayerCount(finalPlayers), seatsPerTable);
+      const unwind = prev.isFinalTable && overflows;
+
+      const newState = unwind
+        ? {
+            ...prev,
+            players: restoreSeating(finalPlayers, prev.preFinalTableSeating),
+            isFinalTable: false,
+            preFinalTableSeating: undefined,
+          }
+        : { ...prev, players: finalPlayers };
 
       // Broadcast undo bustout action to all connected clients
       broadcastTournamentAction('undo_bustout', newState);
@@ -2095,6 +2133,7 @@ export function useTournament(tournamentId?: string) {
     getRemainingTimeText,
     isBreak,
     undoBustOut,
+    undoFinalTable,
     undoPlayerReturn,
     resetAllPlayersToActive,
     processRebuy,

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isUnlimited, limitLabel, periodLabel, canRebuy, canReEnter, addOnsOpen,
+  rebuyUnavailableReason, reEntryUnavailableReason,
 } from './entryLimits';
 
 const rebuysOn = { allowRebuys: true };
@@ -133,5 +134,79 @@ describe('labels', () => {
     expect(periodLabel(0)).toBe('All game');
     expect(periodLabel(undefined)).toBe('All game');
     expect(periodLabel(3)).toBe('First 3 levels');
+  });
+});
+
+describe('rebuyUnavailableReason', () => {
+  it('says nothing when the player may rebuy', () => {
+    expect(rebuyUnavailableReason({ allowRebuys: true }, { rebuys: 0 }, 0)).toBeNull();
+  });
+
+  it('names the cap and what has been used', () => {
+    // The reported case: rebuys set to 1, one used, a greyed-out button and no
+    // explanation on either screen.
+    expect(rebuyUnavailableReason({ allowRebuys: true, maxRebuys: 1 }, { rebuys: 1 }, 0))
+      .toBe('Rebuys used (1 of 1)');
+  });
+
+  it('names the period when the window has closed', () => {
+    expect(rebuyUnavailableReason({ allowRebuys: true, rebuyPeriodLevels: 3 }, { rebuys: 0 }, 3))
+      .toBe('Rebuy period ended (first 3 levels)');
+  });
+
+  it('says rebuys are off before anything else', () => {
+    // Truer than "the period ended" for a game that never allowed them.
+    expect(rebuyUnavailableReason({ allowRebuys: false, rebuyPeriodLevels: 1 }, { rebuys: 9 }, 50))
+      .toBe('Rebuys are off');
+  });
+
+  it('never blocks an unlimited cap', () => {
+    expect(rebuyUnavailableReason({ allowRebuys: true, maxRebuys: 0 }, { rebuys: 99 }, 0)).toBeNull();
+  });
+
+  it('agrees with canRebuy in every case', () => {
+    // The two must not drift: a null reason has to mean exactly "allowed", or a
+    // site using the reason as its test disagrees with a site using canRebuy.
+    const structures = [
+      { allowRebuys: false },
+      { allowRebuys: true },
+      { allowRebuys: true, maxRebuys: 1 },
+      { allowRebuys: true, maxRebuys: 0 },
+      { allowRebuys: true, rebuyPeriodLevels: 2 },
+      { allowRebuys: true, maxRebuys: 2, rebuyPeriodLevels: 3 },
+    ];
+    for (const structure of structures) {
+      for (const rebuys of [0, 1, 2, 5]) {
+        for (const level of [0, 1, 2, 3, 9]) {
+          const allowed = canRebuy(structure, { rebuys }, level);
+          const reason = rebuyUnavailableReason(structure, { rebuys }, level);
+          expect(reason === null).toBe(allowed);
+        }
+      }
+    }
+  });
+});
+
+describe('reEntryUnavailableReason', () => {
+  it('names the cap', () => {
+    expect(reEntryUnavailableReason({ allowReEntry: true, maxReEntries: 2 }, { reEntries: 2 }, 0))
+      .toBe('Re-entries used (2 of 2)');
+  });
+
+  it('agrees with canReEnter in every case', () => {
+    const structures = [
+      { allowReEntry: false },
+      { allowReEntry: true },
+      { allowReEntry: true, maxReEntries: 1 },
+      { allowReEntry: true, reEntryPeriodLevels: 2 },
+    ];
+    for (const structure of structures) {
+      for (const reEntries of [0, 1, 3]) {
+        for (const level of [0, 2, 7]) {
+          expect(reEntryUnavailableReason(structure, { reEntries }, level) === null)
+            .toBe(canReEnter(structure, { reEntries }, level));
+        }
+      }
+    }
   });
 });

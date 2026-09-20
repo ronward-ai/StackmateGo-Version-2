@@ -8,17 +8,18 @@ import { X, Download, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-reac
 import { cn } from '@/lib/utils';
 import { currencyOf } from '@/lib/currency';
 import { buyInOf, investedIn } from '@/lib/resultStats';
-import { entryCosts, payoutAmount, prizePoolFor } from '@/lib/prizePool';
+import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
 import { badgesFor, badgeText } from '@/lib/playerBadges';
-import { canRebuy, addOnsOpen } from '@/lib/entryLimits';
+import { addOnsOpen } from '@/lib/entryLimits';
 import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
+import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useToast } from '@/hooks/use-toast';
@@ -111,13 +112,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
   // Cost helpers for confirmation dialogs
   const sym = currencyOf(state.settings);
   const ps = state.prizeStructure;
-  const {
-    perEntryRake,
-    rebuyRake: rebuyRakeAmt,
-    reEntryRake: reEntryRakeAmt,
-    rebuyBounty: rebuyBountyAmt,
-    reEntryBounty: reEntryBountyAmt,
-  } = entryCosts(ps);
   const exportRef = useRef<HTMLDivElement>(null);
 
   // Recent players is not a setting.
@@ -901,71 +895,20 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                       </button>
                     )}
 
-                    {!player.isActive && state.prizeStructure?.allowRebuys && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={!canRebuy(state.prizeStructure, player, state.currentLevel)}
-                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
-                          >
-                            Re-buy
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Re-buy for {player.name}?</AlertDialogTitle>
-                            <AlertDialogDescription asChild>
-                              <div className="space-y-1 text-sm">
-                                <div className="flex justify-between"><span>Rebuy cost</span><span>{sym}{ps?.rebuyAmount || 0}</span></div>
-                                {rebuyRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{rebuyRakeAmt}</span></div>}
-                                {rebuyBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{rebuyBountyAmt}</span></div>}
-                                <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                  <span>Total</span><span>{sym}{(ps?.rebuyAmount || 0) + rebuyRakeAmt + rebuyBountyAmt}</span>
-                                </div>
-                              </div>
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => returnPlayerToTable('rebuy', player.id)}>Confirm Re-buy</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-
-                    {!player.isActive && state.prizeStructure?.allowReEntry && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
-                          >
-                            Re-enter
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Re-entry for {player.name}?</AlertDialogTitle>
-                            <AlertDialogDescription asChild>
-                              <div className="space-y-1 text-sm">
-                                <div className="flex justify-between"><span>Re-entry cost</span><span>{sym}{ps?.buyIn || 0}</span></div>
-                                {reEntryRakeAmt > 0 && <div className="flex justify-between"><span>Rake</span><span>{sym}{reEntryRakeAmt}</span></div>}
-                                {reEntryBountyAmt > 0 && <div className="flex justify-between"><span>Bounty chip</span><span>{sym}{reEntryBountyAmt}</span></div>}
-                                <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
-                                  <span>Total</span><span>{sym}{(ps?.buyIn || 0) + reEntryRakeAmt + reEntryBountyAmt}</span>
-                                </div>
-                              </div>
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => returnPlayerToTable('reentry', player.id)}>Confirm Re-entry</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                    {/* The same controls the seating screen shows, from one
+                        implementation — see PlayerEntryActions. This screen used
+                        to draw the rebuy button DISABLED and silent while the
+                        seating screen HID it, so a used-up cap looked like two
+                        different bugs. Both now say why. */}
+                    {!player.isActive && (
+                      <PlayerEntryActions
+                        player={player}
+                        prizeStructure={state.prizeStructure}
+                        settings={state.settings}
+                        currentLevel={state.currentLevel}
+                        onRebuy={id => returnPlayerToTable('rebuy', id)}
+                        onReEntry={id => returnPlayerToTable('reentry', id)}
+                      />
                     )}
 
                     {player.isActive && (

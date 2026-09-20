@@ -906,6 +906,56 @@ wanting a clean console had to give up their league's history to get it. Reset c
 buckets **and** `userSettings/{uid}.setup` — clearing only the device leaves the account's copy, and
 the next sign-in pulls back exactly what was just cleared.
 
+### The final table is asked for, reversible, and the dismissal sticks
+
+Three separate things, all found by running a real 9-player game on 8-seat tables.
+
+**It redraws the seats at random, so the arrangement it replaces has to be kept.** That randomness is
+correct — a final table draw should be random — but `goToFinalTable` overwrote every
+`tableAssignment` and stored nothing, so undoing the bust-out that caused the collapse restored only
+the busted player's own chair (`seatToReclaim`) and left everyone else on their new random seat with
+`isFinalTable` still true. `state.preFinalTableSeating` is snapshotted **before** the redraw, and
+`undoFinalTable()` puts it back. `undoBustOut` calls it when restoring the player leaves more of them
+than one table seats — which is exactly the case that caused the collapse.
+
+`lib/finalTable.ts`'s `restoreSeating` leaves a player the snapshot has never heard of **exactly as
+they are** rather than unseating them: they arrived after the collapse, by rebuy or re-entry, and
+`seatToReclaim` has just given them a chair. Guessing would take it away again.
+
+**"Not yet" has to stick.** The prompt is driven off a predicate over `state.players`, so a bare
+boolean was cleared by the next render that touched the roster — a chip edit, a knockout — and the
+dialog reopened behind a director who had gone to sell the busted player a rebuy. The dismissal is
+latched against the **player count** it was dismissed at, so it stays shut while the field is that
+size and re-arms if the field changes again.
+
+**The question is about one player, not about rebuys in general.** Nothing can grow the field
+mid-game — late entry does not exist in this app — so rebuys never decide whether a final table is
+DUE. They decide whether this particular bust-out counted. The dialog therefore names whoever just
+busted and offers to rebuy them, which is the answer that means nobody moves.
+
+### A busted player has to be reachable from the screen the director is on
+
+`TablesSection` already had a rebuy button, drawn **inside a seat** and gated on
+`isActive === false` — and it could never appear, because `eliminatePlayer` sets `seated: false` and
+`tableAssignment: undefined`, so a busted player leaves the grid the instant they bust. There was no
+seat left to hang it on. The only route back in was the players list, which is a screen change in the
+middle of the one moment a director is busiest.
+
+The **Busted strip** under the tables is where they actually are, most recent first, because the
+player a director is reaching for is almost always the one they just knocked out.
+
+**`components/PlayerEntryActions.tsx` is the only implementation of buying someone back in.** There
+were three — the seat, the players list, and the dialog inside each — and they had already diverged
+on the interesting question: what to do when a rebuy is NOT available. The players list drew the
+button **disabled and silent**; the seating screen **hid** it. A director who set rebuys to 1 and used
+it saw a greyed-out button on one screen, nothing at all on the other, and had no way to tell whether
+the rule was working or the app was broken. Both now show it disabled **with the reason on it**, from
+`rebuyUnavailableReason()` in `lib/entryLimits.ts`, so the wording lives with the rule.
+
+A feature switched off for the whole tournament renders nothing, rather than a row of "Rebuys are
+off" against every busted player: that is a setting, not a blocked action, and there is nothing the
+director can do about it from there.
+
 ### A rebuy keeps the chair; a re-entry does not
 
 `eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
@@ -1324,6 +1374,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `scopedStorage.ts` | Which account a localStorage key belongs to, and what signing in may adopt. |
 | `setupSync.ts` | Whether the director's setup travels up to the account, down to this device, or stays put. |
 | `accountWipe.ts` | What deleting an account removes, and the one order that does not strand it. |
+| `finalTable.ts` | Whether to ask for a final table, and how to put the seats back if it is undone. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already
