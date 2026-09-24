@@ -983,6 +983,55 @@ A feature switched off for the whole tournament renders nothing, rather than a r
 off" against every busted player: that is a setting, not a blocked action, and there is nothing the
 director can do about it from there.
 
+### What kind of game it is, is decided before the first hand
+
+The Standalone ↔ League slider was live for the whole game, and that was not cosmetic. League result
+recording gates on nothing but the flag the slider writes — `PokerTimer`'s `syncLeagueResults` tests
+`details.type === 'season' || settings.isSeasonTournament === true` and then records **every**
+eliminated player not already in `processedEliminationsRef`, not only newly eliminated ones.
+
+So flipping to League part way through a standalone night wrote the WHOLE game's bust-outs into
+whichever league happened to be selected, silently, as real results. A director showing a colleague
+what league mode looks like could corrupt a league's standings by doing it. Flipping back does not
+undo it: the removal path only fires for a player who becomes *active* again, which is a rebuy, not a
+mode change. The reverse direction is as bad — League → Standalone abandons results already written
+and leaves a half-recorded game in the table.
+
+This is the transfer-code failure wearing a new hat: *"their half of the night was recorded into their
+own league with their own scoring, silently."*
+
+`lib/tournamentMode.ts`'s `gameTypeIsLocked()` closes it, **at the first bust-out and not before**.
+Until someone has a finishing position there is nothing to back-fill and flipping is a legitimate
+correction — a director realising this should be tonight's league game after all. It is the moment
+results become recordable that the choice stops being free. The lock applies **both directions**, and
+`handleEnableLeague` re-checks it so no other caller can walk around the disabled button.
+
+It says why. An unexplained dead control is what sent a director to ask what the slider does in the
+first place.
+
+**Already-contaminated data is not migrated.** Stray results come out through normal league admin; a
+migration guessing which results were a demo and which were real is how a league loses its standings.
+
+### A dismissal flag must never be its own effect's dependency
+
+"Ignore for now" on the uneven-tables prompt could not work, and the reason is worth keeping.
+`tableBalanceDialogOpen` was **both the effect's early-return guard and one of its dependencies**.
+Dismissing set it false → the dependency changed → the effect re-ran → the guard no longer blocked →
+the imbalance was of course still there, because ignoring an imbalance does not fix it → the dialog
+reopened immediately. An instant loop, not a flaky dismissal, and it trapped a director who was
+trying to go and rebuy the player whose bust-out caused the imbalance.
+
+`lib/tableBalance.ts` owns the detection — untestable while it sat inline in the component — and the
+dismissal is latched against **what was dismissed** (`imbalanceKey`: which tables, what gap) rather
+than a bare boolean. The same imbalance stays waved away however often the roster is touched; a
+*different* one re-arms the prompt, because that is a question nobody has answered yet.
+
+**Two is the threshold, not one.** An odd field across two tables cannot be levelled, so prompting at
+a one-player difference fires on a table nobody can fix.
+
+The dialog also offers to **rebuy whoever just busted**, same as `FinalTableDialog`: the bust-out is
+what created the gap, so buying them back in removes it rather than shuffling the tables around it.
+
 ### A rebuy keeps the chair; a re-entry does not
 
 `eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
@@ -1373,7 +1422,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 |---|---|
 | `prizePool.ts` | Prize pool, rake and what one entry costs. **Rake is charged ON TOP of the buy-in**, so `net === gross` is deliberate, not a bug. Every money figure on screen comes from here. |
 | `seasonProgress.ts` | Game numbering, games played, season completion, next-season dates. |
-| `tournamentMode.ts` | Whether a tournament is a league game. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
+| `tournamentMode.ts` | Whether a tournament is a league game, and whether that can still be changed. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
 | `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |
@@ -1402,6 +1451,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `setupSync.ts` | Whether the director's setup travels up to the account, down to this device, or stays put. |
 | `accountWipe.ts` | What deleting an account removes, and the one order that does not strand it. |
 | `finalTable.ts` | Whether to ask for a final table, and how to put the seats back if it is undone. |
+| `tableBalance.ts` | Whether the tables are uneven enough to say so, and what a dismissal remembers. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already

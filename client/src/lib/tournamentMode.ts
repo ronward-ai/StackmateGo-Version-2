@@ -39,3 +39,37 @@ export function isLeagueTournament(tournament?: TournamentModeInput | null): boo
   // No explicit flag — fall back to the presence of a linked league.
   return !!tournament?.settings?.leagueId;
 }
+
+/** Only what deciding "has play started" needs. A `Player` satisfies it. */
+export interface PlacedPlayer {
+  /** A finishing position, set when a player busts. */
+  position?: number;
+}
+
+/**
+ * Is the game's TYPE now fixed — standalone or league, settled?
+ *
+ * The Standalone ↔ League slider was live for the whole game, and league result
+ * recording gates on nothing but the flag it writes (`PokerTimer`'s
+ * `syncLeagueResults`). That effect records every eliminated player not already
+ * processed, not just newly eliminated ones — so flipping to League part way
+ * through a standalone night wrote the WHOLE game's bust-outs into whichever
+ * league happened to be selected, silently, as real results. A director showing
+ * a colleague what league mode looks like corrupted a league's standings by
+ * doing it.
+ *
+ * Flipping back does not undo it: the removal path only fires for a player who
+ * becomes active again, which is a rebuy, not a mode change. And the reverse
+ * direction is just as bad — League → Standalone abandons results already
+ * written and leaves a half-recorded game in the table. One lock covers both.
+ *
+ * LOCKED AT THE FIRST BUST-OUT, not before. Until someone has a finishing
+ * position there is nothing to back-fill, and flipping is a legitimate
+ * correction: a director realising this should be tonight's league game after
+ * all. It is the moment results become recordable that the decision stops being
+ * free.
+ */
+export function gameTypeIsLocked(players?: PlacedPlayer[] | null): boolean {
+  if (!players || players.length === 0) return false;
+  return players.some(p => typeof p.position === 'number' && p.position > 0);
+}

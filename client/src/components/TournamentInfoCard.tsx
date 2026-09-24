@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw, Clock } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited, lateEntryOpen } from '@/lib/entryLimits';
+import { gameTypeIsLocked } from '@/lib/tournamentMode';
 import { payoutsOf } from '@/lib/payoutTemplates';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { gameNumberFor } from "@/lib/seasonProgress";
@@ -84,6 +85,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
   };
 
   const handleEnableLeague = () => {
+    if (gameTypeIsLocked(state.players)) return;
     setMode('season');
     if (league?.id) {
       updateSettings({ isSeasonTournament: true, leagueId: String(league.id) });
@@ -103,12 +105,26 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
   );
   const totalGames = displaySeason?.numberOfGames || 12;
 
+  /**
+   * Once a player has busted, what KIND of game this is stops being a free
+   * choice — see gameTypeIsLocked. League result recording gates on the flag
+   * this toggle writes and back-fills every elimination so far, so flipping
+   * mid-game wrote a whole standalone night into whichever league was selected.
+   * The reverse abandons results already recorded. Locked both ways.
+   */
+  const typeLocked = gameTypeIsLocked(state.players);
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
+      <div
+        className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0"
+        title={typeLocked ? 'This game has started, so its type is fixed.' : undefined}
+      >
         <button
-          className={cn(modeButton, !isLeagueMode ? modeActive : modeInactive)}
+          disabled={typeLocked}
+          className={cn(modeButton, !isLeagueMode ? modeActive : modeInactive, typeLocked && 'opacity-50 cursor-not-allowed')}
           onClick={() => {
+            if (typeLocked) return;
             setMode('standalone');
             // Clear the whole league context, not just the flag. Leaving leagueId
             // behind is what made spectators see a league standings table on a
@@ -125,12 +141,20 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
           Standalone
         </button>
         <button
-          className={cn(modeButton, isLeagueMode ? modeActive : modeInactive)}
+          disabled={typeLocked}
+          className={cn(modeButton, isLeagueMode ? modeActive : modeInactive, typeLocked && 'opacity-50 cursor-not-allowed')}
           onClick={handleEnableLeague}
         >
           League
         </button>
       </div>
+      {/* Say why, rather than leaving a dead control. An unexplained disabled
+          button is what sent a director to ask what the slider does. */}
+      {typeLocked && (
+        <span className="text-caption text-muted-foreground">
+          This game has started, so its type is fixed.
+        </span>
+      )}
       {/* The only copy of this line. TournamentInfoCard's header printed the
           identical sentence in the identical colour, so in league mode the same
           fact appeared twice on one screen. Beside the toggle is the better

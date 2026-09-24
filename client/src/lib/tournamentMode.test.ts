@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLeagueTournament } from './tournamentMode';
+import { isLeagueTournament, gameTypeIsLocked } from './tournamentMode';
 
 describe('isLeagueTournament', () => {
   it('is a league game when the flag is set on the document', () => {
@@ -43,5 +43,31 @@ describe('isLeagueTournament', () => {
   it('treats a cleared leagueId as standalone', () => {
     expect(isLeagueTournament({ settings: { leagueId: null } })).toBe(false);
     expect(isLeagueTournament({ settings: { leagueId: '' } })).toBe(false);
+  });
+});
+
+describe('gameTypeIsLocked', () => {
+  it('is unlocked before anyone has busted', () => {
+    // Nothing to back-fill yet, and flipping here is a legitimate correction —
+    // a director realising this should be tonight's league game.
+    expect(gameTypeIsLocked([{}, {}, {}])).toBe(false);
+  });
+
+  it('locks the moment a player has a finishing position', () => {
+    // The moment results become recordable is the moment the decision stops
+    // being free: syncLeagueResults back-fills EVERY eliminated player.
+    expect(gameTypeIsLocked([{ position: 9 }, {}])).toBe(true);
+  });
+
+  it('is unlocked for an empty or missing roster', () => {
+    expect(gameTypeIsLocked([])).toBe(false);
+    expect(gameTypeIsLocked(null)).toBe(false);
+    expect(gameTypeIsLocked(undefined)).toBe(false);
+  });
+
+  it('ignores a zero or negative position rather than reading it as a bust', () => {
+    // resetTournament and the seeding paths leave position unset or 0; treating
+    // that as "someone busted" would lock a game that has not started.
+    expect(gameTypeIsLocked([{ position: 0 }, { position: -1 }])).toBe(false);
   });
 });

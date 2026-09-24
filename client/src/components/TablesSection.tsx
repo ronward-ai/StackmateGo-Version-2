@@ -22,6 +22,7 @@ import FinalTableDialog from "./FinalTableDialog";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { activeCount, promptDismissedFor } from '@/lib/finalTable';
+import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
 import { canRebuy } from '@/lib/entryLimits';
 
@@ -86,6 +87,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   // against the player count it was dismissed at keeps it shut while the field
   // is that size, and re-arms it if the field changes again.
   const [finalTableDismissedAt, setFinalTableDismissedAt] = useState<number | null>(null);
+  /** Which imbalance was waved away, so "Ignore for now" stays ignored. */
+  const [balanceDismissedKey, setBalanceDismissedKey] = useState<string | null>(null);
 
   const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
   const [playerToBustOut, setPlayerToBustOut]     = useState<Player | null>(null);
@@ -142,27 +145,32 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     setIsFinalTableDialogOpen(true);
   }, [shouldPromptForFinalTable, finalTableDismissedAt, state.players]);
 
-  // Table balance check
+  // Table balance check — see lib/tableBalance.ts for why this is shaped the
+  // way it is.
+  //
+  // `tableBalanceDialogOpen` is deliberately NOT a dependency. It used to be
+  // both the early-return guard above and a dep, so dismissing the dialog
+  // changed a dep, re-ran the effect, passed the guard, found the imbalance
+  // still there — ignoring one does not fix it — and reopened instantly.
+  // "Ignore for now" could never work.
+  const currentImbalance = imbalance(state.players);
+
   useEffect(() => {
-    if (isFinalTableDialogOpen || moveMode || tableBalanceDialogOpen || shouldPromptForFinalTable()) return;
-    const seated = state.players.filter(p => p.seated && p.isActive !== false);
-    if (seated.length < 2) return;
-    const byTable: Record<number, Player[]> = {};
-    seated.forEach(pl => {
-      if (pl.tableAssignment) {
-        const t = pl.tableAssignment.tableIndex;
-        byTable[t] = [...(byTable[t] || []), pl];
-      }
+    if (isFinalTableDialogOpen || moveMode || shouldPromptForFinalTable()) return;
+    if (!currentImbalance) return;
+    if (imbalanceDismissed(balanceDismissedKey, currentImbalance)) return;
+
+    const playersToMove = state.players.filter(
+      p => p.seated && p.isActive !== false
+        && p.tableAssignment?.tableIndex === currentImbalance.overloadedTable,
+    );
+    setBalanceOptions({
+      overloadedTable: currentImbalance.overloadedTable,
+      underloadedTable: currentImbalance.underloadedTable,
+      playersToMove,
     });
-    const tabs = Object.entries(byTable).map(([k, v]) => ({ idx: parseInt(k), players: v }));
-    if (tabs.length < 2) return;
-    const max = tabs.reduce((a, b) => b.players.length > a.players.length ? b : a);
-    const min = tabs.reduce((a, b) => b.players.length < a.players.length ? b : a);
-    if (max.players.length - min.players.length >= 2) {
-      setBalanceOptions({ overloadedTable: max.idx, underloadedTable: min.idx, playersToMove: max.players });
-      setTableBalanceDialogOpen(true);
-    }
-  }, [state.players, isFinalTableDialogOpen, moveMode, tableBalanceDialogOpen]);
+    setTableBalanceDialogOpen(true);
+  }, [currentImbalance, balanceDismissedKey, isFinalTableDialogOpen, moveMode, shouldPromptForFinalTable, state.players]);
 
   const expandTableNames = (n: number) => {
     setTableNames(prev => n > prev.length
@@ -802,6 +810,30 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            {/* The answer that removes the imbalance instead of shuffling the
+                tables around it. A bust-out is what created the gap, so if that
+                player is buying back in, nobody needs to move at all — the same
+                move FinalTableDialog makes for the same reason. */}
+            {justBusted && canRebuy(state.prizeStructure, justBusted, state.currentLevel) && (
+              <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 space-y-2">
+                <p className="text-label leading-relaxed">
+                  <span className="font-medium">{justBusted.name}</span> busting is what left the
+                  tables uneven. If they are buying back in, nobody needs to move.
+                </p>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => {
+                    processRebuy(justBusted.id);
+                    setTableBalanceDialogOpen(false);
+                    setBalanceOptions(null);
+                  }}
+                >
+                  Rebuy {justBusted.name}
+                </Button>
+              </div>
+            )}
+
             <Button variant="outline" className="w-full justify-start h-auto p-4" onClick={balanceRandomly}>
               <div className="text-left">
                 <div className="font-medium flex items-center gap-2">
@@ -833,7 +865,11 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
           <Button
             variant="ghost"
             className="w-full text-muted-foreground"
-            onClick={() => { setTableBalanceDialogOpen(false); setBalanceOptions(null); }}
+            onClick={() => {
+              setBalanceDismissedKey(imbalanceKey(currentImbalance));
+              setTableBalanceDialogOpen(false);
+              setBalanceOptions(null);
+            }}
           >
             Ignore for now
           </Button>
