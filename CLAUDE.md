@@ -1495,31 +1495,30 @@ A synthetic season id used before Firestore resolves. Results tagged with it mat
 and vanish from every filtered view. Guard with `isRealSeasonId()` from `lib/seasonProgress.ts`
 before writing `seasonId` anywhere.
 
-### The landing page is a real page, and it is the whole first impression
+### The landing page is short on purpose
 
-`components/ComingSoonGate.tsx` is the door AND the marketing. Everyone who hears about StackMate
-before launch — every director another TD mentions it to — arrives here. It was a password box on an
-empty screen, which said nothing about what they were waiting for.
+`components/ComingSoonGate.tsx` is the door AND the marketing — everyone who hears about StackMate
+before launch arrives here. The unlock contract has not changed and must not: no
+`VITE_ACCESS_PASSWORD` means open, a correct code sets `smgo_unlocked` and the app renders instead.
 
-The unlock contract has not changed and must not: no `VITE_ACCESS_PASSWORD` means open, a correct
-code sets `smgo_unlocked` and the app renders instead of this.
+A long version of this page was written and cut the same day. Nobody reads a landing page; they scan
+one. It is a headline, three lines of what it is, three short pillars and the pictures. **Adding a
+paragraph here is nearly always the wrong instinct** — if something matters, it replaces a pillar.
 
 **Screenshots go through the local `Shot` component, and the frame is load-bearing.** Every screen in
 this app is near-black, and so is the page, so an unframed screenshot reads as a hole rather than a
-picture — `border border-border/60` plus a slight lift is what separates them. `Shot` also draws a
-labelled placeholder at the exact aspect ratio the real image will be cropped to, so the layout does
-not move when one lands. Images live in `client/public/shots/`; **bound them before committing** (this
-is the first thing anyone loads) and everything below the hero is `loading="lazy"`.
+picture. `Shot` also draws a labelled placeholder at the exact aspect ratio the real image will be
+cropped to, so the layout does not move when one lands. Images live in `client/public/shots/`; bound
+them before committing (this is the first thing anyone loads), and everything below the hero is lazy.
 
-**The trust section leads with credibility, never with failure.** It was headed *"Built by people who
-have lost a tournament"* — and "lost a tournament" reads to someone arriving cold as *lost tournament
-data*, which is the one thing this category of software must never do. The proof points are unchanged;
-the frame is inverted, so they land as things a working director wanted rather than as disasters
-survived.
+**The trust line leads with credibility, never with failure.** A draft was headed *"Built by people
+who have lost a tournament"* — which reads to someone arriving cold as *lost tournament data*, the
+one thing this category of software must never do. It says "made by people who know poker, and know
+running a poker league" instead.
 
-**A player never registers themselves**, in the copy as in the app — the director enters everyone and
-a player's phone only says which of them they are. "Check in" and "sign up" both read as
-self-registration. See the comment block in the file.
+**A player never registers themselves**, in the copy as in the app: they scan a code and see the
+night, including their own table and seat. "Check in" and "sign up" both read as self-registration.
+See the comment block in the file.
 
 ---
 

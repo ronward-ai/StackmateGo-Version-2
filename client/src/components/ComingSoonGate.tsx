@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { QrCode, Trophy, ShieldCheck } from 'lucide-react';
+import { QrCode, Trophy, Download } from 'lucide-react';
 
 const PASSWORD = import.meta.env.VITE_ACCESS_PASSWORD as string | undefined;
 const STORAGE_KEY = 'smgo_unlocked';
@@ -115,22 +115,21 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
   const pillars = [
     {
       icon: QrCode,
-      title: 'The whole room, same clock',
-      body: 'One code on the screen and every player follows the blinds, the prize pool and the ' +
-        'standings from their own phone. They find themselves on your list and watch their own seat.',
+      title: 'Everyone sees the same night',
+      body: 'Players scan the code on the screen and get the tournament live on their own phone \u2014 ' +
+        'clock, blinds, prize pool, payouts, and their own table and seat number.',
     },
     {
       icon: Trophy,
-      title: 'The league adds itself up',
-      body: 'Seasons, standings and twenty-five stats you pick from: hits, ROI, ITM, attendance, ' +
-        'streaks. Live all season, every player’s night-by-night history a tap away, the lot out ' +
-        'to a spreadsheet.',
+      title: 'The league runs itself',
+      body: 'Configurable seasons. Build your own points system or start from a template. Pick the ' +
+        'stats your table shows, and look up any player\u2019s record on its own.',
     },
     {
-      icon: ShieldCheck,
-      title: 'It survives the bad night',
-      body: 'A blocker, a dropped connection, a browser that will not keep a backup. If anything ' +
-        'stops saving you are told at the time, on screen, rather than at the end of the night.',
+      icon: Download,
+      title: 'Out to the group chat',
+      body: 'Standings download as a PNG for WhatsApp and socials, or a CSV for anyone who loves a ' +
+        'spreadsheet.',
     },
   ];
 
@@ -151,8 +150,10 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
                 Run the night.<br />The league runs itself.
               </h1>
               <p className="text-body sm:text-lg text-muted-foreground mt-5 max-w-[46ch] leading-relaxed">
-                A poker tournament clock and league manager for the person actually running the game.
-                The timer, the tables, the money and the standings all stay in agreement, and everyone at the table can see it.
+                Cloud based. Nothing to download. Works on any device.
+              </p>
+              <p className="text-body sm:text-lg text-foreground/90 mt-3 max-w-[46ch] leading-relaxed">
+                Made by people who know poker, and know running a poker league.
               </p>
               <p className="font-mono text-caption uppercase tracking-[0.08em] text-primary mt-6">
                 Coming soon
@@ -193,8 +194,6 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
           />
         </header>
 
-        {/* The at-a-glance version. The sections below are the same three
-            claims, said properly. */}
         <section className="grid gap-8 sm:gap-10 md:grid-cols-3">
           {pillars.map(({ icon: Icon, title, body }) => (
             <div key={title} className="flex flex-col gap-3">
@@ -205,130 +204,17 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
           ))}
         </section>
 
-        <section className="border-t border-border/40 pt-10">
-          <h2 className="font-display text-2xl sm:text-3xl text-balance">
-            It is called StackMate <span className="text-primary">Go</span> because it goes where you do.
-          </h2>
-          <p className="text-body text-muted-foreground mt-4 max-w-[62ch] leading-relaxed">
-            It runs in a browser. The laptop on the bar, the tablet propped against the rack, the
-            venue’s TV, the phone in your pocket — there is nothing to install and nothing to keep
-            up to date. The game belongs to your account rather than to a machine, so sign in on
-            whatever is to hand and the night is exactly where you left it. Hand the room over to
-            whoever is directing next and they pick it up on theirs.
-          </p>
-        </section>
-
-        <section className="border-t border-border/40 pt-10">
-          <h2 className="font-display text-2xl sm:text-3xl text-balance">
-            One code, and the room stops asking.
-          </h2>
-          <div className="grid gap-8 mt-5 md:grid-cols-[1.4fr_1fr] md:gap-12 md:items-start">
-            <div>
-              <p className="text-body text-muted-foreground max-w-[62ch] leading-relaxed">
-                Put the QR code on the screen and every player has the night in their hand: the same
-                clock the big screen is showing, the blinds and the ante, the prize pool, what each
-                place pays, the standings, and which table and seat they are in.
-              </p>
-              <p className="text-body text-muted-foreground max-w-[62ch] leading-relaxed mt-4">
-                You still enter everyone yourself — nobody registers themselves, which at a real
-                table would be chaos. A player simply finds their own name on the list you already
-                made, and their phone follows them from then on.
-              </p>
-              <p className="text-body text-foreground/90 max-w-[62ch] leading-relaxed mt-4">
-                What you notice is what stops happening. <em>Where am I sitting? What does third
-                pay? How long is left in this level? Is Dave still in?</em> Asked once, on a screen,
-                instead of forty times across the room while you are trying to count a rack.
-              </p>
-            </div>
-            <Shot
-              phone
-              alt="A player’s phone showing the live clock, blinds, payouts and their own seat"
-              caption="What the QR code opens."
-            />
-          </div>
-        </section>
-
-        <section className="border-t border-border/40 pt-10">
-          <h2 className="font-display text-2xl sm:text-3xl text-balance">
-            The league adds itself up, all season.
-          </h2>
-          <p className="text-body text-muted-foreground mt-4 max-w-[62ch] leading-relaxed">
-            Seasons run on dates, on a number of games, or on neither — a quarterly season and a
-            “until we’ve played twelve” season are both normal. Points are chosen by looking at a
-            table of what every place would actually score, not by picking the word “logarithmic”,
-            and knockouts and turning up can each be worth something on top.
-          </p>
-          <p className="text-body text-muted-foreground mt-4 max-w-[62ch] leading-relaxed">
-            Twenty-five stats are tracked and you choose which become columns: hits, ROI, in the
-            money, attendance, best finish, streaks. Tap a player’s name and their whole season comes
-            up night by night. Send the table to the group chat as an image, or out to a spreadsheet
-            as a CSV.
-          </p>
-          <p className="text-body text-foreground/90 mt-4 max-w-[62ch] leading-relaxed">
-            On the software most leagues are running, answering <em>“how many hits has Dave had this
-            season?”</em> means opening every game of the season one at a time and adding them up.
-            Here it is already a column.
-          </p>
-          <div className="grid gap-6 mt-8 md:grid-cols-2 md:gap-8">
-            <Shot
-              aspect="4 / 3"
-              alt="The league standings table with several stat columns turned on"
-              caption="Standings, with the columns this league cares about."
-            />
-            <Shot
-              aspect="4 / 3"
-              alt="One player’s season, game by game, with totals"
-              caption="Behind any player’s name: every night they have played."
-            />
-          </div>
-        </section>
-
-        <section className="border-t border-border/40 pt-10">
-          <h2 className="font-display text-2xl sm:text-3xl text-balance">
-            And it holds the night together while you are busy.
-          </h2>
-          <div className="grid gap-8 mt-5 md:grid-cols-[1fr_1.2fr] md:gap-12 md:items-start">
-            <div>
-              <p className="text-body text-muted-foreground max-w-[62ch] leading-relaxed">
-                Rebuy and re-entry windows are actually enforced, and when the button is unavailable
-                it says why rather than sitting there greyed out. Whoever you have just knocked out
-                is in a strip under the tables, one tap from buying back in — the screen you are
-                already on, not the one you would have to go and find.
-              </p>
-              <p className="text-body text-muted-foreground max-w-[62ch] leading-relaxed mt-4">
-                Uneven tables get pointed out, with the option to wave it away. The final table is
-                drawn for you when the field is small enough — and can be un-drawn, every seat back
-                as it was, if someone is about to rebuy. When it comes down to a deal, the chop
-                calculator splits only the money still to be won, by chips or by ICM.
-              </p>
-            </div>
-            <Shot
-              aspect="16 / 10"
-              alt="The tables and seating screen, with the busted strip underneath"
-              caption="Seating, and the players who have just gone out."
-            />
-          </div>
-        </section>
-
-        <section className="border-t border-border/40 pt-10">
-          <h2 className="font-display text-2xl sm:text-3xl text-balance">
-            Built by people who run games.
-          </h2>
-          <div className="grid gap-8 mt-5 md:grid-cols-[1.3fr_1fr] md:gap-12 md:items-start">
-            <p className="text-body text-muted-foreground max-w-[62ch] leading-relaxed">
-              Every feature here is one we wanted on a Tuesday night. Bust the wrong player and undo
-              puts them back in the chair they never left. Go to the final table too early and it
-              goes back, every seat as it was. Share a login with whoever is directing tonight and
-              you each keep your own setup, while the league follows the account to whatever device
-              you pick up. And if anything ever stops saving, you are told at the time, on screen —
-              not at the end of the night.
-            </p>
-            <Shot
-              aspect="4 / 3"
-              alt="The points table preview, showing what each place scores"
-              caption="Pick a points system by looking at it."
-            />
-          </div>
+        <section className="grid gap-6 md:grid-cols-[1fr_260px] md:gap-10 md:items-end">
+          <Shot
+            aspect="4 / 3"
+            alt="The league standings, with the stat columns this league cares about"
+            caption="Standings, all season, adding themselves up."
+          />
+          <Shot
+            phone
+            alt="A player’s phone: live clock, blinds, payouts, their table and seat"
+            caption="What the code opens."
+          />
         </section>
 
         <footer className="border-t border-border/40 pt-8 flex flex-wrap gap-x-6 gap-y-2 items-baseline">
