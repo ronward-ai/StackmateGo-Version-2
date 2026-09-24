@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -22,6 +22,9 @@ import EmptyState from '@/components/ui/empty-state';
 import { totalsAcross } from '@/lib/resultStats';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
+import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
+import { useToast } from '@/hooks/use-toast';
+import PlayerSeasonDialog from '@/components/PlayerSeasonDialog';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page. This
 // component renders in the participant view, where that matters most.
@@ -40,6 +43,9 @@ function RealTimeLeagueTable({
   // ALWAYS call ALL hooks first - never conditionally
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
+  /** Whose season is open, if any — the drill-down behind a player's name. */
+  const [openPlayer, setOpenPlayer] = useState<any | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   // Safety timeout — if data doesn't arrive within 6s, stop showing the spinner
   // so participants don't see it permanently when Firestore reads are silently failing
@@ -446,6 +452,35 @@ function RealTimeLeagueTable({
   }, [playersWithStats]);
 
 
+  /**
+   * The standings as a spreadsheet.
+   *
+   * Headers and cells come from `enabledStats` and `getPlayerStat` — the SAME
+   * ordered column list and the SAME accessor the table renders with — so the
+   * file cannot disagree with what the director was looking at when they
+   * pressed the button. Building a second column list for the export is
+   * precisely how the rake formula reached nine sites.
+   *
+   * Money keeps its currency symbol for that reason. Excel and Sheets both
+   * parse a leading symbol, so a column still sums.
+   */
+  const handleExportCsv = () => {
+    const headers = ['Rank', 'Player', ...enabledStats.map(stat => STAT_LABELS[stat] || stat)];
+    const rows = displayPlayers.map((player: any, index: number) => [
+      index + 1,
+      player.name,
+      ...enabledStats.map(stat => getPlayerStat(player, stat)),
+    ]);
+    const name = csvFilename([leagueName, currentSeasonName]);
+    if (!downloadCsv(name, toCsv(headers, rows))) {
+      toast({
+        title: 'Could not save the file',
+        description: 'The download was blocked. Try again, or use a different browser.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleExportImage = async () => {
     if (!exportRef.current) return;
 
@@ -639,17 +674,29 @@ function RealTimeLeagueTable({
                    arrow was reported as unclear on the end-of-game export. Kept
                    understated here: this is an always-available utility, not the
                    headline action the way it is when a tournament finishes. */
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportImage}
-                  disabled={isExporting}
-                  title="Save the standings table as an image you can share"
-                  className="h-8 px-3 gap-1.5"
-                >
-                  <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
-                  <span className="text-xs">{isExporting ? 'Saving…' : 'Export'}</span>
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportCsv}
+                    title="Download the standings as a spreadsheet"
+                    className="h-8 px-3 gap-1.5"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    <span className="text-xs">CSV</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportImage}
+                    disabled={isExporting}
+                    title="Save the standings table as an image you can share"
+                    className="h-8 px-3 gap-1.5"
+                  >
+                    <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
+                    <span className="text-xs">{isExporting ? 'Saving…' : 'Image'}</span>
+                  </Button>
+                </>
               )}
               <div className="text-sm text-muted-foreground">
                 {displayPlayers.length} player(s)
@@ -698,7 +745,12 @@ function RealTimeLeagueTable({
                     const currentRank = index + 1;
                     const movement = getRankingMovement(player.id, currentRank);
                     return (
-                      <TableRow key={player.id} className={index % 2 === 0 ? 'bg-[#1e1e1e]' : ''}>
+                      <TableRow
+                        key={player.id}
+                        onClick={() => setOpenPlayer(player)}
+                        className={`${index % 2 === 0 ? 'bg-[#1e1e1e]' : ''} cursor-pointer hover:bg-primary/10 transition-colors`}
+                        title={`See ${player.name}'s season game by game`}
+                      >
                         <TableCell className="font-medium w-6 text-center px-0.5 text-xs border-r border-slate-700">
                           <div className="flex items-center justify-center gap-1">
                             <span>{currentRank}</span>
@@ -763,6 +815,17 @@ function RealTimeLeagueTable({
 
       </CardContent>}
       </div>
+
+      {/* Game by game for one player — the follow-up the standings cannot
+          answer: not "how many hits", but WHICH night. */}
+      <PlayerSeasonDialog
+        isOpen={!!openPlayer}
+        onClose={() => setOpenPlayer(null)}
+        playerName={openPlayer?.name ?? ''}
+        seasonName={currentSeasonName}
+        results={openPlayer?.tournamentResults ?? []}
+        currencySymbol={sym}
+      />
     </Card>
   );
 }

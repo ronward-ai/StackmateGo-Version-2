@@ -572,6 +572,50 @@ Anonymous QR visitors see the logo and nothing else. They were never the ones st
 button on a screen they reached to watch a game is noise. Do not put the controls back for them
 without also solving the trap above for the signed-in case.
 
+### The standings export reuses the table's own accessor
+
+`handleExportCsv` in `RealTimeLeagueTable` builds its headers from `enabledStats` and its cells from
+`getPlayerStat` — the **same ordered column list and the same accessor the table renders with**. A
+director exports what they were just looking at, and a column cannot disagree with the screen.
+Building a second column list for the export is exactly how the rake formula reached nine sites.
+
+Money therefore keeps its currency symbol in the file. Excel and Sheets both parse a leading symbol,
+so a column still sums.
+
+**`lib/csv.ts` defuses formulas.** Excel, Sheets and Numbers all execute a cell beginning `=`, `+`,
+`-` or `@`, and a leading tab or carriage return smuggles one past a naive check. Player names are
+typed in by whoever is running the game and reach the file unmodified, so a name like
+`=HYPERLINK(...)` would run on the machine of whoever opened the export. A leading apostrophe, which
+spreadsheets strip on display, is the standard fix.
+
+The download writes a **UTF-8 BOM**: without it Excel reads the file as its local codepage and mangles
+any non-ASCII player name. `downloadCsv` returns false rather than throwing so the caller can say a
+download was blocked, instead of a button that silently does nothing.
+
+### One player's season lives in `lib/playerSeason.ts`
+
+The gap a director on other software reported: answering *"how many hits has Dave had?"* meant opening
+every game of the season one at a time and adding them up. The standings already answer that for the
+season; the drill-down behind a player's name answers the follow-up nobody could answer at all —
+**which night**.
+
+The arithmetic is in the lib rather than the dialog because it is the same arithmetic the league table
+does, and **two places deriving what a player spent is how Invested, Profit and ROI all read zero for
+a year**. `lib/resultStats.ts` still owns the per-result fallbacks; this only aggregates, and a test
+asserts the totals agree with the rows they summarise.
+
+Three details worth keeping:
+
+- **Most recent game first.** The question is nearly always about a recent night.
+- **A game with no usable date is kept, not dropped**, and sorts last. It is still a real result, and
+  losing it from the list would make the list quietly disagree with the totals.
+- **`averagePosition` and `bestFinish` are null, never 0**, for a player who has not played. "Average
+  position 0" is a lie on a fresh player, and the same class of thing as the silent zeros above.
+
+Knockouts and prize money are each read under both names they are stored under (`hitsIn`, `cashIn`) —
+the read whitelist renames `knockouts` to `playersEliminatedCount`, so both shapes exist in real
+documents.
+
 ### A league result is written once, from a whitelist, and read through another
 
 `tournamentResults` has exactly one writer — `addResultMutation` in `useLeague.ts` — and the read
@@ -1452,6 +1496,8 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `accountWipe.ts` | What deleting an account removes, and the one order that does not strand it. |
 | `finalTable.ts` | Whether to ask for a final table, and how to put the seats back if it is undone. |
 | `tableBalance.ts` | Whether the tables are uneven enough to say so, and what a dismissal remembers. |
+| `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
+| `playerSeason.ts` | One player's season game by game, and its totals. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already
