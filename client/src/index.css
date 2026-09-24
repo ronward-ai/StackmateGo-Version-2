@@ -852,9 +852,29 @@
   }
 }
 
-/* Prevent horizontal scroll on small screens */
+/* Prevent horizontal scroll on small screens.
+ *
+ * `clip`, NOT `hidden`, and the difference is not cosmetic: setting overflow on
+ * one axis makes the OTHER axis compute to `auto`, so `overflow-x: hidden` here
+ * turned `body` into a scroll container. A `position: sticky` element sticks to
+ * its nearest scrolling ancestor rather than the viewport, so EVERY sticky
+ * element in the app silently did nothing — measured, not guessed: with
+ * `hidden`, a sticky header scrolled 600px up sat at top:-600; with `clip` it
+ * sits at top:0.
+ *
+ * That cost the console's app bar, which shipped pinned-in-theory and scrolled
+ * away in practice, taking the clock it carries with it.
+ *
+ * `clip` suppresses the scrollbar exactly as `hidden` did and establishes no
+ * scroll container. It needs Chrome 90 / Firefox 81 / Safari 16; older Safari
+ * drops the declaration and falls back to `visible`, which is a horizontal
+ * scrollbar on a narrow page — a cosmetic regression on an old browser, against
+ * a feature that is otherwise dead on every browser. `max-width: 100vw` stays,
+ * so the common case is still bounded.
+ *
+ * DO NOT change this back to `hidden`. */
 html, body {
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100vw;
 }
 

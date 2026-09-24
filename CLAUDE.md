@@ -489,6 +489,22 @@ baseline from the lucide icon beside them, different again on each platform, and
 exported results image exactly as they looked. `✓` and `✗` were the worst of it: interface icons
 carrying meaning in league settings, drawn by the text renderer.
 
+### `overflow-x: hidden` on `html`/`body` breaks every `position: sticky` in the app
+
+`index.css` carried `html, body { overflow-x: hidden; max-width: 100vw }` from the initial import,
+under the comment "Prevent horizontal scroll on small screens". Setting overflow on one axis makes
+the OTHER axis compute to `auto`, so **`body` became a scroll container** — and a sticky element
+sticks to its nearest scrolling ancestor rather than the viewport.
+
+Measured, not assumed: with `hidden`, a sticky header scrolled 600px up sits at `top: -600`; with
+`clip` and with `visible` it sits at `top: 0`. It is `overflow-x: clip` now, which suppresses the
+scrollbar exactly as `hidden` did and establishes no scroll container. Safari needs 16 for `clip`;
+older versions drop the declaration and fall back to a horizontal scrollbar, which is a cosmetic
+regression on an old browser against a feature that was otherwise dead everywhere.
+
+**Do not change it back.** The console's app bar shipped pinned-in-theory and scrolled away in
+practice, taking the clock it carries with it, and nothing about the bar was wrong.
+
 ### The top of the console is an app bar, and the event is its headline
 
 `components/ConsoleHeader.tsx`. It was a StackMate wordmark with the tagline *"Your poker night,
@@ -501,6 +517,12 @@ one screen is exactly the fault the season line had, where the info card's heade
 identical sentence the toggle row already said. `branding.isVisible` still means something — with it
 on, the bar renders the venue logo and name larger. Removing it also fixed a real bug: that block
 rendered the venue logo **twice**, flanking the name on both sides.
+
+**24px, and hidden on phones.** It shipped at 16px and 80% opacity aiming for "quiet" and landed on
+absent. The phone rule is forced arithmetic rather than taste: the wordmark is 7.6:1, so 24px is
+182px wide, and a 390px phone has about 358px of which the status chip and the avatar take ~150 —
+roughly 20px left for the event name. One of the two has to go, and the event name is the one that
+cannot be worked out from context.
 
 **The mark is the small WORDMARK, not the four-chip icon.** The icon was tried first, at 24, 28 and
 32px, bare and tiled. At every size, in the top-left corner of an app, four orange bars read as a
@@ -526,6 +548,14 @@ one shows, and **a blocked browser beats a live game**: it is the one the direct
 it is the one that makes the other a lie, since a published game that is not syncing is showing
 participants a document that has stopped moving. A test asserts that order and fails if it is
 swapped.
+
+**The console CAN be rendered locally, and it has to be.** Firebase Auth rejects a fake API key, so
+the app dies at load with `auth/invalid-api-key` without real credentials — which is why the app bar
+was verified in a component harness and a page-level CSS fault went straight past it. `.devstub/`
+plus `npx vite build -c devstub.vite.config.ts` aliases `lib/firebase` and `hooks/useAuth` to stubs
+and the whole console renders. **Firestore stays real** — it initialises happily offline with a
+memory cache and simply fails its network calls; only `auth` is faked, because auth is the only part
+that refuses to start. Never used by the normal build: it needs that explicit `-c`.
 
 **Measure narrow layouts at 500px.** Headless Chrome clamps its window to about 500px, so a
 screenshot requested at 360 is rendered at 500 and cropped — which looks exactly like the bar

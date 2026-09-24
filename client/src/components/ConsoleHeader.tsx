@@ -153,13 +153,21 @@ export default function ConsoleHeader({
             comment warns about, and the corner position is what sells it. The
             icon is right for a browser tab and an app tile and wrong here.
 
-            16px is the point of the size: the product's name belongs on this
-            screen, but quietly, because whoever is looking at it is already
-            inside the product and cares about whose game this is. */}
+            24px and full opacity. It shipped at 16px and 80% aiming for
+            "quiet" and landed on absent, which is a different thing.
+
+            It is HIDDEN ON PHONES, and that is forced arithmetic rather than a
+            preference: the wordmark is 7.6:1, so 24px is 182px wide, and a
+            390px phone has ~358px of which the status chip and the avatar take
+            ~150 — about 20px left for the event name. One of the two has to go,
+            and the event name is the one that cannot be worked out from
+            context. Whoever is looking at a phone knows which app they opened.
+
+            The divider goes with it: it separates two things. */}
         <img
           src="/stackmatelogo.svg"
           alt="StackMate Go"
-          className="h-4 w-auto flex-shrink-0 opacity-80"
+          className="hidden sm:block h-6 w-auto flex-shrink-0"
         />
         <span className="hidden sm:block h-5 w-px bg-border flex-shrink-0" aria-hidden="true" />
 
