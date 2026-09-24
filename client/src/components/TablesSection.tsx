@@ -200,7 +200,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
           await updateDoc(doc(db, 'activeTournaments', state.details!.id.toString()), sanitizeForFirestore({
             settings: { ...state.settings, tableBackgrounds: updated }
           }));
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error('Could not save the table layout:', e); }
       }, 100);
     }
   };

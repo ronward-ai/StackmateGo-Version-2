@@ -155,6 +155,48 @@ So the mirror is written for live games too, and the hazard is closed at the oth
 The clock is deliberately restored paused, in both paths. The page was away for an unknown time, so
 resuming a running timer would silently be wrong.
 
+### One sync streak, app-wide — and the device is the other place data vanishes
+
+`lib/syncHealth.ts` owns the judgement (report once per streak; make `unavailable` prove it
+persists). **`lib/syncReporter.ts` holds the streak**, at module scope. It used to live in a closure
+inside `PokerTimer`, which meant `useSeasons`, `useLeagueSettings` and the Buy-in tab had no way to
+reach it and simply logged to a console nobody has open on a tablet.
+
+**One streak for the whole app, deliberately.** There is one database and one connection, so two
+reporters would each raise their own toast for the same outage — which is the "three identical
+destructive toasts that will not go away" problem `syncHealth` was written to end. Module scope
+rather than a provider works because `toast` is exported standalone from `hooks/use-toast.ts`.
+
+**The device is the second place a game can disappear, and nothing watched it.** The local mirror is
+the safety net for when Firestore writes are blocked — it is the only reason a tournament survived
+an ad blocker cancelling every write. If localStorage is failing too (quota, private mode, storage
+off by policy) the game exists nowhere but the tab's memory. Every one of those writes was a bare
+`catch {}`.
+
+`lib/scopedStorage.ts` now carries a **storage-health flag**: a failed `setItem` flips it and
+notifies, and `PokerTimer` shows a standing banner — a condition, like a blocked browser, not an
+event. When BOTH are failing it says so in the strongest terms, because that pair is the only
+combination that loses a game outright.
+
+A failed **remove** is deliberately not a health signal: leaving stale data is untidy but costs
+nothing. Only a failed write costs a director their game.
+
+`readLocalProgress` separates **`corrupt` from `absent`**. They both used to return null and read
+identically, so a mirror that existed but could not be parsed looked exactly like never having had
+one — the single case where a director would want to know.
+
+### A claim is released after the work, never before
+
+`PokerTimer`'s rebuy path deletes the player's entry from `processedEliminationsRef` **after** the
+`await removeTournamentResultForPlayer` resolves. It used to go first, and that was a real loss: on
+failure the claim was already gone, so the next pass saw the player as unprocessed and `continue`d
+straight past them. The stale league result was never retried and the player kept a wrong finishing
+position **permanently**.
+
+The elimination path ninety lines below always had it right — it releases the claim on failure
+precisely *so that* the next pass retries, and toasts. Two paths, one rule, and only one of them
+followed it.
+
 ### An ad blocker is a first-class failure mode
 
 `ERR_BLOCKED_BY_CLIENT` on `firestore.googleapis.com` is a browser extension cancelling the request
@@ -1481,6 +1523,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tournamentClock.ts` | Seconds left, derived from the end time while running and the stored countdown while paused. |
 | `localProgress.ts` | The local mirror of the game being run, and when it may be offered back. |
 | `syncHealth.ts` | Whether a sync failure is worth telling the director about. |
+| `syncReporter.ts` | The one streak for the whole app, and the only thing that raises the sync toast. |
 | `speak.ts` / `announcements.ts` | The voice, and the wording it speaks. |
 | `chimes.ts` | The two sounds the game makes. |
 | `imageDownscale.ts` | Bounding an uploaded logo before it is stored. |

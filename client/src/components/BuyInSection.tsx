@@ -15,6 +15,7 @@ import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDoll
 import { cn, sanitizeForFirestore } from "@/lib/utils";
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { reportWriteFailure } from '@/lib/syncReporter';
 
 interface BuyInSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -248,7 +249,13 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
       updateDoc(
         doc(db, 'activeTournaments', state.details.id.toString()),
         sanitizeForFirestore({ settings: { ...state.settings, currency: currencySymbol }, prizeStructure: newPrizeStructure })
-      ).catch(err => console.error('Failed to persist prize structure:', err));
+      ).catch(err => {
+        // Fire and forget so a flaky network never freezes the UI — but not
+        // silent. On failure this console and every participant device stay on
+        // the OLD structure, so the money on screen disagrees with the money on
+        // the phones for the rest of the night.
+        reportWriteFailure('The buy-in and payouts', err);
+      });
     }
 
     setIsApplying(false);

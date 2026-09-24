@@ -6,6 +6,7 @@ import {
   recoverableProgress,
   saveLocalProgress,
   type LocalProgress,
+  readLocalProgress,
 } from './localProgress';
 import type { Player } from '@/types';
 
@@ -70,5 +71,33 @@ describe('recoverableProgress', () => {
     saveLocalProgress(progress({ dbTournamentId: 'game_1' }));
     clearLocalProgress();
     expect(recoverableProgress('game_1', 0)).toBeNull();
+  });
+});
+
+describe('readLocalProgress', () => {
+  it('separates a corrupt mirror from never having had one', () => {
+    // Both used to return null and read identically, so a backup that existed
+    // but could not be parsed looked exactly like no backup — the one case a
+    // director would actually want to know about.
+    expect(readLocalProgress('game_1')).toEqual({ miss: 'absent' });
+
+    localStorage.setItem('tournamentLocalProgress::local', 'not json at all');
+    expect(readLocalProgress('game_1')).toEqual({ miss: 'corrupt' });
+  });
+
+  it('calls a mirror of the right shape but the wrong game a mismatch', () => {
+    saveLocalProgress(progress({ localGameId: 'game_2' }));
+    expect(readLocalProgress('game_1')).toEqual({ miss: 'mismatch' });
+  });
+
+  it('treats a blob missing its players array as corrupt, not absent', () => {
+    localStorage.setItem('tournamentLocalProgress::local', JSON.stringify({ localGameId: 'game_1' }));
+    expect(readLocalProgress('game_1')).toEqual({ miss: 'corrupt' });
+  });
+
+  it('returns the mirror when it is the right game', () => {
+    saveLocalProgress(progress());
+    const result = readLocalProgress('game_1');
+    expect('progress' in result && result.progress.players).toHaveLength(2);
   });
 });

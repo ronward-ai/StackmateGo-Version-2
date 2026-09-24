@@ -93,9 +93,15 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
         numberOfGames: typeof games === 'number' ? games : 12,
         status: 'active',
       });
-      if (created?.id && created.id !== 'default-season') {
-        await setActiveSeason(String(created.id));
+      // A failed create used to close this dialog and reset the form anyway, so
+      // the director walked away believing they had a season. addSeason returns
+      // null now rather than a synthetic one, and nothing is cleared until it
+      // has genuinely been created — their typing survives the retry.
+      if (!created?.id || created.id === 'default-season') {
+        setError('The season could not be created. Check your connection and try again.');
+        return;
       }
+      await setActiveSeason(String(created.id));
       setShowNew(false); setName(''); setGames(12); setDateRange(undefined);
       setPlayNights([]); setEveryNWeeks(1);
     } catch (err: any) {

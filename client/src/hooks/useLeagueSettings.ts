@@ -12,6 +12,7 @@ import {
 } from '@/types/leagueSettings';
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
+import { reportWriteFailure } from '@/lib/syncReporter';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
@@ -443,6 +444,9 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
 
       setSavedSettings(prev => [...prev, savedSetting as any]);
     } catch (error) {
+      // Without this the director sees the UI update, the write never lands,
+      // and the scheme is silently back to the old one on the next reload.
+      reportWriteFailure('The points system', error);
       console.error('Error saving settings to database:', error);
     }
   }, [settings, user?.id, leagueId, savedSettings]);
@@ -463,6 +467,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
       await deleteDoc(doc(db, 'leagueSettings', String(settingId)));
       setSavedSettings(prev => prev.filter(s => s.id !== settingId));
     } catch (error) {
+      reportWriteFailure('The saved points formula', error);
       console.error('Error deleting settings from database:', error);
     }
   }, [user?.id]);

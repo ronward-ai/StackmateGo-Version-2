@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useTournament } from '@/hooks/useTournament';
@@ -30,16 +30,8 @@ import TablesSection from '@/components/TablesSection';
 import BlindLevelsSection from '@/components/BlindLevelsSection';
 import BuyInSection from '@/components/BuyInSection';
 import QRCodeSection from '@/components/QRCodeSection';
-import {
-  HEALTHY,
-  isBlocked,
-  markReported,
-  recordFailure,
-  recordSuccess,
-  shouldReport,
-  syncFailureMessage,
-  type SyncHealth,
-} from '@/lib/syncHealth';
+import { reportWriteFailure, reportWriteSuccess, subscribeSyncHealth, getSyncBlocked } from '@/lib/syncReporter';
+import { isStorageWritable, subscribeStorageHealth } from '@/lib/scopedStorage';
 import { recoverableProgress } from '@/lib/localProgress';
 import { lastSignedInUid } from '@/lib/scopedStorage';
 import { useDirectorSetupSync } from '@/hooks/useDirectorSetupSync';
@@ -601,33 +593,21 @@ function PokerTimerInner({
   // outright — an offline blip, self-healing — meant an ad blocker cancelling
   // every write to firestore.googleapis.com was reported nowhere at all, and a
   // whole tournament was never saved without a word on screen.
-  const syncHealthRef = useRef<SyncHealth>(HEALTHY);
-  const [syncBlocked, setSyncBlocked] = useState(false);
+  // The streak itself lives in lib/syncReporter.ts, at module scope, because it
+  // used to live HERE — in a closure — and so useSeasons, useLeagueSettings and
+  // the Buy-in tab had no way to reach it and logged to a console nobody has
+  // open on a tablet. One database means one streak: two reporters would each
+  // raise their own toast for the same outage.
+  const syncBlocked = useSyncExternalStore(subscribeSyncHealth, getSyncBlocked, getSyncBlocked);
+  // The OTHER place a game can vanish. The preflight checks Firestore and never
+  // checked this — see the note in lib/scopedStorage.ts.
+  const storageWritable = useSyncExternalStore(subscribeStorageHealth, isStorageWritable, isStorageWritable);
   const [preflightFailed, setPreflightFailed] = useState(false);
   const [recoverable, setRecoverable] = useState<ReturnType<typeof recoverableProgress>>(null);
   const [recoveryDismissed, setRecoveryDismissed] = useState(false);
 
-  const reportSyncFailure = (what: string, error: unknown) => {
-    const code = (error as { code?: string } | null)?.code ?? 'unknown';
-    console.error(`${what} sync to Firestore failed:`, error);
-
-    const now = Date.now();
-    let health = recordFailure(syncHealthRef.current, code, now);
-    if (shouldReport(health, now)) {
-      const description = syncFailureMessage(health, what);
-      health = markReported(health);
-      toast({ title: 'Sync issue', description, variant: 'destructive' });
-      // The overlay is for phones, which have no console to read.
-      reportToOverlay(`sync ${code}: ${description}`);
-    }
-    syncHealthRef.current = health;
-    setSyncBlocked(isBlocked(health, now));
-  };
-
-  const reportSyncSuccess = () => {
-    syncHealthRef.current = recordSuccess();
-    setSyncBlocked(false);
-  };
+  const reportSyncFailure = reportWriteFailure;
+  const reportSyncSuccess = reportWriteSuccess;
 
   // The document the syncs read and write. Derived, not held: the QR code used
   // to work this out separately from the sync effects and the two disagreed —
@@ -893,10 +873,22 @@ function PokerTimerInner({
         for (const player of activePlayers) {
           if (!processedEliminationsRef.current.has(player.id)) continue;
           try {
-            processedEliminationsRef.current.delete(player.id);
+            // The claim is released only AFTER the removal lands. It used to go
+            // first, so a failed removal left the claim gone — and the next
+            // pass, seeing the player as unprocessed, skipped straight past
+            // them. The stale result was never retried and the player kept a
+            // wrong finishing position in the league permanently.
             if (gameId) await removeTournamentResultForPlayer(player.name, gameId);
+            processedEliminationsRef.current.delete(player.id);
           } catch (rebuyError) {
-            console.error('Error handling rebuy for league tracking:', player.name, rebuyError);
+            // Claim kept, so the next pass tries again — the same shape as the
+            // elimination path below.
+            reportWriteFailure(`${player.name}'s rebuy`, rebuyError);
+            toast({
+              title: 'League result not cleared',
+              description: `${player.name} bought back in, but their old result could not be removed from the league. It will be retried automatically.`,
+              variant: 'destructive',
+            });
           }
         }
 
@@ -1196,6 +1188,29 @@ function PokerTimerInner({
               {unreadTournament && !preflightFailed && !syncBlocked
                 ? 'This device has not been able to read the saved game, so nothing it does is being stored — and players you remove may come back. Reload the page; if that does not help, check for an ad or tracker blocker.'
                 : 'An ad or tracker blocker in this browser is stopping StackMate reaching its database. Allow this site in it (in uBlock Origin: click its icon, then the large power button) and reload. The game keeps running on this device meanwhile, but nothing is being stored and it will not survive a refresh.'}
+            </div>
+          </div>
+        )}
+
+        {/* This device cannot save either.
+            The local mirror is what saved a tournament when an ad blocker
+            cancelled every Firestore write — so it failing is not a lesser
+            problem than the banner above, it is the other half of the only
+            pair that loses a game outright. Said separately because the fix is
+            different: the one above is about a blocker, this one is about the
+            browser's own storage. */}
+        {!storageWritable && (
+          <div className="mb-6 rounded-xl border border-red-400/30 bg-red-400/[0.08] p-4 flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="text-body text-foreground/90">
+              <div className="font-semibold text-red-400 mb-1">
+                {syncBlocked
+                  ? 'This game exists only in this tab'
+                  : 'This device cannot keep a backup'}
+              </div>
+              {syncBlocked
+                ? 'Neither the database nor this browser\u2019s storage can be written to, so nothing about this game is saved anywhere. Do not refresh or close this tab. Write the chip counts down, then sort the blocker out.'
+                : 'This browser is refusing to store anything \u2014 private browsing, a full disk, or storage turned off in its settings. The game is still being saved to your account, but this device has no backup if the connection drops.'}
             </div>
           </div>
         )}

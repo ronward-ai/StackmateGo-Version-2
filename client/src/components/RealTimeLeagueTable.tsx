@@ -563,7 +563,14 @@ function RealTimeLeagueTable({
       link.href = canvas.toDataURL();
       link.click();
     } catch (error) {
+      // The spinner stopped and nothing downloaded, which is indistinguishable
+      // from a button that does not work.
       console.error('Error exporting league standings:', error);
+      toast({
+        title: 'Could not save the image',
+        description: 'The standings image could not be created. The CSV export is an alternative.',
+        variant: 'destructive',
+      });
     } finally {
       setIsExporting(false);
     }

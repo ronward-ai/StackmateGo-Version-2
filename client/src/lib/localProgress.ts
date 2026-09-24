@@ -31,17 +31,45 @@ export interface LocalProgress {
   updatedAt?: string;
 }
 
-export function loadLocalProgress(localGameId?: string, uid: string | null = null): LocalProgress | null {
-  if (!localGameId) return null;
+/**
+ * Why there is no mirror to offer.
+ *
+ * `absent` and `corrupt` both used to return null and read identically to the
+ * caller — so a mirror that existed but could not be parsed looked exactly like
+ * never having had one, which is the single case where a director would want to
+ * know. `mismatch` is ordinary: the mirror belongs to a different game.
+ */
+export type LocalProgressMiss = 'absent' | 'mismatch' | 'corrupt';
+
+export function readLocalProgress(
+  localGameId?: string,
+  uid: string | null = null,
+): { progress: LocalProgress } | { miss: LocalProgressMiss } {
+  if (!localGameId) return { miss: 'absent' };
+
+  const raw = readScoped(LOCAL_PROGRESS_KEY, uid);
+  if (!raw) return { miss: 'absent' };
+
+  let saved: LocalProgress;
   try {
-    const raw = readScoped(LOCAL_PROGRESS_KEY, uid);
-    if (!raw) return null;
-    const saved = JSON.parse(raw) as LocalProgress;
-    if (saved?.localGameId !== localGameId || !Array.isArray(saved.players)) return null;
-    return saved;
-  } catch {
-    return null;
+    saved = JSON.parse(raw) as LocalProgress;
+  } catch (err) {
+    console.error('The local backup of this game could not be read:', err);
+    return { miss: 'corrupt' };
   }
+
+  if (!saved || !Array.isArray(saved.players)) {
+    console.error('The local backup of this game is not the right shape.');
+    return { miss: 'corrupt' };
+  }
+  if (saved.localGameId !== localGameId) return { miss: 'mismatch' };
+  return { progress: saved };
+}
+
+/** The original shape, for callers that only want the roster or nothing. */
+export function loadLocalProgress(localGameId?: string, uid: string | null = null): LocalProgress | null {
+  const result = readLocalProgress(localGameId, uid);
+  return 'progress' in result ? result.progress : null;
 }
 
 export function saveLocalProgress(progress: LocalProgress, uid: string | null = null) {

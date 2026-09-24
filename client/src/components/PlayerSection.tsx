@@ -549,6 +549,11 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
       link.click();
     } catch (error) {
       console.error('Error exporting players & rankings:', error);
+      toast({
+        title: 'Could not save the image',
+        description: 'The results image could not be created. Try again, or take a screenshot.',
+        variant: 'destructive',
+      });
     } finally {
       setIsExporting(false);
     }

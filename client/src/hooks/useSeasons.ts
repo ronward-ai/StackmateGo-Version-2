@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from './useLeagueSettings';
 import { useAuth } from './useAuth';
 import { db, collections } from '@/lib/firebase';
+import { reportWriteFailure } from '@/lib/syncReporter';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
@@ -265,7 +266,14 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     if (!legacyActive) return;
     backfilledLeagues.add(key);
     updateDoc(doc(db, 'leagues', key), { activeSeasonId: String(legacyActive.id) })
-      .catch(() => { /* not the owner, or offline — harmless */ });
+      .catch(err => {
+        // Being denied IS correct and expected: only the owner should be
+        // setting this, and every participant device runs the same effect.
+        // Anything else — offline, blocked — is not harmless, because the
+        // league keeps pointing at the old season and results land against it.
+        if ((err as { code?: string })?.code === 'permission-denied') return;
+        reportWriteFailure('The league\u2019s current season', err);
+      });
   }, [leagueId, leagueDoc, activeSeasonId, seasons]);
 
   // Format season date range for display
@@ -297,7 +305,7 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
   }) => {
     if (!leagueId) {
       console.warn('Cannot create season without league ID');
-      return fallbackSeason;
+      return null;
     }
     
     try {
@@ -311,10 +319,15 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
         numberOfGames: newSeason.numberOfGames
       };
     } catch (error) {
-      console.error('Failed to create season:', error);
-      return fallbackSeason;
+      // NOT the fallback season. Handing back an object that looks like a
+      // season but carries the synthetic 'default-season' id means results
+      // filed against it match no real season and vanish from every filtered
+      // view — the hazard isRealSeasonId() exists to guard. Both callers
+      // already test `created?.id`, so null flows through their guards.
+      reportWriteFailure('The season', error);
+      return null;
     }
-  }, [leagueId, createSeasonMutation, fallbackSeason]);
+  }, [leagueId, createSeasonMutation]);
 
   // Update an existing season
   const updateSeason = useCallback(async (seasonId: string | number, data: Partial<Season>) => {
@@ -370,7 +383,9 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ['leaguePlayers', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['leagueResults', leagueId] });
     } catch (error) {
-      console.error('Failed to reset season:', error);
+      // Destructive and partially applied: some results may already be gone.
+      // Saying nothing leaves a director thinking the season was cleared.
+      reportWriteFailure('The season reset', error);
     }
   }, [leagueId, queryClient]);
 

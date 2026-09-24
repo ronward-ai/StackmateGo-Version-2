@@ -82,16 +82,64 @@ function safeGet(key: string): string | null {
   }
 }
 
+/**
+ * Whether this device can still be written to.
+ *
+ * The local mirror is the safety net for when Firestore writes are BLOCKED —
+ * an ad blocker cancelling every request is a case this app has actually hit,
+ * and the mirror is the only reason a tournament survived it. If localStorage
+ * is failing too — quota exceeded, Safari private mode, storage disabled by
+ * policy — then a live game exists nowhere but this tab's memory, and every
+ * write here was a `catch {}` that said nothing at all.
+ *
+ * The preflight checks Firestore and has never checked storage. This is the
+ * other half: a condition, not an event, so it drives a standing indicator the
+ * same way a blocked browser does rather than a toast that scrolls away.
+ */
+let storageWritable = true;
+const storageListeners = new Set<() => void>();
+
+function setStorageWritable(writable: boolean): void {
+  if (storageWritable === writable) return;
+  storageWritable = writable;
+  storageListeners.forEach(fn => fn());
+}
+
+/** For `useSyncExternalStore`. */
+export function subscribeStorageHealth(listener: () => void): () => void {
+  storageListeners.add(listener);
+  return () => { storageListeners.delete(listener); };
+}
+
+/** False when a write to this device last failed. */
+export function isStorageWritable(): boolean {
+  return storageWritable;
+}
+
+/** Test seam. Nothing in the app calls this. */
+export function __resetStorageHealth(): void {
+  storageWritable = true;
+  storageListeners.clear();
+}
+
 function safeSet(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
-  } catch {}
+    setStorageWritable(true);
+  } catch (err) {
+    console.error('Could not write to this device:', key, err);
+    setStorageWritable(false);
+  }
 }
 
 function safeRemove(key: string): void {
   try {
     localStorage.removeItem(key);
-  } catch {}
+  } catch (err) {
+    // Not a health signal: failing to REMOVE something leaves stale data, which
+    // is untidy but loses nothing. Only a failed write costs a director data.
+    console.error('Could not clear from this device:', key, err);
+  }
 }
 
 /** Which bucket a uid reads and writes. Signed out is a bucket like any other. */

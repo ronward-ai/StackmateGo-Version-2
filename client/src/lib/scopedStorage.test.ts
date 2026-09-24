@@ -1,10 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   LOCAL_BUCKET,
   bucketFor,
   canReadLegacy,
   claimStorageFor,
   clearScopedStorage,
+  __resetStorageHealth,
+  isStorageWritable,
+  subscribeStorageHealth,
   isScopedKey,
   lastSignedInUid,
   readScoped,
@@ -222,5 +225,63 @@ describe('clearScopedStorage', () => {
     writeScoped('tournamentSettings', '{"local":1}', null);
     clearScopedStorage(null);
     expect(readScoped('tournamentSettings', null)).toBeNull();
+  });
+});
+
+describe('storage health', () => {
+  beforeEach(() => { localStorage.clear(); __resetStorageHealth(); });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('starts writable', () => {
+    expect(isStorageWritable()).toBe(true);
+  });
+
+  it('notices a write this device refuses', () => {
+    // Quota exceeded, Safari private mode, storage disabled by policy. The
+    // mirror is the safety net for a blocked browser, so if this is failing too
+    // a live game exists nowhere but the tab's memory.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError');
+    });
+    writeScoped('tournamentLocalProgress', '{"players":[]}', 'alice');
+    expect(isStorageWritable()).toBe(false);
+  });
+
+  it('recovers when a write lands again', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+      .mockImplementationOnce(() => { throw new DOMException('QuotaExceededError'); });
+    writeScoped('tournamentLocalProgress', '{"players":[]}', 'alice');
+    expect(isStorageWritable()).toBe(false);
+
+    setItem.mockRestore();
+    writeScoped('tournamentLocalProgress', '{"players":[]}', 'alice');
+    expect(isStorageWritable()).toBe(true);
+  });
+
+  it('tells subscribers when the state changes, not on every write', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const listener = vi.fn();
+    subscribeStorageHealth(listener);
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError');
+    });
+    writeScoped('tournamentSettings', 'x', 'alice');
+    expect(listener).toHaveBeenCalledTimes(1);
+    writeScoped('tournamentSettings', 'y', 'alice');
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not treat a failed REMOVE as data loss', () => {
+    // Failing to clear something leaves stale data, which is untidy but loses
+    // nothing. Only a failed write costs a director their game.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new DOMException('SecurityError');
+    });
+    removeScoped('tournamentSettings', 'alice');
+    expect(isStorageWritable()).toBe(true);
   });
 });
