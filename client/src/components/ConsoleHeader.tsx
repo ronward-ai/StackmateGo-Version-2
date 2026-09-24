@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { AuthModal } from '@/components/AuthModal';
 import TournamentStatusChip from '@/components/TournamentStatusChip';
+import { useIsOffscreen } from '@/hooks/useIsOffscreen';
 
 /**
  * The account control: a circled initial, not a button competing with the
@@ -143,9 +144,30 @@ export default function ConsoleHeader({
   const showClock = !!clock;
   const big = brandingVisible === true;
 
+  // The bottom edge is drawn only once something is actually sliding under the
+  // bar. Unconditionally, it was a hairline under the logo on an unscrolled page
+  // separating nothing — and, because the bar used to live inside the page's
+  // max-w-4xl container, an 896px stub floating in the middle of a laptop screen
+  // rather than the edge of a bar.
+  //
+  // A sentinel at the very top of the document answers "has this scrolled",
+  // through the same IntersectionObserver hook the clock uses — no scroll
+  // listener on a page that re-renders every second. It MUST pass rootMargin
+  // '0px'; the hook's -8px default would call it off screen at rest.
+  const { ref: topRef, offscreen: detached } = useIsOffscreen<HTMLDivElement>('0px');
+
   return (
-    <header className="sticky top-0 z-40 -mx-4 px-4 mb-4 border-b border-border/50 bg-background/85 backdrop-blur-md">
-      <div className="h-14 flex items-center gap-3 overflow-hidden">
+    <>
+      <div ref={topRef} aria-hidden="true" className="h-px -mb-px" />
+      {/* Full bleed, with the row in its own container: the border and the
+          blur run the width of the window while the wordmark and the account
+          still line up with the cards below. */}
+      <header
+        className={`sticky top-0 z-40 border-b transition-colors bg-background/85 backdrop-blur-md ${
+          detached ? 'border-border/50' : 'border-transparent'
+        }`}
+      >
+        <div className="container mx-auto max-w-4xl px-4 h-14 flex items-center gap-3 overflow-hidden">
         {/* The WORDMARK, small and quiet — not the four-chip mark, which was
             tried first and does not survive this context. At 24-32px in the
             top-left corner of an app, four orange bars read as a hamburger
@@ -199,11 +221,12 @@ export default function ConsoleHeader({
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2.5 flex-shrink-0">
-          <TournamentStatusChip syncBlocked={syncBlocked} isLive={isLive} />
-          <AccountControl />
+          <div className="ml-auto flex items-center gap-2.5 flex-shrink-0">
+            <TournamentStatusChip syncBlocked={syncBlocked} isLive={isLive} />
+            <AccountControl />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }

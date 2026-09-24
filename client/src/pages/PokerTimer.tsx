@@ -1034,6 +1034,26 @@ function PokerTimerInner({
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
+      {/* The app bar. It was a wordmark, a tagline and an outline Account
+          button, with the VENUE's logo and event name centred underneath in
+          smaller type — two brands competing and the wrong one winning.
+          See components/ConsoleHeader.tsx.
+
+          The centred branding block went with it rather than being kept
+          alongside: the event name at two sizes on one screen is exactly the
+          fault the season line had, where the info card's header printed the
+          identical sentence the toggle row already said. One place. */}
+      <ConsoleHeader
+        eventName={displayEventName}
+        venueLogoUrl={tournament.state.settings.branding?.isVisible
+          ? tournament.state.settings.branding?.logoUrl
+          : undefined}
+        brandingVisible={tournament.state.settings.branding?.isVisible}
+        syncBlocked={syncBlocked || preflightFailed || unreadTournament || gameIsMissing}
+        isLive={isLive}
+        clock={timerOffscreen ? tournament.formatTime() : null}
+        levelLabel={timerOffscreen ? levelLabel : null}
+      />
       <div className="container mx-auto px-4 py-3 sm:py-6 max-w-4xl">
         {/* Header — row 1: logo + user menu | row 2: mode toggle */}
         {showSignedOutBar && (
@@ -1065,26 +1085,6 @@ function PokerTimerInner({
         )}
         <AuthModal isOpen={showSignInModal} onClose={() => setShowSignInModal(false)} />
 
-        {/* The app bar. It was a wordmark, a tagline and an outline Account
-            button, with the VENUE's logo and event name centred underneath in
-            smaller type — two brands competing and the wrong one winning.
-            See components/ConsoleHeader.tsx.
-
-            The centred branding block went with it rather than being kept
-            alongside: the event name at two sizes on one screen is exactly the
-            fault the season line had, where the info card's header printed the
-            identical sentence the toggle row already said. One place. */}
-        <ConsoleHeader
-          eventName={displayEventName}
-          venueLogoUrl={tournament.state.settings.branding?.isVisible
-            ? tournament.state.settings.branding?.logoUrl
-            : undefined}
-          brandingVisible={tournament.state.settings.branding?.isVisible}
-          syncBlocked={syncBlocked || preflightFailed || unreadTournament || gameIsMissing}
-          isLive={isLive}
-          clock={timerOffscreen ? tournament.formatTime() : null}
-          levelLabel={timerOffscreen ? levelLabel : null}
-        />
 
         {/* Tournament Over Banner */}
         {(() => {

@@ -531,6 +531,19 @@ what sells it. The icon is right for a browser tab and an app tile and wrong her
 opacity is the point of it: the product's name belongs on the screen, quietly, because whoever is
 looking is already inside the product.
 
+**The bottom edge is drawn only when something is sliding under it, and it is full bleed.** It was
+an unconditional hairline, which at rest separated nothing — and because the bar lived inside the
+page's `max-w-4xl` container it was an 896px stub floating in the middle of a laptop screen rather
+than the edge of a bar. The bar now sits OUTSIDE that container, above it, with its row in a
+container of its own, so the border and the blur run the width of the window while the wordmark and
+the account still line up with the cards below.
+
+A `h-px` sentinel at the very top of the document answers "has this scrolled", through the same
+`useIsOffscreen` hook. **It must pass `rootMargin: '0px'`** — the hook's `-8px` default exists so the
+clock does not flicker as the timer card's last pixel leaves, and it would report a sentinel at y=0
+as off screen immediately, drawing the line at rest: today's bug with more machinery. The border is
+`border-transparent` at rest rather than absent, so nothing shifts by a pixel when it appears.
+
 **The bar's clock is the same clock.** It calls the hook's own `formatTime()` and
 `blindLevelNumber()` — not a second derivation, which matters because a tournament document carries
 the clock twice and only `targetEndTime` is trustworthy. And it renders **only while `TimerCard` is
