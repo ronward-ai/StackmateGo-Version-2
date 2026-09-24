@@ -489,6 +489,48 @@ baseline from the lucide icon beside them, different again on each platform, and
 exported results image exactly as they looked. `✓` and `✗` were the worst of it: interface icons
 carrying meaning in league settings, drawn by the text renderer.
 
+### The top of the console is an app bar, and the event is its headline
+
+`components/ConsoleHeader.tsx`. It was a StackMate wordmark with the tagline *"Your poker night,
+sorted."* under it and an outline **Account ▾** button opposite — then the VENUE's logo and event
+name centred below, smaller. Two brands competing, and the wrong one winning: on the night the thing
+that matters is whose game this is. A tagline belongs on the landing page, which now has one.
+
+**The centred branding block went rather than being kept alongside.** The event name at two sizes on
+one screen is exactly the fault the season line had, where the info card's header printed the
+identical sentence the toggle row already said. `branding.isVisible` still means something — with it
+on, the bar renders the venue logo and name larger. Removing it also fixed a real bug: that block
+rendered the venue logo **twice**, flanking the name on both sides.
+
+**The mark is the small WORDMARK, not the four-chip icon.** The icon was tried first, at 24, 28 and
+32px, bare and tiled. At every size, in the top-left corner of an app, four orange bars read as a
+hamburger menu — the association `favicon.svg`'s own comment warns about, and the corner position is
+what sells it. The icon is right for a browser tab and an app tile and wrong here. 16px and 80%
+opacity is the point of it: the product's name belongs on the screen, quietly, because whoever is
+looking is already inside the product.
+
+**The bar's clock is the same clock.** It calls the hook's own `formatTime()` and
+`blindLevelNumber()` — not a second derivation, which matters because a tournament document carries
+the clock twice and only `targetEndTime` is trustworthy. And it renders **only while `TimerCard` is
+off screen** (`hooks/useIsOffscreen.ts`), so the two are never both visible. Two readouts of one
+number can only disagree; being the same value AND never simultaneous is what makes this safe.
+
+That hook is an `IntersectionObserver` and deliberately not a scroll listener: this page re-renders
+every second because that is how the clock advances, and hanging work off `scroll` here is the churn
+that once had a live game writing to Firestore twice a second.
+
+**One status chip, stated once.** Both pills were built inline in `QRCodeSection`'s header and have
+moved up, through `components/TournamentStatusChip.tsx` — the only implementation, the way
+`lib/playerBadges.ts` is the only implementation of a player's chips. `lib/statusChip.ts` owns which
+one shows, and **a blocked browser beats a live game**: it is the one the director can act on, and
+it is the one that makes the other a lie, since a published game that is not syncing is showing
+participants a document that has stopped moving. A test asserts that order and fails if it is
+swapped.
+
+**Measure narrow layouts at 500px.** Headless Chrome clamps its window to about 500px, so a
+screenshot requested at 360 is rendered at 500 and cropped — which looks exactly like the bar
+overflowing when it does not. `scrollWidth === clientWidth` is the answer; the picture is not.
+
 ### The StackMate Live card wears rails
 
 `.card-rails` in `index.css` — the timer's rails treatment, on the one card that earns marking out.

@@ -123,22 +123,12 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, sy
       <div className="flex items-center gap-2 mb-5">
         <Radio className={cn("h-5 w-5", isLive ? "text-green-400 animate-pulse" : "text-muted-foreground")} />
         <h2 className="text-xl font-bold text-foreground tracking-tight">StackMate Live</h2>
-        {/* Two different facts. Broadcasting means participants can see this
-            game; Not syncing means the browser cannot reach the database at
-            all, which the director had no indicator for — the PARTICIPANT view
-            has had a Live/Offline badge all along and the person who can act on
-            it had nothing. */}
-        {syncBlocked ? (
-          <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-red-400/15 text-red-400 border border-red-400/30 px-2 py-0.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
-            Not syncing
-          </span>
-        ) : isLive && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
-            Broadcasting
-          </span>
-        )}
+        {/* The Broadcasting and Not syncing pills used to be built inline here,
+            and they have moved to the app bar — `components/ConsoleHeader.tsx`,
+            through the one `TournamentStatusChip`. They belong where the
+            director looks, and a fact stated in two places is a fact that can
+            disagree with itself. The pulsing Radio icon above still says
+            whether this card's own subject is happening. */}
       </div>
 
       <div className="space-y-4">

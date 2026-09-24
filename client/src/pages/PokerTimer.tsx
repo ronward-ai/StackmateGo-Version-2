@@ -13,14 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, LogOut, UserCircle, ChevronDown, Settings2, X, Users, LayoutGrid, Coins, Layers, ShieldAlert, History } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { User, Settings2, X, Users, LayoutGrid, Coins, Layers, ShieldAlert, History } from 'lucide-react';
 import TimerCard from '@/components/TimerCard';
 import TournamentInfoCard, { TournamentNewButton } from '@/components/TournamentInfoCard';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
@@ -36,85 +29,14 @@ import { recoverableProgress } from '@/lib/localProgress';
 import { lastSignedInUid } from '@/lib/scopedStorage';
 import { useDirectorSetupSync } from '@/hooks/useDirectorSetupSync';
 import { consoleTournamentId, pinIsDead } from '@/lib/liveTournament';
+import ConsoleHeader from '@/components/ConsoleHeader';
+import { useIsOffscreen } from '@/hooks/useIsOffscreen';
+import { blindLevelNumber } from '@/lib/announcements';
 import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import { LiveBanner } from '@/components/LiveBanner';
-
-function UserMenu() {
-  const { user, isAuthenticated, isAnonymous, logout } = useAuth();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Logout failed:', error);
-    } finally {
-      // A full page load, deliberately. Logging out is how a game is handed on,
-      // so nothing of this director's session may survive it: the console runs
-      // from in-memory state that logging out does not clear, and on signing
-      // back in the player-sync effect would push that stale state over
-      // whatever the next director had done.
-      //
-      // ?home=1 then suppresses the pin redirect and the resume, so the device
-      // lands on a clean home screen. The game itself is safe in Firestore and
-      // comes back on the next sign-in.
-      window.location.href = '/?home=1';
-    }
-  };
-
-  return (
-    <>
-      {!isAuthenticated || isAnonymous ? (
-        <Button
-          onClick={() => setShowAuthModal(true)}
-          variant="default"
-          size="sm"
-          className="bg-orange-600 hover:bg-orange-700 text-white"
-        >
-          <User className="mr-2 h-4 w-4" />
-          Sign In
-        </Button>
-      ) : (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="flex items-center gap-2">
-              <UserCircle className="h-4 w-4" />
-              <span className="max-w-[120px] truncate">
-                {user && ('playerName' in user ? user.playerName : user.firstName || user.name || 'Account')}
-              </span>
-              <ChevronDown className="h-3 w-3 opacity-70" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 bg-gray-800 border-gray-700">
-            <div className="px-3 py-2 text-sm text-gray-300 border-b border-gray-700">
-              <div className="font-medium text-white">
-                {user && ('playerName' in user 
-                  ? user.playerName 
-                  : (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.name || 'User'))}
-              </div>
-              {user && !('playerName' in user) && user.email && (
-                <div className="text-xs text-gray-400 mt-1">{user.email}</div>
-              )}
-            </div>
-            <DropdownMenuSeparator className="bg-gray-700" />
-            <DropdownMenuItem
-              onClick={handleLogout}
-              className="text-red-400 hover:text-red-300 hover:bg-gray-700/50 cursor-pointer"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
-    </>
-  );
-}
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
@@ -645,6 +567,24 @@ function PokerTimerInner({
   // TIMEOUT and therefore only ever a suspicion.
   const gameIsMissing = pinIsDead(tournament.remoteLoad, activeTournamentId);
 
+  // What the app bar shows. All of it is derived from state that already
+  // exists — the bar states facts, it does not own any.
+  //
+  // The clock is the hook's OWN formatTime, not a second derivation: a
+  // tournament document carries the clock twice and only targetEndTime is
+  // trustworthy, so a second reading of it is a second chance to get that
+  // wrong. It renders only while the timer card is off screen, so the two are
+  // never both visible and cannot be seen to disagree.
+  const { ref: timerCardRef, offscreen: timerOffscreen } = useIsOffscreen<HTMLDivElement>();
+  const levelLabel = tournament.state.levels?.[tournament.state.currentLevel]?.isBreak
+    ? 'Break'
+    : `Level ${blindLevelNumber(tournament.state.levels || [], tournament.state.currentLevel)}`;
+
+  // Saved is not live. Auto-save gives every signed-in director's game a
+  // document id, so the id alone would light a Broadcasting chip for a game
+  // participants are refused by — isPublished is what that means.
+  const isLive = !!activeTournamentId && tournament.state.details?.isPublished !== false;
+
   // LET GO of a document this game no longer belongs to.
   //
   // dbTournamentId is this component's own state, and New Tournament navigates
@@ -1125,50 +1065,26 @@ function PokerTimerInner({
         )}
         <AuthModal isOpen={showSignInModal} onClose={() => setShowSignInModal(false)} />
 
-        <header className="mb-3 sm:mb-5">
-          {/* Row 1: logo left, user menu right */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex flex-col">
-              <img
-                src="/stackmatelogo.svg"
-                alt="StackMate Go"
-                className="h-8 sm:h-11 w-auto object-contain"
-                style={{ filter: 'brightness(1.1)' }}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                }}
-              />
-              <p className="text-lg font-semibold text-orange-600 mt-1 pl-0.5">Your poker night, sorted.</p>
-            </div>
-            <UserMenu />
-          </div>
+        {/* The app bar. It was a wordmark, a tagline and an outline Account
+            button, with the VENUE's logo and event name centred underneath in
+            smaller type — two brands competing and the wrong one winning.
+            See components/ConsoleHeader.tsx.
 
-          {/* Event Branding */}
-          {tournament.state.settings.branding?.isVisible && (displayEventName || tournament.state.settings.branding?.logoUrl) && (
-            <div className="mt-2 sm:mt-4 flex items-center justify-center gap-4">
-              {tournament.state.settings.branding?.logoUrl && (
-                <img
-                  src={tournament.state.settings.branding.logoUrl}
-                  alt={displayEventName || 'Event Logo'}
-                  className="h-10 sm:h-14 w-auto object-contain"
-                />
-              )}
-              {displayEventName && (
-                <h2 className="text-xl sm:text-3xl font-bold text-foreground tracking-wide truncate max-w-[60vw]">
-                  {displayEventName}
-                </h2>
-              )}
-              {tournament.state.settings.branding?.logoUrl && (
-                <img
-                  src={tournament.state.settings.branding.logoUrl}
-                  alt={displayEventName || 'Event Logo'}
-                  className="h-10 sm:h-14 w-auto object-contain"
-                />
-              )}
-            </div>
-          )}
-        </header>
+            The centred branding block went with it rather than being kept
+            alongside: the event name at two sizes on one screen is exactly the
+            fault the season line had, where the info card's header printed the
+            identical sentence the toggle row already said. One place. */}
+        <ConsoleHeader
+          eventName={displayEventName}
+          venueLogoUrl={tournament.state.settings.branding?.isVisible
+            ? tournament.state.settings.branding?.logoUrl
+            : undefined}
+          brandingVisible={tournament.state.settings.branding?.isVisible}
+          syncBlocked={syncBlocked || preflightFailed || unreadTournament || gameIsMissing}
+          isLive={isLive}
+          clock={timerOffscreen ? tournament.formatTime() : null}
+          levelLabel={timerOffscreen ? levelLabel : null}
+        />
 
         {/* Tournament Over Banner */}
         {(() => {
@@ -1183,8 +1099,10 @@ function PokerTimerInner({
 
 
 
-        {/* Main Timer Card - Always Visible */}
-        <div className="mb-6">
+        {/* Main Timer Card - Always Visible.
+            The ref is what tells the app bar when to take the clock over — an
+            IntersectionObserver, so the two are never both on screen. */}
+        <div className="mb-6" ref={timerCardRef}>
           <TimerCard
             tournament={tournament}
             recentLevelChange={recentLevelChange}
