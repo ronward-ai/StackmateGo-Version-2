@@ -125,3 +125,42 @@ export function consoleTournamentId(input: {
   if (input.detailsType !== 'database') return null;
   return input.heldId ? String(input.heldId) : null;
 }
+
+/**
+ * How a console's attempt to read the tournament it believes it is driving
+ * resolved.
+ *
+ * `pending` is not a failure — it is the ordinary first moment of every load.
+ * The distinction that matters is the last two: **`missing` is an answer and
+ * `error` is not.**
+ */
+export type RemoteLoad = 'pending' | 'loaded' | 'missing' | 'error';
+
+/**
+ * Whether the id the console is driving has been PROVEN not to exist, and
+ * should therefore be abandoned.
+ *
+ * `localStorage.activeDirectorTournamentId` sends the console to
+ * `/tournament/{id}/director` on every visit, and nothing ever checked that the
+ * game was still there. A pin outlives the game it names — a deleted test game,
+ * an account wipe on another device, a document that was never created — and on
+ * that route the console then held an id it could never read:
+ *
+ *   - the initial `getDoc` found nothing and only logged, so `details.id` was
+ *     never set, so the snapshot listener never attached, so
+ *     `hasLoadedRemoteState` never closed, so all three sync effects stood down;
+ *   - and `dbTournamentId` is seeded from the URL, so the auto-save — the one
+ *     path that would have created a real document — returned early on the
+ *     strength of the very id that was broken.
+ *
+ * A director started a game, added players, refreshed, and they were gone. The
+ * only thing on screen blamed an ad blocker.
+ *
+ * **Only `missing` counts.** A read that FAILED is not evidence the game is
+ * gone, and discarding a pin on a flaky connection is how this codebase has
+ * lost a live game before. An error leaves the pin exactly where it is.
+ */
+export function pinIsDead(load: RemoteLoad, id?: string | null): boolean {
+  if (!id) return false;
+  return load === 'missing';
+}

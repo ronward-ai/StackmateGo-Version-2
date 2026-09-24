@@ -21,6 +21,7 @@ import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/localProgress';
 import { secondsLeftFrom } from '@/lib/tournamentClock';
+import type { RemoteLoad } from '@/lib/liveTournament';
 import { canRebuy, canReEnter } from '@/lib/entryLimits';
 import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
@@ -300,8 +301,31 @@ export function useTournament(tournamentId?: string) {
    */
   const [hasLoadedRemoteState, setHasLoadedRemoteState] = useState(false);
 
+  /**
+   * How the attempt to read THIS tournament resolved — a second, separate
+   * signal, deliberately not folded into the latch above.
+   *
+   * `hasLoadedRemoteState` is the WRITE GATE: it means "this device has seen
+   * the real document and may now write over it". "We read it and it is not
+   * there" must never authorise that, so it gets its own state.
+   *
+   * The distinction that earns the extra state is `missing` vs `error`.
+   * `missing` is an ANSWER — the document was read for and is genuinely not
+   * there, so the id the console is holding is worthless and must be dropped.
+   * `error` is the absence of an answer, and dropping a pin on a failed read is
+   * how this codebase has lost a live game before.
+   *
+   * Without this, an id naming a deleted game silenced everything: no listener,
+   * no latch, no writes, no error — and a director's roster lived only in the
+   * tab until the next refresh threw it away.
+   */
+  const [remoteLoad, setRemoteLoad] = useState<RemoteLoad>('pending');
+
   // Load tournament data from database if tournamentId is provided
   useEffect(() => {
+    // A different tournament has not been resolved yet, whatever the last one
+    // resolved to.
+    setRemoteLoad('pending');
     if (tournamentId) {
       const loadTournamentData = async () => {
         try {
@@ -369,11 +393,18 @@ export function useTournament(tournamentId?: string) {
             };
 
             setState(transformedState);
+            setRemoteLoad('loaded');
           } else {
+            // Read for, and genuinely not there. This used to log and stop,
+            // which left the console holding an id it could never read: no
+            // listener, no latch, no writes, and no error anywhere.
             console.error('Failed to load tournament: Document does not exist');
+            setRemoteLoad('missing');
           }
         } catch (error) {
+          // Not an answer. The pin stays where it is.
           console.error('Error loading tournament data:', error);
+          setRemoteLoad('error');
         }
       };
 
@@ -447,6 +478,7 @@ export function useTournament(tournamentId?: string) {
           const data = docSnap.data();
           setIsConnected(true);
           setHasLoadedRemoteState(true);
+          setRemoteLoad('loaded');
           
           setState(currentState => {
             try {
@@ -552,11 +584,15 @@ export function useTournament(tournamentId?: string) {
             }
           });
         } else {
+          // A snapshot saying the document is not there is a definite answer,
+          // not silence — the game was deleted, or never existed.
           setIsConnected(false);
+          setRemoteLoad('missing');
         }
       }, (error) => {
         console.error('Firestore subscription error:', error);
         setIsConnected(false);
+        setRemoteLoad('error');
       });
 
       return () => {
@@ -2146,6 +2182,7 @@ export function useTournament(tournamentId?: string) {
 
     // Real-time sync status
     isConnected,
-    hasLoadedRemoteState
+    hasLoadedRemoteState,
+    remoteLoad
   };
 }

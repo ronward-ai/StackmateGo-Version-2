@@ -4,6 +4,7 @@ import {
   lastActivityMs,
   findCurrentLiveTournament,
   consoleTournamentId,
+  pinIsDead,
   LIVE_TOURNAMENT_WINDOW_MS,
 } from './liveTournament';
 
@@ -166,5 +167,31 @@ describe('consoleTournamentId', () => {
 
   it('accepts a numeric details id', () => {
     expect(consoleTournamentId({ detailsType: 'database', detailsId: 12345 })).toBe('12345');
+  });
+});
+
+describe('pinIsDead', () => {
+  it('abandons a pin whose document was READ and found absent', () => {
+    expect(pinIsDead('missing', 'game_gone')).toBe(true);
+  });
+
+  it('keeps the pin when the read merely FAILED', () => {
+    // A failed read is not evidence the game is gone. Discarding a pin on a
+    // flaky connection is how this codebase has lost a live game before.
+    expect(pinIsDead('error', 'game_gone')).toBe(false);
+  });
+
+  it('keeps the pin while the read is still in flight', () => {
+    expect(pinIsDead('pending', 'game_gone')).toBe(false);
+  });
+
+  it('keeps the pin once the game has loaded', () => {
+    expect(pinIsDead('loaded', 'game_gone')).toBe(false);
+  });
+
+  it('has nothing to abandon when no id is held', () => {
+    expect(pinIsDead('missing', null)).toBe(false);
+    expect(pinIsDead('missing', undefined)).toBe(false);
+    expect(pinIsDead('missing', '')).toBe(false);
   });
 });

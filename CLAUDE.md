@@ -282,6 +282,30 @@ definitive, otherwise the game must actually be a database game. `PokerTimer` cl
 whenever the game is not one, keyed on the state rather than on the New Tournament button, because
 holding an id for a game that is not in the database is the inconsistency itself however it arose.
 
+**A pin is a guess until a read confirms it.** `activeDirectorTournamentId` sends the console to
+`/tournament/{id}/director` on every visit and nothing checked the game was still there — so a pin
+outlived the game it named (a deleted test game, an account wipe on another device, a document that
+was never created) and every consequence was silent. The initial `getDoc` found nothing and only
+logged, so `details.id` was never set, so the listener never attached, so `hasLoadedRemoteState`
+never closed and the three sync effects stood down; and `dbTournamentId` is **seeded from the URL**,
+so the auto-save — the one path that would have created a real document — returned early on the
+strength of the very id that was broken. A director started a game, added two players, refreshed and
+they were gone, with a banner on screen blaming an ad blocker.
+
+`useTournament` now resolves every read to `remoteLoad: 'pending' | 'loaded' | 'missing' | 'error'`,
+and `lib/liveTournament.ts`'s `pinIsDead()` acts on it. **`missing` is an answer; `error` is not.**
+A document read for and found absent means the id is worthless — drop the pin, drop the held id, go
+to `/?home=1`. A read that FAILED means nothing of the kind, and discarding a pin on a flaky
+connection is how this codebase has lost a live game before. A test asserts the difference and fails
+if `error` is folded in.
+
+`remoteLoad` is deliberately NOT merged into `hasLoadedRemoteState`. That latch is the write gate,
+and "we read it and it is not there" must never authorise writing over anything.
+
+**The banner names the cause it actually has.** It said "check for an ad or tracker blocker" in every
+case, which is unfixable advice for a game that is not there. Three states now — blocked browser,
+game missing, still unread after ten seconds — and the two a reload cannot fix carry a button out.
+
 ### A device must never write to a tournament it has not read
 
 `PokerTimer` has three direct `updateDoc` sync effects that bypass the broadcast chain by design.

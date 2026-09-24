@@ -35,7 +35,7 @@ import { isStorageWritable, subscribeStorageHealth } from '@/lib/scopedStorage';
 import { recoverableProgress } from '@/lib/localProgress';
 import { lastSignedInUid } from '@/lib/scopedStorage';
 import { useDirectorSetupSync } from '@/hooks/useDirectorSetupSync';
-import { consoleTournamentId } from '@/lib/liveTournament';
+import { consoleTournamentId, pinIsDead } from '@/lib/liveTournament';
 import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
@@ -641,6 +641,10 @@ function PokerTimerInner({
     return () => clearTimeout(timer);
   }, [activeTournamentId, tournament.hasLoadedRemoteState]);
 
+  // Read for, and proven absent. Separate from `unreadTournament`, which is a
+  // TIMEOUT and therefore only ever a suspicion.
+  const gameIsMissing = pinIsDead(tournament.remoteLoad, activeTournamentId);
+
   // LET GO of a document this game no longer belongs to.
   //
   // dbTournamentId is this component's own state, and New Tournament navigates
@@ -671,6 +675,36 @@ function PokerTimerInner({
     setRecoverable(null);
     setRecoveryDismissed(false);
   }, [tournamentId, tournament.state.details?.type, dbTournamentId]);
+
+  // A PIN IS A GUESS UNTIL A READ CONFIRMS IT.
+  //
+  // `activeDirectorTournamentId` sends the console to /tournament/{id}/director
+  // on every visit, and nothing ever checked the game was still there. A pin
+  // outlives the game it names — a deleted test game, an account wipe on
+  // another device, a document that was never created — and the console then
+  // held an id it could never read. Everything downstream stood down without a
+  // word: the listener keys on `details.id`, which the failed load never set,
+  // so `hasLoadedRemoteState` never closed and the three sync effects never
+  // wrote; and `dbTournamentId` is SEEDED from the URL, so the auto-save — the
+  // one path that would have created a real document — returned early on the
+  // strength of the very id that was broken.
+  //
+  // A director started a game, added two players, refreshed, and they were
+  // gone. The only thing on screen blamed an ad blocker.
+  //
+  // `pinIsDead` takes only `missing`, never `error` — see lib/liveTournament.ts.
+  // /?home=1 is the established "get me out": it clears the pin and suppresses
+  // the redirect, so the console lands on a fresh local game that saves
+  // normally.
+  useEffect(() => {
+    if (!pinIsDead(tournament.remoteLoad, activeTournamentId)) return;
+    try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
+    // The held id is worthless too, and leaving it would keep the auto-save
+    // shut on the very next game.
+    setDbTournamentId(null);
+    creatingRef.current = false;
+    if (tournamentId) window.location.href = '/?home=1';
+  }, [tournament.remoteLoad, activeTournamentId, tournamentId]);
 
   // PREFLIGHT: is this browser able to write to Firestore at all?
   //
@@ -1180,14 +1214,49 @@ function PokerTimerInner({
             passing as a toast: the director has to change a setting in another
             program before anything will save. Named plainly, because "the sync
             failed" sends nobody anywhere useful. */}
-        {(preflightFailed || syncBlocked || unreadTournament) && (
+        {(preflightFailed || syncBlocked || unreadTournament || gameIsMissing) && (
           <div className="mb-6 rounded-xl border border-red-400/30 bg-red-400/[0.08] p-4 flex items-start gap-3">
             <ShieldAlert className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div className="text-body text-foreground/90">
-              <div className="font-semibold text-red-400 mb-1">This game is not being saved</div>
-              {unreadTournament && !preflightFailed && !syncBlocked
-                ? 'This device has not been able to read the saved game, so nothing it does is being stored — and players you remove may come back. Reload the page; if that does not help, check for an ad or tracker blocker.'
-                : 'An ad or tracker blocker in this browser is stopping StackMate reaching its database. Allow this site in it (in uBlock Origin: click its icon, then the large power button) and reload. The game keeps running on this device meanwhile, but nothing is being stored and it will not survive a refresh.'}
+              {/* A blocker is only ONE of the reasons, and it used to be the
+                  only one named. A console pinned to a game that had been
+                  deleted showed this same paragraph and told the director to
+                  check uBlock — advice that cannot work, for a document that is
+                  not there. Each state says what is actually true, and the two
+                  that a reload cannot fix carry a way out. */}
+              {gameIsMissing && !preflightFailed && !syncBlocked ? (
+                <>
+                  <div className="font-semibold text-red-400 mb-1">This game no longer exists</div>
+                  The saved game this device was opening has been deleted, or was never saved.
+                  Nothing here is being stored. Start a new game and it will save normally.
+                </>
+              ) : unreadTournament && !preflightFailed && !syncBlocked ? (
+                <>
+                  <div className="font-semibold text-red-400 mb-1">This game is not being saved</div>
+                  This device still has not been able to read the saved game, so nothing it does is
+                  being stored — and players you remove may come back. Reload the page; if that does
+                  not help, check for an ad or tracker blocker.
+                </>
+              ) : (
+                <>
+                  <div className="font-semibold text-red-400 mb-1">This game is not being saved</div>
+                  An ad or tracker blocker in this browser is stopping StackMate reaching its
+                  database. Allow this site in it (in uBlock Origin: click its icon, then the large
+                  power button) and reload. The game keeps running on this device meanwhile, but
+                  nothing is being stored and it will not survive a refresh.
+                </>
+              )}
+              {(gameIsMissing || unreadTournament) && !preflightFailed && !syncBlocked && (
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { window.location.href = '/?home=1'; }}
+                  >
+                    {gameIsMissing ? 'Start a new game' : 'Go home'}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
