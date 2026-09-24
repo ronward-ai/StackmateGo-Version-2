@@ -146,6 +146,13 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
 
           <div className="grid gap-10 lg:grid-cols-[1.35fr_1fr] lg:gap-14 lg:items-start">
             <div>
+              {/* Says what it IS, before the headline says what it does. The
+                  page opened on a logo and a line of voice, so someone arriving
+                  cold had to reach the pillars before finding out this was
+                  anything to do with poker. */}
+              <p className="font-mono text-label uppercase tracking-[0.1em] text-muted-foreground mb-4">
+                Poker tournament timer &amp; league manager
+              </p>
               <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.08] text-balance">
                 Run the night.<br />The league runs itself.
               </h1>
