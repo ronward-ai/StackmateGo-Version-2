@@ -85,3 +85,56 @@ export function allSeated<T extends { isActive?: boolean; seated?: boolean }>(pl
   const seatable = seatablePlayers(players);
   return seatable.length > 0 && seatable.every(p => p.seated === true);
 }
+
+/** How a set of players spreads across the configured tables. */
+export interface SeatingPlan {
+  /** How many players land on each table, table 0 first. */
+  perTable: number[];
+  /** How many cannot be seated at all, because the tables are full. */
+  overflow: number;
+}
+
+/**
+ * How many players land on each table, for a given number to seat.
+ *
+ * The Seat Players dialog printed a line describing this and **computed it from
+ * constants**: `maxTables = 3` and `maxSeatsPerTable = 6`, hard-coded, with the
+ * director's real configuration never passed to the dialog at all. It then
+ * chose its own "optimal" table count, which is not what seating does. So the
+ * sentence under the list was right only by coincidence — and at a final table,
+ * where the answer is always "one table", it usually was not.
+ *
+ * Two places deriving one fact, which is how the rake formula reached nine
+ * sites. `seatPlayersManually` takes its split from here too.
+ *
+ * **The `count <= seatsPerTable` branch is the important one.** Everybody who
+ * fits on one table goes to one table — that is the final table, the case a
+ * director looks at this screen for — rather than being divided across the
+ * tables the game started with.
+ */
+export function planSeating(
+  count: number,
+  { numberOfTables, seatsPerTable }: { numberOfTables: number; seatsPerTable: number },
+): SeatingPlan {
+  const tables = Math.max(1, Math.floor(numberOfTables) || 1);
+  const seats = Math.max(1, Math.floor(seatsPerTable) || 1);
+  const wanted = Math.max(0, Math.floor(count) || 0);
+
+  const capacity = tables * seats;
+  const seatable = Math.min(wanted, capacity);
+  const overflow = wanted - seatable;
+
+  if (seatable === 0) return { perTable: [], overflow };
+
+  // One table's worth stays on one table.
+  if (seatable <= seats) return { perTable: [seatable], overflow };
+
+  const base = Math.floor(seatable / tables);
+  const extra = seatable % tables;
+  const perTable: number[] = [];
+  for (let t = 0; t < tables; t++) {
+    const n = base + (t < extra ? 1 : 0);
+    if (n > 0) perTable.push(n);
+  }
+  return { perTable, overflow };
+}

@@ -22,7 +22,7 @@ import FinalTableDialog from "./FinalTableDialog";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { activeCount, promptDismissedFor } from '@/lib/finalTable';
-import { seatablePlayers, allSeated } from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating } from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
@@ -256,7 +256,14 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
     const seats: { tableIndex: number; seatIndex: number }[] = [];
 
-    if (shuffled.length <= seatsPerTable) {
+    // How many land on each table comes from lib/seating.ts, the same function
+    // the dialog's summary renders from, so the sentence a director reads and
+    // the seating they then get cannot disagree. Which SEAT each player takes
+    // stays here, because that depends on which chairs are already occupied by
+    // players outside this selection.
+    const plan = planSeating(shuffled.length, { numberOfTables, seatsPerTable });
+
+    if (plan.perTable.length <= 1) {
       for (let s = 0; s < seatsPerTable && seats.length < shuffled.length; s++) {
         if (!occupied.has(`0-${s}`)) seats.push({ tableIndex: 0, seatIndex: s });
       }
@@ -268,11 +275,9 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
         }
       }
     } else {
-      const base = Math.floor(shuffled.length / numberOfTables);
-      const extra = shuffled.length % numberOfTables;
       let pi = 0;
       for (let t = 0; t < numberOfTables && pi < shuffled.length; t++) {
-        const need = base + (t < extra ? 1 : 0);
+        const need = plan.perTable[t] ?? 0;
         let got = 0;
         for (let s = 0; s < seatsPerTable && got < need && pi < shuffled.length; s++) {
           if (!occupied.has(`${t}-${s}`)) { seats.push({ tableIndex: t, seatIndex: s }); got++; pi++; }
@@ -793,6 +798,8 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
         onClose={() => setSeatDialogOpen(false)}
         players={state.players}
         onSeatPlayers={seatPlayersManually}
+        numberOfTables={numberOfTables}
+        seatsPerTable={seatsPerTable}
       />
 
       {/* Bust Out Dialog */}

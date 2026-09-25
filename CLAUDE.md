@@ -1305,6 +1305,38 @@ alone is walked around by the next caller. An **Unseat** button on a seated-but-
 the chair for games already in that state; it is deliberately not a bust-out, since they are already
 out and their finishing position and league result must not be touched.
 
+### The Seat Players dialog described a seating that was never going to happen
+
+The line under the player list — *"Will seat 8 players evenly on 2 tables"* — worked its own table
+count out from **hard-coded constants**:
+
+```tsx
+const maxTables = 3;        // Maximum number of tables we support
+const maxSeatsPerTable = 6; // Default seats per table
+```
+
+The dialog was never passed `settings.tables` at all, so it could not have known better, and it then
+picked its own "optimal" split rather than the one `seatPlayersManually` performs. It was right only
+by coincidence — and at a final table, where the answer is always "one table", usually not.
+
+`lib/seating.ts`'s `planSeating(count, {numberOfTables, seatsPerTable})` is the single derivation
+now, and **the seater takes its per-table counts from it too**, so the sentence a director reads and
+the seating they then get cannot disagree. Which SEAT each player takes stays in the component,
+because that depends on chairs held by players outside the selection.
+
+**The `count <= seatsPerTable` branch is the one to protect**: everybody who fits on one table goes
+to one table, rather than being divided across the tables the game started with. A test fails if it
+is removed. It also reports **overflow** — how many will not fit — which nothing said before; the
+tables just filled and the rest were left standing.
+
+**The wording follows `allSeated()`**, the same predicate as the Seating tab's button, so the two
+controls cannot say different things about one action: at a final table the dialog is *Randomize
+Seats* / *Randomize Selected*, otherwise *Seat Players* / *Seat Selected Players*.
+
+Worth knowing for the next harness: the add-player field uses **`onKeyPress`**, not `onKeyDown`, so a
+synthetic `keydown` never adds anybody — click the Add button. And the dialog's Select All is a
+shadcn `Checkbox` with `id="select-all"`, not a `<button>` with text.
+
 ### What kind of game it is, is decided before the first hand
 
 The Standalone ↔ League slider was live for the whole game, and that was not cosmetic. League result

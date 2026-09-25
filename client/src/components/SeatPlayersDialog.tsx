@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { seatablePlayers } from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating } from '@/lib/seating';
 import { Button } from "@/components/ui/button";
 import { buttonCombinations, getButtonVariant } from "@/lib/buttonUtils";
 import {
@@ -19,6 +19,11 @@ interface SeatPlayersDialogProps {
   onClose: () => void;
   players: Player[];
   onSeatPlayers: (selectedPlayers: Player[]) => void;
+  /* The director's REAL table configuration. Without it this dialog invented
+     its own from `maxTables = 3` and `maxSeatsPerTable = 6`, so the line under
+     the list described a seating the app was never going to perform. */
+  numberOfTables: number;
+  seatsPerTable: number;
 }
 
 export default function SeatPlayersDialog({
@@ -26,6 +31,8 @@ export default function SeatPlayersDialog({
   onClose,
   players: allPlayers,
   onSeatPlayers,
+  numberOfTables,
+  seatsPerTable,
 }: SeatPlayersDialogProps) {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [showOnlyUnseated, setShowOnlyUnseated] = useState(false);
@@ -42,6 +49,11 @@ export default function SeatPlayersDialog({
   // tickable rows and Select All took them straight into seats — see
   // lib/seating.ts for what that cost.
   const players = seatablePlayers(allPlayers);
+
+  // Everyone still in already has a chair, so the only thing this dialog can do
+  // is redraw. The tab button that opens it uses the same predicate, so the two
+  // cannot say different things about the same action.
+  const redrawOnly = allSeated(allPlayers);
 
   // Get filtered players based on the filter setting
   const filteredPlayers = showOnlyUnseated
@@ -89,9 +101,11 @@ export default function SeatPlayersDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Seat Players</DialogTitle>
+          <DialogTitle>{redrawOnly ? 'Randomize Seats' : 'Seat Players'}</DialogTitle>
           <DialogDescription>
-            Select the players you want to randomly seat at tables.
+            {redrawOnly
+              ? 'Choose whose seats to redraw.'
+              : 'Select the players you want to randomly seat at tables.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -180,67 +194,39 @@ export default function SeatPlayersDialog({
           
           <div className="text-sm text-muted-foreground mt-2">
             {selectedPlayers.length} of {filteredPlayers.length} {showOnlyUnseated ? "unseated " : ""}players selected
-            {selectedPlayers.length > 0 && (
-              <div className="mt-1 text-xs text-blue-400">
-                {(() => {
-                  const playerCount = selectedPlayers.length;
-                  const maxTables = 3; // Maximum number of tables we support
-                  const maxSeatsPerTable = 6; // Default seats per table
-                  
-                  // Find perfect distribution (if possible)
-                  let optimalTables = 1;
-                  let isPerfectDistribution = false;
-                  
-                  // First try to find an even distribution
-                  for (let tables = 1; tables <= maxTables; tables++) {
-                    if (playerCount % tables === 0) {
-                      const playersPerTable = playerCount / tables;
-                      if (playersPerTable <= maxSeatsPerTable) {
-                        optimalTables = tables;
-                        isPerfectDistribution = true;
-                        break;
-                      }
-                    }
-                  }
-                  
-                  // If no perfect distribution found, try to find the most even one
-                  if (!isPerfectDistribution) {
-                    let bestDifference = Number.MAX_SAFE_INTEGER;
-                    
-                    for (let tables = 1; tables <= maxTables; tables++) {
-                      const basePlayersPerTable = Math.floor(playerCount / tables);
-                      const tablesWithExtra = playerCount % tables;
-                      
-                      // This configuration is valid if the number of players per table
-                      // doesn't exceed the maximum
-                      if (basePlayersPerTable + 1 <= maxSeatsPerTable) {
-                        // Calculate the "evenness" - the difference between min and max players per table
-                        const difference = tablesWithExtra > 0 ? 1 : 0;
-                        
-                        if (difference < bestDifference) {
-                          bestDifference = difference;
-                          optimalTables = tables;
-                          
-                          // If we found a perfectly even distribution, we're done
-                          if (difference === 0) break;
-                        }
-                      }
-                    }
-                  }
-                  
-                  // Calculate base players per table and extras
-                  const basePlayersPerTable = Math.floor(playerCount / optimalTables);
-                  const tablesWithExtra = playerCount % optimalTables;
-                  
-                  // Create distribution message
-                  if (isPerfectDistribution || tablesWithExtra === 0) {
-                    return `Will seat ${playerCount} players evenly on ${optimalTables} ${optimalTables === 1 ? 'table' : 'tables'} (${basePlayersPerTable} per table)`;
-                  } else {
-                    return `Will seat ${playerCount} players on ${optimalTables} ${optimalTables === 1 ? 'table' : 'tables'} (${basePlayersPerTable}-${basePlayersPerTable+1} per table)`;
-                  }
-                })()}
-              </div>
-            )}
+            {selectedPlayers.length > 0 && (() => {
+              /* From lib/seating.ts, the SAME split seatPlayersManually uses.
+                 This block used to work its own out from `maxTables = 3` and
+                 `maxSeatsPerTable = 6`, hard-coded, having never been told the
+                 director's configuration — so it described a seating that was
+                 not going to happen, and at a final table it rarely said the
+                 one thing that matters: one table. */
+              const { perTable, overflow } = planSeating(selectedPlayers.length, {
+                numberOfTables,
+                seatsPerTable,
+              });
+              const low = Math.min(...perTable);
+              const high = Math.max(...perTable);
+              const spread = low === high ? `${low} per table` : `${low}\u2013${high} per table`;
+              return (
+                <>
+                  <div className="mt-1 text-xs text-blue-400">
+                    {perTable.length === 1
+                      ? `Will seat ${perTable[0]} ${perTable[0] === 1 ? 'player' : 'players'} on one table`
+                      : `Will seat ${perTable.reduce((a, b) => a + b, 0)} players across ${perTable.length} tables (${spread})`}
+                  </div>
+                  {overflow > 0 && (
+                    /* Nothing said this before: the tables simply filled and the
+                       rest were left standing. */
+                    <div className="mt-1 text-xs text-amber-400">
+                      {overflow} {overflow === 1 ? 'player has' : 'players have'} nowhere to sit \u2014
+                      {' '}{numberOfTables} {numberOfTables === 1 ? 'table' : 'tables'} of {seatsPerTable}
+                      {' '}seats {numberOfTables * seatsPerTable === 1 ? 'holds' : 'hold'} {numberOfTables * seatsPerTable}.
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
         
@@ -253,7 +239,7 @@ export default function SeatPlayersDialog({
             disabled={selectedPlayers.length === 0}
             className="mt-2"
           >
-            Seat Selected Players
+            {redrawOnly ? 'Randomize Selected' : 'Seat Selected Players'}
           </Button>
         </DialogFooter>
       </DialogContent>

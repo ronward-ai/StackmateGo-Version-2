@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim, seatablePlayers, allSeated } from './seating';
+import { seatToReclaim, seatablePlayers, allSeated, planSeating } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -100,5 +100,32 @@ describe('allSeated', () => {
   it('is false for an empty field, where "Randomize" would mean nothing', () => {
     expect(allSeated([])).toBe(false);
     expect(allSeated([{ id: 'out', isActive: false }] as any[])).toBe(false);
+  });
+});
+
+describe('planSeating', () => {
+  it('puts everyone on ONE table when they fit on one', () => {
+    // The final table. This is the case the dialog is opened for, and the one
+    // its hard-coded arithmetic got wrong.
+    expect(planSeating(8, { numberOfTables: 4, seatsPerTable: 8 })).toEqual({ perTable: [8], overflow: 0 });
+    expect(planSeating(2, { numberOfTables: 3, seatsPerTable: 6 })).toEqual({ perTable: [2], overflow: 0 });
+  });
+
+  it('splits evenly when it divides', () => {
+    expect(planSeating(12, { numberOfTables: 3, seatsPerTable: 6 })).toEqual({ perTable: [4, 4, 4], overflow: 0 });
+  });
+
+  it('gives the remainder to the first tables', () => {
+    expect(planSeating(10, { numberOfTables: 3, seatsPerTable: 6 })).toEqual({ perTable: [4, 3, 3], overflow: 0 });
+  });
+
+  it('reports who will not fit', () => {
+    // 2 tables of 6 seats 12; the other 8 have nowhere to go.
+    expect(planSeating(20, { numberOfTables: 2, seatsPerTable: 6 })).toEqual({ perTable: [6, 6], overflow: 8 });
+  });
+
+  it('handles nobody, and nonsense configuration, without throwing', () => {
+    expect(planSeating(0, { numberOfTables: 3, seatsPerTable: 6 })).toEqual({ perTable: [], overflow: 0 });
+    expect(planSeating(4, { numberOfTables: 0, seatsPerTable: 0 })).toEqual({ perTable: [1], overflow: 3 });
   });
 });
