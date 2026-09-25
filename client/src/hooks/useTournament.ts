@@ -2165,7 +2165,12 @@ export function useTournament(tournamentId?: string) {
     resetTournament,
     shouldPromptForFinalTable,
     goToFinalTable,
-    isComplete: (state.players.filter(p => p.isActive === false).length >= state.players.length - 1 && state.players.length > 1) || state.currentLevel >= state.levels.length,
+    // `isComplete` was exported here and read by nobody. It also answered a
+    // different question from the one its name implies — it ORed "the blind
+    // structure ran out" into "the game is over", which are not the same thing
+    // and would have surprised the first caller. Whether a game has finished
+    // now lives in lib/gameOver.ts, where it is tested; a fifth spelling of it
+    // in this hook is how the other four grew.
 
     // Real-time sync status
     isConnected,

@@ -91,6 +91,31 @@ export function gameNumberFor(
   return ids.size + 1;
 }
 
+/**
+ * What number will the NEXT game get?
+ *
+ * A DIFFERENT QUESTION FROM `gameNumberFor`, and conflating the two is a bug
+ * this app shipped. `gameNumberFor` answers "which game is the one in
+ * progress", which is what every header label wants — after game 1 has been
+ * played and is still on screen, that game IS game 1, and saying so is right.
+ *
+ * The dialog that starts the next game asked the same function and printed the
+ * answer on its button, so having just finished game 1 a director was offered
+ * "Start Game 1". Nothing added one.
+ *
+ * The in-progress `localGameId` is deliberately NOT a parameter here. Whether
+ * tonight's game has recorded results or not, the next one is simply the game
+ * after everything already recorded — that is the whole distinction, and taking
+ * the id would be the invitation to reintroduce the bug.
+ */
+export function nextGameNumber(
+  seasonId: string | number | null | undefined,
+  leaguePlayers: PlayerLike[] | null | undefined,
+): number {
+  if (!isRealSeasonId(seasonId)) return 1;
+  return countGamesPlayed(seasonId, leaguePlayers) + 1;
+}
+
 /** Minimal shape needed from a season. */
 export interface SeasonLike {
   numberOfGames?: number | null;

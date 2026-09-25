@@ -1377,6 +1377,71 @@ first place.
 **Already-contaminated data is not migrated.** Stray results come out through normal league admin; a
 migration guessing which results were a demo and which were real is how a league loses its standings.
 
+### At the end of a game NOBODY is active, and three screens were gated on the opposite
+
+`eliminatePlayer` awards the last player standing `position: 1` **and `isActive: false`, in the same
+state update** — that is how the rest of the app tells a finished game from one still in play. So at
+the moment a tournament ends, a count of active players is **zero**, never one.
+
+Three pieces of UI asked for exactly one active player, and therefore none of them had ever been seen
+on a completed game: the **Tournament Over banner** on the console, the **same banner on every
+player's phone**, and the **Tournament Winner card** in Tournament Info. Not subtly wrong — dead. It
+is why the end of a night had no marker on screen at all, and why a director asked whether the app
+needed an "End Game" button.
+
+`lib/gameOver.ts` answers it once: `gameIsOver(players)` (at least two players, nobody still in,
+somebody holding position 1) and `winnerOf(players)`. The winner has to come from the **position**,
+because there is no active player left to read a name from.
+
+**"Still in" is `isActive !== false` AND no finishing position.** An absent flag means active
+everywhere in this app — `eliminatePlayer`'s own comment records what reading it as inactive cost
+last time — but a player restored from an older document can carry a position with no flag. A player
+still in the game never has one, so the extra clause can only add players the flag alone would miss,
+and it makes one predicate right for both console state and a document read back from Firestore.
+
+A test asserts the real end state (every player inactive, one with position 1) is over, and it
+**fails against any predicate rewritten as "exactly one active player"** — mutation-tested, since
+that is the shape that hid all three.
+
+`useTournament`'s exported `isComplete` went with this. Nothing consumed it, and it ORed "the blind
+structure ran out" into "the game is over", which are different questions. `PlayerSectionReadOnly`'s
+`isFinished` deliberately stays as it is: it decides whether a seat badge is worth drawing and is
+already ORed with an active count.
+
+### Starting the next game is league business, and the number it offers is a different question
+
+`components/NextGameControl.tsx` is the only implementation of starting a game, and in league mode it
+mounts in **`LeagueSection`'s header row**, beside Manage League. It used to live in the *Tournament
+Setup* card's header — two sections below the league panel, with the banner block in between — which
+is the wrong neighbourhood for moving to the next game of a season. A standalone game keeps it in the
+setup card, because there is no league panel to hold it; it renders once either way. It goes in the
+panel's HEADER rather than its body so that collapsing the panel does not fold the night's next
+action away with it.
+
+**`nextGameNumber` is not `gameNumberFor`.** The dialog's button used to read the latter, which
+answers *"which game is the one in progress"* — correct for the headers, because a game that has just
+been played and is still on screen IS game 1. The dialog asks what number the NEXT game will get, and
+nothing added one, so a director who had just finished game 1 was offered **"Start Game 1"**.
+`nextGameNumber(seasonId, leaguePlayers)` is `countGamesPlayed + 1`, and it deliberately does **not**
+take the in-progress `localGameId` — taking it is the invitation to reintroduce the bug. One test
+asserts both contracts against the same fixture so neither can be collapsed into the other.
+
+**The next game is not always this season's next game.** A weekly league night is often followed by a
+one-off at another venue, or by a different league's game. Picking another league already worked; the
+only route to a standalone game was a link reading *"Full reset (clears structure & switches to
+standalone)"*, which bundles two unrelated things and made a director throw away their blind
+structure and buy-in to run one casual night. Those are separate choices now, and
+`standaloneSettings()` in `lib/tournamentMode.ts` is the one answer to "make this game standalone",
+shared with the mode toggle.
+
+**There is deliberately no "End Game" button.** A finished game already marks itself — `PokerTimer`'s
+completion effect writes `status: 'completed'` and a `completedTournaments` record — and the mode lock
+staying on after the final hand is correct, not a bug: `syncLeagueResults` records every eliminated
+player not yet processed, so flipping a finished standalone night to League would back-fill the whole
+thing into a league. Starting the next game is what clears the roster and releases the lock, and a
+second control that also ends a game is the "two ways to create a tournament" trap with the sign
+flipped.
+
 ### A dismissal flag must never be its own effect's dependency
 
 "Ignore for now" on the uneven-tables prompt could not work, and the reason is worth keeping.
@@ -1868,6 +1933,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tableBalance.ts` | Whether the tables are uneven enough to say so, and what a dismissal remembers. |
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
+| `gameOver.ts` | Whether the game being run has finished, and who won it. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already

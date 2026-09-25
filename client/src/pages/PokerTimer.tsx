@@ -15,7 +15,8 @@ import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
 import { User, Settings2, X, Users, LayoutGrid, Coins, Layers, ShieldAlert, History } from 'lucide-react';
 import TimerCard from '@/components/TimerCard';
-import TournamentInfoCard, { TournamentNewButton } from '@/components/TournamentInfoCard';
+import TournamentInfoCard from '@/components/TournamentInfoCard';
+import NextGameControl from '@/components/NextGameControl';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import PlayerSection from '@/components/PlayerSection';
@@ -37,6 +38,7 @@ import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import TournamentOverBanner from '@/components/TournamentOverBanner';
 import { LiveBanner } from '@/components/LiveBanner';
+import { gameIsOver, winnerOf } from '@/lib/gameOver';
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
@@ -336,12 +338,10 @@ function PokerTimerInner({
 
   useEffect(() => {
     const players = tournament.state.players || [];
-    if (players.length === 0) return;
     // eliminatePlayer marks every player inactive on completion, including the
-    // winner, who is the one given position 1.
-    const stillIn = players.filter(p => p.isActive !== false);
-    const finished = stillIn.length === 0 && players.some(p => p.position === 1);
-    if (!finished) return;
+    // winner, who is the one given position 1 — lib/gameOver.ts holds that rule
+    // for this effect and for the three screens that used to get it wrong.
+    if (!gameIsOver(players)) return;
 
     // Dedupe key. Falls back to the shape of the finished game rather than an
     // empty string: a missing id used to collide with the previous missing id
@@ -350,7 +350,7 @@ function PokerTimerInner({
     // across re-renders of the same finished game, so it cannot cause repeat
     // writes either.
     const details = tournament.state.details;
-    const winnerId = players.find(p => p.position === 1)?.id ?? '';
+    const winnerId = winnerOf(players)?.id ?? '';
     const gameKey = String(
       details?.localGameId ?? details?.id ?? `anon:${players.length}:${winnerId}`
     );
@@ -1086,16 +1086,18 @@ function PokerTimerInner({
         <AuthModal isOpen={showSignInModal} onClose={() => setShowSignInModal(false)} />
 
 
-        {/* Tournament Over Banner */}
-        {(() => {
-          const activePlayers = tournament.state.players.filter(p => p.isActive === true);
-          const eliminatedPlayers = tournament.state.players.filter(p => p.isActive === false);
-
-          if (activePlayers.length === 1 && tournament.state.players.length > 1 && eliminatedPlayers.length > 0) {
-            return <TournamentOverBanner winnerName={activePlayers[0]?.name || 'Unknown'} />;
-          }
-          return null;
-        })()}
+        {/* Tournament Over Banner.
+            This asked for exactly one player with `isActive === true`, and at
+            the end of a game there are none — the winner is marked inactive in
+            the same update that gives them position 1. So this banner had never
+            once been seen on a finished game, on this screen or on a player's
+            phone. lib/gameOver.ts answers it for both, and the winner comes from
+            the position rather than from a roster that is now entirely out. */}
+        {gameIsOver(tournament.state.players) && (
+          <TournamentOverBanner
+            winnerName={winnerOf(tournament.state.players)?.name || 'Unknown'}
+          />
+        )}
 
 
 
@@ -1123,7 +1125,13 @@ function PokerTimerInner({
             info card's wrapper it had no gap above it and a doubled one below. */}
         {isLeagueMode && (
           <div className="mb-6">
-            <LeagueSection tournament={tournament} />
+            {/* Next Game rides in the panel's header. In league mode it is the
+                league's business and it is not rendered in the setup card
+                below, so it still exists exactly once. */}
+            <LeagueSection
+              tournament={tournament}
+              nextGame={<NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />}
+            />
           </div>
         )}
 
@@ -1253,7 +1261,9 @@ function PokerTimerInner({
               </div>
               <div className="flex items-center gap-2">
                 <TournamentHistoryDialog />
-                <TournamentNewButton tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />
+                {/* Standalone only — a league game's copy lives in the league
+                    panel above. One mount either way. */}
+                {!isLeagueMode && <NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />}
               </div>
             </div>
             <div className="relative">

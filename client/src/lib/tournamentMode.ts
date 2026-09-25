@@ -40,6 +40,31 @@ export function isLeagueTournament(tournament?: TournamentModeInput | null): boo
   return !!tournament?.settings?.leagueId;
 }
 
+/**
+ * The settings that make a game standalone.
+ *
+ * ONE ANSWER TO "make this standalone", because there are now two ways to ask:
+ * the mode toggle, and starting a one-off game from the next-game dialog — a
+ * weekly league director running a single night at another venue.
+ *
+ * It clears the whole league context rather than only the flag. Leaving
+ * `leagueId` behind is what once made spectators see a league standings table
+ * on a tournament that had been switched back to Standalone: `isLeagueTournament`
+ * falls back to `leagueId` when no flag is present, and a stale id beat it.
+ *
+ * Returns a fresh object each call — a shared literal handed to `updateSettings`
+ * is a mutable value two call sites would be holding at once.
+ */
+export function standaloneSettings() {
+  return {
+    isSeasonTournament: false,
+    leagueId: undefined,
+    seasonId: undefined,
+    seasonName: undefined,
+    gameNumber: undefined,
+  };
+}
+
 /** Only what deciding "has play started" needs. A `Player` satisfies it. */
 export interface PlacedPlayer {
   /** A finishing position, set when a player busts. */

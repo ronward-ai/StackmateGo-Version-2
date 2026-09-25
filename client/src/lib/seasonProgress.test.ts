@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   gameNumberFor,
+  nextGameNumber,
   countGamesPlayed,
   isRealSeasonId,
   isSeasonComplete,
@@ -119,6 +120,37 @@ describe('gameNumberFor', () => {
   it('agrees with countGamesPlayed + 1 when no game is in progress', () => {
     for (const season of ['s1', 's2', 'unknown']) {
       expect(gameNumberFor(season, players)).toBe(countGamesPlayed(season, players) + 1);
+    }
+  });
+});
+
+describe('nextGameNumber', () => {
+  it('is the game after everything recorded', () => {
+    expect(nextGameNumber('s1', players)).toBe(3);
+  });
+
+  /**
+   * THE BUG THIS PAIR EXISTS FOR. Both contracts asserted together, against the
+   * same fixture, so neither can later be "simplified" into the other: with the
+   * game in progress already holding results, it IS game 2 — and the next one
+   * is game 3. Reading the first number onto a button that starts the next game
+   * is what offered a director "Start Game 1" straight after game 1.
+   */
+  it('is one past the in-progress game, which gameNumberFor still names correctly', () => {
+    expect(gameNumberFor('s1', players, 't2')).toBe(2);
+    expect(nextGameNumber('s1', players)).toBe(3);
+  });
+
+  it('is game 1 with no season, no results or the synthetic season', () => {
+    expect(nextGameNumber(SYNTHETIC_SEASON_ID, players)).toBe(1);
+    expect(nextGameNumber('brand-new', players)).toBe(1);
+    expect(nextGameNumber('s1', [])).toBe(1);
+    expect(nextGameNumber('s1', null)).toBe(1);
+  });
+
+  it('is always countGamesPlayed + 1', () => {
+    for (const season of ['s1', 's2', 'unknown']) {
+      expect(nextGameNumber(season, players)).toBe(countGamesPlayed(season, players) + 1);
     }
   });
 });

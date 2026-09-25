@@ -13,6 +13,16 @@ const LEAGUE_PANEL_KEY = 'leaguePanelExpanded';
 interface LeagueSectionProps {
   tournament?: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   readOnly?: boolean;
+  /**
+   * The control that starts the next game, passed in rather than built here.
+   * It belongs beside the league — moving to the next game of a season is
+   * league business, and it used to sit in the Tournament Setup card's header
+   * two sections down the page. This panel stays ignorant of what is in it.
+   *
+   * It goes in the HEADER row, not the body, so that folding the panel away
+   * does not take the night's next action with it.
+   */
+  nextGame?: React.ReactNode;
 }
 
 /**
@@ -31,7 +41,7 @@ interface LeagueSectionProps {
  * buttons, one of which opened a menu titled "Season actions" that contained
  * Delete League.
  */
-export default function LeagueSection({ tournament, readOnly = false }: LeagueSectionProps) {
+export default function LeagueSection({ tournament, readOnly = false, nextGame }: LeagueSectionProps) {
   // Remembered, because the panel is on the page now rather than behind a tab:
   // a director who wants the timer nearer the top on a phone should be able to
   // fold this once and have it stay folded. Open by default.
@@ -118,6 +128,7 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
             </div>
 
             <div className="flex items-center gap-1 flex-shrink-0">
+              {!readOnly && nextGame}
               {!readOnly && (
                 <Button
                   size="sm"
@@ -126,7 +137,11 @@ export default function LeagueSection({ tournament, readOnly = false }: LeagueSe
                   onClick={() => setShowLeagueSettings(true)}
                 >
                   <Settings className="h-3.5 w-3.5" />
-                  <span className="text-label">Manage League</span>
+                  {/* The label goes before the next-game button does on a
+                      narrow screen: this row now carries two buttons and a
+                      chevron, and Manage League is the one a director opens
+                      least often. The icon still says which is which. */}
+                  <span className="text-label hidden sm:inline">Manage League</span>
                 </Button>
               )}
               <button

@@ -1,29 +1,18 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { ordinal } from '@/lib/ordinal';
-import { useLocation } from 'wouter';
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, ChevronRight, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, RotateCcw, Clock } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, Clock } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited, lateEntryOpen } from '@/lib/entryLimits';
-import { gameTypeIsLocked } from '@/lib/tournamentMode';
+import { gameTypeIsLocked, standaloneSettings } from '@/lib/tournamentMode';
+import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { payoutsOf } from '@/lib/payoutTemplates';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { gameNumberFor } from "@/lib/seasonProgress";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { currencyOf } from '@/lib/currency';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
 
 interface TournamentInfoCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -126,16 +115,10 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
           onClick={() => {
             if (typeLocked) return;
             setMode('standalone');
-            // Clear the whole league context, not just the flag. Leaving leagueId
-            // behind is what made spectators see a league standings table on a
-            // tournament switched back to Standalone.
-            updateSettings({
-              isSeasonTournament: false,
-              leagueId: undefined,
-              seasonId: undefined,
-              seasonName: undefined,
-              gameNumber: undefined,
-            });
+            // standaloneSettings() clears the whole league context, not just
+            // the flag — see lib/tournamentMode.ts. The next-game dialog's
+            // one-off path writes the same thing.
+            updateSettings(standaloneSettings());
           }}
         >
           Standalone
@@ -165,204 +148,6 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
         </span>
       )}
     </div>
-  );
-}
-
-export function TournamentNewButton({ tournament, league, userLeagues = [], switchLeague, leaguePlayers = [], currentSeason, seasons }: { tournament: TournamentProp } & Required<Pick<SharedLeagueProps, 'switchLeague'>> & Omit<SharedLeagueProps, 'switchLeague'>) {
-  const { state, resetTournament, updateSettings } = tournament;
-  const [, setLocation] = useLocation();
-  const [dialogLeagueId, setDialogLeagueId] = useState<string | null>(null);
-  const { seasons: dialogSeasonsList, isLoading: dialogSeasonsLoading } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
-  const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
-  const [dialogSeasonId, setDialogSeasonId] = useState<string | number | null>(null);
-
-  const isLeagueMode =
-    state.details?.type === 'season' ||
-    state.settings?.isSeasonTournament === true;
-
-  const storedSeasonId = state.settings?.seasonId;
-  const displaySeason = storedSeasonId
-    ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
-    : currentSeason;
-
-  const handleNewTournament = (keepStructure: boolean) => {
-    try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
-    resetTournament({ keepStructure });
-    // ?home=1, not "/": PokerTimer restores the pin from the signed-in user's
-    // most recent live tournament, which would otherwise reopen the very game
-    // this button just finished with. The flag means "I asked to be here".
-    setLocation('/?home=1');
-  };
-
-  const handleLeagueNewGame = (seasonId: string | number | null) => {
-    const sourceSeasons = dialogSeasonsList.length > 0 ? dialogSeasonsList : (seasons as any[]);
-    const chosenSeason = (sourceSeasons as any[]).find(s => String(s.id) === String(seasonId));
-    setShowLeagueNewDialog(false);
-    handleNewTournament(true);
-    if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
-      switchLeague(dialogLeagueId);
-    }
-    if (chosenSeason) {
-      updateSettings({
-        isSeasonTournament: true,
-        leagueId: String(dialogLeagueId ?? league?.id ?? ''),
-        seasonId: String(chosenSeason.id),
-        seasonName: chosenSeason.name,
-        numberOfGames: chosenSeason.numberOfGames || 12,
-      });
-    }
-  };
-
-  const gameNumber = useMemo(
-    () => (isLeagueMode && displaySeason
-      ? gameNumberFor(displaySeason.id, leaguePlayers, state.details?.localGameId)
-      : null),
-    [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const totalGames = displaySeason?.numberOfGames || 12;
-
-  const dialogGameNumber = useMemo(() => {
-    if (!dialogSeasonId) return gameNumber;
-    if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) return null;
-    return gameNumberFor(dialogSeasonId, leaguePlayers, state.details?.localGameId);
-  }, [dialogSeasonId, dialogLeagueId, league?.id, leaguePlayers, state.details?.localGameId, gameNumber]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const dialogTotalGames = useMemo(() => {
-    const dialogSeason = (dialogSeasonsList as any[]).find(s => String(s.id) === String(dialogSeasonId))
-      || (seasons as any[]).find(s => String(s.id) === String(dialogSeasonId));
-    return dialogSeason?.numberOfGames || totalGames;
-  }, [dialogSeasonId, dialogSeasonsList, seasons, totalGames]);
-
-  return (
-    <>
-      {isLeagueMode ? (
-        <button
-          onClick={() => {
-            setDialogLeagueId(league?.id ? String(league.id) : null);
-            setDialogSeasonId(displaySeason?.id ?? null);
-            setShowLeagueNewDialog(true);
-          }}
-          className="flex items-center gap-1 text-xs font-medium text-orange-400/80 hover:text-orange-300 border border-orange-400/20 hover:border-orange-400/40 px-2 py-1 rounded-md hover:bg-orange-500/10 transition-colors"
-        >
-          <ChevronRight className="h-3.5 w-3.5" />
-          Next Game
-          <ChevronDown className="h-3 w-3 opacity-60" />
-        </button>
-      ) : (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground border border-border/40 hover:border-border px-2 py-1 rounded-md hover:bg-muted/50 transition-colors">
-              <RotateCcw className="h-3.5 w-3.5" />
-              New
-            </button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Start a new tournament?</AlertDialogTitle>
-              <AlertDialogDescription>
-                All players and results will be cleared. Choose whether to keep your current blind structure and buy-in settings.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-muted text-foreground hover:bg-muted/80"
-                onClick={() => handleNewTournament(true)}
-              >
-                Keep structure
-              </AlertDialogAction>
-              <AlertDialogAction onClick={() => handleNewTournament(false)}>
-                Full reset
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      <Dialog open={showLeagueNewDialog} onOpenChange={setShowLeagueNewDialog}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Start next league game</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {(userLeagues as any[]).length > 1 && (
-              <div className="space-y-1.5">
-                <label htmlFor="dialog-league" className="text-sm font-medium text-foreground">League</label>
-                <Select
-                  value={String(dialogLeagueId ?? '')}
-                  onValueChange={v => {
-                    setDialogLeagueId(v);
-                    setDialogSeasonId(null);
-                  }}
-                >
-                  <SelectTrigger id="dialog-league" className="h-9">
-                    <SelectValue placeholder="Select league" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(userLeagues as any[]).map((l: any) => (
-                      <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <label htmlFor="dialog-season" className="text-sm font-medium text-foreground">Season</label>
-              {(() => {
-                const displaySeasons = (dialogSeasonsList as any[]).length > 0
-                  ? (dialogSeasonsList as any[])
-                  : (seasons as any[]);
-                return displaySeasons.length > 1 ? (
-                  <Select
-                    value={String(dialogSeasonId ?? '')}
-                    onValueChange={v => setDialogSeasonId(v)}
-                  >
-                    <SelectTrigger id="dialog-season" className="h-9">
-                      <SelectValue placeholder="Select season" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {displaySeasons.map((s: any) => (
-                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-sm text-muted-foreground px-1">
-                    {displaySeasons[0]?.name ?? displaySeason?.name ?? '—'}
-                  </p>
-                );
-              })()}
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="dialog-game" className="text-sm font-medium text-foreground">Game</label>
-              <div id="dialog-game" className="flex items-center gap-2">
-                <span className="text-sm font-mono font-bold text-orange-400 px-1">
-                  {dialogGameNumber != null
-                    ? `Game ${dialogGameNumber} of ${dialogTotalGames}`
-                    : 'Game — of —'}
-                </span>
-                <span className="text-xs text-muted-foreground">· auto-calculated</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button
-              className="w-full"
-              disabled={dialogSeasonsLoading || (dialogLeagueId !== null && String(dialogLeagueId) !== String(league?.id) && dialogSeasonsList.length === 0)}
-              onClick={() => handleLeagueNewGame(dialogSeasonId)}
-            >
-              {dialogGameNumber != null ? `Start Game ${dialogGameNumber}` : 'Start Next Game'}
-            </Button>
-            <button
-              onClick={() => { setShowLeagueNewDialog(false); handleNewTournament(false); }}
-              className="text-xs text-destructive hover:text-destructive/80 text-center py-1"
-            >
-              Full reset (clears structure &amp; switches to standalone)
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 
@@ -422,7 +207,12 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
   const active = state.players.filter(pl => pl.isActive !== false);
   const eliminated = state.players.filter(pl => pl.isActive === false);
   const avg = active.length > 0 ? Math.floor(totalChips / active.length) : 0;
-  const winner = active.length === 1 && eliminated.length > 0 ? active[0] : null;
+  // At the true end of a game EVERY player is inactive, the winner included —
+  // eliminatePlayer awards position 1 and isActive: false in the same update.
+  // So `active.length === 1` is zero exactly when this card should appear, and
+  // it never did. lib/gameOver.ts answers this once, for the three screens that
+  // all had it wrong.
+  const winner = gameIsOver(state.players) ? winnerOf(state.players) : null;
 
   const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 

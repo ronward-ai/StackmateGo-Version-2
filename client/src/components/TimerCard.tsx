@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Play, Pause, RotateCcw, SkipForward, SkipBack, Volume2, VolumeX, Settings, Maximize2, Minimize2 } from 'lucide-react';
+import { gameIsOver } from '@/lib/gameOver';
 import { Slider } from './ui/slider';
 
 interface TimerCardProps {
@@ -80,11 +81,16 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
   } = tournament;
   const [otherDirectorsActive, setOtherDirectorsActive] = useState(false);
 
-  // Check if tournament is finished (all but one player eliminated)
-  const eliminatedPlayers = state.players.filter(p => p.isActive === false);
-  const isTournamentFinished = eliminatedPlayers.length >= state.players.length - 1 && state.players.length > 1;
-  const activePlayers = state.players.filter(p => p.isActive !== false);
-  const winner = isTournamentFinished ? activePlayers[0] : null;
+  // Is the game over? One predicate, lib/gameOver.ts — the golden clock face,
+  // the Tournament Over banner and the winner card used to ask three different
+  // questions and two of them were never true.
+  //
+  // Narrower than the count it replaces in exactly one state: all but one
+  // player eliminated with the last still active. eliminatePlayer awards
+  // position 1 in the same update, so the only way to reach it is undoing the
+  // winning hand — where the clock un-freezing and the face turning back is
+  // what a director undoing it actually wants.
+  const isTournamentFinished = gameIsOver(state.players);
 
   // Stop timer when tournament is finished
   useEffect(() => {

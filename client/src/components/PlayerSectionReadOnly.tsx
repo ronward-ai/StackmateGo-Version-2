@@ -55,6 +55,10 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
   // Calculate tournament stats
   const totalKnockouts = players.reduce((sum, p) => sum + (p.knockouts || 0), 0);
 
+  // Deliberately NOT lib/gameOver.ts's gameIsOver, though it looks like it.
+  // This asks "is there a champion yet" to decide whether a SEAT BADGE is worth
+  // showing, and it is already ORed with an active count — swapping it in would
+  // tie a badge's visibility to the end-of-game rule and change nothing.
   const isFinished = players.some(p => p.position === 1);
   const hideTableBadge = isFinished || activePlayers.length <= 1;
 
