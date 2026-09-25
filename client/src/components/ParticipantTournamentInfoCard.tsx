@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, LogIn } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited } from '@/lib/entryLimits';
+import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 
 const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
@@ -46,7 +47,11 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const active = players.filter((pl: any) => pl.isActive !== false);
   const eliminated = players.filter((pl: any) => pl.isActive === false);
   const avg = active.length > 0 ? Math.floor(totalChips / active.length) : 0;
-  const winner = active.length === 1 && eliminated.length > 0 ? active[0] : null;
+  // The FOURTH copy of a check that could never be true: at the end of a game
+  // every player is inactive, the winner included, so counting active players
+  // gives zero and this card had never once appeared on a player's phone. Same
+  // one line the console's identical card uses — see lib/gameOver.ts.
+  const winner = gameIsOver(players) ? winnerOf(players) : null;
 
   return (
     <Card className="card-glass rounded-xl">

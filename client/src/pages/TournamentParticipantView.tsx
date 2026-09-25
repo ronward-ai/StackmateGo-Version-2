@@ -12,8 +12,6 @@ import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Button } from '@/components/ui/button'; // Assuming Button component is available
 import { useAuth } from '@/hooks/useAuth';
 import { useWakeLock } from '@/hooks/useWakeLock';
-import TournamentOverBanner from '@/components/TournamentOverBanner';
-import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
 import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
 import TimerFace from '@/components/TimerFace';
@@ -540,17 +538,6 @@ function TournamentParticipantView() {
             </div>
           )}
         </div>
-
-        {/* Tournament Over Banner.
-            Players had never seen this: it counted players with
-            `isActive === true`, and at the end of a game there are none — the
-            winner is marked inactive in the same update that makes them the
-            winner. Same predicate as the console now, from lib/gameOver.ts. */}
-        {gameIsOver(tournament?.players) && (
-          <TournamentOverBanner
-            winnerName={winnerOf(tournament?.players)?.name || 'Unknown'}
-          />
-        )}
 
         {/* Personalised player card */}
         {(() => {

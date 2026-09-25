@@ -549,8 +549,19 @@ hands plain DOM nodes to html2canvas and cannot use Tailwind classes. Change one
 
 ### Icons are lucide, and there are no emoji
 
-One exception, deliberate: `TournamentOverBanner`'s confetti. That screen is shown once a night and a
-lucide outline of a party popper would be worse at the job.
+**There are no exceptions, and the one there used to be is worth keeping as a warning.** It was
+`TournamentOverBanner`'s confetti, justified here as "that screen is shown once a night and a lucide
+outline of a party popper would be worse at the job". The screen was shown on NO nights: the banner
+was gated on there being exactly one active player, and at the end of a game there are none, so it
+had never rendered. The exception had never been looked at by anybody, which is precisely why it
+survived — and the moment the gate was fixed and it appeared, it was reported within the hour as
+looking like a poker app aimed at children. A gradient from yellow through red to pink, an 8xl
+pulsing headline and four bouncing emoji, in an app whose one accent is orange.
+
+The banner is deleted. The end of a game is marked in the app's own language instead: the timer face
+turns gold, and the **Tournament Winner** card appears in Tournament Info — a tinted panel, a lucide
+`Trophy`, the name. **An exception argued from how something will feel, on a screen nobody has seen,
+is not an argument.**
 
 Everything else went. Emoji render from the system emoji font — full colour, a different weight and
 baseline from the lucide icon beside them, different again on each platform, and baked into the
@@ -1415,11 +1426,15 @@ migration guessing which results were a demo and which were real is how a league
 state update** — that is how the rest of the app tells a finished game from one still in play. So at
 the moment a tournament ends, a count of active players is **zero**, never one.
 
-Three pieces of UI asked for exactly one active player, and therefore none of them had ever been seen
-on a completed game: the **Tournament Over banner** on the console, the **same banner on every
-player's phone**, and the **Tournament Winner card** in Tournament Info. Not subtly wrong — dead. It
-is why the end of a night had no marker on screen at all, and why a director asked whether the app
-needed an "End Game" button.
+FOUR pieces of UI asked for exactly one active player, and therefore none of them had ever been seen
+on a completed game: the **Tournament Winner card** in Tournament Info, **the identical card on a
+player's phone** (`ParticipantTournamentInfoCard`, found a day later — the same line, copied), and
+the Tournament Over banner on both screens. Not subtly wrong — dead. It is why the end of a night had
+no marker on screen at all, and why a director asked whether the app needed an "End Game" button.
+
+The banner has since been deleted on sight (see the emoji note above), so the winner card is the
+marker on both screens. The count is worth keeping: one bad predicate, copied four times, each copy
+invisible because the thing it hid was invisible.
 
 `lib/gameOver.ts` answers it once: `gameIsOver(players)` (at least two players, nobody still in,
 somebody holding position 1) and `winnerOf(players)`. The winner has to come from the **position**,

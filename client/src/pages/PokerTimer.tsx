@@ -36,7 +36,6 @@ import { blindLevelNumber } from '@/lib/announcements';
 import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
-import TournamentOverBanner from '@/components/TournamentOverBanner';
 import { LiveBanner } from '@/components/LiveBanner';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 
@@ -1084,20 +1083,6 @@ function PokerTimerInner({
           </div>
         )}
         <AuthModal isOpen={showSignInModal} onClose={() => setShowSignInModal(false)} />
-
-
-        {/* Tournament Over Banner.
-            This asked for exactly one player with `isActive === true`, and at
-            the end of a game there are none — the winner is marked inactive in
-            the same update that gives them position 1. So this banner had never
-            once been seen on a finished game, on this screen or on a player's
-            phone. lib/gameOver.ts answers it for both, and the winner comes from
-            the position rather than from a roster that is now entirely out. */}
-        {gameIsOver(tournament.state.players) && (
-          <TournamentOverBanner
-            winnerName={winnerOf(tournament.state.players)?.name || 'Unknown'}
-          />
-        )}
 
 
 
