@@ -910,6 +910,41 @@ So that enforcement could not close on a game whose director never chose a windo
 `state.currentLevel` and does the `+ 1` internally, because that off-by-one was previously spelled
 inline at the one site that worked and is exactly what gets copied wrong on the fourth.
 
+### A numeric field must accept what typing passes through
+
+The Tables and Seats/Table fields could not be changed at all. Both were controlled inputs whose
+`onChange` threw away anything that was not already a valid FINAL number:
+
+```tsx
+const v = parseInt(e.target.value);
+if (!isNaN(v) && v >= 1 && v <= 20) setNumberOfTables(v);
+```
+
+So the field could not be **cleared** — backspacing to empty gives `''`, which is `NaN`, which is
+rejected, so the old value re-rendered instantly and there was no way to start a fresh number — and
+it could not be **appended to**, because from `3` a second digit makes `"35"`, over the maximum, also
+rejected. Select-all-then-type-one-in-range-digit was the only gesture that worked. On a phone it
+read as a dead control, and it was reported as one.
+
+**Typing passes through states that are not valid numbers.** An empty field and a half-typed one are
+both normal; the value is only decided when the field is LEFT. Each field keeps a **draft string**
+while it is being edited and resolves it on blur.
+
+`lib/numberField.ts` owns that rule for the whole app: `commitNumber(raw, {min, max, fallback})` —
+empty or unparseable returns the fallback (what it was, so blanking a field is a no-op rather than a
+surprise), and out of range **CLAMPS rather than rejects**. Clamping matters: a director who types 30
+tables means "lots", and silently keeping 3 is what taught them the control was broken. A test fails
+if it goes back to rejecting.
+
+`LevelInput` in `BlindLevelsSection` already had the draft idea right and is the reason this shape
+was easy to spot — it now calls the same function, so the two cannot drift. Its `0`-means-none
+sentinel survives as `fallback: min` with `min: 0`.
+
+**Verified by driving real keystrokes**, not by reading: clearing gives `""`, `12` commits as 12,
+`99` clamps to 20, seats `1` clamps to 2. Note React listens for `focusout`, not `blur`, so a
+synthetic `blur` event does not reach `onBlur` — a harness that dispatches one will show the draft
+and prove nothing.
+
 ### There is one default prize structure
 
 `lib/prizeStructure.ts`. There were two — `useTournament`'s and the Buy-in tab's own `useState`

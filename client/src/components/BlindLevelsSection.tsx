@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -51,11 +52,14 @@ function LevelInput({
       value={value === 0 && !disabled ? '' : value.toString()}
       onChange={(e) => {
         const v = e.target.value;
-        if (v === '' || /^\d+$/.test(v)) onChange(v === '' ? 0 : parseInt(v));
+        if (isDraftNumber(v)) onChange(v === '' ? 0 : parseInt(v, 10));
       }}
+      // Through the same rule as the Tables fields, so the two cannot drift —
+      // this input had it right and they had it wrong. Unbounded above, since a
+      // blind can be any size; `fallback: min` keeps the 0-means-none sentinel
+      // this editor has always used.
       onBlur={(e) => {
-        const v = parseInt(e.target.value);
-        onBlur?.(isNaN(v) || v < min ? min : v);
+        onBlur?.(commitNumber(e.target.value, { min, max: Number.MAX_SAFE_INTEGER, fallback: min }));
       }}
       disabled={disabled}
       inputMode="numeric"

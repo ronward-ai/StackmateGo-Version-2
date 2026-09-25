@@ -23,6 +23,7 @@ import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { activeCount, promptDismissedFor } from '@/lib/finalTable';
 import { seatablePlayers } from '@/lib/seating';
+import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
 import { canRebuy } from '@/lib/entryLimits';
@@ -69,6 +70,11 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   } = entryCosts(ps);
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
+  // The DRAFT is what the field shows while it is being typed in, and it has to
+  // be allowed to be empty or half-finished — see lib/numberField.ts. Without
+  // it these two fields could not be changed at all.
+  const [tablesDraft, setTablesDraft] = useState(String(tables.numberOfTables));
+  const [seatsDraft, setSeatsDraft]   = useState(String(tables.seatsPerTable));
   const [seatsPerTable, setSeatsPerTable]   = useState(tables.seatsPerTable);
   const [tableNames, setTableNames]         = useState<string[]>(tables.tableNames || Array.from({ length: tables.numberOfTables }, (_, i) => `Table ${i + 1}`));
   const [tableBackgrounds, setTableBackgrounds] = useState<string[]>(
@@ -138,6 +144,9 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       const c = state.settings.tables;
       setNumberOfTables(c.numberOfTables);
       setSeatsPerTable(c.seatsPerTable);
+      // A snapshot still wins: the drafts follow the stored value.
+      setTablesDraft(String(c.numberOfTables));
+      setSeatsDraft(String(c.seatsPerTable));
       setTableNames(c.tableNames?.length === c.numberOfTables
         ? c.tableNames
         : Array.from({ length: c.numberOfTables }, (_, i) => `Table ${i + 1}`)
@@ -185,15 +194,19 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     setTableBalanceDialogOpen(true);
   }, [currentImbalance, balanceDismissedKey, isFinalTableDialogOpen, moveMode, shouldPromptForFinalTable, state.players]);
 
-  const expandTableNames = (n: number) => {
-    setTableNames(prev => n > prev.length
-      ? [...prev, ...Array.from({ length: n - prev.length }, (_, i) => `Table ${prev.length + i + 1}`)]
-      : prev.slice(0, n)
-    );
-    setTableBackgrounds(prev => n > prev.length
-      ? [...prev, ...Array(n - prev.length).fill('felt-green')]
-      : prev.slice(0, n)
-    );
+  /** Grow or trim the per-table arrays to `n`, and RETURN the names.
+   *
+   *  The return matters: `saveTableConfig`'s defaults read render-time state,
+   *  so a blur handler that set state and then called it bare would save the
+   *  previous count and the previous names. The caller passes these on. */
+  const expandTableNames = (n: number): string[] => {
+    const grow = <T,>(prev: T[], fill: (i: number) => T) => n > prev.length
+      ? [...prev, ...Array.from({ length: n - prev.length }, (_, i) => fill(prev.length + i))]
+      : prev.slice(0, n);
+    const names = grow(tableNames, i => `Table ${i + 1}`);
+    setTableNames(names);
+    setTableBackgrounds(prev => grow(prev, () => 'felt-green'));
+    return names;
   };
 
   const saveTableConfig = (nt = numberOfTables, spt = seatsPerTable, tn = tableNames) => {
@@ -397,15 +410,26 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               <Input
                 id="numberOfTables"
                 type="text"
-                value={numberOfTables}
+                value={tablesDraft}
                 onChange={(e) => {
-                  const v = parseInt(e.target.value);
-                  if (!isNaN(v) && v >= 1 && v <= 20) {
+                  const raw = e.target.value;
+                  if (!isDraftNumber(raw)) return;
+                  setTablesDraft(raw);
+                  // Follow along live where the draft is already usable, so the
+                  // tables below react as you type.
+                  const v = parseInt(raw, 10);
+                  if (Number.isFinite(v) && v >= 1 && v <= 20) {
                     setNumberOfTables(v);
                     expandTableNames(v);
                   }
                 }}
-                onBlur={() => saveTableConfig()}
+                onBlur={() => {
+                  const n = commitNumber(tablesDraft, { min: 1, max: 20, fallback: numberOfTables });
+                  setTablesDraft(String(n));
+                  setNumberOfTables(n);
+                  // Explicit, not the defaults: those read render-time state.
+                  saveTableConfig(n, seatsPerTable, expandTableNames(n));
+                }}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
               />
@@ -415,12 +439,20 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               <Input
                 id="seatsPerTable"
                 type="text"
-                value={seatsPerTable}
+                value={seatsDraft}
                 onChange={(e) => {
-                  const v = parseInt(e.target.value);
-                  if (!isNaN(v) && v >= 2 && v <= 12) setSeatsPerTable(v);
+                  const raw = e.target.value;
+                  if (!isDraftNumber(raw)) return;
+                  setSeatsDraft(raw);
+                  const v = parseInt(raw, 10);
+                  if (Number.isFinite(v) && v >= 2 && v <= 12) setSeatsPerTable(v);
                 }}
-                onBlur={() => saveTableConfig()}
+                onBlur={() => {
+                  const n = commitNumber(seatsDraft, { min: 2, max: 12, fallback: seatsPerTable });
+                  setSeatsDraft(String(n));
+                  setSeatsPerTable(n);
+                  saveTableConfig(numberOfTables, n, tableNames);
+                }}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
               />
