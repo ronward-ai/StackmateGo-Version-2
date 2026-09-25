@@ -1176,6 +1176,21 @@ mid-game — late entry does not exist in this app — so rebuys never decide wh
 DUE. They decide whether this particular bust-out counted. The dialog therefore names whoever just
 busted and offers to rebuy them, which is the answer that means nobody moves.
 
+**The predicate is `<=`, and it used to be `===`.** That equality meant the field passed through one
+table's worth EXACTLY ONCE: with 8 seats and 9 players it is 8 for a single bust-out and then 7, 6,
+5. Answering "Not yet" — or being on another screen for that render — meant the question was never
+asked again, because no later count equals 8. A director ran a real game, got one prompt, and spent
+the rest of the night collapsing the table by hand; that hand-arranging is what walked them into the
+seating bug below. A test asserts the prompt is due at every count from `seatsPerTable` down to 2 and
+fails if the equality comes back.
+
+Asking on each bust-out is not nagging — each one is genuinely a new question, and
+`promptDismissedFor` caps it at one prompt per bust-out. **"Not this game"** silences it for the rest
+of the tournament, for the director who means to arrange it themselves. That flag is component state
+in `TablesSection`, NOT tournament state: it is a preference about a question rather than a fact
+about the game, and in `state` it would sync to Firestore and out to every participant device. A page
+refresh therefore asks once more, which is one dialog rather than lost data.
+
 ### A busted player has to be reachable from the screen the director is on
 
 `TablesSection` already had a rebuy button, drawn **inside a seat** and gated on
@@ -1198,6 +1213,20 @@ the rule was working or the app was broken. Both now show it disabled **with the
 A feature switched off for the whole tournament renders nothing, rather than a row of "Rebuys are
 off" against every busted player: that is a setting, not a blocked action, and there is nothing the
 director can do about it from there.
+
+**Seating was the one path that could put a busted player back in a chair.** `eliminatePlayer` sets
+`seated: false` and `tableAssignment: undefined` — that invariant is the whole reason the Busted
+strip had to exist — and every part of the app honoured it except the part that hands out seats.
+`SeatPlayersDialog` took the entire roster and filtered only on `seated`, so eliminated players were
+tickable rows and Select All took them; `seatPlayersManually` then set `seated: true` on whatever it
+was handed. **And the seat offers a busted player only a REBUY**, the KO button being gated on
+`isActive !== false`, so the single way out was to put them back in the tournament for real.
+
+`lib/seating.ts`'s `seatablePlayers()` gates it in **both** places — the dialog and the seating call.
+Two gates for one rule is deliberate and is the `attemptAddPlayer` reasoning: a check in the dialog
+alone is walked around by the next caller. An **Unseat** button on a seated-but-busted player clears
+the chair for games already in that state; it is deliberately not a bust-out, since they are already
+out and their finishing position and league result must not be touched.
 
 ### What kind of game it is, is decided before the first hand
 

@@ -113,3 +113,37 @@ describe('activeCount', () => {
     expect(activeCount([{ id: 'a' }, seated('b', 0, 0), busted('c')])).toBe(2);
   });
 });
+
+describe('shouldPromptForFinalTable below the threshold', () => {
+  const field = (active: number, busted: number) => [
+    ...Array.from({ length: active }, (_, i) => ({ id: `a${i}` })),
+    ...Array.from({ length: busted }, (_, i) => ({ id: `b${i}`, isActive: false })),
+  ];
+
+  it('keeps asking on every bust-out once the field fits one table', () => {
+    // The bug: this used to be an equality, so with 8 seats the question was
+    // asked at 8 and never again. A director answered "Not yet" once and was
+    // left collapsing the table by hand for the rest of the night.
+    for (let active = 8; active >= 2; active--) {
+      expect(shouldPromptForFinalTable(field(active, 9 - active), 8, false)).toBe(true);
+    }
+  });
+
+  it('does not ask while the field still needs more than one table', () => {
+    expect(shouldPromptForFinalTable(field(9, 1), 8, false)).toBe(false);
+  });
+
+  it('does not ask before anyone has gone out', () => {
+    // The opening seating of a tournament that starts with one table's worth.
+    expect(shouldPromptForFinalTable(field(8, 0), 8, false)).toBe(false);
+    expect(shouldPromptForFinalTable(field(6, 0), 8, false)).toBe(false);
+  });
+
+  it('does not ask once it is already the final table', () => {
+    expect(shouldPromptForFinalTable(field(6, 3), 8, true)).toBe(false);
+  });
+
+  it('does not ask when one player is left, because the game is over', () => {
+    expect(shouldPromptForFinalTable(field(1, 8), 8, false)).toBe(false);
+  });
+});

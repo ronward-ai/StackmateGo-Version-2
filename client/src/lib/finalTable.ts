@@ -46,6 +46,19 @@ export function activeCount(players: SeatablePlayer[]): number {
  *
  * `eliminatedAtLeastOne` is what stops it firing on the opening seating of a
  * tournament that happens to start with exactly one table's worth.
+ *
+ * **`<=`, NOT `===`, and that equality was a real bug.** The field passes
+ * through exactly one table's worth once: with 8 seats and 9 players it is 8
+ * for one bust-out and then 7, 6, 5. Answering "Not yet" — or simply being on
+ * another screen for that render — meant the question was never asked again,
+ * because no later count is equal to 8. A director ran a real game, got one
+ * prompt, and then had to collapse the table by hand; that hand-arranging is
+ * what walked into the seating bug documented in lib/seating.ts.
+ *
+ * Asking on every bust-out below the threshold is not nagging: each one is
+ * genuinely a new question, and `promptDismissedFor` already caps it at one
+ * prompt per bust-out. A director who wants to arrange it themselves says
+ * "Not this game" and is not asked again.
  */
 export function shouldPromptForFinalTable(
   players: SeatablePlayer[],
@@ -54,7 +67,7 @@ export function shouldPromptForFinalTable(
 ): boolean {
   const active = activeCount(players);
   const eliminatedAtLeastOne = players.some(p => p.isActive === false);
-  return active === seatsPerTable && active > 1 && !isFinalTable && eliminatedAtLeastOne;
+  return active <= seatsPerTable && active > 1 && !isFinalTable && eliminatedAtLeastOne;
 }
 
 /**

@@ -22,6 +22,7 @@ import FinalTableDialog from "./FinalTableDialog";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { activeCount, promptDismissedFor } from '@/lib/finalTable';
+import { seatablePlayers } from '@/lib/seating';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
 import { canRebuy } from '@/lib/entryLimits';
@@ -87,6 +88,17 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   // against the player count it was dismissed at keeps it shut while the field
   // is that size, and re-arms it if the field changes again.
   const [finalTableDismissedAt, setFinalTableDismissedAt] = useState<number | null>(null);
+  /**
+   * "Not this game" — the prompt is due on every bust-out once the field fits
+   * one table (see lib/finalTable.ts), which is right, but a director who
+   * intends to collapse the table by hand should say so once.
+   *
+   * Component state rather than tournament state, deliberately: it is a UI
+   * preference about a question, not a fact about the game, and putting it in
+   * `state` would sync it to Firestore and out to every participant device.
+   * The cost is that a page refresh asks once more — one dialog, not data.
+   */
+  const [finalTablePromptSilenced, setFinalTablePromptSilenced] = useState(false);
   /** Which imbalance was waved away, so "Ignore for now" stays ignored. */
   const [balanceDismissedKey, setBalanceDismissedKey] = useState<string | null>(null);
 
@@ -140,10 +152,11 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   // Final table prompt
   useEffect(() => {
+    if (finalTablePromptSilenced) return;
     if (!shouldPromptForFinalTable()) return;
     if (promptDismissedFor(finalTableDismissedAt, state.players)) return;
     setIsFinalTableDialogOpen(true);
-  }, [shouldPromptForFinalTable, finalTableDismissedAt, state.players]);
+  }, [shouldPromptForFinalTable, finalTableDismissedAt, finalTablePromptSilenced, state.players]);
 
   // Table balance check — see lib/tableBalance.ts for why this is shaped the
   // way it is.
@@ -213,7 +226,11 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     saveTableConfig(numberOfTables, seatsPerTable, updated);
   };
 
-  const seatPlayersManually = (selectedPlayers: Player[]) => {
+  const seatPlayersManually = (chosen: Player[]) => {
+    // The SECOND gate, and not redundant: a check in the dialog alone is walked
+    // around by the next caller, which is why `attemptAddPlayer` is the single
+    // route for adding a player. A busted player has no seat.
+    const selectedPlayers = seatablePlayers(chosen);
     const current = [...state.players];
     const ids = new Set(selectedPlayers.map(p => p.id));
     const occupied = new Set<string>();
@@ -615,15 +632,43 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
                               {/* One implementation, shared with the busted
                                   strip below — see PlayerEntryActions. */}
                               {player.isActive === false && (
-                                <PlayerEntryActions
-                                  player={player}
-                                  prizeStructure={state.prizeStructure}
-                                  settings={state.settings}
-                                  currentLevel={state.currentLevel}
-                                  onRebuy={processRebuy}
-                                  onReEntry={processReEntry}
-                                  variant="compact"
-                                />
+                                <>
+                                  <PlayerEntryActions
+                                    player={player}
+                                    prizeStructure={state.prizeStructure}
+                                    settings={state.settings}
+                                    currentLevel={state.currentLevel}
+                                    onRebuy={processRebuy}
+                                    onReEntry={processReEntry}
+                                    variant="compact"
+                                  />
+                                  {/* The way out of a seat for someone already
+                                      out of the tournament. Seating them is now
+                                      prevented at two gates, but a game broken
+                                      before that shipped needs a hand.
+
+                                      Deliberately NOT a bust-out: they are
+                                      already busted, and their finishing
+                                      position and league result must not be
+                                      touched. This clears the chair, nothing
+                                      else. */}
+                                  <Button
+                                    variant="outline"
+                                    title="Remove from seat"
+                                    aria-label={`Remove ${player.name} from this seat`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updatePlayers(state.players.map(p =>
+                                        p.id === player.id
+                                          ? { ...p, seated: false, tableAssignment: undefined }
+                                          : p
+                                      ));
+                                    }}
+                                    className="h-7 px-2 text-caption"
+                                  >
+                                    Unseat
+                                  </Button>
+                                </>
                               )}
                               {/* KO button — only for active players */}
                               {player.isActive !== false && (
@@ -890,6 +935,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
             ? () => processRebuy(justBusted.id)
             : undefined
         }
+        onSilence={() => setFinalTablePromptSilenced(true)}
       />
 
       {/* Break Table Dialog */}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { seatablePlayers } from '@/lib/seating';
 import { Button } from "@/components/ui/button";
 import { buttonCombinations, getButtonVariant } from "@/lib/buttonUtils";
 import {
@@ -23,7 +24,7 @@ interface SeatPlayersDialogProps {
 export default function SeatPlayersDialog({
   isOpen,
   onClose,
-  players,
+  players: allPlayers,
   onSeatPlayers,
 }: SeatPlayersDialogProps) {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
@@ -36,6 +37,12 @@ export default function SeatPlayersDialog({
     }
   }, [isOpen]);
   
+  // Only players still IN the game can be given a chair. This used to take the
+  // whole roster and filter on `seated` alone, so eliminated players were
+  // tickable rows and Select All took them straight into seats — see
+  // lib/seating.ts for what that cost.
+  const players = seatablePlayers(allPlayers);
+
   // Get filtered players based on the filter setting
   const filteredPlayers = showOnlyUnseated
     ? players.filter(player => !player.seated)

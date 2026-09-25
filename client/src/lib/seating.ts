@@ -39,3 +39,28 @@ export function seatToReclaim(player: Player, players: Player[]): Seat | null {
 
   return taken ? null : { tableIndex: seat.tableIndex, seatIndex: seat.seatIndex };
 }
+
+/**
+ * The players who may be given a chair.
+ *
+ * **A busted player has no seat.** `eliminatePlayer` sets `seated: false` and
+ * `tableAssignment: undefined`, which is the whole reason the Busted strip had
+ * to exist — a player leaves the grid the instant they go out. Every part of
+ * the app honours that except the one that hands out seats.
+ *
+ * `SeatPlayersDialog` was given the entire roster and filtered only on
+ * `seated`, so eliminated players appeared as tickable rows and Select All
+ * took them; `seatPlayersManually` then set `seated: true` on whatever it was
+ * handed. A director collapsing to a final table by hand — which is what the
+ * broken final-table prompt left them doing — dropped the dead back into
+ * chairs, and the seat offers a busted player only a REBUY, so the only way
+ * out was to put them back in the tournament for real.
+ *
+ * Both the dialog and the seating call this. Two gates for one rule is
+ * deliberate: a check in the dialog alone is walked around by the next caller,
+ * which is exactly why `attemptAddPlayer` is the single route for adding a
+ * player.
+ */
+export function seatablePlayers<T extends { isActive?: boolean }>(players: T[]): T[] {
+  return players.filter(p => p.isActive !== false);
+}

@@ -37,6 +37,8 @@ interface FinalTableDialogProps {
   triggeredBy?: Player | null;
   /** Shown only when that player may actually still rebuy. */
   onRebuyTrigger?: () => void;
+  /** Stop asking for the rest of this tournament. */
+  onSilence?: () => void;
 }
 
 export default function FinalTableDialog({
@@ -46,6 +48,7 @@ export default function FinalTableDialog({
   onConfirm,
   triggeredBy,
   onRebuyTrigger,
+  onSilence,
 }: FinalTableDialogProps) {
   const handleConfirm = () => {
     onConfirm();
@@ -106,6 +109,19 @@ export default function FinalTableDialog({
               Go to final table
             </Button>
           </div>
+          {/* "Not yet" answers for THIS bust-out and the question returns on
+              the next one, which is right — each one is a new question. A
+              director who intends to arrange the table by hand needs to say so
+              once rather than decline five times. */}
+          {onSilence && (
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => { onSilence(); onClose(); }}
+            >
+              Not this game — I’ll arrange it myself
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim } from './seating';
+import { seatToReclaim, seatablePlayers } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -50,5 +50,25 @@ describe('seatToReclaim', () => {
   it('handles seat zero, which is falsy', () => {
     const dave = player({ isActive: false, seatInfo: { ...at(0, 0), totalSeatedPlayers: 7 } });
     expect(seatToReclaim(dave, [dave])).toEqual(at(0, 0));
+  });
+});
+
+describe('seatablePlayers', () => {
+  it('refuses a chair to anyone who is out', () => {
+    const players = [
+      { id: 'a', name: 'Active' },
+      { id: 'b', name: 'Busted', isActive: false },
+      { id: 'c', name: 'Explicitly active', isActive: true },
+    ] as any[];
+    expect(seatablePlayers(players).map(p => p.id)).toEqual(['a', 'c']);
+  });
+
+  it('treats absent isActive as still in, the way the rest of the app does', () => {
+    expect(seatablePlayers([{ id: 'a' }] as any[])).toHaveLength(1);
+  });
+
+  it('is empty rather than throwing when nobody is left', () => {
+    expect(seatablePlayers([])).toEqual([]);
+    expect(seatablePlayers([{ id: 'a', isActive: false }] as any[])).toEqual([]);
   });
 });
