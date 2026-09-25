@@ -1781,8 +1781,31 @@ before launch arrives here. The unlock contract has not changed and must not: no
 `VITE_ACCESS_PASSWORD` means open, a correct code sets `smgo_unlocked` and the app renders instead.
 
 A long version of this page was written and cut the same day. Nobody reads a landing page; they scan
-one. It is a headline, three lines of what it is, three short pillars and the pictures. **Adding a
+one. It is a headline, three lines of what it is, four short pillars and the pictures. **Adding a
 paragraph here is nearly always the wrong instinct** — if something matters, it replaces a pillar.
+
+**The two pillars in the middle are the ones a director reacts to, and neither was there.** The page
+sold the QR view, "the league runs itself" and the exports, while the standings updating on a
+player's phone AS PEOPLE BUST OUT went unmentioned — and so did the drill-down behind a name, which
+is the feature a TD on other software described the absence of: going back through every previous
+game one at a time to add up somebody's hits. Both were already built. `RealTimeLeagueTable` is
+mounted in the participant view for every league game and fed by live listeners, and results are
+written at each elimination rather than at the end of the night (`PokerTimer`'s `syncLeagueResults`
+→ `addResultMutation`), so the table genuinely moves mid-game; `PlayerSeasonDialog` opens from any
+standings row with **no participant gate**, so a phone can open anyone's season night by night.
+
+Two claims are qualified because the code qualifies them. "In a league game" is load-bearing — the
+table hides itself entirely for a standalone tournament — and the copy says "any name" rather than
+"your stats", because standings are shared and there is no private per-player page.
+
+**An empty state is copy, and this one had drifted into contradicting the product.** Before a
+season's first result, `RealTimeLeagueTable` told participants "standings update live once the game
+concludes" — five lines under its own correct line saying points land "as soon as the first player
+hits the rail" — and told the director to "record results from the League tab after tonight's game",
+naming a manual step that does not exist and a tab that stopped existing when the league became a
+section on the page. One screen, two answers, and the wrong one was the one that undersold the whole
+feature. Empty states age out of sight because nobody looks at a screen that only shows before there
+is any data.
 
 **Screenshots go through the local `Shot` component, and the frame is load-bearing.** Every screen in
 this app is near-black, and so is the page, so an unframed screenshot reads as a hole rather than a

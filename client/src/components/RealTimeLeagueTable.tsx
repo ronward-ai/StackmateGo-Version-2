@@ -652,12 +652,12 @@ function RealTimeLeagueTable({
             </p>
             {!isParticipantView && (
               <p className="text-xs text-muted-foreground opacity-60">
-                Record results from the League tab after tonight's game.
+                Results record themselves as players bust out — there is nothing to enter.
               </p>
             )}
             {isParticipantView && (
               <p className="text-xs text-muted-foreground opacity-60">
-                Keep your eyes on the felt — standings update live once the game concludes.
+                Keep this open — the table moves the moment someone busts out.
               </p>
             )}
           </div>

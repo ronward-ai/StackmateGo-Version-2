@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { QrCode, Trophy, Download } from 'lucide-react';
+import { QrCode, Trophy, BarChart3, Download } from 'lucide-react';
 
 const PASSWORD = import.meta.env.VITE_ACCESS_PASSWORD as string | undefined;
 const STORAGE_KEY = 'smgo_unlocked';
@@ -112,6 +112,32 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
     }
   };
 
+  /*
+   * FOUR PILLARS, AND THE ORDER IS THE ARGUMENT: the night, the table, the
+   * player, the export.
+   *
+   * Two of these were missing entirely, and they are the two a director reacts
+   * to. Both are built. The standings table is mounted in the participant view
+   * for every league game and fed by live listeners, and results are written at
+   * each bust-out rather than at the end of the night — so the table on a
+   * player’s phone genuinely moves while the game runs. The drill-down behind
+   * a name (PlayerSeasonDialog, lib/playerSeason.ts) has no participant gate, so
+   * a phone can open any player’s season night by night.
+   *
+   * CLAIM DISCIPLINE, both from what the code actually does:
+   *  - “In a league game” is load-bearing on the second pillar. The table hides
+   *    itself entirely for a standalone tournament, so an unqualified claim
+   *    would be false for half the games this app runs.
+   *  - The third pillar says “any name”, never “your stats”. Standings are
+   *    shared: a player can open anybody’s season, and promising a private
+   *    page would be promising a feature that does not exist.
+   *
+   * The old “The league runs itself” pillar went rather than being kept: the
+   * headline says that already, and a pillar restating the headline is the same
+   * fault as the event name at two sizes on one screen. Its configurability
+   * survives as one clause, because a clause is what it is worth here — nobody
+   * chooses this software for having a settings screen.
+   */
   const pillars = [
     {
       icon: QrCode,
@@ -121,9 +147,15 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
     },
     {
       icon: Trophy,
-      title: 'The league runs itself',
-      body: 'Configurable seasons. Build your own points system or start from a template. Pick the ' +
-        'stats your table shows, and look up any player\u2019s record on its own.',
+      title: 'The table moves while you play',
+      body: 'In a league game the standings sit on that same phone, and they move as players hit the ' +
+        'rail \u2014 not next week, once somebody has added it up. Your points system, or one of ours.',
+    },
+    {
+      icon: BarChart3,
+      title: 'Nobody adds anything up',
+      body: 'Tap any name for that player\u2019s whole season, night by night: hits, finishes, what they ' +
+        'put in, what they took out. No opening last month\u2019s games one at a time.',
     },
     {
       icon: Download,
@@ -201,7 +233,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
           />
         </header>
 
-        <section className="grid gap-8 sm:gap-10 md:grid-cols-3">
+        <section className="grid gap-8 sm:gap-10 sm:grid-cols-2">
           {pillars.map(({ icon: Icon, title, body }) => (
             <div key={title} className="flex flex-col gap-3">
               <Icon className="h-5 w-5 text-primary" strokeWidth={2} />
@@ -214,13 +246,13 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
         <section className="grid gap-6 md:grid-cols-[1fr_260px] md:gap-10 md:items-end">
           <Shot
             aspect="4 / 3"
-            alt="The league standings, with the stat columns this league cares about"
-            caption="Standings, all season, adding themselves up."
+            alt="The league standings, with the stat columns this league cares about — and one player’s season opened behind a name"
+            caption="Standings, all season, adding themselves up. Tap a name for the detail."
           />
           <Shot
             phone
-            alt="A player’s phone: live clock, blinds, payouts, their table and seat"
-            caption="What the code opens."
+            alt="A player’s phone during a league game: live clock, their table and seat, and the standings below it"
+            caption="What the code opens — and it keeps moving."
           />
         </section>
 
