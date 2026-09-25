@@ -343,9 +343,25 @@ through `lib/syncReporter.ts`. The two broadcast paths had bare `console.error`s
 writing before the first read — the hazard the latch exists for — and keyed on
 `details.type === 'database'`, the overloaded field nothing may key "is it saved" on.
 
-**Still open, deliberately not changed here:** `broadcastTournamentState` also writes `players`, so
-every NON-seating change (bust-out, rebuy, a chip edit) still has two writers. It is the same fault,
-on the most load-bearing path in the app, and worth doing on its own rather than as a rider.
+**`broadcastTournamentState` went the same way, and it was worse.** It wrote EVERY field the three
+sync effects own — the roster, the whole clock (level, secondsLeft, targetEndTime, isRunning, the
+blinds, the levels, the notes) and the settings. A complete second copy of all three. So every
+non-seating change went out twice: a bust-out, a rebuy, a chip edit, each level change, the end of
+the tournament. Seven call sites, six of them running a write from inside a `setState` updater.
+
+The effects win on every count, and the list is the argument for having one writer at all:
+
+| | the three effects | the broadcast |
+|---|---|---|
+| Writes before the first read? | never — waits on `hasLoadedRemoteState` | yes, the hazard that latch exists for |
+| Repeat payload | skipped | written every time |
+| On failure | retried; success recorded only once the write RESOLVES | bare `console.error` |
+| Reported | through `lib/syncReporter.ts` | invisible |
+| Keyed on | `activeTournamentId` | `details.type === 'database'` — the overloaded field |
+
+Nothing replaced it, because nothing needed to: every field it wrote has a guarded owner, and a
+level change moves `currentLevel`, `targetEndTime` and `isRunning`, each a dependency of the clock
+effect. Check that before adding any "broadcast" back.
 
 ### A device must never write to a tournament it has not read
 

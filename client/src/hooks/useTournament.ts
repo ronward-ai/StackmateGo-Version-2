@@ -10,7 +10,6 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, updateDoc, setDoc, getDoc } from 'firebase/firestore';
-import { sanitizeForFirestore } from '../lib/utils';
 
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
@@ -142,28 +141,34 @@ const savePrizeStructure = (prizeStructure: PrizeStructure, uid: string | null) 
 };
 
 // Function to broadcast tournament state to server for real-time updates
-const broadcastTournamentState = async (tournamentId: number | string, state: any, ownerId?: string, userId?: string) => {
-  if (!tournamentId || ownerId !== userId) return;
-
-  try {
-    const docRef = doc(db, 'activeTournaments', tournamentId.toString());
-    await updateDoc(docRef, sanitizeForFirestore({
-      currentLevel: state.currentLevel,
-      secondsLeft: state.secondsLeft,
-      targetEndTime: state.targetEndTime || null,
-      isRunning: state.isRunning,
-      smallBlind: state.levels[state.currentLevel]?.small || 0,
-      bigBlind: state.levels[state.currentLevel]?.big || 0,
-      ante: state.levels[state.currentLevel]?.ante || 0,
-      players: state.players || [],
-      blindLevels: state.levels || [],
-      settings: state.settings || {},
-      notes: state.notes || ''
-    }));
-  } catch (error) {
-    console.error('Failed to broadcast tournament state:', error);
-  }
-};
+/*
+ * `broadcastTournamentState` was here, and it wrote EVERY field the three sync
+ * effects in PokerTimer already own — the roster, the whole clock (level,
+ * secondsLeft, targetEndTime, isRunning, the blinds, the levels, the notes),
+ * the settings. A complete second copy of all three, with none of their
+ * guards.
+ *
+ * So every non-seating change went out twice: a bust-out, a rebuy, a chip
+ * edit, each level change, the end of the tournament. Two writes, two
+ * snapshots, and the console's snapshot handler rebuilds every active player
+ * from the incoming document — which is the same race that made a hand-moved
+ * player flicker between two chairs, on the paths that matter most.
+ *
+ * The three effects win on every count. They wait on `hasLoadedRemoteState`,
+ * so they cannot write to a tournament this device has never read — this could,
+ * and that is the hazard the latch exists for. They skip a payload already
+ * sent; this wrote unconditionally. They record success only once the write
+ * RESOLVES, so a failure is retried; this had a bare `console.error`. They are
+ * reported through `lib/syncReporter.ts`; this was invisible. And they key on
+ * `activeTournamentId`, while this keyed on `details.type === 'database'` — the
+ * overloaded field nothing may key "is it saved" on, so the mode toggle could
+ * silently switch it off.
+ *
+ * Its call sites also ran side effects from inside `setState` updaters, in the
+ * timer tick, which React is free to invoke more than once.
+ *
+ * One writer per fact. Do not add a second.
+ */
 
 // Function to broadcast seating updates specifically
 /*
@@ -774,12 +779,9 @@ export function useTournament(tournamentId?: string) {
                 });
               }
 
-              // Broadcast level change for database tournaments (during active play)
-              if (prevState.details?.type === 'database' && prevState.details?.id && prevState.isRunning) {
-                broadcastTournamentState(prevState.details.id, newState, prevState.details.ownerId, user?.id).catch(error => {
-                  console.error('Failed to broadcast tournament state:', error);
-                });
-              }
+              // No broadcast here: currentLevel, targetEndTime and isRunning all
+              // move on a level change, and each is a dependency of the clock
+              // sync effect, which writes them once and reports if it cannot.
 
               return newState;
             }
@@ -796,12 +798,8 @@ export function useTournament(tournamentId?: string) {
                 isRunning: false // Stop the timer
               };
 
-              // Broadcast tournament completion for database tournaments
-              if (prevState.details?.type === 'database' && prevState.details?.id) {
-                broadcastTournamentState(prevState.details.id, finalState, prevState.details.ownerId, user?.id).catch(error => {
-                  console.error('Failed to broadcast tournament state:', error);
-                });
-              }
+              // Nor here: `isRunning` going false is a dependency of the clock
+              // sync effect, and `secondsLeft: 0` rides along in its payload.
 
               return finalState;
             }
@@ -847,11 +845,9 @@ export function useTournament(tournamentId?: string) {
     // Broadcast to database tournaments via HTTP
     if (newState.details?.type === 'database' && newState.details?.id) {
       try {
-        // Seating writes nothing from here — PokerTimer's players sync effect
-        // owns the roster. See the note where broadcastSeatingUpdate was.
-        if (actionName !== 'seating_updated') {
-          await broadcastTournamentState(newState.details.id, newState, newState.details.ownerId, user?.id);
-        }
+        // Nothing is written from here any more, for any action: PokerTimer's
+        // three sync effects own the roster, the clock and the settings. See
+        // the notes where the two broadcast functions used to be.
 
       } catch (error) {
         console.error('Failed to broadcast database tournament action:', error);
@@ -1652,10 +1648,7 @@ export function useTournament(tournamentId?: string) {
           detail: { settings: newSettings }
         }));
         broadcastTournamentAction('settings_updated', newState);
-        if (prev.details?.type === 'database' && prev.details?.id) {
-          broadcastTournamentState(prev.details.id, newState, prev.details.ownerId, user?.id)
-            .catch(err => console.error('Settings broadcast failed:', err));
-        }
+        // The settings sync effect writes `settings` and `prizeStructure`.
       }, 50);
 
       return newState;
@@ -1678,10 +1671,9 @@ export function useTournament(tournamentId?: string) {
       // Broadcast details update to all connected clients (including league/standalone mode changes)
       setTimeout(() => {
         broadcastTournamentAction('tournament_details_updated', newState);
-        if (newState.details?.type === 'database' && newState.details?.id) {
-          broadcastTournamentState(newState.details.id, newState, newState.details.ownerId, user?.id)
-            .catch(err => console.error('Details broadcast failed:', err));
-        }
+        // League-ness travels in `settings` — the settings sync effect writes
+        // leagueId, seasonId and isSeasonTournament as top-level fields too,
+        // which is what a mode change actually has to propagate.
       }, 100);
 
       // Dispatch local event for immediate UI updates
@@ -1699,9 +1691,7 @@ export function useTournament(tournamentId?: string) {
       
       setTimeout(() => {
         broadcastTournamentAction('notes_updated', newState);
-        if (newState.details?.type === 'database' && newState.details?.id) {
-          broadcastTournamentState(newState.details.id, newState, newState.details.ownerId, user?.id);
-        }
+        // `notes` is in the clock sync effect's payload and its deps.
       }, 100);
       
       return newState;
@@ -1726,14 +1716,7 @@ export function useTournament(tournamentId?: string) {
         prizeStructure: newPrizeStructure
       };
 
-      // Broadcast tournament details update for database tournaments
-      if (prev.details?.type === 'database' && prev.details?.id) {
-        setTimeout(() => {
-          broadcastTournamentState(prev.details.id, newState, prev.details.ownerId, user?.id).catch(error => {
-            console.error('Failed to broadcast tournament state:', error);
-          });
-        }, 100);
-      }
+      // No broadcast: the settings sync effect writes `prizeStructure`.
 
       return newState;
     });
