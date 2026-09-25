@@ -1365,14 +1365,46 @@ and leaves a half-recorded game in the table.
 This is the transfer-code failure wearing a new hat: *"their half of the night was recorded into their
 own league with their own scoring, silently."*
 
-`lib/tournamentMode.ts`'s `gameTypeIsLocked()` closes it, **at the first bust-out and not before**.
+`lib/tournamentMode.ts`'s `modeLockReason()` closes it, **at the first bust-out and not before**.
 Until someone has a finishing position there is nothing to back-fill and flipping is a legitimate
 correction — a director realising this should be tonight's league game after all. It is the moment
-results become recordable that the choice stops being free. The lock applies **both directions**, and
-`handleEnableLeague` re-checks it so no other caller can walk around the disabled button.
+results become recordable that the choice stops being free. `handleEnableLeague` re-checks it so no
+other caller can walk around the disabled button.
+
+**Once the game is OVER the two directions stop being the same question, and that took a second
+pass.** The first version was `gameTypeIsLocked(players)` — has anybody got a finishing position —
+which is true from the first bust-out and true for good, so the slider was still dead on a game that
+had finished hours before. A director whose league night was over could not say "the next one is a
+casual game" in the one control that means exactly that, and the route that did work was to press
+**Next Game** — i.e. start the next LEAGUE game — and flip afterwards. Reported, fairly, as
+counter-intuitive.
+
+- **A finished league game → Standalone is allowed.** Its results were written at each bust-out and
+  are already in the standings; the game itself is already in History. Nothing is half-recorded and
+  nothing is abandoned.
+- **A finished standalone game → League is not.** `syncLeagueResults` would back-fill that whole
+  night into whichever league is selected, as real results with real points. The game being over
+  does not make that any safer.
+
+**Stopping takes nothing back. Starting invents a night the league never had.** A test asserts the
+asymmetry and fails if it is ever collapsed back into one predicate — which it will look like it
+wants to be.
+
+Sliding a FINISHED league game to Standalone therefore starts the next game rather than editing the
+finished one, because a finished game's type is not a setting anybody wants to change: what they
+want is the casual night after it. It asks first — everything is already saved, but a table
+disappearing unannounced is not something to do to a screen somebody is looking at — and the
+confirmation says where the night went (History, and the standings) rather than advertising that the
+blinds are kept, which templates make cheap anyway.
+
+`hooks/useNewGame.ts` is the one implementation of starting a fresh game, shared by that slider and
+by `NextGameControl`. A one-off button inside the next-game dialog was tried first and removed: the
+slider is where "what kind of game is this" lives, and a dialog headed *Start next league game* is
+the wrong place to offer a game that is not one.
 
 It says why. An unexplained dead control is what sent a director to ask what the slider does in the
-first place.
+first place — and the reason shown is for the mode the game is NOT in, because that is the button
+somebody would actually press.
 
 **Already-contaminated data is not migrated.** Stray results come out through normal league admin; a
 migration guessing which results were a demo and which were real is how a league loses its standings.
@@ -1426,13 +1458,13 @@ nothing added one, so a director who had just finished game 1 was offered **"Sta
 take the in-progress `localGameId` — taking it is the invitation to reintroduce the bug. One test
 asserts both contracts against the same fixture so neither can be collapsed into the other.
 
-**The next game is not always this season's next game.** A weekly league night is often followed by a
-one-off at another venue, or by a different league's game. Picking another league already worked; the
-only route to a standalone game was a link reading *"Full reset (clears structure & switches to
-standalone)"*, which bundles two unrelated things and made a director throw away their blind
-structure and buy-in to run one casual night. Those are separate choices now, and
+**The next game is not always this season's next game** — but only the LEAGUE part of that belongs
+in this dialog, and its picker already does it. Going standalone is a change of the game's TYPE, so
+it belongs on the mode slider, and that is where it lives (see the section above). A third button
+here reading "One-off game, not in a league" was built and removed the same day: a director whose
+league night has ended reaches for the slider, not for a dialog headed *Start next league game*.
 `standaloneSettings()` in `lib/tournamentMode.ts` is the one answer to "make this game standalone",
-shared with the mode toggle.
+shared by the slider's two paths.
 
 **There is deliberately no "End Game" button.** A finished game already marks itself — `PokerTimer`'s
 completion effect writes `status: 'completed'` and a `completedTournaments` record — and the mode lock
@@ -1900,7 +1932,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 |---|---|
 | `prizePool.ts` | Prize pool, rake and what one entry costs. **Rake is charged ON TOP of the buy-in**, so `net === gross` is deliberate, not a bug. Every money figure on screen comes from here. |
 | `seasonProgress.ts` | Game numbering, games played, season completion, next-season dates. |
-| `tournamentMode.ts` | Whether a tournament is a league game, and whether that can still be changed. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
+| `tournamentMode.ts` | Whether a tournament is a league game, and whether that can still be changed — **per direction**, since a finished game may stop being a league game but never become one. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
 | `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |

@@ -21,6 +21,8 @@
  * which let a stale leagueId beat an explicit `false` — and leagueId was stale
  * precisely because the Standalone toggle cleared the flag without clearing it.
  */
+import { gameIsOver } from './gameOver';
+
 export interface TournamentModeInput {
   /** Flag as stored on the tournament document itself. */
   isSeasonTournament?: boolean;
@@ -68,11 +70,15 @@ export function standaloneSettings() {
 /** Only what deciding "has play started" needs. A `Player` satisfies it. */
 export interface PlacedPlayer {
   /** A finishing position, set when a player busts. */
-  position?: number;
+  position?: number | null;
+  /** Cleared when a player busts — and for the winner too, at the end. */
+  isActive?: boolean | null;
 }
 
+export type GameType = 'standalone' | 'league';
+
 /**
- * Is the game's TYPE now fixed — standalone or league, settled?
+ * Why this game's type cannot be changed to `target` — or null when it can.
  *
  * The Standalone ↔ League slider was live for the whole game, and league result
  * recording gates on nothing but the flag it writes (`PokerTimer`'s
@@ -83,18 +89,45 @@ export interface PlacedPlayer {
  * a colleague what league mode looks like corrupted a league's standings by
  * doing it.
  *
- * Flipping back does not undo it: the removal path only fires for a player who
- * becomes active again, which is a rebuy, not a mode change. And the reverse
- * direction is just as bad — League → Standalone abandons results already
- * written and leaves a half-recorded game in the table. One lock covers both.
+ * THE FIRST VERSION OF THIS LOCKED BOTH DIRECTIONS FOREVER, on one question:
+ * has anybody got a finishing position? True from the first bust-out and true
+ * for good — so the slider was still dead on a game that had finished hours
+ * ago, and a director whose league night was over could not say "the next one
+ * is a casual game" in the one control that means exactly that.
  *
- * LOCKED AT THE FIRST BUST-OUT, not before. Until someone has a finishing
- * position there is nothing to back-fill, and flipping is a legitimate
- * correction: a director realising this should be tonight's league game after
- * all. It is the moment results become recordable that the decision stops being
- * free.
+ * One question was covering two, and they have different answers:
+ *
+ *  - **A finished league game → Standalone.** Its results were written at each
+ *    bust-out and are already in the standings; the game is already in History.
+ *    Nothing is half-recorded, nothing is abandoned. Switching takes nothing
+ *    back — it only says what the NEXT game is.
+ *  - **A finished standalone game → League.** `syncLeagueResults` would
+ *    back-fill that entire night into whichever league is selected, as real
+ *    results with real points. That is the original catastrophe, and no amount
+ *    of the game being over makes it safe.
+ *
+ * So: free before the first bust-out; locked both ways while the game is in
+ * play; and once it is over you may stop it being a league game, but you may
+ * never turn a finished game into one. **Stopping takes nothing back. Starting
+ * invents a night the league never had.**
+ *
+ * It returns the REASON rather than a boolean because the two blocked cases are
+ * different facts and an unexplained dead control is what sent a director to
+ * ask what the slider does in the first place.
  */
-export function gameTypeIsLocked(players?: PlacedPlayer[] | null): boolean {
-  if (!players || players.length === 0) return false;
-  return players.some(p => typeof p.position === 'number' && p.position > 0);
+export function modeLockReason(
+  players: PlacedPlayer[] | null | undefined,
+  target: GameType,
+): string | null {
+  if (!players || players.length === 0) return null;
+
+  const anyoneOut = players.some(p => Number(p?.position) > 0);
+  if (!anyoneOut) return null;
+
+  if (gameIsOver(players)) {
+    if (target === 'standalone') return null;
+    return 'This game has finished, so it cannot be made a league game — its results would be recorded into the league.';
+  }
+
+  return 'This game has started, so its type is fixed.';
 }

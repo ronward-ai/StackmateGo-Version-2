@@ -4,8 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, Clock } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited, lateEntryOpen } from '@/lib/entryLimits';
-import { gameTypeIsLocked, standaloneSettings } from '@/lib/tournamentMode';
+import { modeLockReason, standaloneSettings } from '@/lib/tournamentMode';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
+import { useNewGame } from '@/hooks/useNewGame';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { payoutsOf } from '@/lib/payoutTemplates';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { gameNumberFor } from "@/lib/seasonProgress";
@@ -52,6 +58,7 @@ const modeInactive = 'border-transparent text-muted-foreground hover:text-foregr
 
 export function TournamentModeToggle({ tournament, league, leaguePlayers = [], currentSeason, seasons }: { tournament: TournamentProp } & Pick<SharedLeagueProps, 'league' | 'leaguePlayers' | 'currentSeason' | 'seasons'>) {
   const { state, updateTournamentDetails, updateSettings } = tournament;
+  const startNewGame = useNewGame(tournament);
 
   const isLeagueMode =
     state.details?.type === 'season' ||
@@ -74,7 +81,8 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
   };
 
   const handleEnableLeague = () => {
-    if (gameTypeIsLocked(state.players)) return;
+    // Re-checked here so no other caller can walk around the disabled button.
+    if (modeLockReason(state.players, 'league')) return;
     setMode('season');
     if (league?.id) {
       updateSettings({ isSeasonTournament: true, leagueId: String(league.id) });
@@ -96,48 +104,104 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
 
   /**
    * Once a player has busted, what KIND of game this is stops being a free
-   * choice — see gameTypeIsLocked. League result recording gates on the flag
-   * this toggle writes and back-fills every elimination so far, so flipping
-   * mid-game wrote a whole standalone night into whichever league was selected.
-   * The reverse abandons results already recorded. Locked both ways.
+   * choice — see modeLockReason, which owns the rule and the wording. The two
+   * directions are NOT the same question once the game is over: a finished
+   * league game may stop being one, because its results are already written
+   * and stay written, while a finished standalone game may never become one,
+   * because that would back-fill the whole night into a league.
    */
-  const typeLocked = gameTypeIsLocked(state.players);
+  const standaloneBlocked = modeLockReason(state.players, 'standalone');
+  const leagueBlocked = modeLockReason(state.players, 'league');
+
+  /**
+   * The night is over and the director has reached for the slider — which is
+   * the control that means "what kind of game is this", so it is the right
+   * thing to reach for. Sliding to Standalone here starts the next game rather
+   * than editing the finished one, because a finished game's type is not a
+   * setting anybody wants to change: what they want is the casual night that
+   * comes after it.
+   *
+   * It asks first. Everything is already saved, but the table disappearing
+   * without warning is not something to do to a screen someone is still
+   * looking at.
+   */
+  const leagueGameOver = isLeagueMode && gameIsOver(state.players);
+  const [confirmStandalone, setConfirmStandalone] = useState(false);
+
+  const goStandalone = () => {
+    setMode('standalone');
+    updateSettings(standaloneSettings());
+  };
+
+  const startStandaloneGame = () => {
+    setConfirmStandalone(false);
+    startNewGame({ keepStructure: true });
+    // Written straight rather than through setMode: after the reset the type
+    // must be 'standalone' whatever it was, and updateTournamentDetails merges
+    // into the state the reset just produced, where setMode would be reading a
+    // `state` captured before it.
+    updateTournamentDetails({ type: 'standalone' });
+    updateSettings(standaloneSettings());
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div
-        className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0"
-        title={typeLocked ? 'This game has started, so its type is fixed.' : undefined}
-      >
+      <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
         <button
-          disabled={typeLocked}
-          className={cn(modeButton, !isLeagueMode ? modeActive : modeInactive, typeLocked && 'opacity-50 cursor-not-allowed')}
+          disabled={!!standaloneBlocked}
+          title={standaloneBlocked ?? undefined}
+          className={cn(modeButton, !isLeagueMode ? modeActive : modeInactive, standaloneBlocked && 'opacity-50 cursor-not-allowed')}
           onClick={() => {
-            if (typeLocked) return;
-            setMode('standalone');
+            if (standaloneBlocked) return;
             // standaloneSettings() clears the whole league context, not just
-            // the flag — see lib/tournamentMode.ts. The next-game dialog's
-            // one-off path writes the same thing.
-            updateSettings(standaloneSettings());
+            // the flag — see lib/tournamentMode.ts.
+            if (leagueGameOver) setConfirmStandalone(true);
+            else goStandalone();
           }}
         >
           Standalone
         </button>
         <button
-          disabled={typeLocked}
-          className={cn(modeButton, isLeagueMode ? modeActive : modeInactive, typeLocked && 'opacity-50 cursor-not-allowed')}
+          disabled={!!leagueBlocked}
+          title={leagueBlocked ?? undefined}
+          className={cn(modeButton, isLeagueMode ? modeActive : modeInactive, leagueBlocked && 'opacity-50 cursor-not-allowed')}
           onClick={handleEnableLeague}
         >
           League
         </button>
       </div>
-      {/* Say why, rather than leaving a dead control. An unexplained disabled
-          button is what sent a director to ask what the slider does. */}
-      {typeLocked && (
+      {/* Say why, rather than leaving a dead control — an unexplained disabled
+          button is what sent a director to ask what the slider does.
+
+          It names the reason for the mode the game is NOT in, because that is
+          the button somebody would actually press; the one they are already in
+          does nothing whether it is disabled or not. That distinction earns its
+          keep on a finished STANDALONE game, where "I forgot to set league
+          mode" is a real thing to try and the refusal is the one that needs
+          explaining. */}
+      {(isLeagueMode ? standaloneBlocked : leagueBlocked) && (
         <span className="text-caption text-muted-foreground">
-          This game has started, so its type is fixed.
+          {isLeagueMode ? standaloneBlocked : leagueBlocked}
         </span>
       )}
+
+      <AlertDialog open={confirmStandalone} onOpenChange={setConfirmStandalone}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start a new standalone game?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This game is finished and safe — it is saved in your History, and its results are
+              already counted in the league standings. Starting a new game clears the table.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={startStandaloneGame}>
+              Start standalone game
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {/* The only copy of this line. TournamentInfoCard's header printed the
           identical sentence in the identical colour, so in league mode the same
           fact appeared twice on one screen. Beside the toggle is the better

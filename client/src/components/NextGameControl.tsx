@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { useLocation } from 'wouter';
 import { ChevronRight, ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +14,7 @@ import {
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { nextGameNumber } from '@/lib/seasonProgress';
-import { standaloneSettings } from '@/lib/tournamentMode';
+import { useNewGame } from '@/hooks/useNewGame';
 
 /**
  * Starting the next game — the ONLY implementation of it.
@@ -30,13 +29,17 @@ import { standaloneSettings } from '@/lib/tournamentMode';
  * is the single creation path and two ways to start a game is the trap this
  * codebase has already paid for.
  *
- * THE NEXT GAME IS NOT ALWAYS THIS SEASON'S NEXT GAME. A weekly league night is
- * quite often followed by a one-off somewhere else, or by a different league's
- * game. Picking another league already worked; going standalone did not — the
- * only route out was a link reading "Full reset (clears structure & switches to
- * standalone)", which bundles two unrelated things and made a director throw
- * away their blind structure and buy-in to run one casual night. Those are
- * separate choices now.
+ * THE NEXT GAME IS NOT ALWAYS THIS SEASON'S NEXT GAME — a weekly league night
+ * is quite often followed by a casual one somewhere else. Picking a different
+ * LEAGUE belongs here, and the picker does it. Going standalone does NOT: that
+ * is a change of the game's type, which is what the mode slider is for, and it
+ * lives there (see `modeLockReason` in lib/tournamentMode.ts). A third button
+ * in this dialog was tried and removed — a director whose league night has
+ * ended reaches for the slider, not for a dialog called "start next league
+ * game".
+ *
+ * The new game itself comes from `useNewGame`, shared with that slider, so
+ * there is still one implementation of starting a game however it is asked for.
  */
 interface NextGameControlProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -57,8 +60,8 @@ export default function NextGameControl({
   currentSeason,
   seasons,
 }: NextGameControlProps) {
-  const { state, resetTournament, updateSettings, updateTournamentDetails } = tournament;
-  const [, setLocation] = useLocation();
+  const { state, updateSettings } = tournament;
+  const startNewGame = useNewGame(tournament);
   const [dialogLeagueId, setDialogLeagueId] = useState<string | null>(null);
   const { seasons: dialogSeasonsList, isLoading: dialogSeasonsLoading } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
   const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
@@ -73,20 +76,11 @@ export default function NextGameControl({
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
 
-  const handleNewTournament = (keepStructure: boolean) => {
-    try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
-    resetTournament({ keepStructure });
-    // ?home=1, not "/": PokerTimer restores the pin from the signed-in user's
-    // most recent live tournament, which would otherwise reopen the very game
-    // this button just finished with. The flag means "I asked to be here".
-    setLocation('/?home=1');
-  };
-
   const handleLeagueNewGame = (seasonId: string | number | null) => {
     const sourceSeasons = dialogSeasonsList.length > 0 ? dialogSeasonsList : (seasons as any[]);
     const chosenSeason = (sourceSeasons as any[]).find(s => String(s.id) === String(seasonId));
     setShowLeagueNewDialog(false);
-    handleNewTournament(true);
+    startNewGame({ keepStructure: true });
     if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
       switchLeague(dialogLeagueId);
     }
@@ -99,24 +93,6 @@ export default function NextGameControl({
         numberOfGames: chosenSeason.numberOfGames || 12,
       });
     }
-  };
-
-  /**
-   * A one-off that is not part of any league — keeping the blinds, the buy-in
-   * and the payouts, because wanting to run a casual night at another venue is
-   * not the same as wanting factory settings.
-   *
-   * `resetTournament` preserves `details.type: 'season'` for a league game, so
-   * the type has to be written down as well as the settings; `standaloneSettings()`
-   * is the same clearing the mode toggle does, from one place.
-   */
-  const handleOneOffGame = () => {
-    setShowLeagueNewDialog(false);
-    handleNewTournament(true);
-    if (state.details?.type !== 'database') {
-      updateTournamentDetails({ ...state.details, type: 'standalone' });
-    }
-    updateSettings(standaloneSettings());
   };
 
   /**
@@ -177,11 +153,11 @@ export default function NextGameControl({
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-muted text-foreground hover:bg-muted/80"
-                onClick={() => handleNewTournament(true)}
+                onClick={() => startNewGame({ keepStructure: true })}
               >
                 Keep structure
               </AlertDialogAction>
-              <AlertDialogAction onClick={() => handleNewTournament(false)}>
+              <AlertDialogAction onClick={() => startNewGame({ keepStructure: false })}>
                 Full reset
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -192,9 +168,7 @@ export default function NextGameControl({
       <Dialog open={showLeagueNewDialog} onOpenChange={setShowLeagueNewDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            {/* Not "Start next league game": one of the three things this
-                dialog offers is deliberately not a league game at all. */}
-            <DialogTitle>Start the next game</DialogTitle>
+            <DialogTitle>Start next league game</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {(userLeagues as any[]).length > 1 && (
@@ -265,16 +239,11 @@ export default function NextGameControl({
             >
               {dialogGameNumber != null ? `Start Game ${dialogGameNumber}` : 'Start Next Game'}
             </Button>
-            {/* The one-off. Keeps the structure, which is the whole point of it
-                being separate from the reset below. */}
-            <Button variant="outline" className="w-full" onClick={handleOneOffGame}>
-              One-off game, not in a league
-            </Button>
             <button
-              onClick={() => { setShowLeagueNewDialog(false); handleNewTournament(false); }}
+              onClick={() => { setShowLeagueNewDialog(false); startNewGame({ keepStructure: false }); }}
               className="text-xs text-destructive hover:text-destructive/80 text-center py-1"
             >
-              Full reset (back to default blinds and buy-in)
+              Full reset (clears structure &amp; switches to standalone)
             </button>
           </DialogFooter>
         </DialogContent>
