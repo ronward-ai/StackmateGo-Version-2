@@ -166,16 +166,29 @@ const broadcastTournamentState = async (tournamentId: number | string, state: an
 };
 
 // Function to broadcast seating updates specifically
-const broadcastSeatingUpdate = async (tournamentId: number | string, players: Player[], ownerId?: string, userId?: string) => {
-  if (!tournamentId || ownerId !== userId) return;
-
-  try {
-    const docRef = doc(db, 'activeTournaments', tournamentId.toString());
-    await updateDoc(docRef, sanitizeForFirestore({ players }));
-  } catch (error) {
-    console.error('Failed to broadcast seating update:', error);
-  }
-};
+/*
+ * `broadcastSeatingUpdate` was here, and it was the THIRD writer of the players
+ * array for a single seating action.
+ *
+ * Moving one player by hand fired: this, on a 50ms timer, from inside
+ * `updatePlayers`; then `broadcastTournamentAction('seating_updated')` on a
+ * 100ms timer, which called this AGAIN; and then PokerTimer's direct players
+ * sync effect. Three writes, three snapshots, and the console's snapshot
+ * handler rebuilds every active player from the incoming document — so until
+ * each write landed, the echo still had the player in the chair they had just
+ * left. The name flickered between both seats and then settled in the right
+ * one, which is exactly what three racing writes look like.
+ *
+ * PokerTimer's sync effect is the one to keep: it waits on
+ * `hasLoadedRemoteState`, skips a write whose payload it has already sent,
+ * records success only once the write RESOLVES, and reports failures through
+ * `lib/syncReporter.ts`. This had a bare `console.error`, no guard against
+ * writing before the first read — the hazard `hasLoadedRemoteState` exists to
+ * prevent — and keyed on `details.type === 'database'`, the overloaded field
+ * nothing may key "is it saved" on.
+ *
+ * One writer per fact. Do not add a second.
+ */
 
 // Function to broadcast tournament details updates
 const broadcastTournamentDetails = async (tournamentId: number | string, ownerId?: string, userId?: string) => {
@@ -834,12 +847,8 @@ export function useTournament(tournamentId?: string) {
     // Broadcast to database tournaments via HTTP
     if (newState.details?.type === 'database' && newState.details?.id) {
       try {
-        // Use dedicated seating endpoint for seating actions
-        if (actionName === 'seating_updated') {
-          await broadcastSeatingUpdate(newState.details.id, newState.players, newState.details.ownerId, user?.id);
-        }
-
-        // Always broadcast via HTTP for reliable sync (except for seating which uses dedicated endpoint)
+        // Seating writes nothing from here — PokerTimer's players sync effect
+        // owns the roster. See the note where broadcastSeatingUpdate was.
         if (actionName !== 'seating_updated') {
           await broadcastTournamentState(newState.details.id, newState, newState.details.ownerId, user?.id);
         }
@@ -1497,15 +1506,10 @@ export function useTournament(tournamentId?: string) {
 
       // Broadcast the action immediately for all database tournaments
       if (prev.details?.type === 'database' && prev.details?.id) {
-        if (isSeatingAction) {
-          // Use dedicated seating endpoint for immediate sync
-          setTimeout(() => {
-            broadcastSeatingUpdate(prev.details.id, newPlayers, prev.details.ownerId, user?.id).catch(error => {
-              console.error('Failed to broadcast seating update:', error);
-            });
-          }, 50);
-        }
-        
+        // No seating write here either: it was the first of the three, and it
+        // ran side effects from inside a setState updater, which React is free
+        // to call more than once.
+        //
         // Always broadcast via tournament action for real-time sync
         setTimeout(() => {
           broadcastTournamentAction(isSeatingAction ? 'seating_updated' : 'players_updated', newState);

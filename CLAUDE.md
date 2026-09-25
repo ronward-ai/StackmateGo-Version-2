@@ -321,6 +321,32 @@ and "we read it and it is not there" must never authorise writing over anything.
 case, which is unfixable advice for a game that is not there. Three states now — blocked browser,
 game missing, still unread after ten seconds — and the two a reload cannot fix carry a button out.
 
+### One writer per fact — a manual move had THREE
+
+Moving one player to another seat by hand made the name flicker between both chairs before settling
+in the right one. Three writes of the same roster went out for that single action:
+
+1. `updatePlayers` fired `broadcastSeatingUpdate` on a **50ms** timer — from inside a `setState`
+   updater, which React is free to call more than once;
+2. it then fired `broadcastTournamentAction('seating_updated')` on a **100ms** timer, which called
+   `broadcastSeatingUpdate` **again**;
+3. and `PokerTimer`'s direct players sync effect wrote it properly.
+
+Three writes, three snapshots, and the console's snapshot handler rebuilds every active player from
+the incoming document — so until each write landed, the echo still had the player in the chair they
+had just left. Flicker, then settle. Nothing errored, and the end state was correct, which is why it
+read as a rendering glitch rather than as what it was.
+
+**`PokerTimer`'s sync effect is the writer that survives.** It waits on `hasLoadedRemoteState`, skips
+a payload it has already sent, records success only once the write RESOLVES, and reports failures
+through `lib/syncReporter.ts`. The two broadcast paths had bare `console.error`s, no guard against
+writing before the first read — the hazard the latch exists for — and keyed on
+`details.type === 'database'`, the overloaded field nothing may key "is it saved" on.
+
+**Still open, deliberately not changed here:** `broadcastTournamentState` also writes `players`, so
+every NON-seating change (bust-out, rebuy, a chip edit) still has two writers. It is the same fault,
+on the most load-bearing path in the app, and worth doing on its own rather than as a rider.
+
 ### A device must never write to a tournament it has not read
 
 `PokerTimer` has three direct `updateDoc` sync effects that bypass the broadcast chain by design.
