@@ -336,6 +336,13 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
 
           <TabsContent value="seasons" className="mt-4">
             <LeagueSeasonsTab />
+            {/* Deleting a league acts on the league rather than on this tab, so
+                it sat OUTSIDE the tabs and rendered under all three. That put a
+                permanent, irreversible action beneath the Points and Stats
+                pickers — screens a director opens every week to toggle a column
+                or nudge a multiplier. It lives with the seasons instead, which
+                is where the rest of league administration already is. */}
+            <LeagueDangerZone />
           </TabsContent>
 
           {/* Points System Tab */}
@@ -1009,9 +1016,6 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
           </TabsContent>
 
         </Tabs>
-
-        {/* League-level, so outside the tabs: it applies whichever tab is open. */}
-        <LeagueDangerZone />
 
         {/* Save & Close is the action that matters and takes the accent; Reset
             to Defaults is quiet. They used to be two equally loud gradient

@@ -506,6 +506,17 @@ The figures are an inline strip now: mono numerals, caption labels, no boxes, th
 Payouts panel uses. Collapsed, `LeagueSection` shows a one-line summary so folding the panel away does
 not lose which season is running.
 
+**Manage League's Danger Zone lives in the SEASONS tab.** It used to sit outside the tab strip, on
+the reasoning that deleting a league acts on the league — the dialog's scope, set by
+`LeagueScopeBar` — rather than on whichever tab is open. True, and it meant "Delete this league" was
+permanently under the **Points** and **Stats** pickers, which a director opens every week to toggle
+a column or nudge a multiplier. A destructive, irreversible action should not be ambient beneath a
+routine one; it belongs with the seasons, where the rest of league administration already is. This
+is the same instinct that put the account-level Danger Zone deep in Settings.
+
+`TabsContent` has no `forceMount` anywhere in this app, so inactive tab content is unmounted — which
+is what makes placing something in one tab actually remove it from the others.
+
 **Money in the league table comes from `lib/currency.ts`.** Five columns and the season's prize pool
 hard-coded `£` while every other figure in the app honours `settings.currency`, so a director working
 in dollars saw pounds in their own standings. `currencyOf(settings)` and `money(amount, symbol)` own
