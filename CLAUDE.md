@@ -68,6 +68,21 @@ They are genuinely different: a standalone tournament has an event name and no l
 resolve the display name through `lib/eventName.ts`, which reads the legacy `branding.leagueName`
 key for older tournaments and falls back to the league's name in league mode.
 
+**The screens PLAYERS see were the consumers that never did**, and it cost exactly what this note
+warns about. `TournamentParticipantView` and `PlayerClaimView` printed the document's own `name`
+field — which `lib/tournamentDocument.ts` sets ONCE, at creation, from `state.details?.name`, a
+field `useTournament` never writes. So for every ordinary game the string on every player's phone,
+and in their browser tab, was literally `Tournament 25/09/2026`, and renaming the event on the
+console reached nobody. The real name was in the same document the whole time: `PokerTimer` syncs
+the settings object wholesale, so `settings.branding.eventName` arrives with it. The local
+`TournamentData` type in the participant view declared only the legacy `leagueName`, which is how it
+stayed hidden.
+
+`eventNameOfTournament(doc, leagueName)` is the document-level resolver all four of those sites now
+use — settings first, then `details.name`, then `name`, and `''` when a document names itself
+nowhere, so the caller keeps its own "Tournament" placeholder. Normalised on READ, the trade
+`payoutsOf()` and `bandsOf()` already make: no stored game is rewritten.
+
 ### Handing over is logging out — there is no handover mechanism
 
 Two were built and both removed. **Do not build a third without reading this.**
@@ -518,11 +533,17 @@ identical sentence the toggle row already said. `branding.isVisible` still means
 on, the bar renders the venue logo and name larger. Removing it also fixed a real bug: that block
 rendered the venue logo **twice**, flanking the name on both sides.
 
-**24px, and hidden on phones.** It shipped at 16px and 80% opacity aiming for "quiet" and landed on
-absent. The phone rule is forced arithmetic rather than taste: the wordmark is 7.6:1, so 24px is
-182px wide, and a 390px phone has about 358px of which the status chip and the avatar take ~150 —
-roughly 20px left for the event name. One of the two has to go, and the event name is the one that
-cannot be worked out from context.
+**24px, 20px on a phone — and on a phone it is the EVENT NAME that hides, not the logo.** The
+wordmark shipped at 16px and 80% opacity aiming for "quiet" and landed on absent. The phone rule is
+forced arithmetic: the wordmark is 7.6:1, so 20px is 152px wide, and a 360px phone has 328 usable of
+which the status pill, the avatar and the gaps take ~166. The two cannot coexist, so one goes.
+
+**Which one is the director's call, and it went the other way first.** The event name was chosen on
+the reasoning that a director knows which app they opened; the logo being absent from their own
+phone is not what they wanted. The venue's logo hides with the venue's NAME, since left alone it
+would sit beside the wordmark with nothing to label. Nothing is lost under way: the clock branch
+replaces the whole left cluster once the timer card is off screen, so a phone in play reads
+`Level 5 · 07:42`.
 
 **The mark is the small WORDMARK, not the four-chip icon.** The icon was tried first, at 24, 28 and
 32px, bare and tiled. At every size, in the top-left corner of an app, four orange bars read as a

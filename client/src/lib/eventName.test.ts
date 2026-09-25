@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eventNameOf } from './eventName';
+import { eventNameOf, eventNameOfTournament } from './eventName';
 
 describe('eventNameOf', () => {
   it('uses the event name when set', () => {
@@ -43,5 +43,47 @@ describe('eventNameOf', () => {
     expect(eventNameOf(null)).toBe('');
     expect(eventNameOf(undefined, 'League')).toBe('');
     expect(eventNameOf({} as any)).toBe('');
+  });
+});
+
+describe('eventNameOfTournament', () => {
+  it('prefers the event name the director set over the stored document name', () => {
+    // The whole bug: `name` is written once at creation and never again, so a
+    // rename on the console reached nobody.
+    expect(
+      eventNameOfTournament({
+        settings: { branding: { eventName: 'Kings Head Thursday' } } as any,
+        name: 'Tournament 25/09/2026',
+      }),
+    ).toBe('Kings Head Thursday');
+  });
+
+  it('honours the legacy leagueName key on older documents', () => {
+    expect(
+      eventNameOfTournament({
+        settings: { branding: { leagueName: 'Old Key League' } } as any,
+        name: 'Tournament 01/01/2026',
+      }),
+    ).toBe('Old Key League');
+  });
+
+  it('falls back to the league in league mode', () => {
+    expect(
+      eventNameOfTournament(
+        { settings: { isSeasonTournament: true } as any, name: 'Tournament 01/01/2026' },
+        'Thursday League',
+      ),
+    ).toBe('Thursday League');
+  });
+
+  it('falls back to the stored name rather than nothing', () => {
+    expect(eventNameOfTournament({ name: 'Tournament 25/09/2026' })).toBe('Tournament 25/09/2026');
+    expect(eventNameOfTournament({ details: { name: 'From details' } })).toBe('From details');
+  });
+
+  it('returns empty so the caller owns the placeholder', () => {
+    expect(eventNameOfTournament({})).toBe('');
+    expect(eventNameOfTournament(null)).toBe('');
+    expect(eventNameOfTournament(undefined)).toBe('');
   });
 });

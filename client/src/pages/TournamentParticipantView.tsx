@@ -18,6 +18,7 @@ import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
 import TimerFace from '@/components/TimerFace';
 import type { TimerPiping } from '@/types';
 import { cn } from '@/lib/utils';
+import { eventNameOfTournament } from '@/lib/eventName';
 import { secondsLeftFrom } from '@/lib/tournamentClock';
 import { getDeviceId } from '@/lib/deviceId';
 import { myPlayerId } from '@/lib/seatClaims';
@@ -52,6 +53,9 @@ interface TournamentData {
     };
     tableBackgrounds: string[];
     branding?: {
+      /* Declared because it EXISTS in real documents and this type omitting it
+         is how the participant view went on reading the wrong field. */
+      eventName?: string;
       leagueName?: string;
       logoUrl?: string;
     };
@@ -93,6 +97,11 @@ function TournamentParticipantView() {
   // Players prop their phone up to watch the clock too, and a phone sleeps far
   // sooner than a laptop. Same hook, same silent failure on a browser that
   // refuses.
+  // What this game is called, resolved the way every other display of it is.
+  // No league object on this screen, so no league fallback — an explicitly set
+  // event name is what matters, and the stored `name` is the last resort.
+  const playerFacingName = eventNameOfTournament(tournament as any, null);
+
   useWakeLock(!!tournament?.isRunning);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
@@ -110,13 +119,13 @@ function TournamentParticipantView() {
 
   // Update browser tab title when tournament name is known
   useEffect(() => {
-    if (tournament?.name) {
-      document.title = `StackMate Live · ${tournament.name}`;
+    if (playerFacingName) {
+      document.title = `StackMate Live · ${playerFacingName}`;
     } else {
       document.title = 'StackMate Live';
     }
     return () => { document.title = 'StackMate Go - Poker Tournament Timer'; };
-  }, [tournament?.name]);
+  }, [playerFacingName]);
 
   // Firebase real-time connection — no auth required (activeTournaments is public read)
   useEffect(() => {
@@ -482,7 +491,10 @@ function TournamentParticipantView() {
                 LIVE
               </span>
             </div>
-            <h1 className="text-xl font-bold text-foreground leading-tight">{tournament?.name || 'Tournament'}</h1>
+            {/* Through eventNameOf, like every other display of this name.
+                `tournament.name` is written once at creation and never again,
+                so a renamed event never reached a single player's phone. */}
+            <h1 className="text-xl font-bold text-foreground leading-tight">{playerFacingName || 'Tournament'}</h1>
           </div>
 
           {/*

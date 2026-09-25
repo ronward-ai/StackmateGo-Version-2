@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { eventNameOfTournament } from '@/lib/eventName';
 import { useParams, useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,7 +78,10 @@ export default function PlayerClaimView() {
           for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromVal(fv as any);
           setPlayers((fields.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
           setClaims(fields.claims || {});
-          setTournamentName(fields.details?.name || fields.name || 'Tournament');
+          // Same resolver as everywhere else. `name` is written once at
+          // creation from a field nothing sets, so on its own it reads
+          // "Tournament <date>" for every ordinary game.
+          setTournamentName(eventNameOfTournament(fields, null) || 'Tournament');
           setDataLoaded(true);
         } else if (restRes.status === 404) {
           setError('Tournament not found. Check the QR code and try again.');
@@ -97,7 +101,7 @@ export default function PlayerClaimView() {
             const data = snap.data();
             setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
             setClaims(data.claims || {});
-            setTournamentName(data.details?.name || data.name || 'Tournament');
+            setTournamentName(eventNameOfTournament(data as any, null) || 'Tournament');
           }
         }, (err) => {
           console.error('Firestore listener error:', err);

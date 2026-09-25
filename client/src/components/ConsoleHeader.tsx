@@ -178,19 +178,24 @@ export default function ConsoleHeader({
             24px and full opacity. It shipped at 16px and 80% aiming for
             "quiet" and landed on absent, which is a different thing.
 
-            It is HIDDEN ON PHONES, and that is forced arithmetic rather than a
-            preference: the wordmark is 7.6:1, so 24px is 182px wide, and a
-            390px phone has ~358px of which the status chip and the avatar take
-            ~150 — about 20px left for the event name. One of the two has to go,
-            and the event name is the one that cannot be worked out from
-            context. Whoever is looking at a phone knows which app they opened.
+            ON A PHONE THE LOGO STAYS AND THE EVENT NAME GOES — the opposite
+            way round to how this first shipped. The arithmetic forces a choice
+            rather than the outcome: the wordmark is 7.6:1, so 20px is 152px
+            wide, and a 360px phone has 328 usable of which the status pill,
+            the avatar and the gaps take ~166. The two cannot coexist. The
+            event name was picked first and the director wanted the logo, which
+            is their call to make about their own screen.
 
-            The divider goes with it: it separates two things. */}
+            Nothing is lost under way: the clock branch below replaces this
+            whole cluster once the timer card is off screen, so a phone in play
+            reads "Level 5 · 07:42" — the one thing worth that space. */}
         <img
           src="/stackmatelogo.svg"
           alt="StackMate Go"
-          className="hidden sm:block h-6 w-auto flex-shrink-0"
+          className="h-5 sm:h-6 w-auto flex-shrink-0"
         />
+        {/* The divider separates the mark from the event name, so it keeps
+            that name's company and goes when it goes. */}
         <span className="hidden sm:block h-5 w-px bg-border flex-shrink-0" aria-hidden="true" />
 
         {showClock ? (
@@ -204,16 +209,20 @@ export default function ConsoleHeader({
           </div>
         ) : (
           <div className="min-w-0 flex-1 flex items-center gap-2.5">
+            {/* The venue's logo belongs with the venue's NAME, so it hides at
+                the same width. Left on a phone it would sit beside the
+                StackMate wordmark with nothing to label, two marks competing
+                for the row that just lost its text. */}
             {venueLogoUrl && (
               <img
                 src={venueLogoUrl}
                 alt={eventName || 'Event logo'}
-                className={`${big ? 'h-8' : 'h-6'} w-auto object-contain flex-shrink-0`}
+                className={`hidden sm:block ${big ? 'h-8' : 'h-6'} w-auto object-contain flex-shrink-0`}
               />
             )}
             {eventName && (
               <h1
-                className={`${big ? 'text-title' : 'text-body'} font-semibold text-foreground truncate`}
+                className={`hidden sm:block ${big ? 'text-title' : 'text-body'} font-semibold text-foreground truncate`}
               >
                 {eventName}
               </h1>
