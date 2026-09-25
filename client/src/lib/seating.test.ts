@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim, seatablePlayers } from './seating';
+import { seatToReclaim, seatablePlayers, allSeated } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -70,5 +70,35 @@ describe('seatablePlayers', () => {
   it('is empty rather than throwing when nobody is left', () => {
     expect(seatablePlayers([])).toEqual([]);
     expect(seatablePlayers([{ id: 'a', isActive: false }] as any[])).toEqual([]);
+  });
+});
+
+describe('allSeated', () => {
+  it('is true when every player still in has a chair', () => {
+    expect(allSeated([
+      { id: 'a', seated: true },
+      { id: 'b', seated: true },
+    ] as any[])).toBe(true);
+  });
+
+  it('is false while anyone still in is waiting for a chair', () => {
+    expect(allSeated([
+      { id: 'a', seated: true },
+      { id: 'b', seated: false },
+    ] as any[])).toBe(false);
+    expect(allSeated([{ id: 'a', seated: true }, { id: 'b' }] as any[])).toBe(false);
+  });
+
+  it('ignores busted players, who hold no chair', () => {
+    // Otherwise one knockout would keep the button saying "Seat" all night.
+    expect(allSeated([
+      { id: 'a', seated: true },
+      { id: 'out', isActive: false, seated: false },
+    ] as any[])).toBe(true);
+  });
+
+  it('is false for an empty field, where "Randomize" would mean nothing', () => {
+    expect(allSeated([])).toBe(false);
+    expect(allSeated([{ id: 'out', isActive: false }] as any[])).toBe(false);
   });
 });

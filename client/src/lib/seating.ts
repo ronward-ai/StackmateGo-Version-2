@@ -64,3 +64,24 @@ export function seatToReclaim(player: Player, players: Player[]): Seat | null {
 export function seatablePlayers<T extends { isActive?: boolean }>(players: T[]): T[] {
   return players.filter(p => p.isActive !== false);
 }
+
+/**
+ * Is everyone who could be sitting already sitting?
+ *
+ * The Seating tab's primary action does two jobs — place people who have no
+ * chair, and redraw the chairs of people who do — and its label said both:
+ * "Seat / Randomize". At a final table, where every remaining player is already
+ * seated, half of that label describes nothing, and the half a director wants
+ * in that moment is the one they have to read past.
+ *
+ * Busted players are not counted, here as everywhere: they hold no chair, so
+ * they can never make this false. Without that, one knocked-out player would
+ * keep the button saying "Seat" for the rest of the night.
+ *
+ * False for an empty field: there is nobody to have seated, and "Randomize"
+ * over an empty table would be nonsense.
+ */
+export function allSeated<T extends { isActive?: boolean; seated?: boolean }>(players: T[]): boolean {
+  const seatable = seatablePlayers(players);
+  return seatable.length > 0 && seatable.every(p => p.seated === true);
+}

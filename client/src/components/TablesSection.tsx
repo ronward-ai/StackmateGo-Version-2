@@ -22,7 +22,7 @@ import FinalTableDialog from "./FinalTableDialog";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { activeCount, promptDismissedFor } from '@/lib/finalTable';
-import { seatablePlayers } from '@/lib/seating';
+import { seatablePlayers, allSeated } from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
@@ -466,7 +466,11 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2 mb-5">
-            {/* The Seating tab's primary action. */}
+            {/* The Seating tab's primary action. It does two jobs — place
+                people who have no chair, and redraw the chairs of people who do
+                — and said both at once. At a final table everyone is already
+                seated, so half the label describes nothing and the half the
+                director wants is the half they read past. */}
             <Button
               size="sm"
               className="gap-1.5 h-9 text-xs"
@@ -474,7 +478,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
               onClick={() => setSeatDialogOpen(true)}
             >
               <Shuffle className="h-3.5 w-3.5" />
-              Seat / Randomize
+              {allSeated(state.players) ? 'Randomize' : 'Seat / Randomize'}
             </Button>
 
             {state.players.some(p => p.seated) && (
