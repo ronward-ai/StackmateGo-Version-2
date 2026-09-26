@@ -780,6 +780,27 @@ by — the trap the Go Live note above warns about. Both sites now test `isPubli
 The timer card's code is 96px rather than the old 80: a real tournament URL is 88 characters and needs
 39 modules, which at 80px is 1.6 CSS pixels per module — tight for a phone camera across a table.
 
+### A deploy is a brief outage unless Railway is told how to check
+
+`railway.json` sets `deploy.healthcheckPath` to **`/api/health`**. Without it Railway sends traffic to
+a new container as soon as it starts rather than when it can answer, so every push to `main` showed
+the edge a dead origin for the length of a rebuild-and-swap — a **Fastly 503 "No healthy backends"**,
+reported from a real session while a push was building. The game survives it (the local mirror holds
+the roster, the clock derives from `targetEndTime`), so the cost is a reload rather than a
+tournament, but a director should not meet a CDN error page mid-night because somebody deployed.
+
+**That endpoint is now load-bearing, and its shape is the point.** `server/routes.ts` answers 200
+unconditionally — no auth, no Firestore, no work — and `server/index.ts` registers the SAME path
+again on the fallback route path, so it answers even if route registration partly failed. Give it a
+dependency and a database blip becomes a failed deploy; put it behind auth and every deploy fails.
+
+The trade is deliberate and runs the other way too: with a healthcheck configured, a container that
+never answers **fails the deploy and rolls back** instead of going live broken. That is the point of
+having one.
+
+`railway.json` overrides the dashboard only for the fields it names, so the Dockerfile, the build
+settings and the environment variables are untouched.
+
 ### The footer shows the build, and `index.html` is never cached
 
 `vite.config.ts` defines `__BUILD_ID__` from the git short SHA and `PokerTimer`'s footer renders it.
