@@ -71,19 +71,53 @@ export function shouldPromptForFinalTable(
 }
 
 /**
- * Has the prompt already been answered for this many players?
+ * Has the prompt already been answered at this field size?
  *
  * "Not yet" used to last exactly until the next render that touched the roster
  * — a chip edit, a knockout, anything — because the prompt was driven straight
  * off a predicate over `state.players`. Latching the dismissal against the
- * COUNT it was dismissed at is what makes it stick, while still re-arming if
- * the field changes size again and the question becomes live once more.
+ * COUNT it was dismissed at is what makes it stick while the field stays that
+ * size, which is the whole job here.
+ *
+ * **It cannot tell you whether the question is NEW**, and must not be asked to:
+ * two equal counts look identical whether the director has just dismissed the
+ * prompt or dismissed it, rebought the busted player and knocked them out
+ * again. A count recurs; a question does not. `dismissalIsStale` below is what
+ * answers that, and the caller has to drop the latch when it says so.
  */
 export function promptDismissedFor(
   dismissedAtCount: number | null,
   players: SeatablePlayer[],
 ): boolean {
   return dismissedAtCount !== null && dismissedAtCount === activeCount(players);
+}
+
+/**
+ * Has a dismissal been overtaken by events?
+ *
+ * **"Not yet" answers ONE bust-out, not the tournament.** Nine players on
+ * eight-seat tables: one busts, the prompt appears, the director rebuys them
+ * from the dialog, and the field is nine again — so the collapse is not due at
+ * all. When that player busts a second time the field is eight again, and the
+ * latch, holding the number eight, silently swallowed the question. A director
+ * got one prompt a night and collapsed the table by hand, which is exactly the
+ * hand-arranging that `lib/seating.ts` documents the cost of.
+ *
+ * So a dismissal survives only while the field still fits one table. Grow back
+ * past it and the answer is spent: whatever happens next is a new question.
+ *
+ * This is the SAME class of bug as the one the latch was added to fix, one
+ * level up — that version reopened on every render, this version stayed shut
+ * across a round trip. Both come of describing an event by a value that
+ * repeats.
+ */
+export function dismissalIsStale(
+  dismissedAtCount: number | null,
+  players: SeatablePlayer[],
+  seatsPerTable: number,
+): boolean {
+  if (dismissedAtCount === null) return false;
+  return activeCount(players) > seatsPerTable;
 }
 
 /** Where everyone is sitting now, so it can be restored. */

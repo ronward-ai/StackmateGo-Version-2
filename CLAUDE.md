@@ -1283,6 +1283,20 @@ the rest of the night collapsing the table by hand; that hand-arranging is what 
 seating bug below. A test asserts the prompt is due at every count from `seatsPerTable` down to 2 and
 fails if the equality comes back.
 
+**And the dismissal is DROPPED once the field grows back past one table.** Latching against the
+count fixed the reopening, then caused its own failure one level up: nine players on eight-seat
+tables, one busts, the director takes the rebuy offered in the prompt — and when that player busts a
+second time, nothing. The latch held 8 and the field had come back to 8, so the answer given about
+the first bust-out silently swallowed the question about the second. `dismissalIsStale()` is what
+clears it, and `TablesSection` drops the latch when it fires. **A count recurs; a question does not** —
+`promptDismissedFor` can only say "the field is still this size", never "this has already been
+asked", and must not be relied on for the latter.
+
+Worth knowing about the shape of that write: the dialog's rebuy button fires `onRebuyTrigger()` and
+`onClose()` in the same tick, so the latch records the count from BEFORE the rebuy. That is left
+alone deliberately — the staleness rule drops the latch the moment the field grows, so the stored
+number stops mattering, which is the point.
+
 Asking on each bust-out is not nagging — each one is genuinely a new question, and
 `promptDismissedFor` caps it at one prompt per bust-out. **"Not this game"** silences it for the rest
 of the tournament, for the director who means to arrange it themselves. That flag is component state
@@ -1976,7 +1990,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `scopedStorage.ts` | Which account a localStorage key belongs to, and what signing in may adopt. |
 | `setupSync.ts` | Whether the director's setup travels up to the account, down to this device, or stays put. |
 | `accountWipe.ts` | What deleting an account removes, and the one order that does not strand it. |
-| `finalTable.ts` | Whether to ask for a final table, and how to put the seats back if it is undone. |
+| `finalTable.ts` | Whether to ask for a final table, whether a dismissal still applies, and how to put the seats back if it is undone. |
 | `tableBalance.ts` | Whether the tables are uneven enough to say so, and what a dismissal remembers. |
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |

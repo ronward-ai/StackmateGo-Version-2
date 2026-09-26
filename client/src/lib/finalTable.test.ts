@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  activeCount, outgrowsFinalTable, promptDismissedFor, restoreSeating,
+  activeCount, dismissalIsStale, outgrowsFinalTable, promptDismissedFor, restoreSeating,
   shouldPromptForFinalTable, snapshotSeating, type SeatablePlayer,
 } from './finalTable';
 
@@ -55,6 +55,72 @@ describe('promptDismissedFor', () => {
 
   it('is not dismissed when it never was', () => {
     expect(promptDismissedFor(null, nineAcrossTwoTables())).toBe(false);
+  });
+});
+
+describe('dismissalIsStale', () => {
+  it('is spent once the field grows back past one table', () => {
+    // The rebuy put the ninth player back. The collapse is not due at all now,
+    // so the answer given about the last bust-out has nothing left to apply to.
+    expect(dismissalIsStale(8, nineAcrossTwoTables(), 8)).toBe(true);
+  });
+
+  it('still holds while the field fits one table', () => {
+    const players = [...nineAcrossTwoTables().slice(0, 8), busted('t2-0')];
+    expect(dismissalIsStale(8, players, 8)).toBe(false);
+  });
+
+  it('is nothing to clear when no answer was given', () => {
+    expect(dismissalIsStale(null, nineAcrossTwoTables(), 8)).toBe(false);
+  });
+});
+
+/**
+ * THE NIGHT AS IT WAS REPORTED, step by step.
+ *
+ * Nine players, eight-seat tables. Bust one, take the prompt, rebuy them from
+ * the dialog, bust the same player again — and the prompt did not come back,
+ * because the latch held the number 8 and the field had returned to 8. The
+ * last assertion here is the bug; it fails without the staleness rule.
+ */
+describe('bust, rebuy, bust again', () => {
+  const seatsPerTable = 8;
+
+  it('asks again after the field has been and gone', () => {
+    // Nine at the table: nothing due.
+    let players = nineAcrossTwoTables();
+    let dismissedAt: number | null = null;
+    expect(shouldPromptForFinalTable(players, seatsPerTable, false)).toBe(false);
+
+    // One busts. Eight left, one table's worth: the prompt is due.
+    players = [...players.slice(0, 8), busted('t2-0')];
+    expect(shouldPromptForFinalTable(players, seatsPerTable, false)).toBe(true);
+    expect(promptDismissedFor(dismissedAt, players)).toBe(false);
+
+    // The director takes the rebuy. onClose latches the count from the render
+    // it was opened in — pre-rebuy, so 8. That is why the value itself cannot
+    // be trusted to mean anything later.
+    dismissedAt = activeCount(players);
+    expect(dismissedAt).toBe(8);
+    expect(promptDismissedFor(dismissedAt, players)).toBe(true);
+
+    // The rebuy lands: nine again, and the answer is spent.
+    players = nineAcrossTwoTables();
+    expect(dismissalIsStale(dismissedAt, players, seatsPerTable)).toBe(true);
+    dismissedAt = null;
+
+    // Same player busts again. A NEW question, and it must be asked.
+    players = [...players.slice(0, 8), busted('t2-0')];
+    expect(shouldPromptForFinalTable(players, seatsPerTable, false)).toBe(true);
+    expect(promptDismissedFor(dismissedAt, players)).toBe(false);
+  });
+
+  it('does not reopen while the field simply sits there', () => {
+    // The regression the latch exists for, and which the staleness rule must
+    // not trade away: no rebuy, so nothing is stale and "Not yet" holds.
+    const players = [...nineAcrossTwoTables().slice(0, 8), busted('t2-0')];
+    expect(dismissalIsStale(8, players, seatsPerTable)).toBe(false);
+    expect(promptDismissedFor(8, players)).toBe(true);
   });
 });
 

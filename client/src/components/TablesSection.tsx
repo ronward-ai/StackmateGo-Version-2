@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import FinalTableDialog from "./FinalTableDialog";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
-import { activeCount, promptDismissedFor } from '@/lib/finalTable';
+import { activeCount, dismissalIsStale, promptDismissedFor } from '@/lib/finalTable';
 import { seatablePlayers, allSeated, planSeating } from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
@@ -158,6 +158,25 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       );
     }
   }, [state.settings.tables, state.settings.tableBackgrounds]);
+
+  /**
+   * A dismissal is spent once the field grows back past one table.
+   *
+   * Nine players on eight-seat tables: one busts, the director takes the rebuy
+   * from the prompt, and the field is nine again — then that player busts a
+   * second time and the prompt never came back, because the latch held 8 and
+   * the field had returned to 8. See dismissalIsStale in lib/finalTable.ts.
+   *
+   * seatsPerTable comes from SETTINGS, not from this component's state of the
+   * same name: that one backs the editable Seats/Table field and holds a draft
+   * mid-edit, while the prompt predicate itself reads the settings. Two sources
+   * for one number is how the seating dialog came to describe a seating that
+   * was never going to happen.
+   */
+  useEffect(() => {
+    if (!dismissalIsStale(finalTableDismissedAt, state.players, state.settings.tables?.seatsPerTable || 6)) return;
+    setFinalTableDismissedAt(null);
+  }, [finalTableDismissedAt, state.players, state.settings.tables?.seatsPerTable]);
 
   // Final table prompt
   useEffect(() => {
@@ -968,6 +987,11 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
         isOpen={isFinalTableDialogOpen}
         onClose={() => {
           setIsFinalTableDialogOpen(false);
+          // Rebuy and close fire in the same tick, so on that path this records
+          // the count from BEFORE the rebuy. Deliberately left alone: the
+          // staleness effect above drops the latch the moment the field grows,
+          // so the value stops mattering — and "the number it holds" is exactly
+          // what must not be relied on to mean anything later.
           setFinalTableDismissedAt(activeCount(state.players));
         }}
         playerCount={activeCount(state.players)}
