@@ -21,6 +21,7 @@ import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
+import FinalTablePrompt from '@/components/FinalTablePrompt';
 import BlindLevelsSection from '@/components/BlindLevelsSection';
 import BuyInSection from '@/components/BuyInSection';
 import QRCodeSection from '@/components/QRCodeSection';
@@ -326,6 +327,8 @@ function PokerTimerInner({
   // in flight. A run that arrives while one is going waits and tries again.
   const syncRunningRef = useRef(false);
   const [activeTab, setActiveTab] = useState('players');
+  /** Lifted only so the seating screen can hold its own prompts back. */
+  const [finalTablePromptOpen, setFinalTablePromptOpen] = useState(false);
 
   // Save finished tournaments to history. Standalone games are the point of
   // this: results are only written to tournamentResults for league games, so a
@@ -1084,6 +1087,15 @@ function PokerTimerInner({
         )}
         <AuthModal isOpen={showSignInModal} onClose={() => setShowSignInModal(false)} />
 
+        {/* Asked from wherever the director is standing.
+            This lived inside TablesSection — the Seating tab — and inactive
+            tabs are unmounted, so the effect that opens it could only run
+            while that one tab was on screen. A director busting players out
+            from the Players tab, which is where the roster is, was never asked
+            about the final table at all. It renders nothing until the question
+            is due. */}
+        <FinalTablePrompt tournament={tournament} onOpenChange={setFinalTablePromptOpen} />
+
 
 
         {/* Main Timer Card - Always Visible.
@@ -1309,7 +1321,7 @@ function PokerTimerInner({
             </TabsContent>
 
             <TabsContent value="tables" className="mt-0 p-4 pt-5">
-              <TablesSection tournament={tournament} />
+              <TablesSection tournament={tournament} finalTablePromptOpen={finalTablePromptOpen} />
             </TabsContent>
 
             <TabsContent value="qr" className="mt-0 p-4 pt-5">

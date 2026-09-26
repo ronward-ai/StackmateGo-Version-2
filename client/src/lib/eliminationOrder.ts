@@ -44,6 +44,27 @@ function isFinished(p: PositionedPlayer): boolean {
 }
 
 /**
+ * Who busted most recently?
+ *
+ * The highest finishing position wins, because positions count DOWN as the
+ * night goes on — 9th is knocked out before 8th — so the largest number is the
+ * freshest bust-out.
+ *
+ * Two dialogs ask this and both act on the answer: the final-table prompt and
+ * the uneven-tables prompt each offer to rebuy whoever just busted, since that
+ * bust-out is what created the situation being asked about. It lives here so
+ * they cannot drift, and so the rule is testable away from either of them.
+ */
+export function mostRecentlyBusted<T extends PositionedPlayer>(players: T[]): T | null {
+  return players
+    .filter(p => p.isActive === false)
+    .reduce<T | null>(
+      (latest, p) => (!latest || (p.position || 0) > (latest.position || 0) ? p : latest),
+      null,
+    );
+}
+
+/**
  * The position to award the player being eliminated right now.
  *
  * Callers pass the roster as it stands BEFORE the elimination is applied, with

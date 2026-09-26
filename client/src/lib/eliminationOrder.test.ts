@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  mostRecentlyBusted,
   nextEliminationPosition,
   positionsAfterReEntry,
   rostersMatchForUndo,
@@ -53,6 +54,36 @@ describe('nextEliminationPosition', () => {
       { id: 'p3', isActive: true },
     ];
     expect(nextEliminationPosition(players)).toBe(3);
+  });
+});
+
+describe('mostRecentlyBusted', () => {
+  it('is the highest finishing position, because positions count down', () => {
+    // 9th busts first, 8th next. The freshest bust-out holds the biggest number.
+    const players: PositionedPlayer[] = [
+      { id: 'a', isActive: true },
+      { id: 'b', isActive: false, position: 9 },
+      { id: 'c', isActive: false, position: 8 },
+    ];
+    expect(mostRecentlyBusted(players)?.id).toBe('b');
+  });
+
+  it('ignores players still in the game', () => {
+    expect(mostRecentlyBusted([{ id: 'a', isActive: true }, { id: 'b' }])).toBeNull();
+  });
+
+  it('is null for an empty roster', () => {
+    expect(mostRecentlyBusted([])).toBeNull();
+  });
+
+  it('skips a player who rebought, since they are active again', () => {
+    // The rebuy path clears isActive back to true; whoever busted before them
+    // is the one a prompt should now be offering to buy back in.
+    const players: PositionedPlayer[] = [
+      { id: 'rebought', isActive: true, position: undefined },
+      { id: 'still-out', isActive: false, position: 7 },
+    ];
+    expect(mostRecentlyBusted(players)?.id).toBe('still-out');
   });
 });
 

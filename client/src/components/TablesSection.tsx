@@ -18,10 +18,9 @@ import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties
 import { TableConfig, Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import FinalTableDialog from "./FinalTableDialog";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
-import { activeCount, dismissalIsStale, promptDismissedFor } from '@/lib/finalTable';
+import { mostRecentlyBusted } from '@/lib/eliminationOrder';
 import { seatablePlayers, allSeated, planSeating } from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
@@ -30,6 +29,14 @@ import { canRebuy } from '@/lib/entryLimits';
 
 interface TablesSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
+  /**
+   * Whether the final-table prompt is up. It is mounted at page level now (it
+   * had to be — this component is a TAB, and an unmounted tab cannot ask the
+   * director anything), so the balance prompt below is told rather than able
+   * to see for itself. Two dialogs at once would be two questions about the
+   * same bust-out.
+   */
+  finalTablePromptOpen?: boolean;
 }
 
 // Felt color config — single source of truth
@@ -49,7 +56,7 @@ const FELT_COLORS = [
 const feltHex = (key: string) => FELT_COLORS.find(f => f.key === key)?.hex || '#22c55e';
 const feltClass = (key: string) => `table-felt-base ${FELT_COLORS.find(f => f.key === key)?.tableClass || 'table-felt-green'}`;
 
-export default function TablesSection({ tournament }: TablesSectionProps) {
+export default function TablesSection({ tournament, finalTablePromptOpen = false }: TablesSectionProps) {
   const {
     state, updateSettings, updatePlayers,
     addKnockout, eliminatePlayer, undoBustOut,
@@ -86,25 +93,6 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   const [editingTableIndex, setEditingTableIndex] = useState<number | null>(null);
   const [editTableName, setEditTableName]         = useState('');
   const [seatDialogOpen, setSeatDialogOpen]       = useState(false);
-  const [isFinalTableDialogOpen, setIsFinalTableDialogOpen] = useState(false);
-  // "Not yet" has to STICK. The prompt is driven off a predicate over
-  // state.players, so a bare boolean was cleared by the next render that
-  // touched the roster — a chip edit, a knockout — and the dialog reopened
-  // behind a director who had gone to sell the busted player a rebuy. Latching
-  // against the player count it was dismissed at keeps it shut while the field
-  // is that size, and re-arms it if the field changes again.
-  const [finalTableDismissedAt, setFinalTableDismissedAt] = useState<number | null>(null);
-  /**
-   * "Not this game" — the prompt is due on every bust-out once the field fits
-   * one table (see lib/finalTable.ts), which is right, but a director who
-   * intends to collapse the table by hand should say so once.
-   *
-   * Component state rather than tournament state, deliberately: it is a UI
-   * preference about a question, not a fact about the game, and putting it in
-   * `state` would sync it to Firestore and out to every participant device.
-   * The cost is that a page refresh asks once more — one dialog, not data.
-   */
-  const [finalTablePromptSilenced, setFinalTablePromptSilenced] = useState(false);
   /** Which imbalance was waved away, so "Ignore for now" stays ignored. */
   const [balanceDismissedKey, setBalanceDismissedKey] = useState<string | null>(null);
 
@@ -114,14 +102,9 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
 
   const [undoBustOutDialogOpen, setUndoBustOutDialogOpen] = useState(false);
 
-  // Most recently busted first, which is the one a director is almost always
-  // reaching for — they just knocked them out.
-  const justBusted = state.players
-    .filter(p => p.isActive === false)
-    .reduce<typeof state.players[number] | null>(
-      (latest, p) => (!latest || (p.position || 0) > (latest.position || 0) ? p : latest),
-      null,
-    );
+  // The one a director is almost always reaching for — they just knocked them
+  // out. Shared with the final-table prompt through lib/eliminationOrder.ts.
+  const justBusted = mostRecentlyBusted(state.players);
 
   const bustedPlayers = state.players
     .filter(p => p.isActive === false)
@@ -159,33 +142,6 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
     }
   }, [state.settings.tables, state.settings.tableBackgrounds]);
 
-  /**
-   * A dismissal is spent once the field grows back past one table.
-   *
-   * Nine players on eight-seat tables: one busts, the director takes the rebuy
-   * from the prompt, and the field is nine again — then that player busts a
-   * second time and the prompt never came back, because the latch held 8 and
-   * the field had returned to 8. See dismissalIsStale in lib/finalTable.ts.
-   *
-   * seatsPerTable comes from SETTINGS, not from this component's state of the
-   * same name: that one backs the editable Seats/Table field and holds a draft
-   * mid-edit, while the prompt predicate itself reads the settings. Two sources
-   * for one number is how the seating dialog came to describe a seating that
-   * was never going to happen.
-   */
-  useEffect(() => {
-    if (!dismissalIsStale(finalTableDismissedAt, state.players, state.settings.tables?.seatsPerTable || 6)) return;
-    setFinalTableDismissedAt(null);
-  }, [finalTableDismissedAt, state.players, state.settings.tables?.seatsPerTable]);
-
-  // Final table prompt
-  useEffect(() => {
-    if (finalTablePromptSilenced) return;
-    if (!shouldPromptForFinalTable()) return;
-    if (promptDismissedFor(finalTableDismissedAt, state.players)) return;
-    setIsFinalTableDialogOpen(true);
-  }, [shouldPromptForFinalTable, finalTableDismissedAt, finalTablePromptSilenced, state.players]);
-
   // Table balance check — see lib/tableBalance.ts for why this is shaped the
   // way it is.
   //
@@ -197,7 +153,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
   const currentImbalance = imbalance(state.players);
 
   useEffect(() => {
-    if (isFinalTableDialogOpen || moveMode || shouldPromptForFinalTable()) return;
+    if (finalTablePromptOpen || moveMode || shouldPromptForFinalTable()) return;
     if (!currentImbalance) return;
     if (imbalanceDismissed(balanceDismissedKey, currentImbalance)) return;
 
@@ -211,7 +167,7 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
       playersToMove,
     });
     setTableBalanceDialogOpen(true);
-  }, [currentImbalance, balanceDismissedKey, isFinalTableDialogOpen, moveMode, shouldPromptForFinalTable, state.players]);
+  }, [currentImbalance, balanceDismissedKey, finalTablePromptOpen, moveMode, shouldPromptForFinalTable, state.players]);
 
   /** Grow or trim the per-table arrays to `n`, and RETURN the names.
    *
@@ -982,28 +938,6 @@ export default function TablesSection({ tournament }: TablesSectionProps) {
           </Button>
         </DialogContent>
       </Dialog>
-
-      <FinalTableDialog
-        isOpen={isFinalTableDialogOpen}
-        onClose={() => {
-          setIsFinalTableDialogOpen(false);
-          // Rebuy and close fire in the same tick, so on that path this records
-          // the count from BEFORE the rebuy. Deliberately left alone: the
-          // staleness effect above drops the latch the moment the field grows,
-          // so the value stops mattering — and "the number it holds" is exactly
-          // what must not be relied on to mean anything later.
-          setFinalTableDismissedAt(activeCount(state.players));
-        }}
-        playerCount={activeCount(state.players)}
-        onConfirm={goToFinalTable}
-        triggeredBy={justBusted}
-        onRebuyTrigger={
-          justBusted && canRebuy(state.prizeStructure, justBusted, state.currentLevel)
-            ? () => processRebuy(justBusted.id)
-            : undefined
-        }
-        onSilence={() => setFinalTablePromptSilenced(true)}
-      />
 
       {/* Break Table Dialog */}
       <Dialog open={breakTableDialogOpen} onOpenChange={open => { setBreakTableDialogOpen(open); if (!open) setTableToBreak(null); }}>

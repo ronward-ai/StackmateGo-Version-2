@@ -1297,12 +1297,29 @@ Worth knowing about the shape of that write: the dialog's rebuy button fires `on
 alone deliberately — the staleness rule drops the latch the moment the field grows, so the stored
 number stops mattering, which is the point.
 
+**The prompt is mounted at PAGE level, in `components/FinalTablePrompt.tsx`, and that is not tidying
+up.** It used to live inside `TablesSection` — the **Seating tab** — and this app unmounts inactive
+tab content, so the effect that opens it could only run while that one tab was on screen. A director
+knocking players out from the **Players** tab, which is where the roster and its KO buttons are, was
+never asked about the final table **at all, at any count**. Found by driving it: three bust-outs from
+the Players tab, no dialog, which is indistinguishable from the latch bug above and was very nearly
+mistaken for it.
+
+Two things that were always meant to last now actually do, because the component no longer unmounts:
+a "Not yet" dismissal, and "Not this game". Both used to be rearmed by wandering off to Buy-ins and
+back.
+
+`TablesSection` is TOLD whether the prompt is up (`finalTablePromptOpen`) rather than knowing, so the
+uneven-tables prompt still stands down while it is open — two dialogs at once would be two questions
+about the same bust-out. And `mostRecentlyBusted()` moved to `lib/eliminationOrder.ts`, because both
+prompts offer to rebuy whoever just busted and neither may have its own idea of who that is.
+
 Asking on each bust-out is not nagging — each one is genuinely a new question, and
 `promptDismissedFor` caps it at one prompt per bust-out. **"Not this game"** silences it for the rest
-of the tournament, for the director who means to arrange it themselves. That flag is component state
-in `TablesSection`, NOT tournament state: it is a preference about a question rather than a fact
-about the game, and in `state` it would sync to Firestore and out to every participant device. A page
-refresh therefore asks once more, which is one dialog rather than lost data.
+of the tournament, for the director who means to arrange it themselves. That flag is component state,
+NOT tournament state: it is a preference about a question rather than a fact about the game, and in
+`state` it would sync to Firestore and out to every participant device. A page refresh therefore asks
+once more, which is one dialog rather than lost data.
 
 ### A busted player has to be reachable from the screen the director is on
 
@@ -1964,7 +1981,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tournamentMode.ts` | Whether a tournament is a league game, and whether that can still be changed — **per direction**, since a finished game may stop being a league game but never become one. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
-| `eliminationOrder.ts` | Finishing positions, and the renumbering a re-entry forces. |
+| `eliminationOrder.ts` | Finishing positions, who busted most recently, and the renumbering a re-entry forces. |
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
 | `liveTournament.ts` | Which of an account's tournaments is the one being run right now. |
 | `chop.ts` | Splitting the remaining prize money: ICM equity, proportional chop, and what is still on the table. |
