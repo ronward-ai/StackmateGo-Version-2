@@ -38,6 +38,8 @@ import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import { LiveBanner } from '@/components/LiveBanner';
+import OtherLiveGameBanner from '@/components/OtherLiveGameBanner';
+import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
@@ -237,7 +239,7 @@ function PokerTimerInner({
   // effect needs it too: a read-only console must not write this game into
   // history a second time.
   const myDeviceId = useMemo(() => getDeviceId(), []);
-  const control = controlOf('d_other_device', myDeviceId); // HARNESS
+  const control = controlOf(tournament.controllingDeviceId, myDeviceId);
   const readOnlyConsole = !mayDrive(control);
 
 
@@ -628,6 +630,28 @@ function PokerTimerInner({
     } finally {
       setTakingControl(false);
     }
+  };
+
+  // ── IS THE ACCOUNT RUNNING A GAME SOMEWHERE ELSE? ───────────────────────
+  //
+  // The other half of the control lock above. That one keeps two consoles off
+  // ONE game; this catches the case it cannot — two devices minting two
+  // localGameIds write two DOCUMENTS, and a lock on one says nothing about the
+  // other.
+  //
+  // Asked here rather than in the resume effect because that effect is gated
+  // twice and both gates are load-bearing: it returns early on a set pin (so a
+  // pin naming last night's finished game stops the lookup), and `?home=1`
+  // suppresses it (correctly — New Tournament depends on that). Neither may
+  // change, and neither means "do not tell me about the other device".
+  //
+  // It offers and never jumps: the console stays where it is. Passing
+  // `activeTournamentId` is what keeps this and the read-only banner mutually
+  // exclusive — a console that IS on the game gets null back.
+  const accountLiveGame = useAccountLiveGame(activeTournamentId);
+  const openOtherGame = (id: string) => {
+    try { localStorage.setItem('activeDirectorTournamentId', id); } catch {}
+    setLocation(`/tournament/${id}/director`);
   };
 
   // A console that holds a tournament but has never READ it is not syncing —
@@ -1276,6 +1300,15 @@ function PokerTimerInner({
             </div>
           </div>
         )}
+
+        {/* The account is running a game, and it is not this one.
+            Never both with the banner below: otherLiveGame returns null for the
+            console that IS on the game, so the two cannot disagree. */}
+        <OtherLiveGameBanner
+          game={accountLiveGame}
+          leagueName={league?.name}
+          onOpen={openOtherGame}
+        />
 
         {/* Another device is driving this game.
             An amber CONDITION rather than a red fault, because nothing is
