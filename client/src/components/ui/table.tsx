@@ -2,11 +2,30 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * THIS WRAPPER IS A SCROLL CONTAINER, which matters more than it looks.
+ *
+ * `overflow-auto` on it means a `position: sticky` header inside the table
+ * resolves against THIS div rather than against the page or against whatever
+ * box you thought you were scrolling in. The wrapper has no height of its own,
+ * so it never scrolls — and a sticky header pinned to a box that does not move
+ * rides away with the rows, looking exactly like no sticky at all.
+ *
+ * That is precisely what happened to the league standings: the header carried
+ * `sticky top-0` for months while the height cap sat on a hand-rolled div one
+ * level OUTSIDE this one, so it silently did nothing. Measured rather than
+ * guessed — scroll 200px and the header moved -200 — the same failure `body`'s
+ * `overflow-x` once caused for every sticky in the app (see index.css).
+ *
+ * `wrapperClassName` is how a caller puts the height cap HERE, where sticky can
+ * see it, instead of adding another container around it. Default behaviour is
+ * unchanged for every other table.
+ */
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  React.HTMLAttributes<HTMLTableElement> & { wrapperClassName?: string }
+>(({ className, wrapperClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto", wrapperClassName)}>
     <table
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}

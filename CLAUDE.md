@@ -824,6 +824,25 @@ regression on an old browser against a feature that was otherwise dead everywher
 **Do not change it back.** The console's app bar shipped pinned-in-theory and scrolled away in
 practice, taking the clock it carries with it, and nothing about the bar was wrong.
 
+**The same trap has a second home, and it caught the standings: `ui/table.tsx` wraps every `<table>`
+in its own `overflow-auto` div.** So a sticky `thead` resolves against THAT wrapper, not against the
+page and not against whatever box you think you are scrolling in. The league standings carried
+`sticky top-0` on its header for months while the `max-h-[400px]` cap sat on a hand-rolled div one
+level OUTSIDE the primitive's wrapper — which therefore had no height, never scrolled, and pinned the
+header to a box that does not move. It rode away with the rows, looking exactly like no sticky at all.
+
+Measured, not guessed, in the same spirit as the `clip` finding above: in that nesting, scrolling
+200px moved the header **-200**; with the cap on the primitive's own wrapper it moves **0**.
+
+`Table` takes a `wrapperClassName` for exactly this — it puts the cap where sticky can see it rather
+than adding another container around it. **A height cap and a sticky header must be on the same
+scroll container**, and if a table ever needs its header to pin, that is the thing to check first.
+
+Worth knowing for the future: because the standings pin inside their own 400px box rather than
+against the page, the console's 56px app bar is irrelevant to them and no `top` offset is needed.
+A table that pinned against the PAGE would need one there and not on the participant view, which has
+no sticky bar — two mount sites, two answers.
+
 ### The top of the console is an app bar, and the event is its headline
 
 `components/ConsoleHeader.tsx`. It was a StackMate wordmark with the tagline *"Your poker night,

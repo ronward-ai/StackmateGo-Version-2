@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, Component, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -486,29 +485,23 @@ function RealTimeLeagueTable({
 
     setIsExporting(true);
     try {
-      // Find the ScrollArea component and temporarily remove height restrictions
-      const scrollArea = exportRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-      const tableContainer = exportRef.current.querySelector('.overflow-x-auto') as HTMLElement | null;
-
-      // Store original styles
-      const originalScrollStyles = scrollArea ? {
-        height: scrollArea.style.height,
-        maxHeight: scrollArea.style.maxHeight,
-        overflow: scrollArea.style.overflow
-      } : null;
+      // Lift the height cap so the image holds every row rather than the first
+      // 400px of them.
+      //
+      // Found STRUCTURALLY — the scroll container is the table's own parent, by
+      // construction (ui/table.tsx) — rather than by utility class. It used to
+      // query `.overflow-x-auto`, which is the very class that moved when the
+      // cap moved, so the export would have kept working right up until it
+      // silently cropped. A second probe for `[data-radix-scroll-area-viewport]`
+      // went with it: ScrollArea has not been in this component for a long time,
+      // so that branch was permanently null.
+      const tableContainer = exportRef.current.querySelector('table')?.parentElement as HTMLElement | null;
 
       const originalTableStyles = tableContainer ? {
         height: tableContainer.style.height,
         maxHeight: tableContainer.style.maxHeight,
         overflow: tableContainer.style.overflow
       } : null;
-
-      // Temporarily remove height restrictions for export
-      if (scrollArea) {
-        scrollArea.style.height = 'auto';
-        scrollArea.style.maxHeight = 'none';
-        scrollArea.style.overflow = 'visible';
-      }
 
       if (tableContainer) {
         tableContainer.style.height = 'auto';
@@ -545,12 +538,6 @@ function RealTimeLeagueTable({
       } as any);
 
       // Restore original styles
-      if (scrollArea && originalScrollStyles) {
-        scrollArea.style.height = originalScrollStyles.height;
-        scrollArea.style.maxHeight = originalScrollStyles.maxHeight;
-        scrollArea.style.overflow = originalScrollStyles.overflow;
-      }
-
       if (tableContainer && originalTableStyles) {
         tableContainer.style.height = originalTableStyles.height;
         tableContainer.style.maxHeight = originalTableStyles.maxHeight;
@@ -720,8 +707,15 @@ function RealTimeLeagueTable({
       {(!isParticipantView || isExpanded) && <CardContent>
         {displayPlayers.length > 0 ? (
           <div className="relative overflow-hidden rounded-lg">
-            <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
-              <Table className="w-full">
+            {/* The height cap goes on the Table's OWN wrapper, not on a div
+                around it. That wrapper is a scroll container either way (see
+                ui/table.tsx), so a cap one level out left the sticky header
+                below resolving against an uncapped box that never scrolls — it
+                rode away with the rows. Measured: scrolling 200px moved the
+                header -200. `overflow-auto` is already on that wrapper, so the
+                cap is all this needs. */}
+              <Table wrapperClassName="max-h-[400px]" className="w-full">
+                {/* Opaque background is load-bearing: rows slide UNDER this. */}
                 <TableHeader className="bg-[#2a2a2a] sticky top-0 z-10">
                   <TableRow>
                     <TableHead className="text-white w-6 text-center px-0.5 text-xs border-r border-slate-600">Rank</TableHead>
@@ -807,7 +801,6 @@ function RealTimeLeagueTable({
                   })}
                 </TableBody>
               </Table>
-            </div>
           </div>
         ) : (
           <EmptyState icon={Trophy} title="No standings yet">
