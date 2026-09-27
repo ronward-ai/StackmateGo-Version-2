@@ -61,6 +61,36 @@ export function shouldClaim(control: Control): boolean {
 }
 
 /**
+ * Whether this snapshot should REPLACE the local roster rather than merge into
+ * it — the clean slate the old handover got from a full page load on sign-out.
+ *
+ * Exactly one transition qualifies: **this device was read-only and now holds
+ * control.** While it was standing down someone else was driving, so its local
+ * roster is not an optimistic update awaiting confirmation, it is simply stale —
+ * and `lib/snapshotMerge.ts`'s rules, which are all biased toward local, would
+ * push that staleness back into the live game. The divergence is sticky, because
+ * those rules run on every snapshot: a read-only console prodded once keeps its
+ * phantom elimination for the rest of the night.
+ *
+ * **The exclusions are the whole design, and both would be worse than the bug:**
+ *
+ *  - **`unclaimed` → `mine` must NOT adopt.** That is the automatic claim, and a
+ *    device that has just created a game legitimately has a roster AHEAD of the
+ *    document — players added, the sync effect not yet fired. Adopting there
+ *    would wipe them: the `hasLoadedRemoteState` hazard with the sign flipped.
+ *  - **`mine` → `mine` must NOT adopt.** That is every ordinary snapshot,
+ *    including the echo of this device's own writes, so adopting would undo each
+ *    bust-out the instant it came back — which is precisely what the merge rules
+ *    exist to prevent.
+ *
+ * A first snapshot (`previous` null) does not adopt either: holding control on
+ * arrival says nothing about having stood down.
+ */
+export function shouldAdoptRemote(previous: Control | null | undefined, next: Control): boolean {
+  return previous === 'other' && next === 'mine';
+}
+
+/**
  * What to tell the director, when there is anything to tell them.
  *
  * The wording lives here with the rule rather than in the banner, the same way

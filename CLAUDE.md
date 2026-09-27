@@ -451,6 +451,48 @@ the one thing a second screen is genuinely good for.
 **A takeover reaches the other device for free.** It holds an `onSnapshot` on the document, so the
 field changing is all it takes; nothing is pushed at it and no local state is set on either side.
 
+**But Take control is not a page reload, and that gap was real.** The logout-handover's full page
+load is documented above as load-bearing precisely because it DISCARDS in-memory state. Taking
+control does no such thing — the read-only console brings whatever it has been holding, and the
+snapshot handler does not adopt the document, it **merges**, with every rule about `players` biased
+toward local: a locally-busted player stays busted, `knockouts`/`rebuys`/`reEntries` take
+`Math.max`, a player absent from the document is appended back, and `prizeMoney` prefers the local
+value. Those rules are CORRECT for the device driving the game — the console busts a player out
+optimistically and must not have its own echo resurrect them — and wrong for one that has been
+standing down.
+
+**The divergence was sticky.** They run on every snapshot, so a read-only console prodded once never
+healed, and the takeover then wrote the staleness over the real game. A read-only console is easy to
+prod: only the timer transport is replaced, while the Players tab, KO, rebuy and seating stay live.
+
+`shouldAdoptRemote(previous, next)` is the fix, and **the exclusions are the whole design** — both
+would be worse than the bug it closes:
+
+- **`unclaimed` → `mine` must NOT adopt.** That is the automatic claim, and a device that has just
+  created a game legitimately has a roster AHEAD of the document, with the sync effect not yet
+  fired. Adopting there wipes the players just added: the `hasLoadedRemoteState` hazard with the
+  sign flipped.
+- **`mine` → `mine` must NOT adopt.** That is every ordinary snapshot, including this device's own
+  echo, so adopting would undo each bust-out the instant it came back.
+
+Only `other` → `mine` qualifies, because only after standing down is local state stale rather than
+optimistic. A test asserts every transition and a mutant widening it to `next === 'mine'` turns
+three red.
+
+Two implementation details that are not incidental. **`adopt` is computed BEFORE `setState`**, since
+React may call an updater more than once and this is a one-shot transition that must advance the ref
+exactly once per snapshot. And **the ref resets when the listener re-subscribes**, or the first
+snapshot of a DIFFERENT game could read as `other` → `mine` and adopt — a control fact belongs to
+one game, exactly like a held tournament id.
+
+**Only `players` was ever biased.** `levels`, `settings`, the clock (via `secondsLeftFrom`),
+`ownerId` and `isPublished` already take the document's value, which is what kept the fix narrow.
+
+**This does NOT retire the logout.** A handover to a DIFFERENT account still has to be a sign-out —
+transferring `ownerId` was removed because the league and points silently followed the wrong account
+— and the pin/resume is still built around it. What Take control replaces is the sign-out dance for
+two devices on ONE account, which is the common case.
+
 **What this does NOT fix on its own** is the case it was built from — a director with a live game on
 their phone opening a laptop and starting a SECOND game 5. Two devices minting two `localGameId`s
 make two DOCUMENTS, and a lock on one document says nothing about the other. The lock keeps two
@@ -2242,6 +2284,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
+| `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
 | `directorControl.ts` | Which device is driving the live game, and whether this one may write to it. |

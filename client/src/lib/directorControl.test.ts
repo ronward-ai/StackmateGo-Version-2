@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { controlOf, mayDrive, shouldClaim, controlLockReason, describeClaimTime } from './directorControl';
+import { controlOf, mayDrive, shouldClaim, shouldAdoptRemote, controlLockReason, describeClaimTime } from './directorControl';
 
 describe('controlOf', () => {
   it('is mine when the holder is this device', () => {
@@ -77,5 +77,37 @@ describe('describeClaimTime', () => {
 
   it('formats a real timestamp', () => {
     expect(describeClaimTime('2026-09-27T19:42:00.000Z')).toMatch(/\d/);
+  });
+});
+
+describe('shouldAdoptRemote', () => {
+  // The clean slate that Take control has no page reload to lean on.
+  it('adopts when this device was read-only and now holds control', () => {
+    expect(shouldAdoptRemote('other', 'mine')).toBe(true);
+  });
+
+  // The automatic claim. A device that just created a game legitimately has a
+  // roster AHEAD of the document; adopting would wipe the players just added.
+  it('does NOT adopt on the automatic claim of an unheld game', () => {
+    expect(shouldAdoptRemote('unclaimed', 'mine')).toBe(false);
+  });
+
+  // Every ordinary snapshot, including the echo of this device's own writes.
+  // Adopting here would undo each bust-out the instant it came back.
+  it('does NOT adopt on an ordinary snapshot while already driving', () => {
+    expect(shouldAdoptRemote('mine', 'mine')).toBe(false);
+  });
+
+  it('does NOT adopt on a first snapshot', () => {
+    expect(shouldAdoptRemote(null, 'mine')).toBe(false);
+    expect(shouldAdoptRemote(undefined, 'mine')).toBe(false);
+  });
+
+  // Losing control, or never having had it, changes nothing about the roster.
+  it('does NOT adopt when this device is not the one driving', () => {
+    expect(shouldAdoptRemote('mine', 'other')).toBe(false);
+    expect(shouldAdoptRemote('other', 'other')).toBe(false);
+    expect(shouldAdoptRemote('other', 'unclaimed')).toBe(false);
+    expect(shouldAdoptRemote('mine', 'unclaimed')).toBe(false);
   });
 });

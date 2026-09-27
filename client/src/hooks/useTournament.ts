@@ -11,6 +11,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { initialDetails, needsLocalGameId } from '@/lib/localGameId';
+import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
+import { controlOf, shouldAdoptRemote, type Control } from '@/lib/directorControl';
+import { getDeviceId } from '@/lib/deviceId';
 
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
@@ -341,6 +344,13 @@ export function useTournament(tournamentId?: string) {
   const [controllingDeviceId, setControllingDeviceId] = useState<string | null>(null);
   const [controlClaimedAt, setControlClaimedAt] = useState<string | null>(null);
 
+  /**
+   * The control state the LAST snapshot reported, so a transition can be seen.
+   * A ref rather than state: nothing renders from it, and it must be readable
+   * and writable inside the snapshot callback without re-subscribing.
+   */
+  const lastControlRef = useRef<Control | null>(null);
+
   // Load tournament data from database if tournamentId is provided
   useEffect(() => {
     // A different tournament has not been resolved yet, whatever the last one
@@ -493,6 +503,12 @@ export function useTournament(tournamentId?: string) {
     setControllingDeviceId(null);
     setControlClaimedAt(null);
 
+    // And the transition this device was in, or the FIRST snapshot of the new
+    // game could read as 'other' -> 'mine' and adopt — replacing a roster that
+    // may legitimately be ahead of a document this device has not written yet.
+    // A control fact belongs to one game, exactly like a held tournament id.
+    lastControlRef.current = null;
+
     // A game with a document id has a document, whatever its type says. Keying
     // this on `type === 'database'` meant the mode toggle — which writes
     // 'season' or 'standalone' over it — tore the listener down on a saved game,
@@ -516,47 +532,36 @@ export function useTournament(tournamentId?: string) {
           setControlClaimedAt(
             typeof data.controlClaimedAt === 'string' ? data.controlClaimedAt : null,
           );
+
+          // Has this device just taken control after standing down? If so the
+          // roster below is replaced rather than merged — the clean slate the
+          // old handover got from a full page load on sign-out.
+          //
+          // Computed HERE, not inside the setState updater, because React is
+          // free to call an updater more than once and this is a one-shot
+          // transition: the ref must advance exactly once per snapshot.
+          //
+          // Through the same `controlOf` PokerTimer uses, so the two cannot
+          // disagree about who is driving.
+          const nextControl = controlOf(
+            typeof data.controllingDeviceId === 'string' ? data.controllingDeviceId : null,
+            getDeviceId(),
+          );
+          const adopt = shouldAdoptRemote(lastControlRef.current, nextControl);
+          lastControlRef.current = nextControl;
           
           setState(currentState => {
             try {
-              // CRITICAL: Protect eliminated players from being restored by sync
-              let finalPlayers = currentState.players;
-
-              if (Array.isArray(data.players)) {
-                // Compare player states and preserve eliminations
-                finalPlayers = data.players.map((incomingPlayer: any) => {
-                  const currentPlayer = currentState.players.find(p => p.id === incomingPlayer.id);
-
-                  // If current player is eliminated (isActive === false) and incoming is active,
-                  // keep the eliminated state to prevent resurrection
-                  if (currentPlayer && currentPlayer.isActive === false && incomingPlayer.isActive !== false) {
-                    return currentPlayer; // Keep eliminated state
-                  }
-
-                  // If incoming player is eliminated and current is active, allow elimination
-                  if (currentPlayer && currentPlayer.isActive !== false && incomingPlayer.isActive === false) {
-                    return incomingPlayer; // Allow elimination
-                  }
-
-                  // For active players preserve monotonically-increasing local fields
-                  // that may not yet have been flushed to Firestore
-                  if (currentPlayer && currentPlayer.isActive !== false) {
-                    return {
-                      ...incomingPlayer,
-                      knockouts: Math.max(incomingPlayer.knockouts || 0, currentPlayer.knockouts || 0),
-                      rebuys: Math.max(incomingPlayer.rebuys || 0, currentPlayer.rebuys || 0),
-                      reEntries: Math.max(incomingPlayer.reEntries || 0, currentPlayer.reEntries || 0),
-                      prizeMoney: currentPlayer.prizeMoney || incomingPlayer.prizeMoney || 0,
-                    };
-                  }
-                  return incomingPlayer;
-                });
-
-                // Add any players that exist in current but not in incoming (shouldn't happen but safety)
-                const incomingPlayerIds = new Set(data.players.map((p: any) => p.id));
-                const missingPlayers = currentState.players.filter(p => !incomingPlayerIds.has(p.id));
-                finalPlayers = [...finalPlayers, ...missingPlayers];
-              }
+              // The roster meets the snapshot through lib/snapshotMerge.ts,
+              // which holds the rules that used to be spelled out here — all of
+              // them biased toward LOCAL, which is correct for the device
+              // driving the game and wrong for one that has just stopped being
+              // read-only. `adopt` is that one case; see shouldAdoptRemote.
+              const finalPlayers = mergePlayersFromSnapshot(
+                currentState.players,
+                data.players,
+                { adopt },
+              );
 
               // Complete tournament state update with elimination protection
               const updatedState = {
