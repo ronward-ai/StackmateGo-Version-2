@@ -108,6 +108,61 @@ export function failsafeRebuyId(
   return canRebuy(structure, player, currentLevel) ? player.id : null;
 }
 
+/**
+ * The failsafe, remembered across a page refresh.
+ *
+ * `useRebuyOffer` tracks the latest witnessed bust-out in a ref, so a reload
+ * starts it empty — and the seeding then marks every already-busted player as
+ * seen, so the ref never advances for them and no button comes back until the
+ * next bust-out. A director who refreshes seconds after a misclick lost the one
+ * thing that was there to catch it.
+ *
+ * Only the KEY has to survive; everything else recomputes from the roster, and
+ * `failsafeRebuyId` needs no change at all. Every property comes along for free:
+ * a player who rebought before the reload has moved from `id:0` to `id:1`, so
+ * the stored key stops matching and nobody holds it; a later bust-out means the
+ * stored key is already the newer one; and a period that lapsed while the page
+ * was away fails `canRebuy` on restore.
+ *
+ * **Stored WITH the game id, and that guard is the point.** Without it a key
+ * left over from last night would be matched against tonight's roster.
+ * `failsafeRebuyId` would almost certainly reject it, since it wants a player
+ * with that exact id still busted — but "almost certainly", resting on player
+ * ids never colliding, is a coincidence rather than a reason.
+ */
+export interface FailsafeMemory {
+  gameId: string;
+  key: string;
+}
+
+/** What to write. One entry, overwritten, rather than one per game. */
+export function failsafeMemory(gameId: string | null | undefined, key: string | null | undefined): string | null {
+  if (!gameId || !key) return null;
+  return JSON.stringify({ gameId: String(gameId), key });
+}
+
+/**
+ * What to restore, or null.
+ *
+ * Null for anything unusable — absent, unparseable, the wrong shape, or a
+ * different game. Storage is read back from a place the app does not control,
+ * so every one of those is an ordinary outcome rather than an error.
+ */
+export function rememberedFailsafeKey(
+  raw: string | null | undefined,
+  gameId: string | null | undefined,
+): string | null {
+  if (!raw || !gameId) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<FailsafeMemory> | null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (String(parsed.gameId ?? '') !== String(gameId)) return null;
+    return typeof parsed.key === 'string' && parsed.key ? parsed.key : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Every bust-out currently on the roster, as offer keys. */
 export function bustedKeys(players: OfferablePlayer[] | null | undefined): string[] {
   return (players || [])

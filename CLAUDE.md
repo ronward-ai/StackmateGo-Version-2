@@ -1866,10 +1866,35 @@ away, or it would not be one. And it is shown-or-absent, never shown-disabled �
 since busted" is not a rule about this player that a director can act on, so a greyed Rebuy against
 every name would be the noise this change removed. The Busted strip says it once at the top instead.
 
-**After a refresh there is no failsafe until the next bust-out**, since the seeding marks every
-existing bust-out as already seen. Deliberate, and the same rule the dialog follows: the moment has
-passed, and re-entry is the way back in. Making it survive a refresh would mean persisting a
-bust-out sequence on `Player`, which is a schema change for a recovery window measured in seconds.
+**It survives a refresh, and that cost one localStorage entry rather than the schema change it was
+first costed at.** The estimate assumed surviving across DEVICES; a refresh is the same device, so
+only the KEY has to persist — everything else recomputes from the roster and `failsafeRebuyId` needed
+no change at all. Every property came along for free: a player who rebought before the reload has
+moved from `id:0` to `id:1`, so the stored key stops matching and nobody holds the button; a later
+bust-out means the stored key is already the newer one; and a period that lapsed while the page was
+away fails `canRebuy` on restore.
+
+**It is stored WITH the game id**, or a key left over from last night would be matched against
+tonight's roster. `failsafeRebuyId` would almost certainly reject it, wanting a player with that exact
+id still busted — but "almost certainly", resting on player ids never colliding, is a coincidence
+rather than a reason. Restored in the same breath as the `seen` seeding, because the two answer one
+question — what did this console already know? — and must not disagree by a render.
+
+**Bare `localStorage`, deliberately NOT `lib/scopedStorage.ts`.** A failed `setItem` through the
+scoped helpers flips a storage-health flag that is GLOBAL — any key, not just its own — which raises
+`PokerTimer`'s standing *"This device cannot keep a backup"* banner. That banner is about the local
+mirror, the thing whose loss costs a director their tournament. Raising it because a rebuy-failsafe
+key could not be written would be a false alarm about losing the game, over a convenience whose worst
+failure is a button not coming back. So it joins the other tier `scopedStorage`'s own header
+describes — `leaguePanelExpanded`, `smgo_unlocked`, `activeDirectorTournamentId` — which write if they
+can and stay silent if they cannot. **Do not "tidy" it into the scoped helpers.**
+
+Persisted from an EFFECT rather than from render: the ref advances during render, matching the seeding
+above it, but a storage write is a real side effect and React may render twice and discard one.
+
+**It still does not survive moving to another DEVICE** — taking control on a laptop gives no failsafe
+until the next bust-out there. That genuinely would need the bust-out order on the tournament
+document, and it is the wrong trade for a recovery window measured in seconds.
 
 Everything else beside a busted player is the **re-entry**, which is exactly the action that is meant
 to be available later.

@@ -459,8 +459,12 @@ export function useTournament(tournamentId?: string) {
   // lose the roster. Only for games that have not gone live — a database
   // tournament lives in Firestore and must not be seeded from here.
   useEffect(() => {
-    // A standalone game carries no localGameId on details — only league games do
-    // — so fall back to the stored id, which exists for every local game.
+    // Belt and braces. A standalone game USED to carry no localGameId on details
+    // — only league games did — which is the gap lib/localGameId.ts closed, so
+    // `details.localGameId` is now present for every local game. The fallback
+    // stays for a game whose details have not filled in yet, but the comment
+    // that used to say standalone games never have one is no longer true and
+    // was misleading readers.
     const localGameId = state.details?.localGameId ?? getOrCreateLocalGameId();
     if (!localGameId) return;
 

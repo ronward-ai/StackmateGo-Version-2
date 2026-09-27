@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId } from './rebuyOffer';
+import {
+  rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId, failsafeMemory, rememberedFailsafeKey,
+} from './rebuyOffer';
 
 const none = new Set<string>();
 const seen = (...keys: (string | null)[]) => new Set(keys.filter((k): k is string => !!k));
@@ -199,5 +201,61 @@ describe('failsafeRebuyId — the misclick failsafe', () => {
     expect(failsafeRebuyId([newer], on, 0, undefined)).toBeNull();
     expect(failsafeRebuyId([], on, 0, key(newer))).toBeNull();
     expect(failsafeRebuyId(null, on, 0, key(newer))).toBeNull();
+  });
+});
+
+describe('the failsafe across a refresh', () => {
+  const stored = (gameId: string, key: string) => failsafeMemory(gameId, key)!;
+
+  it('restores the key for THIS game', () => {
+    expect(rememberedFailsafeKey(stored('g1', 'a:0'), 'g1')).toBe('a:0');
+  });
+
+  // The guard that matters. A key from last night must not be matched against
+  // tonight's roster — failsafeRebuyId would almost certainly reject it, but
+  // that rests on player ids never colliding, which is a coincidence.
+  it('ignores a key stored against a DIFFERENT game', () => {
+    expect(rememberedFailsafeKey(stored('g1', 'a:0'), 'g2')).toBeNull();
+  });
+
+  // Storage is read back from somewhere the app does not control, so every one
+  // of these is an ordinary outcome rather than an error.
+  it('restores nothing from anything unusable', () => {
+    expect(rememberedFailsafeKey(null, 'g1')).toBeNull();
+    expect(rememberedFailsafeKey(undefined, 'g1')).toBeNull();
+    expect(rememberedFailsafeKey('', 'g1')).toBeNull();
+    expect(rememberedFailsafeKey('not json', 'g1')).toBeNull();
+    expect(rememberedFailsafeKey('null', 'g1')).toBeNull();
+    expect(rememberedFailsafeKey('"a string"', 'g1')).toBeNull();
+    expect(rememberedFailsafeKey('{"gameId":"g1"}', 'g1')).toBeNull();
+    expect(rememberedFailsafeKey('{"gameId":"g1","key":""}', 'g1')).toBeNull();
+    expect(rememberedFailsafeKey('{"gameId":"g1","key":7}', 'g1')).toBeNull();
+  });
+
+  it('restores nothing when this console has no game', () => {
+    expect(rememberedFailsafeKey(stored('g1', 'a:0'), null)).toBeNull();
+  });
+
+  it('writes nothing without both halves', () => {
+    expect(failsafeMemory(null, 'a:0')).toBeNull();
+    expect(failsafeMemory('g1', null)).toBeNull();
+    expect(failsafeMemory('g1', '')).toBeNull();
+  });
+
+  // The round trip is what the console actually does, so assert it end to end
+  // rather than asserting a JSON shape somebody wrote down.
+  it('round-trips, and hands the key straight to failsafeRebuyId', () => {
+    const p = busted({ id: 'a', position: 8, rebuys: 0 });
+    const raw = failsafeMemory('g1', offerKey(p)!)!;
+    expect(failsafeRebuyId([p], on, 0, rememberedFailsafeKey(raw, 'g1'))).toBe('a');
+  });
+
+  // The self-closing property, across the reload: they rebought before it, so
+  // their key moved and nobody holds the button.
+  it('hands back nothing when that player rebought before the reload', () => {
+    const before = busted({ id: 'a', position: 8, rebuys: 0 });
+    const raw = failsafeMemory('g1', offerKey(before)!)!;
+    const after = { id: 'a', isActive: true, rebuys: 1 };
+    expect(failsafeRebuyId([after], on, 0, rememberedFailsafeKey(raw, 'g1'))).toBeNull();
   });
 });

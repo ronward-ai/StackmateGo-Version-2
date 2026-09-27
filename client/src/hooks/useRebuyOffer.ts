@@ -1,6 +1,39 @@
-import { useRef, useState } from 'react';
-import { rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId, type OfferablePlayer } from '@/lib/rebuyOffer';
+import { useEffect, useRef, useState } from 'react';
+import {
+  rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId,
+  failsafeMemory, rememberedFailsafeKey, type OfferablePlayer,
+} from '@/lib/rebuyOffer';
 import { mostRecentlyBusted } from '@/lib/eliminationOrder';
+
+/**
+ * Where the failsafe is remembered across a reload.
+ *
+ * Bare localStorage, NOT `lib/scopedStorage.ts`, and that is a decision rather
+ * than a shortcut. A failed `setItem` through the scoped helpers flips a global
+ * storage-health flag — any key, not just its own — which raises `PokerTimer`'s
+ * standing "This device cannot keep a backup" banner. That banner is about the
+ * local mirror, the thing whose loss costs a director their tournament.
+ * Raising it because a rebuy-failsafe key could not be written would be a false
+ * alarm about losing the game, over a convenience whose worst failure is a
+ * button not coming back after a refresh.
+ *
+ * So it follows the other tier that `scopedStorage`'s own header describes —
+ * `leaguePanelExpanded`, `smgo_unlocked`, `activeDirectorTournamentId` — which
+ * write if they can and stay silent if they cannot. One entry, overwritten,
+ * carrying the game it belongs to.
+ */
+const FAILSAFE_STORAGE_KEY = 'rebuyFailsafe';
+
+function readFailsafe(): string | null {
+  try { return localStorage.getItem(FAILSAFE_STORAGE_KEY); } catch { return null; }
+}
+
+function writeFailsafe(value: string | null): void {
+  try {
+    if (value) localStorage.setItem(FAILSAFE_STORAGE_KEY, value);
+    else localStorage.removeItem(FAILSAFE_STORAGE_KEY);
+  } catch { /* A lost failsafe is a lost convenience. Say nothing. */ }
+}
 
 /**
  * Whether a rebuy is being offered right now, and to whom.
@@ -35,10 +68,28 @@ export function useRebuyOffer(
    * treat every existing bust-out as fresh.
    */
   const seenRef = useRef<Set<string> | null>(null);
+  const latestKeyRef = useRef<string | null>(null);
   const [, bump] = useState(0);
+
+  /**
+   * Which game this console is on, so a key left over from last night cannot be
+   * matched against tonight's roster. `failsafeRebuyId` would almost certainly
+   * reject it — it wants a player with that exact id still busted — but
+   * "almost certainly", resting on player ids never colliding, is a coincidence
+   * rather than a reason.
+   *
+   * Every local game carries a `localGameId` since `lib/localGameId.ts`; the
+   * fallback is for a database game opened straight from its URL.
+   */
+  const gameId = String(state.details?.localGameId ?? state.details?.id ?? '');
 
   if (seenRef.current === null && (state.players?.length ?? 0) > 0) {
     seenRef.current = new Set(bustedKeys(state.players as OfferablePlayer[]));
+    // Restored in the same breath as the seeding, because the two answer one
+    // question — what did this console already know? — and must not disagree by
+    // a render. Without this a refresh loses the failsafe until the next
+    // bust-out, since the seeding has just marked every existing one as seen.
+    latestKeyRef.current = rememberedFailsafeKey(readFailsafe(), gameId);
   }
 
   const player = seenRef.current
@@ -65,7 +116,6 @@ export function useRebuyOffer(
    * every consumer must see this in the SAME render, or the button lags a beat
    * behind the dialog. Idempotent, so a double render costs nothing.
    */
-  const latestKeyRef = useRef<string | null>(null);
   if (seenRef.current) {
     const justBustedKey = offerKey(mostRecentlyBusted(state.players as OfferablePlayer[]));
     if (justBustedKey && !seenRef.current.has(justBustedKey)) {
@@ -77,12 +127,26 @@ export function useRebuyOffer(
    * Null when nobody holds it — which is the ordinary state between bust-outs,
    * and the state immediately after the failsafe is used.
    */
+  const latestKey = latestKeyRef.current;
   const failsafeFor = failsafeRebuyId(
     state.players as OfferablePlayer[],
     state.prizeStructure,
     state.currentLevel,
-    latestKeyRef.current,
+    latestKey,
   );
+
+  /**
+   * Persisted from an EFFECT, not from render.
+   *
+   * The ref advances during render, matching the seeding above it, but a
+   * `localStorage` write is a real side effect and belongs after the commit —
+   * React may render twice and discard one. Depending on the VALUE rather than
+   * the ref is what makes this fire exactly when the key changes.
+   */
+  useEffect(() => {
+    if (!gameId) return;
+    writeFailsafe(failsafeMemory(gameId, latestKey));
+  }, [gameId, latestKey]);
 
   /**
    * Both answers record the bust-out, so neither can be asked again — "a count
