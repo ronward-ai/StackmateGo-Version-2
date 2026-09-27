@@ -46,20 +46,37 @@ function isFinished(p: PositionedPlayer): boolean {
 /**
  * Who busted most recently?
  *
- * The highest finishing position wins, because positions count DOWN as the
- * night goes on — 9th is knocked out before 8th — so the largest number is the
- * freshest bust-out.
+ * The LOWEST finishing position wins. Positions count down as the night goes
+ * on — `nextEliminationPosition` is `players.length - alreadyPositioned`, so in
+ * a nine-player game the first player out takes 9th, the next 8th — which makes
+ * the SMALLEST number the freshest bust-out.
  *
- * Two dialogs ask this and both act on the answer: the final-table prompt and
- * the uneven-tables prompt each offer to rebuy whoever just busted, since that
- * bust-out is what created the situation being asked about. It lives here so
- * they cannot drift, and so the rule is testable away from either of them.
+ * It used to take the largest, and the comment above it argued the case
+ * correctly and then concluded the opposite: "9th is knocked out before 8th —
+ * so the largest number is the freshest bust-out". If 9th goes out before 8th
+ * then 8th is fresher, and 8 is the smaller number. A test enshrined the same
+ * contradiction in the same breath.
+ *
+ * So both dialogs that ask this named the WRONG PLAYER — the first person out
+ * of the tournament, possibly hours earlier, rather than the bust-out that had
+ * just happened. The final-table prompt offered "{name} is rebuying" about
+ * them, and the uneven-tables prompt said their busting "is what left the
+ * tables uneven". One of them was then offered a rebuy they had no reason to
+ * want, in place of the player actually standing there.
+ *
+ * Filtering on `isFinished` rather than `isActive === false` is part of the
+ * fix, not tidying: a busted player carrying no position would read as 0 under
+ * a minimum and win every time.
+ *
+ * Three dialogs ask this now — the final-table prompt, the uneven-tables
+ * prompt, and the rebuy offer at bust-out (`lib/rebuyOffer.ts`). It lives here
+ * so they cannot drift, and so the rule is testable away from all three.
  */
 export function mostRecentlyBusted<T extends PositionedPlayer>(players: T[]): T | null {
   return players
-    .filter(p => p.isActive === false)
+    .filter(isFinished)
     .reduce<T | null>(
-      (latest, p) => (!latest || (p.position || 0) > (latest.position || 0) ? p : latest),
+      (latest, p) => (!latest || (p.position as number) < (latest.position as number) ? p : latest),
       null,
     );
 }

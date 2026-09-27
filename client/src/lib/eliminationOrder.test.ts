@@ -58,14 +58,38 @@ describe('nextEliminationPosition', () => {
 });
 
 describe('mostRecentlyBusted', () => {
-  it('is the highest finishing position, because positions count down', () => {
-    // 9th busts first, 8th next. The freshest bust-out holds the biggest number.
+  // Driven through `bust`, which awards positions exactly as the app does, so
+  // this asserts the two functions AGREE rather than asserting a number someone
+  // wrote down. The version of this test that hard-coded the numbers argued the
+  // direction correctly and then asserted the opposite, and the implementation
+  // matched the assertion: `mostRecentlyBusted` returned the FIRST player out.
+  it('is the player eliminated last, derived from how positions are awarded', () => {
+    let players = roster(9);
+    players = bust(players, 'p1');
+    expect(mostRecentlyBusted(players)?.id).toBe('p1');
+    players = bust(players, 'p2');
+    expect(mostRecentlyBusted(players)?.id).toBe('p2');
+    players = bust(players, 'p3');
+    expect(mostRecentlyBusted(players)?.id).toBe('p3');
+  });
+
+  // The direction, stated once so a reader does not have to re-derive it.
+  it('prefers the SMALLER finishing position, because positions count down', () => {
     const players: PositionedPlayer[] = [
-      { id: 'a', isActive: true },
-      { id: 'b', isActive: false, position: 9 },
-      { id: 'c', isActive: false, position: 8 },
+      { id: 'first-out', isActive: false, position: 9 },
+      { id: 'just-out', isActive: false, position: 8 },
     ];
-    expect(mostRecentlyBusted(players)?.id).toBe('b');
+    expect(mostRecentlyBusted(players)?.id).toBe('just-out');
+  });
+
+  // Part of the fix, not tidying: under a minimum, a busted player carrying no
+  // position would read as 0 and win every time.
+  it('ignores a busted player who holds no finishing position', () => {
+    const players: PositionedPlayer[] = [
+      { id: 'no-position', isActive: false },
+      { id: 'real', isActive: false, position: 8 },
+    ];
+    expect(mostRecentlyBusted(players)?.id).toBe('real');
   });
 
   it('ignores players still in the game', () => {

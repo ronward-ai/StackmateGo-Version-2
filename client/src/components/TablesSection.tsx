@@ -107,9 +107,14 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   // out. Shared with the final-table prompt through lib/eliminationOrder.ts.
   const justBusted = mostRecentlyBusted(state.players);
 
+  // Most recent first, which means ASCENDING position: positions count down as
+  // the night goes on, so the first player out of nine holds 9th and the one
+  // who just busted holds the smallest number. This sorted the other way under
+  // the same "most recent first" heading, so the strip was ordered backwards —
+  // the same inversion `mostRecentlyBusted` had.
   const bustedPlayers = state.players
     .filter(p => p.isActive === false)
-    .sort((a, b) => (b.position || 0) - (a.position || 0));
+    .sort((a, b) => (a.position || 0) - (b.position || 0));
 
   const [moveMode, setMoveMode]                         = useState(false);
   const [selectedPlayerToMove, setSelectedPlayerToMove] = useState<Player | null>(null);
