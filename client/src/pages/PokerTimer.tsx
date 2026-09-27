@@ -45,6 +45,7 @@ import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
 import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
+import { markRosterWritten } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
 import { getDeviceId } from '@/lib/deviceId';
 
@@ -741,6 +742,9 @@ function PokerTimerInner({
     lastSyncedPlayersRef.current = '';
     lastSyncedTimerRef.current = '';
     lastSyncedSettingsRef.current = '';
+    // Null, not '': "nothing has been written for this game" is not the same as
+    // "an empty roster was written", and only the first may let a snapshot seed.
+    markRosterWritten(null);
     setRecoverable(null);
     setRecoveryDismissed(false);
   }, [tournamentId, tournament.state.details?.type, dbTournamentId]);
@@ -847,6 +851,10 @@ function PokerTimerInner({
         // the retry. A skipped write is the same hazard wearing a new hat.
         if (result === 'written') {
           lastSyncedPlayersRef.current = serialised;
+          // The same fact, where the snapshot handler can reach it. It gates the
+          // merge so an in-flight write's echo cannot revert the change that
+          // produced it — see lib/pendingRoster.ts.
+          markRosterWritten(serialised);
           reportSyncSuccess();
         }
       } catch (e) {

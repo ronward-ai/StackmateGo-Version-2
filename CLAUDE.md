@@ -498,6 +498,68 @@ their phone opening a laptop and starting a SECOND game 5. Two devices minting t
 make two DOCUMENTS, and a lock on one document says nothing about the other. The lock keeps two
 consoles off one game; the section below is what stops them being put on two.
 
+### A snapshot must not revert a change this device has not had written yet
+
+`lib/pendingRoster.ts`, gating `lib/snapshotMerge.ts`'s `keepLocal`. The mirror image of
+`shouldAdoptRemote` above, and the two belong together: that one asks when local is too STALE to keep,
+this one asks when the document is too OLD to apply.
+
+The merge rules are biased toward local for **eliminations only** — the console busts a player out
+optimistically and must not have its own echo resurrect them. **Every local change in the other
+direction was left exposed to that same echo.** One second after a bust-out the document legitimately
+says the player is out, because that is this device's own write coming back, and rule two —
+*"eliminated in the document, active locally: allow it"* — put them straight out again.
+
+**And the revert was WRITTEN BACK, which is what makes it a data loss rather than a flicker.** The
+revert changes `state.players`, which fires the players sync effect, which sends the busted roster as a
+third write. So: bust Amy out, press Rebuy, and a second later she is busted again — on the screen and
+in the document, for good. The failsafe Rebuy failed identically, being the same `processRebuy`. The
+final table lost its seat redraw the same way through the both-active rule, and because `isFinalTable`
+survives (nothing writes it) the prompt never asked again, so a director saw a dialog that did nothing
+and never came back.
+
+**Nothing about the race was new, and that is the point.** The rebuy used to be a button that lingered
+for the whole rebuy period, so it was always pressed minutes after the echo had landed. Making a rebuy
+immediate — which is what a rebuy is — moved it inside the window. A latent race is invisible until
+something makes the app faster than it was.
+
+The rule: **a device that is driving the game is the only writer, so a snapshot can tell it nothing new
+about the roster until its own writes have landed.** "One writer per fact", applied to the read side.
+
+The fact needed already existed. `lastSyncedPlayersRef` holds the payload last *successfully* written
+and is advanced only on `'written'` — never on a skipped or failed write — so "the local roster differs
+from it" is exactly "a write is outstanding". `pendingRoster.ts` keeps the same string at module scope,
+for the reason `liveGameWrite.ts` and `syncReporter.ts` keep theirs there: the writer is an effect and
+the reader is a Firestore callback, neither with a route to a provider.
+
+Four things are load-bearing:
+
+- **Nothing pending before the first write.** Answering `true` there would stop the first snapshot
+  seeding the roster — the `hasLoadedRemoteState` hazard with the sign flipped, and how a resumed game
+  would come up empty.
+- **`adopt` beats `keepLocal`**, and the order in the code says so. A takeover is the one case where
+  local is stale rather than optimistic.
+- **`mayDrive` gates it.** A read-only console's writes are skipped by the door, so its last-written
+  payload never advances and its roster would read as pending for the rest of the night — it would stop
+  tracking the game it is only there to watch.
+- **Asked inside the `setState` updater**, against `currentState.players`: the question is about the
+  roster React is about to replace, not the one on screen when the snapshot arrived.
+
+Self-clearing, so the window is exactly as long as the hazard. Three mutants are caught: dropping
+`keepLocal` turns three tests red, swapping it ahead of `adopt` turns one red, and making it pending
+before the first write turns two red.
+
+**Still outstanding here: `...data` spreads the whole document over local state** in the snapshot
+handler, which is this same fault for every non-player field. It does not bite today because nothing
+writes the fields that would clobber anything — `lib/tournamentDocument.ts` does not create
+`isFinalTable` — but a whitelist there is the medicine `tournamentResults` already takes.
+
+**And there is a second, unreachable copy of the merge rules.** `handleTournamentSync` in
+`useTournament.ts` listens for a `'tournament-sync'` CustomEvent that **nothing dispatches**, and
+re-implements the elimination protection inline; `PokerTimer` registers a listener for the same dead
+event. Dead, but it is a rival copy of the rules this section is about, so fix the lib and then check
+nobody has revived it.
+
 ### "Do not reopen mine" is not "do not tell me about theirs"
 
 `lib/liveTournament.ts`'s `otherLiveGame()` and the banner it feeds. The other half of the control
@@ -2418,6 +2480,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
 | `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out — and who holds the failsafe after. |
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
+| `pendingRoster.ts` | Whether a roster change is still waiting on Firestore, so its own echo cannot revert it. |
 | `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
 | `directorControl.ts` | Which device is driving the live game, and whether this one may write to it. |

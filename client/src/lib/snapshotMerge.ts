@@ -39,6 +39,30 @@ export interface MergeOptions {
    * has no reload to lean on.
    */
   adopt?: boolean;
+
+  /**
+   * This device is driving and is sitting on a roster change it has not had
+   * written yet, so the incoming array is OLDER than what is on screen. Keep
+   * local wholesale; see `lib/pendingRoster.ts` for the game this cost.
+   *
+   * The rules below are biased toward local for ELIMINATIONS only, which leaves
+   * every other local change exposed to the echo of the write that preceded it.
+   * A rebuy taken one second after a bust-out met a document that still said
+   * "busted" — its own echo — and rule two put the player straight back out. The
+   * revert then fired the sync effect, which wrote it back, so the rebuy was
+   * lost from the document too rather than flickering.
+   *
+   * **`adopt` beats this, and the order in the code says so.** A takeover is the
+   * one case where local is stale rather than optimistic, so keeping it would be
+   * pushing that staleness into the live game — exactly what `adopt` exists to
+   * stop.
+   *
+   * Only ever set for a device that MAY DRIVE. A read-only console's writes are
+   * skipped by `lib/liveGameWrite.ts`, so its last-written payload never
+   * advances and its roster would look pending for the rest of the night — it
+   * would stop tracking the game it is only there to watch.
+   */
+  keepLocal?: boolean;
 }
 
 export function mergePlayersFromSnapshot(
@@ -54,6 +78,10 @@ export function mergePlayersFromSnapshot(
 
   // A clean slate. Nothing local survives, which is the point.
   if (options.adopt) return incomingPlayers as Player[];
+
+  // A write of this roster is still in flight, so the document is behind the
+  // screen rather than ahead of it. Deliberately AFTER `adopt`.
+  if (options.keepLocal) return current;
 
   const merged = (incomingPlayers as any[]).map((incomingPlayer: any) => {
     const currentPlayer = current.find(p => p.id === incomingPlayer.id);

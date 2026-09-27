@@ -12,7 +12,8 @@ import { db } from '../lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { initialDetails, needsLocalGameId } from '@/lib/localGameId';
 import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
-import { controlOf, shouldAdoptRemote, type Control } from '@/lib/directorControl';
+import { controlOf, mayDrive, shouldAdoptRemote, type Control } from '@/lib/directorControl';
+import { rosterIsPending } from '@/lib/pendingRoster';
 import { getDeviceId } from '@/lib/deviceId';
 
 import { useAuth } from './useAuth';
@@ -561,10 +562,28 @@ export function useTournament(tournamentId?: string) {
               // them biased toward LOCAL, which is correct for the device
               // driving the game and wrong for one that has just stopped being
               // read-only. `adopt` is that one case; see shouldAdoptRemote.
+              //
+              // `keepLocal` is the other half, and it closes the mirror-image
+              // hazard: the rules are biased toward local for ELIMINATIONS only,
+              // so a local change in the OTHER direction — a rebuy, a final-table
+              // redraw — was reverted by the echo of the write that preceded it,
+              // and the revert was then written back. See lib/pendingRoster.ts.
+              //
+              // Asked INSIDE the updater, against `currentState.players`: the
+              // question is about the roster React is about to replace, not the
+              // one that happened to be on screen when the snapshot arrived.
+              //
+              // `mayDrive` keeps a READ-ONLY console out of it. Its writes are
+              // skipped by the door, so its last-written payload never advances
+              // and its roster would read as pending for the rest of the night,
+              // leaving it unable to track the game it is only there to watch.
               const finalPlayers = mergePlayersFromSnapshot(
                 currentState.players,
                 data.players,
-                { adopt },
+                {
+                  adopt,
+                  keepLocal: mayDrive(nextControl) && rosterIsPending(currentState.players),
+                },
               );
 
               // Complete tournament state update with elimination protection
