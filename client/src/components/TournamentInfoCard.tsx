@@ -7,6 +7,7 @@ import { isUnlimited, lateEntryOpen } from '@/lib/entryLimits';
 import { modeLockReason, standaloneSettings } from '@/lib/tournamentMode';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { useNewGame } from '@/hooks/useNewGame';
+import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -30,6 +31,8 @@ interface TournamentInfoCardProps {
   seasons: ReturnType<typeof useSeasons>['seasons'];
   gameNumber?: number | null;
   totalGames?: number;
+  /** The account's live game when another device is running it — the guard. */
+  otherLiveGame?: AccountLiveGame | null;
 }
 
 type TournamentProp = TournamentInfoCardProps['tournament'];
@@ -56,9 +59,9 @@ const modeButton = 'inline-flex items-center justify-center rounded-sm px-3 py-1
 const modeActive = 'bg-primary/10 text-primary border-primary/30';
 const modeInactive = 'border-transparent text-muted-foreground hover:text-foreground';
 
-export function TournamentModeToggle({ tournament, league, leaguePlayers = [], currentSeason, seasons }: { tournament: TournamentProp } & Pick<SharedLeagueProps, 'league' | 'leaguePlayers' | 'currentSeason' | 'seasons'>) {
+export function TournamentModeToggle({ tournament, league, leaguePlayers = [], currentSeason, seasons, otherLiveGame }: { tournament: TournamentProp; otherLiveGame?: AccountLiveGame | null } & Pick<SharedLeagueProps, 'league' | 'leaguePlayers' | 'currentSeason' | 'seasons'>) {
   const { state, updateTournamentDetails, updateSettings } = tournament;
-  const startNewGame = useNewGame(tournament);
+  const { startNewGame, newGameGuard } = useNewGame(tournament, otherLiveGame, league?.name);
 
   const isLeagueMode =
     state.details?.type === 'season' ||
@@ -135,17 +138,22 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
 
   const startStandaloneGame = () => {
     setConfirmStandalone(false);
-    startNewGame({ keepStructure: true });
-    // Written straight rather than through setMode: after the reset the type
-    // must be 'standalone' whatever it was, and updateTournamentDetails merges
-    // into the state the reset just produced, where setMode would be reading a
-    // `state` captured before it.
-    updateTournamentDetails({ type: 'standalone' });
-    updateSettings(standaloneSettings());
+    // The continuation, not a statement after the call: the guard may defer the
+    // start, and these two writes must defer with it or they land on a game
+    // that was never reset.
+    startNewGame({ keepStructure: true }, () => {
+      // Written straight rather than through setMode: after the reset the type
+      // must be 'standalone' whatever it was, and updateTournamentDetails merges
+      // into the state the reset just produced, where setMode would be reading a
+      // `state` captured before it.
+      updateTournamentDetails({ type: 'standalone' });
+      updateSettings(standaloneSettings());
+    });
   };
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {newGameGuard}
       <div className="inline-flex items-center bg-muted p-1 rounded-md flex-shrink-0">
         <button
           disabled={!!standaloneBlocked}
@@ -215,7 +223,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
   );
 }
 
-export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, gameNumber: gameNumberProp, totalGames: totalGamesProp }: TournamentInfoCardProps) {
+export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, gameNumber: gameNumberProp, totalGames: totalGamesProp, otherLiveGame }: TournamentInfoCardProps) {
   const { state } = tournament;
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
@@ -315,6 +323,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
             leaguePlayers={leaguePlayers}
             currentSeason={currentSeason}
             seasons={seasons}
+            otherLiveGame={otherLiveGame}
           />
         </div>
 

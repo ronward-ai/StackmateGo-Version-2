@@ -40,6 +40,7 @@ import LeagueSection from '@/components/LeagueSection';
 import { LiveBanner } from '@/components/LiveBanner';
 import OtherLiveGameBanner from '@/components/OtherLiveGameBanner';
 import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
+import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
@@ -649,10 +650,10 @@ function PokerTimerInner({
   // `activeTournamentId` is what keeps this and the read-only banner mutually
   // exclusive — a console that IS on the game gets null back.
   const accountLiveGame = useAccountLiveGame(activeTournamentId);
-  const openOtherGame = (id: string) => {
-    try { localStorage.setItem('activeDirectorTournamentId', id); } catch {}
-    setLocation(`/tournament/${id}/director`);
-  };
+  // One implementation of "open that game", shared with the Next Game guard —
+  // two of them is how the QR code and the sync effects ended up with two
+  // answers to which game the console was on.
+  const openOtherGame = useOpenLiveGame();
 
   // A console that holds a tournament but has never READ it is not syncing —
   // and says nothing about it, because syncHealth only hears about writes that
@@ -1227,7 +1228,7 @@ function PokerTimerInner({
 
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
-          <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} />
+          <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} otherLiveGame={accountLiveGame} />
         </div>
 
         {/* Directly beneath the card that holds the mode slider, so flipping it
@@ -1244,7 +1245,7 @@ function PokerTimerInner({
                 below, so it still exists exactly once. */}
             <LeagueSection
               tournament={tournament}
-              nextGame={<NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />}
+              nextGame={<NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
             />
           </div>
         )}
@@ -1418,7 +1419,7 @@ function PokerTimerInner({
                 <TournamentHistoryDialog />
                 {/* Standalone only — a league game's copy lives in the league
                     panel above. One mount either way. */}
-                {!isLeagueMode && <NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} />}
+                {!isLeagueMode && <NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
               </div>
             </div>
             <div className="relative">

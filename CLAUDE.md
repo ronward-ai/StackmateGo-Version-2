@@ -493,10 +493,24 @@ because nobody was asked.
 nothing at all, because not knowing must never produce an accusation — the same distinction
 `pinIsDead()` draws between `missing` and `error`.
 
-**Still open, and worth knowing.** The banner explains but does not prevent: a director who does not
-read it can still press Next Game and create the parallel game. `hooks/useNewGame.ts` is the one
-implementation both callers share, so a confirm there is where that would go — warning, never
-refusing, since two genuine tournaments in one evening is legitimate.
+**Next Game asks, because the banner explains but does not prevent.** A director who does not read it
+presses Next Game and gets `NewGameGuardDialog` instead — *Cancel* / *Open that game* / *Start a new
+one anyway*. It **warns and never refuses**: two genuine tournaments in one evening is completely
+normal, and the director is the one standing there. Same call `lateEntryClosedReason()` makes.
+
+**One gate, in `hooks/useNewGame.tsx`, not one per button.** There are FIVE call sites across two
+components; a check at each is what `attemptAddPlayer` and `seatablePlayers()` exist to avoid.
+
+**`after` is what makes a single gate possible, and it is the subtle part.** Three of those call
+sites do more work immediately after starting a game — switching league, writing the season, forcing
+standalone. Deferring only the reset would leave a league and season **written against the game that
+is still running**, which is half-applied state no screenshot would show. The continuation is held
+with the pending options and runs in the order it always has: reset, navigate, then the caller's
+work. Tests assert that ordering and that a deferred start applies BOTH halves or neither, and both
+mutants — dropping the guard, dropping the continuation — are caught.
+
+`hooks/useOpenLiveGame.ts` is the one implementation of pinning and navigating to another of the
+account's games, shared by the banner and this dialog, so the two cannot drift.
 
 **A related gap, not the same one.** A STANDALONE game's document does not use `localGameId` as its
 id: `useTournament`'s initial `details` gives `localGameId` only to `type: 'season'`, so
@@ -2282,6 +2296,11 @@ season, so the screen and the database cannot disagree.
   only inspecting the built chunks caught it.
 - **Check tests can fail.** Mutation-testing the listener registry found a real coverage gap that
   12 passing tests had missed.
+- **Assert every scripted edit.** A `str.replace` whose anchor does not match changes nothing and
+  says nothing. One that was meant to render the Next Game guard silently did not, and the feature
+  looked finished — `npm run check` and every test passed, because an unrendered dialog breaks no
+  type and no assertion. It was caught only by driving the button in a browser. Anchor, assert,
+  then verify the result is on screen.
 - **A patch made to photograph a state must be removed by grep, not by memory.** Forcing
   `controlOf('d_other_device', …)` to screenshot the read-only console left that line in the commit,
   and it shipped: every console in production went read-only, no writes landed, and the timer's

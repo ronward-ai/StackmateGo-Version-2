@@ -15,6 +15,7 @@ import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { nextGameNumber } from '@/lib/seasonProgress';
 import { useNewGame } from '@/hooks/useNewGame';
+import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
 
 /**
  * Starting the next game — the ONLY implementation of it.
@@ -49,6 +50,8 @@ interface NextGameControlProps {
   switchLeague: ReturnType<typeof useLeague>['switchLeague'];
   currentSeason: ReturnType<typeof useSeasons>['currentSeason'];
   seasons: ReturnType<typeof useSeasons>['seasons'];
+  /** The account's live game when another device is running it — the guard. */
+  otherLiveGame?: AccountLiveGame | null;
 }
 
 export default function NextGameControl({
@@ -59,9 +62,10 @@ export default function NextGameControl({
   leaguePlayers = [],
   currentSeason,
   seasons,
+  otherLiveGame,
 }: NextGameControlProps) {
   const { state, updateSettings } = tournament;
-  const startNewGame = useNewGame(tournament);
+  const { startNewGame, newGameGuard } = useNewGame(tournament, otherLiveGame, league?.name);
   const [dialogLeagueId, setDialogLeagueId] = useState<string | null>(null);
   const { seasons: dialogSeasonsList, isLoading: dialogSeasonsLoading } = useSeasons({ leagueId: dialogLeagueId ?? undefined });
   const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
@@ -80,19 +84,24 @@ export default function NextGameControl({
     const sourceSeasons = dialogSeasonsList.length > 0 ? dialogSeasonsList : (seasons as any[]);
     const chosenSeason = (sourceSeasons as any[]).find(s => String(s.id) === String(seasonId));
     setShowLeagueNewDialog(false);
-    startNewGame({ keepStructure: true });
-    if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
-      switchLeague(dialogLeagueId);
-    }
-    if (chosenSeason) {
-      updateSettings({
-        isSeasonTournament: true,
-        leagueId: String(dialogLeagueId ?? league?.id ?? ''),
-        seasonId: String(chosenSeason.id),
-        seasonName: chosenSeason.name,
-        numberOfGames: chosenSeason.numberOfGames || 12,
-      });
-    }
+    // Passed as the continuation rather than written after the call: if the
+    // guard defers the start, this must defer with it. Writing the league and
+    // season against a game that was never reset is the half-applied state the
+    // continuation exists to prevent.
+    startNewGame({ keepStructure: true }, () => {
+      if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
+        switchLeague(dialogLeagueId);
+      }
+      if (chosenSeason) {
+        updateSettings({
+          isSeasonTournament: true,
+          leagueId: String(dialogLeagueId ?? league?.id ?? ''),
+          seasonId: String(chosenSeason.id),
+          seasonName: chosenSeason.name,
+          numberOfGames: chosenSeason.numberOfGames || 12,
+        });
+      }
+    });
   };
 
   /**
@@ -120,6 +129,7 @@ export default function NextGameControl({
 
   return (
     <>
+      {newGameGuard}
       {isLeagueMode ? (
         <Button
           size="sm"
