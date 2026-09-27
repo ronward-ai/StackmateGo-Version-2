@@ -5,6 +5,7 @@ import {
   findCurrentLiveTournament,
   consoleTournamentId,
   pinIsDead,
+  otherLiveGame,
   LIVE_TOURNAMENT_WINDOW_MS,
 } from './liveTournament';
 
@@ -193,5 +194,46 @@ describe('pinIsDead', () => {
     expect(pinIsDead('missing', null)).toBe(false);
     expect(pinIsDead('missing', undefined)).toBe(false);
     expect(pinIsDead('missing', '')).toBe(false);
+  });
+});
+
+describe('otherLiveGame', () => {
+  const live = { id: 'g5', updatedAt: minutesAgo(5) };
+  const old = { id: 'g4', updatedAt: minutesAgo(20 * 60), status: 'completed' };
+
+  it('reports the account\'s live game to a console that is not on it', () => {
+    expect(otherLiveGame([live, old], 'g4', NOW)?.id).toBe('g5');
+  });
+
+  // THE clause that keeps this banner off the console already driving the game,
+  // and the reason it and the read-only banner can never both be on screen.
+  // Mutation-tested: delete the identity check and this goes red.
+  it('says nothing to the console that IS on that game', () => {
+    expect(otherLiveGame([live, old], 'g5', NOW)).toBeNull();
+  });
+
+  it('still reports it when this console is on no game at all', () => {
+    expect(otherLiveGame([live], null, NOW)?.id).toBe('g5');
+    expect(otherLiveGame([live], undefined, NOW)?.id).toBe('g5');
+  });
+
+  // Delegation, not a second filter. A fourth notion of "which game is current"
+  // is what activeSeasonId exists to have killed, so these assert that
+  // findCurrentLiveTournament's own rules still apply through this door.
+  it('honours the completed filter', () => {
+    expect(otherLiveGame([old], 'g9', NOW)).toBeNull();
+  });
+
+  it('honours the recency window', () => {
+    const stale = { id: 'g1', updatedAt: new Date(NOW - LIVE_TOURNAMENT_WINDOW_MS - 1).toISOString() };
+    expect(otherLiveGame([stale], 'g9', NOW)).toBeNull();
+  });
+
+  it('compares ids as strings, since a document id may arrive as either', () => {
+    expect(otherLiveGame([{ id: '77', updatedAt: minutesAgo(5) }], 77 as any, NOW)).toBeNull();
+  });
+
+  it('is null for an account with nothing', () => {
+    expect(otherLiveGame([], 'g5', NOW)).toBeNull();
   });
 });

@@ -83,6 +83,46 @@ export function findCurrentLiveTournament<T extends LiveTournamentCandidate>(
 }
 
 /**
+ * The account's live game, when it is NOT the game this console is on.
+ *
+ * The question behind the banner that tells a director their account is already
+ * running a game somewhere else — and it is deliberately the SAME question the
+ * resume and the auto-save ask, delegated rather than re-filtered. A second
+ * `status`/recency filter here would be a fourth notion of "which game is
+ * current", which is the exact thing `leagues/{id}.activeSeasonId` exists to
+ * have killed.
+ *
+ * `thisGameId` is `consoleTournamentId()`'s answer, so the banner and the sync
+ * effects cannot disagree about which game this device is driving. That
+ * identity check is also what keeps this banner and the read-only banner
+ * mutually exclusive: a console that IS on the game gets null here, so the two
+ * can never both be on screen saying different things about one game.
+ *
+ * WHY THIS IS NEEDED AT ALL, since the resume already looks the game up: both
+ * resume effects are gated, and both gates are load-bearing.
+ *
+ *  - `PokerTimer` returns early when `activeDirectorTournamentId` is set, so a
+ *    pin naming LAST NIGHT'S finished game stops the lookup before it happens.
+ *  - `?home=1` suppresses it too, which is correct — that parameter means "do
+ *    not reopen the game I just left", and New Tournament relies on it.
+ *
+ * "Do not reopen mine" is not "do not tell me about theirs", and conflating the
+ * two is how a director ran game 5 on a phone and started a SECOND game 5 on a
+ * laptop with nothing on screen to say so. This is asked separately, past both
+ * gates, and only ever produces a sentence and a button.
+ */
+export function otherLiveGame<T extends LiveTournamentCandidate>(
+  candidates: T[],
+  thisGameId?: string | null,
+  now?: number,
+): T | null {
+  const live = findCurrentLiveTournament(candidates, now);
+  if (!live) return null;
+  if (thisGameId && String(live.id) === String(thisGameId)) return null;
+  return live;
+}
+
+/**
  * Which document the DIRECTOR'S CONSOLE should be reading and writing — or null
  * when this game is not in the database at all.
  *
