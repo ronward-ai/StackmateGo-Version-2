@@ -12,9 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDollarSign, Check, AlertTriangle } from "lucide-react";
-import { cn, sanitizeForFirestore } from "@/lib/utils";
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { cn } from "@/lib/utils";
+import { writeLiveGame } from '@/lib/liveGameWrite';
 import { reportWriteFailure } from '@/lib/syncReporter';
 
 interface BuyInSectionProps {
@@ -246,10 +245,10 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
     // Persist to Firestore — fire and forget so a slow/flaky network never
     // freezes the UI. Local state is already updated synchronously above.
     if (state.details?.type === 'database' && state.details?.id) {
-      updateDoc(
-        doc(db, 'activeTournaments', state.details.id.toString()),
-        sanitizeForFirestore({ settings: { ...state.settings, currency: currencySymbol }, prizeStructure: newPrizeStructure })
-      ).catch(err => {
+      writeLiveGame(state.details.id, {
+        settings: { ...state.settings, currency: currencySymbol },
+        prizeStructure: newPrizeStructure,
+      }).catch(err => {
         // Fire and forget so a flaky network never freezes the UI — but not
         // silent. On failure this console and every participant device stay on
         // the OLD structure, so the money on screen disagrees with the money on

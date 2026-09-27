@@ -11,6 +11,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { useLeague } from '@/hooks/useLeague';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { createTournamentDocument } from '@/lib/tournamentDocument';
+import { writeLiveGame } from '@/lib/liveGameWrite';
 
 interface QRCodeSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -54,12 +55,17 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, sy
 
       let docId: string;
       if (existingId) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        await updateDoc(doc(db, 'activeTournaments', String(existingId)), {
+        // Through the one door, like every other write to a live game — see
+        // lib/liveGameWrite.ts. A `skipped` result cannot happen here (the id
+        // is truthy inside this branch), but the publish must not be claimed
+        // unless the write actually landed.
+        const result = await writeLiveGame(existingId, {
           isPublished: true,
           updatedAt: new Date().toISOString(),
         });
+        if (result !== 'written') {
+          throw new Error('Could not publish the game. Please try again.');
+        }
         docId = String(existingId);
       } else {
         // One creation path, shared with the auto-save in PokerTimer — see

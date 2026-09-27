@@ -26,6 +26,7 @@ import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
 import { canRebuy } from '@/lib/entryLimits';
+import { writeLiveGame } from '@/lib/liveGameWrite';
 
 interface TablesSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -195,12 +196,9 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     if (state.details?.type === 'database' && state.details?.id) {
       setTimeout(async () => {
         try {
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const { db } = await import('@/lib/firebase');
-          const { sanitizeForFirestore } = await import('@/lib/utils');
-          await updateDoc(doc(db, 'activeTournaments', state.details!.id.toString()), sanitizeForFirestore({
-            settings: { ...state.settings, tableBackgrounds: updated }
-          }));
+          await writeLiveGame(state.details!.id, {
+            settings: { ...state.settings, tableBackgrounds: updated },
+          });
         } catch (e) { console.error('Could not save the table layout:', e); }
       }, 100);
     }

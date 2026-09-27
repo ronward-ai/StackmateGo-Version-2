@@ -39,6 +39,7 @@ import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import { LiveBanner } from '@/components/LiveBanner';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
+import { writeLiveGame } from '@/lib/liveGameWrite';
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
@@ -371,9 +372,7 @@ function PokerTimerInner({
     if (details?.id) {
       (async () => {
         try {
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const { db } = await import('@/lib/firebase');
-          await updateDoc(doc(db, 'activeTournaments', String(details.id)), {
+          await writeLiveGame(String(details.id), {
             status: 'completed',
             updatedAt: new Date().toISOString(),
           });
@@ -706,25 +705,22 @@ function PokerTimerInner({
     const sync = async () => {
       const serialised = JSON.stringify(tournament.state.players);
       if (serialised === lastSyncedPlayersRef.current) return;
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
-        await updateDoc(
-          doc(db, 'activeTournaments', activeTournamentId),
+        const result = await writeLiveGame(activeTournamentId, {
+          players: tournament.state.players,
           // updatedAt makes "which game am I running?" answerable on another
           // device: resume picks the most recently ACTIVE tournament, not the
           // most recently created one.
-          sanitizeForFirestore({
-            players: tournament.state.players,
-            updatedAt: new Date().toISOString(),
-          })
-        );
-        // Marked as synced only once it is. This used to be set before the
-        // await, so a failed write left the roster looking saved and the next
-        // identical render skipped the retry.
-        lastSyncedPlayersRef.current = serialised;
-        reportSyncSuccess();
+          updatedAt: new Date().toISOString(),
+        });
+        // Marked as synced only once it is, and only when it was actually
+        // WRITTEN. This used to be set before the await, so a failed write
+        // left the roster looking saved and the next identical render skipped
+        // the retry. A skipped write is the same hazard wearing a new hat.
+        if (result === 'written') {
+          lastSyncedPlayersRef.current = serialised;
+          reportSyncSuccess();
+        }
       } catch (e) {
         reportSyncFailure('Players', e);
       }
@@ -751,13 +747,12 @@ function PokerTimerInner({
     if (serialised === lastSyncedTimerRef.current) return;
 
     const sync = async () => {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
-        await updateDoc(doc(db, 'activeTournaments', activeTournamentId), sanitizeForFirestore(payload));
-        lastSyncedTimerRef.current = serialised;
-        reportSyncSuccess();
+        const result = await writeLiveGame(activeTournamentId, payload);
+        if (result === 'written') {
+          lastSyncedTimerRef.current = serialised;
+          reportSyncSuccess();
+        }
       } catch (e) {
         reportSyncFailure('The clock', e);
       }
@@ -791,13 +786,12 @@ function PokerTimerInner({
     if (serialised === lastSyncedSettingsRef.current) return;
 
     const sync = async () => {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      const { sanitizeForFirestore } = await import('@/lib/utils');
       try {
-        await updateDoc(doc(db, 'activeTournaments', activeTournamentId), sanitizeForFirestore(payload));
-        lastSyncedSettingsRef.current = serialised;
-        reportSyncSuccess();
+        const result = await writeLiveGame(activeTournamentId, payload);
+        if (result === 'written') {
+          lastSyncedSettingsRef.current = serialised;
+          reportSyncSuccess();
+        }
       } catch (e) {
         reportSyncFailure('Settings', e);
       }

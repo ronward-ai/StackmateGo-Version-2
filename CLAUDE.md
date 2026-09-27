@@ -399,6 +399,40 @@ gone mid-night, on every device.
 Deliberately not `isConnected`, which flips back to false on a listener error or teardown. The
 question is "have we ever read this", which only goes one way.
 
+### Every director-side write to a live game goes through one door
+
+`lib/liveGameWrite.ts`'s `writeLiveGame(tournamentId, fields)`. There are no other
+`updateDoc` calls against `activeTournaments` from the director side — `PokerTimer`'s four sync
+effects, Go Live's publish PATCH, the Buy-in tab's structure save and the Seating tab's table
+backgrounds all land there.
+
+**This is not indirection for its own sake — it is the missing somewhere the removed device lock
+needed.** That lock is documented above as "only half-enforced": `broadcastTournamentState` stood
+down and the direct writers in `PokerTimer` kept going, so the device without control still wrote the
+players array and silently reverted the other device's rebuys. The lesson is not that locks do not
+work; it is that a rule enforced in three places out of twelve is not a rule. An inventory found
+writes scattered across six files using eight gating idioms, four resolving the document id their own
+way. There was nowhere to put the check. Now there is one place, so "may this device write to this
+game right now" is a question asked once rather than a discipline each new writer has to remember.
+
+It returns **`'written' | 'skipped'`**, and the return value is load-bearing: a caller must NOT record
+a payload as synced unless it got `written`. Recording a skipped write as saved is how a device would
+sit on a roster it believes it has already sent — the same fault as marking a FAILED write saved,
+which the sync effects' `lastSynced*Ref` guards already exist to avoid. It **throws** on a Firestore
+failure rather than swallowing it, because the callers genuinely differ in how they report (the sync
+toast, `reportWriteFailure`, or a console line) and that judgement stays with them.
+
+Deliberately **not** routed through it: a participant's `claims` write (`PlayerClaimView` — that is a
+player's own phone, not the director driving the game, and it passes a `deleteField()` sentinel the
+door's `sanitizeForFirestore` would mangle), every account-scoped write (setup, templates, league and
+season admin, history — a director doing admin on a phone while a console runs is legitimate), and
+creation, which `lib/tournamentDocument.ts` already owns.
+
+**Two dead writers went with this.** `broadcastTournamentDetails` and `broadcastParticipantUpdate` in
+`useTournament.ts` were real `updateDoc` calls writing nothing but `updatedAt`, with zero call sites.
+That field is what `lib/liveTournament.ts` sorts on to decide which game is being run right now, so a
+stray toucher of it is a stray voter on that question.
+
 ### A collision on the tournament id means JOIN, not overwrite
 
 The document id **is** the `localGameId`, so the same night's game has the same id on every device.
@@ -2065,6 +2099,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
+| `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already

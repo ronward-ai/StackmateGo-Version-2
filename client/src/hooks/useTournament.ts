@@ -9,7 +9,7 @@ import {
 } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../lib/firebase';
-import { doc, onSnapshot, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
@@ -195,29 +195,20 @@ const savePrizeStructure = (prizeStructure: PrizeStructure, uid: string | null) 
  * One writer per fact. Do not add a second.
  */
 
-// Function to broadcast tournament details updates
-const broadcastTournamentDetails = async (tournamentId: number | string, ownerId?: string, userId?: string) => {
-  if (!tournamentId || ownerId !== userId) return;
-
-  try {
-    const docRef = doc(db, 'activeTournaments', tournamentId.toString());
-    await updateDoc(docRef, { updatedAt: new Date().toISOString() });
-  } catch (error) {
-    console.error('Failed to broadcast tournament details:', error);
-  }
-};
-
-// Function to broadcast participant updates for real-time updates
-const broadcastParticipantUpdate = async (tournamentId: number | string) => {
-  if (!tournamentId) return;
-
-  try {
-    const docRef = doc(db, 'activeTournaments', tournamentId.toString());
-    await updateDoc(docRef, { updatedAt: new Date().toISOString() });
-  } catch (error) {
-    console.error('Failed to broadcast participant update:', error);
-  }
-};
+/*
+ * `broadcastTournamentDetails` and `broadcastParticipantUpdate` were here, and
+ * both are deleted. Each was a real `updateDoc` against `activeTournaments`
+ * writing nothing but `updatedAt`, and each had ZERO call sites — dead code
+ * that nonetheless counted as two more writers of a live game.
+ *
+ * That matters beyond tidiness: `updatedAt` is what `lib/liveTournament.ts`
+ * sorts on to decide which game is being run right now, so a stray toucher of
+ * that field is a stray voter on that question. And they are exactly the shape
+ * the removed device lock failed on — direct writes outside the one door.
+ *
+ * Every remaining director-side write goes through `lib/liveGameWrite.ts`.
+ * Do not add a writer here.
+ */
 
 export function useTournament(tournamentId?: string) {
   const { user, isAnonymous } = useAuth();
