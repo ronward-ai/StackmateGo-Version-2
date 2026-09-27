@@ -451,13 +451,59 @@ the one thing a second screen is genuinely good for.
 **A takeover reaches the other device for free.** It holds an `onSnapshot` on the document, so the
 field changing is all it takes; nothing is pushed at it and no local state is set on either side.
 
-**What this does NOT fix, and it is the case it was built from.** A director with a live game on their
-phone opened a laptop and started a SECOND game 5. Two devices minting two `localGameId`s make two
-DOCUMENTS, and a lock on one document says nothing about the other. The laptop got there because
-`activeDirectorTournamentId` pointed at a finished game from the night before and the resume returns
-early whenever that pin is set (`PokerTimer`), so it never asked `findCurrentLiveTournament` which
-game the account is actually running. The lock is what keeps two consoles off one game; that pin is
-what puts them on two.
+**What this does NOT fix on its own** is the case it was built from — a director with a live game on
+their phone opening a laptop and starting a SECOND game 5. Two devices minting two `localGameId`s
+make two DOCUMENTS, and a lock on one document says nothing about the other. The lock keeps two
+consoles off one game; the section below is what stops them being put on two.
+
+### "Do not reopen mine" is not "do not tell me about theirs"
+
+`lib/liveTournament.ts`'s `otherLiveGame()` and the banner it feeds. The other half of the control
+lock: that one keeps two consoles off ONE game, this stops a second one being created.
+
+**The app already knew the answer and nothing asked it.** `findCurrentLiveTournament()` is the single
+derivation of "which game is this account running", used by the resume and the auto-save's adopt
+guard. It was never consulted at the moment that mattered, because **both resume effects are gated and
+both gates are load-bearing**:
+
+- `PokerTimer` returns early when `activeDirectorTournamentId` is set — *before* the Firestore read —
+  so a pin naming LAST NIGHT'S finished game stops the lookup dead. That is how a laptop sat on a
+  finished game 4 all evening while a phone ran game 5.
+- `?home=1` suppresses it as well, and correctly: that parameter means "do not reopen the game I just
+  left", and New Tournament depends on it.
+
+Neither gate may change. So the question is asked separately, past both of them, and can only ever
+produce a sentence and a button. **Conflating "do not reopen mine" with "do not tell me about theirs"
+is the whole bug.**
+
+**It delegates rather than re-filters.** `otherLiveGame` calls `findCurrentLiveTournament` and then
+drops the result when it is the game this console is already on. A second `status`/recency filter here
+would be a fourth notion of "which game is current" — the thing `activeSeasonId` exists to have
+killed.
+
+**Passing `consoleTournamentId()`'s answer is what keeps this banner and the read-only banner mutually
+exclusive.** A console that IS on the game gets null back, so the two can never both be on screen
+saying different things about one game. A test asserts that clause and fails if it is removed.
+
+**It offers and never jumps** — the console stays exactly where it is. Same rule as
+`recoverableProgress()`, for the reason recorded above: the automatic restore lost a game precisely
+because nobody was asked.
+
+**A read, not a listener**, in the component that re-renders every second; and a failed read says
+nothing at all, because not knowing must never produce an accusation — the same distinction
+`pinIsDead()` draws between `missing` and `error`.
+
+**Still open, and worth knowing.** The banner explains but does not prevent: a director who does not
+read it can still press Next Game and create the parallel game. `hooks/useNewGame.ts` is the one
+implementation both callers share, so a confirm there is where that would go — warning, never
+refusing, since two genuine tournaments in one evening is legitimate.
+
+**A related gap, not the same one.** A STANDALONE game's document does not use `localGameId` as its
+id: `useTournament`'s initial `details` gives `localGameId` only to `type: 'season'`, so
+`createTournamentDocument` passes `undefined`, `createDocViaRest` auto-generates, and its
+409-adopt branch requires a `docId`. **"A collision means JOIN" therefore does not hold for standalone
+games** — two devices make two documents for one standalone night, with nothing to collide. After
+`resetTournament` the id is present, so this is the first-game-on-a-fresh-browser path.
 
 ### Every director-side write to a live game goes through one door
 
@@ -2130,7 +2176,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
 | `eliminationOrder.ts` | Finishing positions, who busted most recently, and the renumbering a re-entry forces. |
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
-| `liveTournament.ts` | Which of an account's tournaments is the one being run right now. |
+| `liveTournament.ts` | Which of an account's tournaments is the one being run right now — and whether that is the one this console is on. |
 | `chop.ts` | Splitting the remaining prize money: ICM equity, proportional chop, and what is still on the table. |
 | `resultStats.ts` | What a league result says a player spent and collected: investment, rebuys, add-ons, bounty money. |
 | `entryLimits.ts` | Who may rebuy or re-enter, and until when. **Zero means unlimited**, for the cap and the period alike. |
@@ -2236,6 +2282,13 @@ season, so the screen and the database cannot disagree.
   only inspecting the built chunks caught it.
 - **Check tests can fail.** Mutation-testing the listener registry found a real coverage gap that
   12 passing tests had missed.
+- **A patch made to photograph a state must be removed by grep, not by memory.** Forcing
+  `controlOf('d_other_device', …)` to screenshot the read-only console left that line in the commit,
+  and it shipped: every console in production went read-only, no writes landed, and the timer's
+  transport disappeared. Nothing failed — `npm run check`, all 730 tests and the build were green,
+  because `lib/directorControl.ts` was correct and the fault was in what the PAGE passed it. A forced
+  UI state has no test to fail by construction. `git grep` the marker before committing, and put a
+  marker in to grep for.
 - **Prefer fixing the model over patching the symptom.** A `seasonSwitched` CustomEvent patch for
   season-picker desync could never have worked — its reset effect ran on every instance mount.
   Replacing the model removed the whole class of bug.
