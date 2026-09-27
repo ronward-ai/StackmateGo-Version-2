@@ -38,6 +38,12 @@ interface TablesSectionProps {
    * same bust-out.
    */
   finalTablePromptOpen?: boolean;
+  /**
+   * Who holds the failsafe Rebuy, from `useRebuyOffer` on the page. Told rather
+   * than derived, for the same reason as the flag above: this is a TAB, and the
+   * answer belongs to the offer's lifecycle rather than to the roster.
+   */
+  failsafeFor?: string | null;
 }
 
 // Felt color config — single source of truth
@@ -57,7 +63,7 @@ const FELT_COLORS = [
 const feltHex = (key: string) => FELT_COLORS.find(f => f.key === key)?.hex || '#22c55e';
 const feltClass = (key: string) => `table-felt-base ${FELT_COLORS.find(f => f.key === key)?.tableClass || 'table-felt-green'}`;
 
-export default function TablesSection({ tournament, finalTablePromptOpen = false }: TablesSectionProps) {
+export default function TablesSection({ tournament, finalTablePromptOpen = false, failsafeFor = null }: TablesSectionProps) {
   const {
     state, updateSettings, updatePlayers,
     addKnockout, eliminatePlayer, undoBustOut,
@@ -654,7 +660,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                                 <>
                                   <PlayerEntryActions
                                     player={player}
-                                    players={state.players}
+                                    failsafeFor={failsafeFor}
                                     prizeStructure={state.prizeStructure}
                                     onRebuy={processRebuy}
                                     settings={state.settings}
@@ -766,7 +772,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <PlayerEntryActions
                         player={player}
-                        players={state.players}
+                        failsafeFor={failsafeFor}
                         prizeStructure={state.prizeStructure}
                         onRebuy={processRebuy}
                         settings={state.settings}

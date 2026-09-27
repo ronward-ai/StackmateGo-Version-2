@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { rebuyToOffer, offerKey, bustedKeys, type OfferablePlayer } from '@/lib/rebuyOffer';
+import { rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId, type OfferablePlayer } from '@/lib/rebuyOffer';
+import { mostRecentlyBusted } from '@/lib/eliminationOrder';
 
 /**
  * Whether a rebuy is being offered right now, and to whom.
@@ -45,6 +46,45 @@ export function useRebuyOffer(
     : null;
 
   /**
+   * The bust-out this console last WITNESSED, which is what the failsafe Rebuy
+   * button hangs on — not "whoever is most recently busted", which is a
+   * question whose answer moves backwards.
+   *
+   * Taking the failsafe makes that player active, so the roster's answer
+   * becomes the NEXT most recent bust-out — an older one — and it inherited the
+   * button. Reported from a real game: rebuy Amy and Dave, who busted before
+   * her, gets a button he should never have again.
+   *
+   * The ref advances only for a key that is NOT already in `seen` — a genuinely
+   * new bust-out. That one condition is what keeps Dave out of the running: his
+   * key was recorded when he busted, so his reappearance as "most recent" is
+   * ignored. It reuses the set that already exists rather than keeping a second
+   * memory that could disagree with it.
+   *
+   * Mutating a ref in render, like the seeding above and for the same reason:
+   * every consumer must see this in the SAME render, or the button lags a beat
+   * behind the dialog. Idempotent, so a double render costs nothing.
+   */
+  const latestKeyRef = useRef<string | null>(null);
+  if (seenRef.current) {
+    const justBustedKey = offerKey(mostRecentlyBusted(state.players as OfferablePlayer[]));
+    if (justBustedKey && !seenRef.current.has(justBustedKey)) {
+      latestKeyRef.current = justBustedKey;
+    }
+  }
+
+  /**
+   * Null when nobody holds it — which is the ordinary state between bust-outs,
+   * and the state immediately after the failsafe is used.
+   */
+  const failsafeFor = failsafeRebuyId(
+    state.players as OfferablePlayer[],
+    state.prizeStructure,
+    state.currentLevel,
+    latestKeyRef.current,
+  );
+
+  /**
    * Both answers record the bust-out, so neither can be asked again — "a count
    * recurs; a question does not". The key carries the rebuy count, so the same
    * player busting again after buying in is a new question.
@@ -57,5 +97,5 @@ export function useRebuyOffer(
     bump(n => n + 1);
   };
 
-  return { player, answer };
+  return { player, answer, failsafeFor };
 }

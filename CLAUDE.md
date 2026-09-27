@@ -1838,15 +1838,38 @@ cardroom.
 **One Rebuy button survives that, deliberately, and it is a failsafe rather than a relaxation.** The
 offer arrives at the busiest moment of the night and "No — they are out" is one tap away from
 "Rebuy"; under a strict reading a stray press ends a player's night with no way back. So
-`rebuyStillOpenFor` keeps a Rebuy button on **exactly one player — whoever busted most recently** —
-and it goes the moment anybody else busts, or the period ends. The window is until the next bust-out,
-which is minutes, not the whole rebuy period. What it is not is the old behaviour, where every busted
-player kept one and a level-2 bust-out could be "rebought" in level 6.
+`failsafeRebuyId` keeps a Rebuy button on **exactly one player** — and it goes the moment anybody
+else busts, that player rebuys, or the period ends. The window is until the next bust-out, which is
+minutes, not the whole rebuy period. What it is not is the old behaviour, where every busted player
+kept one and a level-2 bust-out could be "rebought" in level 6.
+
+**It hangs on the bust-out this console WITNESSED, not on whoever is most recently busted, and that
+distinction was a shipped bug.** Asking the roster "who busted last" is a question whose answer
+**moves backwards**: taking the failsafe makes that player active, so the next-most-recent bust-out —
+an older one — became the answer and inherited the button. Reported from a real game: rebuy Amy, and
+Dave, who busted before her, gets a button he should never have again.
+
+Positions cannot correct it. `positionsAfterReEntry` renumbers only players who finished AFTER the
+returning one, and there were none below Amy, so the roster ends up indistinguishable from "Dave
+busted first and nobody has busted since".
+
+It is **the same trap `rebuyToOffer` takes a SET for** rather than a single key, and its comment said
+so — the dialog was already safe and this was not, because the fix had not been carried across.
+`useRebuyOffer` tracks the latest key it has witnessed, advancing only for a key **not already in
+`seen`**, which is what keeps an older bust-out out of the running. `offerKey` carrying the rebuy
+count then makes it self-closing: once that player rebuys their key moves from `id:0` to `id:1` and
+stops matching, so all three ways the button should vanish fall out of one comparison. A mutant that
+derives it from the roster again turns two tests red.
 
 It is **independent of the answered-set on purpose**: declining the dialog must not take the failsafe
 away, or it would not be one. And it is shown-or-absent, never shown-disabled — "somebody else has
 since busted" is not a rule about this player that a director can act on, so a greyed Rebuy against
 every name would be the noise this change removed. The Busted strip says it once at the top instead.
+
+**After a refresh there is no failsafe until the next bust-out**, since the seeding marks every
+existing bust-out as already seen. Deliberate, and the same rule the dialog follows: the moment has
+passed, and re-entry is the way back in. Making it survive a refresh would mean persisting a
+bust-out sequence on `Player`, which is a schema change for a recovery window measured in seconds.
 
 Everything else beside a busted player is the **re-entry**, which is exactly the action that is meant
 to be available later.
@@ -2349,7 +2372,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
-| `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out. |
+| `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out — and who holds the failsafe after. |
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |

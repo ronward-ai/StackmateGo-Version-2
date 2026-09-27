@@ -51,36 +51,61 @@ export function offerKey(player: OfferablePlayer | null | undefined): string | n
 }
 
 /**
- * May this player still be bought back in from a BUTTON, as opposed to the
- * offer dialog?
+ * Which player, if any, still carries the failsafe Rebuy button.
  *
  * The failsafe for a misclick. The offer appears once at the bust-out and a
  * director who means to press Rebuy can easily press "No — they are out"
  * instead, at the busiest moment of the night, and under a strict reading that
  * mistake is unrecoverable: the player's night is over on a stray tap.
  *
- * So exactly ONE player carries a Rebuy button at any time — whoever busted
- * most recently — and it goes the moment somebody else busts or the rebuy
- * period ends. That is still "a rebuy is taken immediately": the window is
- * until the next bust-out, which is minutes, not the whole period. What it is
- * NOT is the old behaviour, where every busted player kept a Rebuy button for
- * the length of the period and a director could rebuy a level-2 bust-out in
- * level 6.
+ * So exactly ONE player carries the button — the bust-out that was last asked
+ * about — and it goes the moment somebody else busts, that player rebuys, or
+ * the period ends. That is still "a rebuy is taken immediately": the window is
+ * until the next bust-out, which is minutes, not the whole period.
  *
- * Deliberately independent of the answered-set: this is not "has the question
- * been asked", it is "is this still the live bust-out". Answering the dialog
- * must not take the failsafe away, or it would not be one.
+ * **It is keyed on the bust-out that was WITNESSED, not on whoever is most
+ * recently busted right now, and that distinction is a bug this had.** Asking
+ * the roster "who busted last" is a question whose answer MOVES BACKWARDS:
+ * taking the failsafe makes that player active, so the next-most-recent
+ * bust-out — an older one — becomes the answer and inherited the button.
+ * Reported from a real game: rebuy Amy and Dave, who busted before her, gets a
+ * button he should never have again. Positions cannot correct it, because
+ * `positionsAfterReEntry` renumbers only players who finished AFTER the
+ * returning one and there were none, so the roster ends up indistinguishable
+ * from "Dave busted first and nobody has busted since".
+ *
+ * It is the same trap `rebuyToOffer` takes a SET for rather than a single key.
+ * The dialog was already safe; this was not.
+ *
+ * **`offerKey` carrying the rebuy count is what makes it self-closing.** Once
+ * that player rebuys their key moves from `id:0` to `id:1` and stops matching,
+ * so nobody inherits anything; an earlier bust-out can never match, because the
+ * key names a player. All three ways the button should vanish fall out of one
+ * comparison.
+ *
+ * Deliberately independent of the answered-set: answering the dialog must not
+ * take the failsafe away, or it would not be one.
  */
-export function rebuyStillOpenFor(
+export function failsafeRebuyId(
   players: OfferablePlayer[] | null | undefined,
   structure: EntryLimitStructure | null | undefined,
   currentLevel: number,
-  playerId: string | null | undefined,
-): boolean {
-  if (!playerId) return false;
-  const justBusted = mostRecentlyBusted(players || []);
-  if (!justBusted || justBusted.id !== playerId) return false;
-  return canRebuy(structure, justBusted, currentLevel);
+  latestKey: string | null | undefined,
+): string | null {
+  if (!latestKey) return null;
+
+  // Still busted, and still the same bust-out. The `isFinished` shape, for the
+  // reason `mostRecentlyBusted` filters on it too: a busted player carrying no
+  // finishing position is not a bust-out anyone can reason about.
+  const player = (players || []).find(
+    p => p.isActive === false
+      && typeof p.position === 'number'
+      && p.position > 0
+      && offerKey(p) === latestKey,
+  );
+  if (!player) return null;
+
+  return canRebuy(structure, player, currentLevel) ? player.id : null;
 }
 
 /** Every bust-out currently on the roster, as offer keys. */

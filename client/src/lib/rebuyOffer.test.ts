@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rebuyToOffer, offerKey, bustedKeys, rebuyStillOpenFor } from './rebuyOffer';
+import { rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId } from './rebuyOffer';
 
 const none = new Set<string>();
 const seen = (...keys: (string | null)[]) => new Set(keys.filter((k): k is string => !!k));
@@ -138,47 +138,66 @@ describe('the reopen trap', () => {
   });
 });
 
-describe('rebuyStillOpenFor — the misclick failsafe', () => {
+describe('failsafeRebuyId — the misclick failsafe', () => {
   const older = busted({ id: 'older', position: 9 });
   const newer = busted({ id: 'newer', position: 8 });
+  const key = (p: any) => offerKey(p)!;
 
-  it('is open for the player who busted most recently', () => {
-    expect(rebuyStillOpenFor([older, newer], on, 0, 'newer')).toBe(true);
+  it('is held by the bust-out that was last witnessed', () => {
+    expect(failsafeRebuyId([older, newer], on, 0, key(newer))).toBe('newer');
   });
 
-  // The whole point: exactly one player carries the button.
-  it('is CLOSED for anyone who busted before them', () => {
-    expect(rebuyStillOpenFor([older, newer], on, 0, 'older')).toBe(false);
+  // THE REPORTED BUG. Using the failsafe on Amy made her active, so the roster's
+  // "most recently busted" became Dave — who busted BEFORE her — and he
+  // inherited the button. The key carries the rebuy count, so once she rebuys
+  // nothing matches and nobody inherits anything.
+  it('is held by NOBODY once that player takes the rebuy', () => {
+    const rebought = { id: 'newer', isActive: true, rebuys: 1 };
+    expect(failsafeRebuyId([older, rebought], on, 0, key(newer))).toBeNull();
   });
 
-  it('closes the moment somebody else busts', () => {
-    expect(rebuyStillOpenFor([older], on, 0, 'older')).toBe(true);
-    expect(rebuyStillOpenFor([older, newer], on, 0, 'older')).toBe(false);
+  // The same thing said from the other side: an earlier bust-out can never
+  // match, because the key names a player.
+  it('is never held by an earlier bust-out', () => {
+    expect(failsafeRebuyId([older, newer], on, 0, key(older))).toBe('older');
+    expect(failsafeRebuyId([older, newer], on, 0, key(newer))).not.toBe('older');
+  });
+
+  it('moves to the newest bust-out, never two at once', () => {
+    expect(failsafeRebuyId([older], on, 0, key(older))).toBe('older');
+    // The console witnesses a newer one and tracks that key instead.
+    expect(failsafeRebuyId([older, newer], on, 0, key(newer))).toBe('newer');
   });
 
   it('closes when the rebuy period ends', () => {
     const s = { ...on, rebuyPeriodLevels: 3 };
-    expect(rebuyStillOpenFor([newer], s, 2, 'newer')).toBe(true);  // level 3
-    expect(rebuyStillOpenFor([newer], s, 3, 'newer')).toBe(false); // level 4
+    expect(failsafeRebuyId([newer], s, 2, key(newer))).toBe('newer'); // level 3
+    expect(failsafeRebuyId([newer], s, 3, key(newer))).toBeNull();    // level 4
   });
 
   it('closes when the cap is used, or rebuys are off', () => {
-    expect(rebuyStillOpenFor([busted({ rebuys: 2 })], { ...on, maxRebuys: 2 }, 0, 'a')).toBe(false);
-    expect(rebuyStillOpenFor([busted()], { allowRebuys: false }, 0, 'a')).toBe(false);
+    const capped = busted({ id: 'c', rebuys: 2 });
+    expect(failsafeRebuyId([capped], { ...on, maxRebuys: 2 }, 0, key(capped))).toBeNull();
+    expect(failsafeRebuyId([newer], { allowRebuys: false }, 0, key(newer))).toBeNull();
   });
 
-  // Independent of the answered-set on purpose. Answering the dialog must not
+  // Independent of the answered-set on purpose. Declining the dialog must not
   // take the failsafe away, or it is not a failsafe.
   it('stays open after the offer has been declined', () => {
-    // The dialog is done with this bust-out...
     expect(rebuyToOffer([newer], on, 0, seen(offerKey(newer)))).toBeNull();
-    // ...and the button is still there.
-    expect(rebuyStillOpenFor([newer], on, 0, 'newer')).toBe(true);
+    expect(failsafeRebuyId([newer], on, 0, key(newer))).toBe('newer');
   });
 
-  it('is closed for an active player, or no player at all', () => {
-    expect(rebuyStillOpenFor([active()], on, 0, 'b')).toBe(false);
-    expect(rebuyStillOpenFor([newer], on, 0, null)).toBe(false);
-    expect(rebuyStillOpenFor([], on, 0, 'newer')).toBe(false);
+  // Same reason mostRecentlyBusted filters on isFinished.
+  it('ignores a busted player carrying no finishing position', () => {
+    const noPosition = { id: 'x', isActive: false, rebuys: 0 };
+    expect(failsafeRebuyId([noPosition], on, 0, 'x:0')).toBeNull();
+  });
+
+  it('is null with no tracked bust-out, or an empty roster', () => {
+    expect(failsafeRebuyId([newer], on, 0, null)).toBeNull();
+    expect(failsafeRebuyId([newer], on, 0, undefined)).toBeNull();
+    expect(failsafeRebuyId([], on, 0, key(newer))).toBeNull();
+    expect(failsafeRebuyId(null, on, 0, key(newer))).toBeNull();
   });
 });

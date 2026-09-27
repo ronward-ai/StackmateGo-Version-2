@@ -1479,7 +1479,7 @@ function PokerTimerInner({
             </div>
 
             <TabsContent value="players" className="mt-0 p-4 pt-5">
-              <PlayerSection tournament={tournament} />
+              <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} />
             </TabsContent>
 
             <TabsContent value="buyins" className="mt-0 p-4 pt-5">
@@ -1503,7 +1503,11 @@ function PokerTimerInner({
             </TabsContent>
 
             <TabsContent value="tables" className="mt-0 p-4 pt-5">
-              <TablesSection tournament={tournament} finalTablePromptOpen={finalTablePromptOpen || rebuyOfferOpen} />
+              <TablesSection
+                tournament={tournament}
+                finalTablePromptOpen={finalTablePromptOpen || rebuyOfferOpen}
+                failsafeFor={rebuyOffer.failsafeFor}
+              />
             </TabsContent>
 
             <TabsContent value="qr" className="mt-0 p-4 pt-5">

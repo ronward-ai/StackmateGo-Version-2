@@ -32,9 +32,11 @@ interface RecentPlayer {
 
 interface PlayerSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
+  /** Who holds the failsafe Rebuy, from `useRebuyOffer` on the page. */
+  failsafeFor?: string | null;
 }
 
-export default function PlayerSection({ tournament }: PlayerSectionProps) {
+export default function PlayerSection({ tournament, failsafeFor = null }: PlayerSectionProps) {
   const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
   const { toast } = useToast();
   const { user, isAnonymous } = useAuth();
@@ -53,8 +55,8 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
    * busted after them, it is not a one-player mistake.
    */
   // The rebuy here is the failsafe for a misclick on the bust-out offer, which
-  // rebuyStillOpenFor keeps to the one player who busted most recently. The
-  // offer itself lives in components/RebuyOffer.tsx.
+  // `useRebuyOffer` keeps to the one bust-out it last witnessed. The offer
+  // itself lives in components/RebuyOffer.tsx.
   const returnPlayerToTable = (action: 'rebuy' | 'reentry', playerId: string) => {
     if (action === 'rebuy') processRebuy(playerId);
     else tournament.processReEntry(playerId);
@@ -934,7 +936,7 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                     {!player.isActive && (
                       <PlayerEntryActions
                         player={player}
-                        players={state.players}
+                        failsafeFor={failsafeFor}
                         prizeStructure={state.prizeStructure}
                         onRebuy={id => returnPlayerToTable('rebuy', id)}
                         settings={state.settings}

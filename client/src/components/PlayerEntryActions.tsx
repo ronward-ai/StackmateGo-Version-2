@@ -7,7 +7,6 @@ import {
 import { entryCosts } from '@/lib/prizePool';
 import { currencyOf, money } from '@/lib/currency';
 import { reEntryUnavailableReason } from '@/lib/entryLimits';
-import { rebuyStillOpenFor } from '@/lib/rebuyOffer';
 import type { Player, PrizeStructure, Settings } from '@/types';
 
 /**
@@ -44,9 +43,15 @@ import type { Player, PrizeStructure, Settings } from '@/types';
 
 interface PlayerEntryActionsProps {
   player: Player;
-  /** The roster, so the one live bust-out is decided here rather than at three
-   *  call sites that would drift. */
-  players?: Player[];
+  /**
+   * Who currently holds the failsafe Rebuy, from `useRebuyOffer`.
+   *
+   * Passed in rather than worked out here. It used to be derived from the
+   * roster — "is this the most recently busted player" — and that answer MOVES
+   * BACKWARDS: taking the failsafe makes that player active, so an older
+   * bust-out became the most recent one and inherited the button.
+   */
+  failsafeFor?: string | null;
   prizeStructure?: PrizeStructure;
   settings?: Settings;
   currentLevel: number;
@@ -57,7 +62,7 @@ interface PlayerEntryActionsProps {
 }
 
 export default function PlayerEntryActions({
-  player, players, prizeStructure, settings, currentLevel, onRebuy, onReEntry, variant = 'labelled',
+  player, failsafeFor, prizeStructure, settings, currentLevel, onRebuy, onReEntry, variant = 'labelled',
 }: PlayerEntryActionsProps) {
   const sym = currencyOf(settings);
   const costs = entryCosts(prizeStructure);
@@ -75,7 +80,7 @@ export default function PlayerEntryActions({
    * and a permanently greyed Rebuy against every name is the noise this change
    * removed. The Busted strip says once, at the top, where the rebuy went.
    */
-  const rebuyOpen = rebuyStillOpenFor(players, prizeStructure, currentLevel, player.id);
+  const rebuyOpen = !!failsafeFor && player.id === failsafeFor;
 
   const action = (
     key: 'rebuy' | 'reentry',
