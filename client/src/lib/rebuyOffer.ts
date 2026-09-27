@@ -50,24 +50,42 @@ export function offerKey(player: OfferablePlayer | null | undefined): string | n
   return `${player.id}:${player.rebuys || 0}`;
 }
 
+/** Every bust-out currently on the roster, as offer keys. */
+export function bustedKeys(players: OfferablePlayer[] | null | undefined): string[] {
+  return (players || [])
+    .filter(p => p.isActive === false && typeof p.position === 'number' && p.position > 0)
+    .map(p => offerKey(p))
+    .filter((k): k is string => k !== null);
+}
+
 /**
  * Who to offer a rebuy to, or null.
  *
- * Null when: nobody has just busted, rebuys are off, this player is out of
- * rebuys or past the period, or the offer for THIS bust-out has been answered.
+ * `seen` is every bust-out already offered for — or present before this console
+ * started watching, so a page refresh mid-game does not re-offer a rebuy for a
+ * bust-out that happened an hour ago. The moment has passed; that is the point.
+ *
+ * **A set, not a single "last answered" key**, and the difference is a real bug
+ * rather than bookkeeping. Accepting an offer makes that player active again,
+ * so `mostRecentlyBusted` immediately returns the NEXT most recent bust-out —
+ * an older one — and a single-key guard would not match it, so the dialog would
+ * reopen offering a rebuy for a player who busted long before. That is exactly
+ * the lingering offer this whole change removes, rebuilt as a popup.
+ *
+ * Null when: nobody has busted, rebuys are off, this player is out of rebuys or
+ * past the period, or this bust-out has already been asked about.
  */
 export function rebuyToOffer<T extends OfferablePlayer>(
   players: T[] | null | undefined,
   structure: EntryLimitStructure | null | undefined,
   currentLevel: number,
-  answeredKey: string | null,
+  seen: ReadonlySet<string>,
 ): T | null {
   const justBusted = mostRecentlyBusted(players || []) as T | null;
   if (!justBusted) return null;
 
-  // Asked and answered for this bust-out. Asking twice about one player is the
-  // nagging `promptDismissedFor` caps on the final-table prompt.
-  if (answeredKey && offerKey(justBusted) === answeredKey) return null;
+  const key = offerKey(justBusted);
+  if (!key || seen.has(key)) return null;
 
   if (!canRebuy(structure, justBusted, currentLevel)) return null;
 

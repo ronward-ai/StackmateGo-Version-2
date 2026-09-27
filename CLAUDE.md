@@ -1593,13 +1593,20 @@ middle of the one moment a director is busiest.
 The **Busted strip** under the tables is where they actually are, most recent first, because the
 player a director is reaching for is almost always the one they just knocked out.
 
-**`components/PlayerEntryActions.tsx` is the only implementation of buying someone back in.** There
-were three — the seat, the players list, and the dialog inside each — and they had already diverged
-on the interesting question: what to do when a rebuy is NOT available. The players list drew the
-button **disabled and silent**; the seating screen **hid** it. A director who set rebuys to 1 and used
-it saw a greyed-out button on one screen, nothing at all on the other, and had no way to tell whether
-the rule was working or the app was broken. Both now show it disabled **with the reason on it**, from
-`rebuyUnavailableReason()` in `lib/entryLimits.ts`, so the wording lives with the rule.
+**`components/PlayerEntryActions.tsx` is the only implementation of RE-ENTERING someone.** There were
+three — the seat, the players list, and the dialog inside each — and they had already diverged on the
+interesting question: what to do when the action is NOT available. The players list drew the button
+**disabled and silent**; the seating screen **hid** it. A director who set a cap and used it saw a
+greyed-out button on one screen, nothing at all on the other, and had no way to tell whether the rule
+was working or the app was broken. Both now show it disabled **with the reason on it**, from
+`lib/entryLimits.ts`, so the wording lives with the rule.
+
+**It used to carry the rebuy too, and its absence is now the feature** — see the rebuy/re-entry
+section above. A rebuy is taken at the bust-out, so the strip carries a single line saying so rather
+than a disabled button against every name: without it the missing control reads as the app being
+broken, which is the complaint that produced `rebuyUnavailableReason` in the first place. The line
+shows only when rebuys are ON, because a director who never enabled them is not owed an explanation
+for the absence of something they switched off.
 
 A feature switched off for the whole tournament renders nothing, rather than a row of "Rebuys are
 off" against every busted player: that is a setting, not a blocked action, and there is nothing the
@@ -1816,6 +1823,49 @@ one. Both call `seatToReclaim` now.
 
 **A re-entry stays unseated on purpose.** It is a fresh entry into the tournament rather than more
 chips in the same chair — the same distinction that has a re-entry raked by default and a rebuy not.
+
+**And the timing is half the distinction, which the app got wrong for longer.** A rebuy is taken
+IMMEDIATELY: the player has just busted, is still in their chair, and buys chips there and then.
+Coming back later, to a new seat, is a re-entry. The seat behaviour above was right all along while
+the timing treated the two as identical — both gated on nothing but `withinPeriod(currentLevel, …)`
+— so a Rebuy button sat beside every busted player's name for as long as the rebuy period ran, and a
+director could bust someone in level 2 and "rebuy" them in level 6. That is not a rebuy in any
+cardroom.
+
+`lib/rebuyOffer.ts` and `hooks/useRebuyOffer.ts` ask ONCE, at the bust-out, through
+`components/RebuyOffer.tsx`. Nothing lingers. `PlayerEntryActions` is re-entry only now, which is
+exactly the action that is *meant* to be available later.
+
+**`lib/entryLimits.ts` still owns whether a rebuy is ALLOWED** — the cap and the period are
+unchanged and every one of their rules still bites. This only decides when it is ASKED.
+
+**A happy consequence worth knowing before anyone "fixes" it back:** at the moment of the bust-out
+the current level IS the level the player busted in, so the period check needs no record of when
+they went out. Making the rebuy immediate removed an off-by-one rather than needing a new
+`eliminatedAtLevel` field to correct it — the period was being tested against the current level
+while the button lingered for hours.
+
+**The offer outranks the other two prompts and must be derived, not reported.** It asks about the
+bust-out that just happened; the final-table and uneven-tables prompts ask about what that bust-out
+caused, and answering the first may remove the need for either. The dialog originally owned the
+answer and reported it up through `onOpenChange` — an effect — so "an offer is up" became true only
+on the NEXT render, and the final-table prompt's effect ran inside that window and opened on top of
+it. Two dialogs about one bust-out, which is what the stand-down existed to prevent. Caught by
+driving a real bust-out, not by reading. `useRebuyOffer` is a hook so every consumer sees the same
+answer in the same render.
+
+**The answered set is keyed `playerId:rebuyCount`, not on the id.** A player who busts, rebuys and
+busts again is a NEW question — "a count recurs; a question does not", the same rule the final-table
+latch needed. It is a SET rather than a single "last answered" key for a sharper reason: accepting an
+offer makes that player active, so `mostRecentlyBusted` immediately returns the next most recent
+bust-out and a single-key guard would not match it, reopening the dialog to offer a rebuy for someone
+who busted long before — the lingering offer rebuilt as a popup. It is seeded from the roster on the
+first render that has one, so a refresh mid-game does not re-ask about a bust-out from an hour ago.
+
+**Both downstream rebuy offers are gone with it.** `FinalTableDialog` and the uneven-tables dialog
+each carried a "{name} is rebuying" button; with the rebuy asked at every bust-out, first, those
+became a second question about one bust-out — and by the time either is on screen the rebuy moment
+has passed anyway.
 
 `seatInfo` used to be **passed in by the caller**, and only `TablesSection` passed it; busting a
 player out from the Players list lost their seat outright, and undo could not restore it either. The
@@ -2284,6 +2334,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
+| `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out. |
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |

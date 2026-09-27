@@ -22,6 +22,8 @@ import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
 import FinalTablePrompt from '@/components/FinalTablePrompt';
+import RebuyOffer from '@/components/RebuyOffer';
+import { useRebuyOffer } from '@/hooks/useRebuyOffer';
 import BlindLevelsSection from '@/components/BlindLevelsSection';
 import BuyInSection from '@/components/BuyInSection';
 import QRCodeSection from '@/components/QRCodeSection';
@@ -345,6 +347,22 @@ function PokerTimerInner({
   const [activeTab, setActiveTab] = useState('players');
   /** Lifted only so the seating screen can hold its own prompts back. */
   const [finalTablePromptOpen, setFinalTablePromptOpen] = useState(false);
+  /**
+   * The rebuy offer outranks both other prompts, and the order is the point.
+   *
+   * It asks about the bust-out that JUST happened, while the final-table and
+   * uneven-tables prompts ask about what that bust-out caused. Answer the first
+   * question and the other two may not need asking at all: a rebuy puts the
+   * player back, so the field is no longer down to one table, nor uneven.
+   *
+   * Derived HERE rather than reported up out of the dialog. Reporting it
+   * through `onOpenChange` made "an offer is up" true only on the next render,
+   * and the final-table prompt's effect ran inside that window and opened over
+   * the top of it — two dialogs about one bust-out, which is precisely what the
+   * stand-down exists to prevent. Found by driving a real bust-out.
+   */
+  const rebuyOffer = useRebuyOffer(tournament);
+  const rebuyOfferOpen = !!rebuyOffer.player;
 
   // Save finished tournaments to history. Standalone games are the point of
   // this: results are only written to tournamentResults for league games, so a
@@ -1211,7 +1229,12 @@ function PokerTimerInner({
             from the Players tab, which is where the roster is, was never asked
             about the final table at all. It renders nothing until the question
             is due. */}
-        <FinalTablePrompt tournament={tournament} onOpenChange={setFinalTablePromptOpen} />
+        <RebuyOffer tournament={tournament} offer={rebuyOffer} />
+        <FinalTablePrompt
+          tournament={tournament}
+          onOpenChange={setFinalTablePromptOpen}
+          standDown={rebuyOfferOpen}
+        />
 
 
 
@@ -1480,7 +1503,7 @@ function PokerTimerInner({
             </TabsContent>
 
             <TabsContent value="tables" className="mt-0 p-4 pt-5">
-              <TablesSection tournament={tournament} finalTablePromptOpen={finalTablePromptOpen} />
+              <TablesSection tournament={tournament} finalTablePromptOpen={finalTablePromptOpen || rebuyOfferOpen} />
             </TabsContent>
 
             <TabsContent value="qr" className="mt-0 p-4 pt-5">

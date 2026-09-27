@@ -35,8 +35,6 @@ interface FinalTableDialogProps {
   onConfirm: () => void;
   /** Whoever busted to bring the field down to one table, when known. */
   triggeredBy?: Player | null;
-  /** Shown only when that player may actually still rebuy. */
-  onRebuyTrigger?: () => void;
   /** Stop asking for the rest of this tournament. */
   onSilence?: () => void;
 }
@@ -47,7 +45,6 @@ export default function FinalTableDialog({
   playerCount,
   onConfirm,
   triggeredBy,
-  onRebuyTrigger,
   onSilence,
 }: FinalTableDialogProps) {
   const handleConfirm = () => {
@@ -79,11 +76,13 @@ export default function FinalTableDialog({
             </div>
           </div>
 
-          {onRebuyTrigger && triggeredBy && (
-            <p className="text-label text-muted-foreground leading-relaxed">
-              If {triggeredBy.name} is buying back in, do that first — nobody needs to move.
-            </p>
-          )}
+          {/* The rebuy offer that used to sit here is gone. A rebuy is asked at
+              the bust-out itself now (components/RebuyOffer.tsx), every time and
+              before this prompt can open, so repeating it here would be a second
+              question about one bust-out — the nagging this dialog's own
+              dismissal latch exists to cap. It is also no longer true by this
+              point: the rebuy moment has passed, and the way back in is a
+              re-entry. */}
 
           <div className="text-caption text-muted-foreground leading-relaxed">
             Going to the final table moves everyone to Table 1 and redraws the seats at random.
@@ -92,15 +91,6 @@ export default function FinalTableDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:flex-col-reverse sm:space-x-0">
-          {onRebuyTrigger && triggeredBy && (
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() => { onRebuyTrigger(); onClose(); }}
-            >
-              {triggeredBy.name} is rebuying
-            </Button>
-          )}
           <div className="flex gap-2 w-full">
             <Button variant="outline" className="flex-1" onClick={onClose}>
               Not yet

@@ -6,11 +6,23 @@ import {
 } from '@/components/ui/alert-dialog';
 import { entryCosts } from '@/lib/prizePool';
 import { currencyOf, money } from '@/lib/currency';
-import { rebuyUnavailableReason, reEntryUnavailableReason } from '@/lib/entryLimits';
+import { reEntryUnavailableReason } from '@/lib/entryLimits';
 import type { Player, PrizeStructure, Settings } from '@/types';
 
 /**
- * Buying a busted player back in, with the cost shown first.
+ * RE-ENTERING a busted player, with the cost shown first.
+ *
+ * **The rebuy button used to live here too, and its absence is the feature.**
+ * In poker a rebuy is taken immediately — the player has just busted, is still
+ * in their chair, and buys chips there and then, which is why `processRebuy`
+ * returns them to the seat they never left. Coming back LATER, to a new seat,
+ * is a re-entry. Drawing a Rebuy button beside every busted player's name for
+ * the length of the rebuy period let a director bust someone in level 2 and
+ * "rebuy" them in level 6, which is not a rebuy in any cardroom.
+ *
+ * The rebuy is now offered once, at the bust-out, by `components/RebuyOffer.tsx`.
+ * What lingers beside a busted player is the re-entry, which is exactly the
+ * action that is *meant* to be available later.
  *
  * ONE implementation, rendered wherever a busted player appears. The seating
  * screen and the players list had grown their own, which is the shape of every
@@ -31,27 +43,24 @@ interface PlayerEntryActionsProps {
   prizeStructure?: PrizeStructure;
   settings?: Settings;
   currentLevel: number;
-  onRebuy: (playerId: string) => void;
   onReEntry: (playerId: string) => void;
   /** `compact` is the single-letter treatment that fits inside a seat. */
   variant?: 'compact' | 'labelled';
 }
 
 export default function PlayerEntryActions({
-  player, prizeStructure, settings, currentLevel, onRebuy, onReEntry, variant = 'labelled',
+  player, prizeStructure, settings, currentLevel, onReEntry, variant = 'labelled',
 }: PlayerEntryActionsProps) {
   const sym = currencyOf(settings);
   const costs = entryCosts(prizeStructure);
   const compact = variant === 'compact';
 
-  const rebuyBlocked = rebuyUnavailableReason(prizeStructure, player, currentLevel);
   const reEntryBlocked = reEntryUnavailableReason(prizeStructure, player, currentLevel);
 
-  const rebuyTotal = (prizeStructure?.rebuyAmount || 0) + costs.rebuyRake + costs.rebuyBounty;
   const reEntryTotal = (prizeStructure?.buyIn || 0) + costs.reEntryRake + costs.reEntryBounty;
 
   const action = (
-    key: 'rebuy' | 'reentry',
+    key: 'reentry',
     blocked: string | null,
     label: string,
     title: string,
@@ -122,17 +131,10 @@ export default function PlayerEntryActions({
   // action — there is nothing for the director to do about it and a row of
   // "Rebuys are off" on every busted player is pure noise. Only a rule that
   // bit THIS player earns an explanation.
-  const showRebuy = !!prizeStructure?.allowRebuys;
   const showReEntry = !!prizeStructure?.allowReEntry;
 
   return (
     <>
-      {showRebuy && action(
-        'rebuy', rebuyBlocked, compact ? 'R' : 'Rebuy',
-        `Re-buy for ${player.name}?`, 'Rebuy cost',
-        prizeStructure?.rebuyAmount || 0, costs.rebuyRake, costs.rebuyBounty, rebuyTotal,
-        'Confirm Re-buy', () => onRebuy(player.id),
-      )}
       {showReEntry && action(
         'reentry', reEntryBlocked, compact ? 'RE' : 'Re-entry',
         `Re-entry for ${player.name}?`, 'Re-entry cost',

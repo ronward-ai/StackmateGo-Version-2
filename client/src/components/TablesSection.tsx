@@ -61,7 +61,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   const {
     state, updateSettings, updatePlayers,
     addKnockout, eliminatePlayer, undoBustOut,
-    processRebuy, processReEntry,
+    processReEntry,
     shouldPromptForFinalTable, goToFinalTable
   } = tournament;
 
@@ -657,7 +657,6 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                                     prizeStructure={state.prizeStructure}
                                     settings={state.settings}
                                     currentLevel={state.currentLevel}
-                                    onRebuy={processRebuy}
                                     onReEntry={processReEntry}
                                     variant="compact"
                                   />
@@ -737,6 +736,18 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                   Busted — most recent first
                 </span>
               </div>
+              {/* Said once, at the top, rather than as a disabled button against
+                  every name. A rebuy is taken at the bust-out and the offer does
+                  not linger, so without this the missing control reads as the app
+                  being broken — the complaint that produced
+                  `rebuyUnavailableReason` in the first place. Only when rebuys are
+                  ON: a director who never enabled them is not owed an explanation
+                  for the absence of something they switched off. */}
+              {state.prizeStructure?.allowRebuys && (
+                <p className="text-caption text-muted-foreground mb-2">
+                  Rebuys are taken at the bust-out. From here, a player returns by re-entry.
+                </p>
+              )}
               <div className="space-y-1.5">
                 {bustedPlayers.map(player => (
                   <div
@@ -757,7 +768,6 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                         prizeStructure={state.prizeStructure}
                         settings={state.settings}
                         currentLevel={state.currentLevel}
-                        onRebuy={processRebuy}
                         onReEntry={processReEntry}
                       />
                     </div>
@@ -876,29 +886,11 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            {/* The answer that removes the imbalance instead of shuffling the
-                tables around it. A bust-out is what created the gap, so if that
-                player is buying back in, nobody needs to move at all — the same
-                move FinalTableDialog makes for the same reason. */}
-            {justBusted && canRebuy(state.prizeStructure, justBusted, state.currentLevel) && (
-              <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 space-y-2">
-                <p className="text-label leading-relaxed">
-                  <span className="font-medium">{justBusted.name}</span> busting is what left the
-                  tables uneven. If they are buying back in, nobody needs to move.
-                </p>
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => {
-                    processRebuy(justBusted.id);
-                    setTableBalanceDialogOpen(false);
-                    setBalanceOptions(null);
-                  }}
-                >
-                  Rebuy {justBusted.name}
-                </Button>
-              </div>
-            )}
+            {/* The rebuy offer that used to sit here is gone. A rebuy is asked at
+                the bust-out itself now (components/RebuyOffer.tsx), before this
+                dialog can open, so repeating it here would be a second question
+                about one bust-out — and by this point the rebuy moment has
+                passed, which is the whole rule. */}
 
             <Button variant="outline" className="w-full justify-start h-auto p-4" onClick={balanceRandomly}>
               <div className="text-left">

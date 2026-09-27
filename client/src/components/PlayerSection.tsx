@@ -35,7 +35,7 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
+  const { state, addKnockout, addPlayer, removePlayer, eliminatePlayer, undoPlayerReturn } = tournament;
   const { toast } = useToast();
   const { user, isAnonymous } = useAuth();
 
@@ -52,13 +52,16 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
    * the tournament altogether — and since a return renumbers everyone who
    * busted after them, it is not a one-player mistake.
    */
-  const returnPlayerToTable = (action: 'rebuy' | 'reentry', playerId: string) => {
-    if (action === 'rebuy') processRebuy(playerId);
-    else tournament.processReEntry(playerId);
+  // Re-entry only. The rebuy that used to share this path is offered once, at
+  // the bust-out, by components/RebuyOffer.tsx — a rebuy is taken there and
+  // then, in the seat the player never left, and what lingers beside a busted
+  // name is the re-entry.
+  const returnPlayerToTable = (_action: 'reentry', playerId: string) => {
+    tournament.processReEntry(playerId);
 
     const name = state.players.find(p => p.id === playerId)?.name ?? 'Player';
     toast({
-      title: action === 'rebuy' ? `${name} bought back in` : `${name} re-entered`,
+      title: `${name} re-entered`,
       description: 'Back in the tournament.',
       action: (
         <ToastAction
@@ -934,7 +937,6 @@ export default function PlayerSection({ tournament }: PlayerSectionProps) {
                         prizeStructure={state.prizeStructure}
                         settings={state.settings}
                         currentLevel={state.currentLevel}
-                        onRebuy={id => returnPlayerToTable('rebuy', id)}
                         onReEntry={id => returnPlayerToTable('reentry', id)}
                       />
                     )}

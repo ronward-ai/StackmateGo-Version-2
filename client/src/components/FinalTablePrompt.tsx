@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import FinalTableDialog from './FinalTableDialog';
 import { activeCount, dismissalIsStale, promptDismissedFor } from '@/lib/finalTable';
 import { mostRecentlyBusted } from '@/lib/eliminationOrder';
-import { canRebuy } from '@/lib/entryLimits';
 
 /**
  * "Is this the final table?" — asked from wherever the director is standing.
@@ -28,11 +27,17 @@ interface FinalTablePromptProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   /** So the seating screen can hold its own prompts back while this one is up. */
   onOpenChange?: (open: boolean) => void;
+  /**
+   * The rebuy offer is up. Hold back: it asks about the bust-out that just
+   * happened, and this asks about what that bust-out caused — so answering it
+   * first may remove the need for this question entirely.
+   */
+  standDown?: boolean;
 }
 
-export default function FinalTablePrompt({ tournament, onOpenChange }: FinalTablePromptProps) {
+export default function FinalTablePrompt({ tournament, onOpenChange, standDown = false }: FinalTablePromptProps) {
   const {
-    state, shouldPromptForFinalTable, goToFinalTable, processRebuy,
+    state, shouldPromptForFinalTable, goToFinalTable,
   } = tournament;
 
   const [isOpen, setIsOpen] = useState(false);
@@ -70,11 +75,12 @@ export default function FinalTablePrompt({ tournament, onOpenChange }: FinalTabl
 
   useEffect(() => {
     if (silenced) return;
+    if (standDown) return;
     if (!shouldPromptForFinalTable()) return;
     if (promptDismissedFor(dismissedAt, state.players)) return;
     open(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldPromptForFinalTable, dismissedAt, silenced, state.players]);
+  }, [shouldPromptForFinalTable, dismissedAt, silenced, standDown, state.players]);
 
   const justBusted = mostRecentlyBusted(state.players);
 
@@ -93,11 +99,6 @@ export default function FinalTablePrompt({ tournament, onOpenChange }: FinalTabl
       playerCount={activeCount(state.players)}
       onConfirm={goToFinalTable}
       triggeredBy={justBusted}
-      onRebuyTrigger={
-        justBusted && canRebuy(state.prizeStructure, justBusted, state.currentLevel)
-          ? () => processRebuy(justBusted.id)
-          : undefined
-      }
       onSilence={() => setSilenced(true)}
     />
   );
