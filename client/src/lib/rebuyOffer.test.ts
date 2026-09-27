@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rebuyToOffer, offerKey, bustedKeys } from './rebuyOffer';
+import { rebuyToOffer, offerKey, bustedKeys, rebuyStillOpenFor } from './rebuyOffer';
 
 const none = new Set<string>();
 const seen = (...keys: (string | null)[]) => new Set(keys.filter((k): k is string => !!k));
@@ -135,5 +135,50 @@ describe('the reopen trap', () => {
     const older = busted({ id: 'older', position: 9 });
     const newer = busted({ id: 'newer', position: 8 });
     expect(rebuyToOffer([older, newer], on, 0, seen(offerKey(newer)))).toBeNull();
+  });
+});
+
+describe('rebuyStillOpenFor — the misclick failsafe', () => {
+  const older = busted({ id: 'older', position: 9 });
+  const newer = busted({ id: 'newer', position: 8 });
+
+  it('is open for the player who busted most recently', () => {
+    expect(rebuyStillOpenFor([older, newer], on, 0, 'newer')).toBe(true);
+  });
+
+  // The whole point: exactly one player carries the button.
+  it('is CLOSED for anyone who busted before them', () => {
+    expect(rebuyStillOpenFor([older, newer], on, 0, 'older')).toBe(false);
+  });
+
+  it('closes the moment somebody else busts', () => {
+    expect(rebuyStillOpenFor([older], on, 0, 'older')).toBe(true);
+    expect(rebuyStillOpenFor([older, newer], on, 0, 'older')).toBe(false);
+  });
+
+  it('closes when the rebuy period ends', () => {
+    const s = { ...on, rebuyPeriodLevels: 3 };
+    expect(rebuyStillOpenFor([newer], s, 2, 'newer')).toBe(true);  // level 3
+    expect(rebuyStillOpenFor([newer], s, 3, 'newer')).toBe(false); // level 4
+  });
+
+  it('closes when the cap is used, or rebuys are off', () => {
+    expect(rebuyStillOpenFor([busted({ rebuys: 2 })], { ...on, maxRebuys: 2 }, 0, 'a')).toBe(false);
+    expect(rebuyStillOpenFor([busted()], { allowRebuys: false }, 0, 'a')).toBe(false);
+  });
+
+  // Independent of the answered-set on purpose. Answering the dialog must not
+  // take the failsafe away, or it is not a failsafe.
+  it('stays open after the offer has been declined', () => {
+    // The dialog is done with this bust-out...
+    expect(rebuyToOffer([newer], on, 0, seen(offerKey(newer)))).toBeNull();
+    // ...and the button is still there.
+    expect(rebuyStillOpenFor([newer], on, 0, 'newer')).toBe(true);
+  });
+
+  it('is closed for an active player, or no player at all', () => {
+    expect(rebuyStillOpenFor([active()], on, 0, 'b')).toBe(false);
+    expect(rebuyStillOpenFor([newer], on, 0, null)).toBe(false);
+    expect(rebuyStillOpenFor([], on, 0, 'newer')).toBe(false);
   });
 });

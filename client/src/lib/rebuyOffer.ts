@@ -50,6 +50,39 @@ export function offerKey(player: OfferablePlayer | null | undefined): string | n
   return `${player.id}:${player.rebuys || 0}`;
 }
 
+/**
+ * May this player still be bought back in from a BUTTON, as opposed to the
+ * offer dialog?
+ *
+ * The failsafe for a misclick. The offer appears once at the bust-out and a
+ * director who means to press Rebuy can easily press "No — they are out"
+ * instead, at the busiest moment of the night, and under a strict reading that
+ * mistake is unrecoverable: the player's night is over on a stray tap.
+ *
+ * So exactly ONE player carries a Rebuy button at any time — whoever busted
+ * most recently — and it goes the moment somebody else busts or the rebuy
+ * period ends. That is still "a rebuy is taken immediately": the window is
+ * until the next bust-out, which is minutes, not the whole period. What it is
+ * NOT is the old behaviour, where every busted player kept a Rebuy button for
+ * the length of the period and a director could rebuy a level-2 bust-out in
+ * level 6.
+ *
+ * Deliberately independent of the answered-set: this is not "has the question
+ * been asked", it is "is this still the live bust-out". Answering the dialog
+ * must not take the failsafe away, or it would not be one.
+ */
+export function rebuyStillOpenFor(
+  players: OfferablePlayer[] | null | undefined,
+  structure: EntryLimitStructure | null | undefined,
+  currentLevel: number,
+  playerId: string | null | undefined,
+): boolean {
+  if (!playerId) return false;
+  const justBusted = mostRecentlyBusted(players || []);
+  if (!justBusted || justBusted.id !== playerId) return false;
+  return canRebuy(structure, justBusted, currentLevel);
+}
+
 /** Every bust-out currently on the roster, as offer keys. */
 export function bustedKeys(players: OfferablePlayer[] | null | undefined): string[] {
   return (players || [])

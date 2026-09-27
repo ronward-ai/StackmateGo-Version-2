@@ -61,7 +61,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   const {
     state, updateSettings, updatePlayers,
     addKnockout, eliminatePlayer, undoBustOut,
-    processReEntry,
+    processRebuy, processReEntry,
     shouldPromptForFinalTable, goToFinalTable
   } = tournament;
 
@@ -654,7 +654,9 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                                 <>
                                   <PlayerEntryActions
                                     player={player}
+                                    players={state.players}
                                     prizeStructure={state.prizeStructure}
+                                    onRebuy={processRebuy}
                                     settings={state.settings}
                                     currentLevel={state.currentLevel}
                                     onReEntry={processReEntry}
@@ -736,16 +738,15 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                   Busted — most recent first
                 </span>
               </div>
-              {/* Said once, at the top, rather than as a disabled button against
-                  every name. A rebuy is taken at the bust-out and the offer does
-                  not linger, so without this the missing control reads as the app
-                  being broken — the complaint that produced
-                  `rebuyUnavailableReason` in the first place. Only when rebuys are
-                  ON: a director who never enabled them is not owed an explanation
-                  for the absence of something they switched off. */}
+              {/* Said once, at the top, rather than as a disabled Rebuy against
+                  every name. Exactly one player carries that button — whoever
+                  busted last — so without a word here the asymmetry reads as a
+                  bug. Only when rebuys are ON: a director who never enabled them
+                  is not owed an explanation for the absence of something they
+                  switched off. */}
               {state.prizeStructure?.allowRebuys && (
                 <p className="text-caption text-muted-foreground mb-2">
-                  Rebuys are taken at the bust-out. From here, a player returns by re-entry.
+                  Only the latest bust-out can still rebuy. After that, a player returns by re-entry.
                 </p>
               )}
               <div className="space-y-1.5">
@@ -765,7 +766,9 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <PlayerEntryActions
                         player={player}
+                        players={state.players}
                         prizeStructure={state.prizeStructure}
+                        onRebuy={processRebuy}
                         settings={state.settings}
                         currentLevel={state.currentLevel}
                         onReEntry={processReEntry}

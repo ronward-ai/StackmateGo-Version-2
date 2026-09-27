@@ -1833,8 +1833,23 @@ director could bust someone in level 2 and "rebuy" them in level 6. That is not 
 cardroom.
 
 `lib/rebuyOffer.ts` and `hooks/useRebuyOffer.ts` ask ONCE, at the bust-out, through
-`components/RebuyOffer.tsx`. Nothing lingers. `PlayerEntryActions` is re-entry only now, which is
-exactly the action that is *meant* to be available later.
+`components/RebuyOffer.tsx`.
+
+**One Rebuy button survives that, deliberately, and it is a failsafe rather than a relaxation.** The
+offer arrives at the busiest moment of the night and "No — they are out" is one tap away from
+"Rebuy"; under a strict reading a stray press ends a player's night with no way back. So
+`rebuyStillOpenFor` keeps a Rebuy button on **exactly one player — whoever busted most recently** —
+and it goes the moment anybody else busts, or the period ends. The window is until the next bust-out,
+which is minutes, not the whole rebuy period. What it is not is the old behaviour, where every busted
+player kept one and a level-2 bust-out could be "rebought" in level 6.
+
+It is **independent of the answered-set on purpose**: declining the dialog must not take the failsafe
+away, or it would not be one. And it is shown-or-absent, never shown-disabled — "somebody else has
+since busted" is not a rule about this player that a director can act on, so a greyed Rebuy against
+every name would be the noise this change removed. The Busted strip says it once at the top instead.
+
+Everything else beside a busted player is the **re-entry**, which is exactly the action that is meant
+to be available later.
 
 **`lib/entryLimits.ts` still owns whether a rebuy is ALLOWED** — the cap and the period are
 unchanged and every one of their rules still bites. This only decides when it is ASKED.

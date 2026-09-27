@@ -7,22 +7,26 @@ import {
 import { entryCosts } from '@/lib/prizePool';
 import { currencyOf, money } from '@/lib/currency';
 import { reEntryUnavailableReason } from '@/lib/entryLimits';
+import { rebuyStillOpenFor } from '@/lib/rebuyOffer';
 import type { Player, PrizeStructure, Settings } from '@/types';
 
 /**
- * RE-ENTERING a busted player, with the cost shown first.
+ * Getting a busted player back in: a re-entry, and — for exactly one player at
+ * a time — a rebuy.
  *
- * **The rebuy button used to live here too, and its absence is the feature.**
- * In poker a rebuy is taken immediately — the player has just busted, is still
+ * In poker a rebuy is taken immediately: the player has just busted, is still
  * in their chair, and buys chips there and then, which is why `processRebuy`
  * returns them to the seat they never left. Coming back LATER, to a new seat,
- * is a re-entry. Drawing a Rebuy button beside every busted player's name for
- * the length of the rebuy period let a director bust someone in level 2 and
- * "rebuy" them in level 6, which is not a rebuy in any cardroom.
+ * is a re-entry. This drew a Rebuy button beside EVERY busted player's name for
+ * the length of the rebuy period, so a director could bust someone in level 2
+ * and "rebuy" them in level 6, which is not a rebuy in any cardroom.
  *
- * The rebuy is now offered once, at the bust-out, by `components/RebuyOffer.tsx`.
- * What lingers beside a busted player is the re-entry, which is exactly the
- * action that is *meant* to be available later.
+ * The rebuy is offered once, at the bust-out, by `components/RebuyOffer.tsx`.
+ * The button that survives here is the **failsafe for a misclick** on that
+ * offer, and `rebuyStillOpenFor` keeps it to the one player who busted most
+ * recently: it goes the moment anyone else busts, or the period ends. Re-entry
+ * is unconditional, because being available later is exactly what a re-entry
+ * is for.
  *
  * ONE implementation, rendered wherever a busted player appears. The seating
  * screen and the players list had grown their own, which is the shape of every
@@ -40,16 +44,20 @@ import type { Player, PrizeStructure, Settings } from '@/types';
 
 interface PlayerEntryActionsProps {
   player: Player;
+  /** The roster, so the one live bust-out is decided here rather than at three
+   *  call sites that would drift. */
+  players?: Player[];
   prizeStructure?: PrizeStructure;
   settings?: Settings;
   currentLevel: number;
+  onRebuy: (playerId: string) => void;
   onReEntry: (playerId: string) => void;
   /** `compact` is the single-letter treatment that fits inside a seat. */
   variant?: 'compact' | 'labelled';
 }
 
 export default function PlayerEntryActions({
-  player, prizeStructure, settings, currentLevel, onReEntry, variant = 'labelled',
+  player, players, prizeStructure, settings, currentLevel, onRebuy, onReEntry, variant = 'labelled',
 }: PlayerEntryActionsProps) {
   const sym = currencyOf(settings);
   const costs = entryCosts(prizeStructure);
@@ -58,9 +66,19 @@ export default function PlayerEntryActions({
   const reEntryBlocked = reEntryUnavailableReason(prizeStructure, player, currentLevel);
 
   const reEntryTotal = (prizeStructure?.buyIn || 0) + costs.reEntryRake + costs.reEntryBounty;
+  const rebuyTotal = (prizeStructure?.rebuyAmount || 0) + costs.rebuyRake + costs.rebuyBounty;
+
+  /**
+   * Shown, never shown-disabled. Every other control here explains itself when
+   * blocked, but "somebody else has since busted" is not a rule about THIS
+   * player that a director could act on — it is simply no longer their turn,
+   * and a permanently greyed Rebuy against every name is the noise this change
+   * removed. The Busted strip says once, at the top, where the rebuy went.
+   */
+  const rebuyOpen = rebuyStillOpenFor(players, prizeStructure, currentLevel, player.id);
 
   const action = (
-    key: 'reentry',
+    key: 'rebuy' | 'reentry',
     blocked: string | null,
     label: string,
     title: string,
@@ -135,6 +153,12 @@ export default function PlayerEntryActions({
 
   return (
     <>
+      {rebuyOpen && action(
+        'rebuy', null, compact ? 'R' : 'Rebuy',
+        `Re-buy for ${player.name}?`, 'Rebuy cost',
+        prizeStructure?.rebuyAmount || 0, costs.rebuyRake, costs.rebuyBounty, rebuyTotal,
+        'Confirm Re-buy', () => onRebuy(player.id),
+      )}
       {showReEntry && action(
         'reentry', reEntryBlocked, compact ? 'RE' : 'Re-entry',
         `Re-entry for ${player.name}?`, 'Re-entry cost',
