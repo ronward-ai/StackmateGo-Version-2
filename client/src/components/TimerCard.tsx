@@ -24,6 +24,16 @@ import { Slider } from './ui/slider';
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   recentLevelChange: boolean;
+  /**
+   * Another device is driving this game — see `lib/directorControl.ts`.
+   *
+   * The transport is REPLACED rather than disabled. A row of greyed-out Start
+   * and Next buttons says "broken"; a line of text says what is actually true.
+   * It is the same call `PlayerEntryActions` makes for a feature switched off
+   * for the whole tournament — except that here there IS something to do about
+   * it, so the line points at the banner that does it.
+   */
+  readOnly?: boolean;
 }
 
 function FullscreenButton() {
@@ -63,7 +73,7 @@ function FullscreenButton() {
   );
 }
 
-function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
+function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) {
   const { 
     state, 
     startTimer, 
@@ -246,6 +256,14 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
       topRight={<FullscreenButton />}
     >
       {/* Timer Controls with Previous/Next positioned at edges */}
+      {readOnly ? (
+        // The digits stay — they are the one thing a second screen is genuinely
+        // useful for, and they keep tracking the real game through the
+        // snapshot. It is only the controls that would lie.
+        <div className="w-full px-4 sm:px-8 mb-4 sm:mb-6 text-center text-label text-muted-foreground">
+          The clock is being run on another device. Take control to drive it from here.
+        </div>
+      ) : (
       <div className="flex justify-between items-center w-full px-4 sm:px-8 mb-4 sm:mb-6">
         {/* Previous Button - Left side */}
         {state.isRunning && !isTournamentFinished && state.currentLevel > 0 ? (
@@ -338,6 +356,7 @@ function TimerCard({ tournament, recentLevelChange }: TimerCardProps) {
           </Button>
         )}
       </div>
+      )}
 
       {/*
         Level progress, but only when the piping is not already showing it.

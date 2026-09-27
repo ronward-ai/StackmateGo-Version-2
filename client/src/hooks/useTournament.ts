@@ -330,6 +330,17 @@ export function useTournament(tournamentId?: string) {
    */
   const [remoteLoad, setRemoteLoad] = useState<RemoteLoad>('pending');
 
+  /**
+   * WHICH DEVICE is driving this game, straight off the snapshot.
+   *
+   * Exposed raw rather than as a verdict: `lib/directorControl.ts` turns it into
+   * one, and a hook that decided for itself would be a second answer to a
+   * question the door already answers. Null means the document names nobody —
+   * which is every game written before the lock shipped.
+   */
+  const [controllingDeviceId, setControllingDeviceId] = useState<string | null>(null);
+  const [controlClaimedAt, setControlClaimedAt] = useState<string | null>(null);
+
   // Load tournament data from database if tournamentId is provided
   useEffect(() => {
     // A different tournament has not been resolved yet, whatever the last one
@@ -475,6 +486,13 @@ export function useTournament(tournamentId?: string) {
     // we may have read before.
     setHasLoadedRemoteState(false);
 
+    // And forget who was driving the LAST game. A holder carried across would
+    // make the banner accuse another device of running a game it has never
+    // heard of — the same class of fault as a held tournament id outliving the
+    // game it named.
+    setControllingDeviceId(null);
+    setControlClaimedAt(null);
+
     // A game with a document id has a document, whatever its type says. Keying
     // this on `type === 'database'` meant the mode toggle — which writes
     // 'season' or 'standalone' over it — tore the listener down on a saved game,
@@ -488,6 +506,16 @@ export function useTournament(tournamentId?: string) {
           setIsConnected(true);
           setHasLoadedRemoteState(true);
           setRemoteLoad('loaded');
+
+          // Who is driving. Set on EVERY snapshot, which is what makes a
+          // takeover on the other device reach this one: the field changes,
+          // this console sees it, and it goes read-only without being told.
+          setControllingDeviceId(
+            typeof data.controllingDeviceId === 'string' ? data.controllingDeviceId : null,
+          );
+          setControlClaimedAt(
+            typeof data.controlClaimedAt === 'string' ? data.controlClaimedAt : null,
+          );
           
           setState(currentState => {
             try {
@@ -2166,6 +2194,8 @@ export function useTournament(tournamentId?: string) {
     // Real-time sync status
     isConnected,
     hasLoadedRemoteState,
-    remoteLoad
+    remoteLoad,
+    controllingDeviceId,
+    controlClaimedAt
   };
 }

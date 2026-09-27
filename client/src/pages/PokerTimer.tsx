@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { User, Settings2, X, Users, LayoutGrid, Coins, Layers, ShieldAlert, History } from 'lucide-react';
+import { User, Settings2, X, Users, LayoutGrid, Coins, Layers, ShieldAlert, History, MonitorSmartphone } from 'lucide-react';
 import TimerCard from '@/components/TimerCard';
 import TournamentInfoCard from '@/components/TournamentInfoCard';
 import NextGameControl from '@/components/NextGameControl';
@@ -39,7 +39,9 @@ import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import { LiveBanner } from '@/components/LiveBanner';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
-import { writeLiveGame } from '@/lib/liveGameWrite';
+import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
+import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
+import { getDeviceId } from '@/lib/deviceId';
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
@@ -229,6 +231,16 @@ function PokerTimerInner({
   // ten minutes into a level is the one thing this app must not do.
   useWakeLock(tournament.state.isRunning);
 
+  // ── WHICH DEVICE IS DRIVING ─────────────────────────────────────────────
+  //
+  // Declared here, above everything that consults it, because the completion
+  // effect needs it too: a read-only console must not write this game into
+  // history a second time.
+  const myDeviceId = useMemo(() => getDeviceId(), []);
+  const control = controlOf('d_other_device', myDeviceId); // HARNESS
+  const readOnlyConsole = !mayDrive(control);
+
+
   const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague, userLeagues, leaguePlayers } = useLeague();
   const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);
@@ -364,6 +376,12 @@ function PokerTimerInner({
     // rather than reporting a failure that is really "not applicable".
     if (!user?.id) return;
 
+    // Another device is driving this game, so it is that device's job to write
+    // the history record. `completedTournaments` is a different collection from
+    // the live game, so lib/liveGameWrite.ts's gate does not reach it — and two
+    // consoles both finishing the same night would file it twice.
+    if (readOnlyConsole) return;
+
     savedHistoryRef.current = gameKey;
 
     // Mark the live document finished so it stops being a resume candidate.
@@ -401,7 +419,7 @@ function PokerTimerInner({
         savedHistoryRef.current = null;
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament.state.players, saveCompletedTournament, user?.id]);
+  }, [tournament.state.players, saveCompletedTournament, user?.id, readOnlyConsole]);
 
   // Whether the league panel below the setup card is shown at all.
   // Reuses _isLeagueMode from above rather than recomputing the same expression.
@@ -544,6 +562,73 @@ function PokerTimerInner({
     }),
     [tournamentId, tournament.state.details?.type, tournament.state.details?.id, dbTournamentId],
   );
+
+  // ── WHICH DEVICE IS DRIVING ─────────────────────────────────────────────
+  //
+  // Two consoles under one login is a legitimate thing for a club to do — and
+  // it is how a director once lost a night's rebuys, because both of them wrote
+  // the roster and the one with the stale copy landed last. Firestore cannot
+  // tell them apart (they authenticate identically), so the tournament records
+  // which DEVICE is driving and lib/directorControl.ts reads the answer.
+  // Hand the fact to the door, which is where every write is actually gated.
+  // Module scope rather than a prop, for the reason syncReporter holds the sync
+  // streak the same way: the writers that most need gating are effects and
+  // callbacks with no route to a provider, and that is the shape the removed
+  // lock failed on.
+  useEffect(() => {
+    if (!activeTournamentId) { setLiveGameControl(null); return; }
+    setLiveGameControl({
+      tournamentId: activeTournamentId,
+      holder: tournament.controllingDeviceId,
+      myDeviceId,
+    });
+  }, [activeTournamentId, tournament.controllingDeviceId, myDeviceId]);
+
+  // Claim a game nobody holds, so an ordinary single-device night never meets
+  // any of this. Never a takeover — that is the button below, pressed by the
+  // person standing there.
+  //
+  // Waits on hasLoadedRemoteState, because claiming a game this device has not
+  // read would be asserting control over something it knows nothing about. The
+  // ref makes it once per game rather than once per snapshot.
+  const claimedControlForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeTournamentId || !tournament.hasLoadedRemoteState) return;
+    if (!shouldClaim(control)) return;
+    if (claimedControlForRef.current === activeTournamentId) return;
+    claimedControlForRef.current = activeTournamentId;
+    void claimLiveGameControl(activeTournamentId, myDeviceId).catch(err => {
+      // Not fatal and not reported to the director: an unclaimed game is one
+      // this device may already write to, so a failed claim costs nothing now
+      // and is retried the next time the game changes.
+      claimedControlForRef.current = null;
+      console.error('Could not claim control of the game:', err);
+    });
+  }, [activeTournamentId, tournament.hasLoadedRemoteState, control, myDeviceId]);
+
+  const [takingControl, setTakingControl] = useState(false);
+  const takeControl = async () => {
+    if (!activeTournamentId) return;
+    setTakingControl(true);
+    try {
+      await claimLiveGameControl(activeTournamentId, myDeviceId, { force: true });
+      // No local state to set: the snapshot brings the new holder back and the
+      // banner goes on its own. One writer per fact, including this one.
+      toast({
+        title: 'You have control',
+        description: 'This device is now driving the game. The other one has gone read-only.',
+      });
+    } catch (err) {
+      toast({
+        title: 'Could not take control',
+        description: 'The game could not be reached. Check the connection and try again.',
+        variant: 'destructive',
+      });
+      console.error('Taking control failed:', err);
+    } finally {
+      setTakingControl(false);
+    }
+  };
 
   // A console that holds a tournament but has never READ it is not syncing —
   // and says nothing about it, because syncHealth only hears about writes that
@@ -832,6 +917,18 @@ function PokerTimerInner({
           return;
         }
 
+        // Another device is driving. `tournamentResults` is outside the door
+        // too, and this is the single most expensive thing a second console can
+        // get wrong: the recorder records EVERY eliminated player not already in
+        // its own in-memory claim set, and that set is per tab — so a second
+        // console shares none of it and would re-record the whole night into the
+        // league. It is the transfer code's failure exactly ("their half of the
+        // night was recorded into their own league, silently"), which is why the
+        // gate is here and not only on the live document.
+        if (readOnlyConsole) {
+          return;
+        }
+
         const players = tournament?.state?.players || [];
         const activePlayers = players.filter(p => p.isActive !== false);
         const isFinished = activePlayers.length <= 1 && players.length > 1;
@@ -987,7 +1084,7 @@ function PokerTimerInner({
       if (retryTimer) clearTimeout(retryTimer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer]);
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, readOnlyConsole]);
 
   // Reset processed eliminations only when it's a genuine tournament reset (all active, no positions).
   // Guarding on positions prevents mid-game Firestore snapshots during handover from wiping the set.
@@ -1047,6 +1144,7 @@ function PokerTimerInner({
         brandingVisible={tournament.state.settings.branding?.isVisible}
         syncBlocked={syncBlocked || preflightFailed || unreadTournament || gameIsMissing}
         isLive={isLive}
+        readOnly={readOnlyConsole}
         clock={timerOffscreen ? tournament.formatTime() : null}
         levelLabel={timerOffscreen ? levelLabel : null}
       />
@@ -1099,6 +1197,7 @@ function PokerTimerInner({
           <TimerCard
             tournament={tournament}
             recentLevelChange={recentLevelChange}
+            readOnly={readOnlyConsole}
           />
         </div>
 
@@ -1174,6 +1273,38 @@ function PokerTimerInner({
                   </Button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Another device is driving this game.
+            An amber CONDITION rather than a red fault, because nothing is
+            broken and no data is at risk — the game is being run properly,
+            just not here. It says "nothing you do here is being saved" in as
+            many words, which is the load-bearing half: the removed device lock
+            went read-only silently, and a console that merely looks normal is
+            exactly how it cost a director their rebuys.
+
+            Take control always works. A director whose other device has a flat
+            battery, or is at home on the kitchen table, must not be locked out
+            of their own tournament — that would be worse than the problem this
+            solves. There is no timeout and no automatic steal; one press, by
+            the person standing there. */}
+        {readOnlyConsole && (
+          <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/[0.08] p-4 flex items-start gap-3">
+            <MonitorSmartphone className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-body text-foreground/90">
+              <div className="font-semibold text-amber-400 mb-1">Being run on another device</div>
+              {controlLockReason(control, tournament.controlClaimedAt)}
+              <div className="mt-1 text-muted-foreground">
+                Whoever is running it sees everything you do not. Take control here and that device
+                becomes read-only instead.
+              </div>
+              <div className="mt-3">
+                <Button size="sm" variant="outline" onClick={takeControl} disabled={takingControl}>
+                  {takingControl ? 'Taking control…' : 'Take control'}
+                </Button>
+              </div>
             </div>
           </div>
         )}

@@ -399,6 +399,66 @@ gone mid-night, on every device.
 Deliberately not `isConnected`, which flips back to false on a listener error or teardown. The
 question is "have we ever read this", which only goes one way.
 
+### One device drives a game, and the lock lives inside the one door
+
+`lib/directorControl.ts` decides; `activeTournaments/{id}.controllingDeviceId` records it. **This is
+the third handover mechanism, and the section above about not building one is why it has the shape it
+has** — the first two failed on the SAME thing, and neither failure was the idea.
+
+The transfer code moved `ownerId` between accounts, so the receiving director's league and points
+system silently claimed half the night. This does not touch `ownerId` or the account at all: one
+login, one league, one scoring scheme, throughout. The device lock (`activeDeviceId`) was
+**half-enforced** — the broadcast chain stood down and the direct `updateDoc` writers kept going, so
+the device without control still wrote the roster and reverted the other's rebuys. **That is what the
+one door was built for.** A rule enforced in three places out of twelve is not a rule; this one is
+enforced in the single place every write passes through, which is why the door landed as its own
+commit first.
+
+Three states, and `unclaimed` is load-bearing: **every game written before this shipped carries no
+holder**, so an absent field means "write freely, and claim it" rather than "someone else has it".
+Refusing to write until a claim landed would make the lock's first act be freezing every game in
+flight — the same instinct as `payoutsOf()` normalising on read rather than migrating documents. It
+leaves a window where two devices both see `unclaimed` and both write, which is exactly today's
+behaviour and closes within a round trip.
+
+**Claiming is automatic; taking is not.** A console claims a game nobody holds, after
+`hasLoadedRemoteState` — claiming a game this device has not read would be asserting control over
+something it knows nothing about. It never takes control on sight, which is precisely the removed
+lock's worst property: whichever device loaded last won, and the other went read-only mid-game.
+
+**Take control must ALWAYS win, and there is no timeout, heartbeat or automatic steal.** A director
+whose other device has a flat battery or is at home on the kitchen table must not be locked out of
+their own tournament — that is worse than the problem this solves. One explicit press, by the person
+standing there, through a TRANSACTION for the reason `lib/seatClaims.ts` gives: it reads the live
+holder before writing, so two devices cannot both come away believing they claimed an unheld game.
+
+**The gate is not only on the live document.** `completedTournaments` and `tournamentResults` are
+different collections, so the door does not reach them, and the league recorder is the most expensive
+thing a second console can get wrong: it records EVERY eliminated player not already in
+`processedEliminationsRef`, which is **per tab in memory**, so a second console shares none of it and
+would re-record the whole night. `recordResultByName`'s dedupe is cloud-backed rather than in-memory
+and catches it, but the gate is there so it never has to.
+
+**The read-only console says so in three places, and the timer's transport is REPLACED rather than
+disabled.** An amber `Read-only` chip in the app bar (`lib/statusChip.ts` — it beats Broadcasting for
+the same reason a blocked browser does, and loses to one, because that is the fault a director can
+actually fix from this device), an amber banner reading *nothing you do here is being saved*, and a
+line where Start and Next were. A row of greyed buttons says "broken"; a line of text says what is
+true. **Amber, not red: nothing is broken and nothing is at risk** — the game is being run properly,
+just not here. The digits stay, because they keep tracking the real game through the snapshot and are
+the one thing a second screen is genuinely good for.
+
+**A takeover reaches the other device for free.** It holds an `onSnapshot` on the document, so the
+field changing is all it takes; nothing is pushed at it and no local state is set on either side.
+
+**What this does NOT fix, and it is the case it was built from.** A director with a live game on their
+phone opened a laptop and started a SECOND game 5. Two devices minting two `localGameId`s make two
+DOCUMENTS, and a lock on one document says nothing about the other. The laptop got there because
+`activeDirectorTournamentId` pointed at a finished game from the night before and the resume returns
+early whenever that pin is set (`PokerTimer`), so it never asked `findCurrentLiveTournament` which
+game the account is actually running. The lock is what keeps two consoles off one game; that pin is
+what puts them on two.
+
 ### Every director-side write to a live game goes through one door
 
 `lib/liveGameWrite.ts`'s `writeLiveGame(tournamentId, fields)`. There are no other
@@ -2100,6 +2160,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
+| `directorControl.ts` | Which device is driving the live game, and whether this one may write to it. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already

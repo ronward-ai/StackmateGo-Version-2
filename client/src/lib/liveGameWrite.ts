@@ -30,6 +30,16 @@
  *  - **Creation.** `lib/tournamentDocument.ts` is the single creation path and
  *    already treats a collision as JOIN rather than overwrite.
  *
+ * WHAT THE DOOR NOW CHECKS: whether this device holds control of the game.
+ * `lib/directorControl.ts` owns that decision; the current answer is held at
+ * MODULE SCOPE here, set from the tournament snapshot by `PokerTimer`.
+ *
+ * Module scope rather than a context, for the reason `lib/syncReporter.ts` holds
+ * the sync streak the same way: there is one database, one connection and one
+ * live game, so two answers to "may this device write" could only disagree — and
+ * the writers that most need gating are effects and callbacks with no route to a
+ * provider. That is the shape the removed lock failed on.
+ *
  * `fields` goes through `sanitizeForFirestore`, so this door is for plain
  * values only — a Firestore SENTINEL (`deleteField()`, `serverTimestamp()`)
  * must not be passed through it. Nothing routed here needs one; the participant
@@ -38,6 +48,8 @@
  * The Firebase import is dynamic to match every call site it replaced, so this
  * does not pull the SDK into a chunk that did not already have it.
  */
+
+import { controlOf, mayDrive, type Control } from '@/lib/directorControl';
 
 /**
  * `written` means it reached Firestore. `skipped` means it deliberately did
@@ -49,6 +61,43 @@
  * as marking a FAILED write saved, which this codebase has already paid for.
  */
 export type LiveGameWrite = 'written' | 'skipped';
+
+/**
+ * Who is driving, as last read from the tournament document.
+ *
+ * `tournamentId` is part of it deliberately: the answer is about ONE game, and a
+ * control fact left over from the previous game would gate writes to the next
+ * one. A held id belonging to no current game is worth nothing — the same fault
+ * `consoleTournamentId()` exists to stop.
+ */
+let control: { tournamentId: string; holder: string | null; myDeviceId: string } | null = null;
+
+/** Called from the snapshot handler. Passing null forgets the fact entirely. */
+export function setLiveGameControl(
+  next: { tournamentId: string | number; holder: string | null | undefined; myDeviceId: string } | null,
+): void {
+  control = next
+    ? {
+        tournamentId: String(next.tournamentId),
+        holder: next.holder ?? null,
+        myDeviceId: next.myDeviceId,
+      }
+    : null;
+}
+
+/**
+ * This device's control of `tournamentId`, for the gate and for the banner.
+ *
+ * A game we hold no fact about is `unclaimed`, NOT `other`. The fact arrives
+ * with the first snapshot, and refusing to write until then would re-gate every
+ * write behind a read — which `hasLoadedRemoteState` already does, in the place
+ * that owns it.
+ */
+export function liveGameControl(tournamentId: string | number | null | undefined): Control {
+  if (!tournamentId || !control) return 'unclaimed';
+  if (control.tournamentId !== String(tournamentId)) return 'unclaimed';
+  return controlOf(control.holder, control.myDeviceId);
+}
 
 /**
  * Writes `fields` onto the live tournament document.
@@ -67,6 +116,11 @@ export async function writeLiveGame(
 ): Promise<LiveGameWrite> {
   if (tournamentId === null || tournamentId === undefined || tournamentId === '') return 'skipped';
 
+  // Another device is driving this game. Standing down is the whole point of
+  // the door: a second console writing its own copy of the roster is how the
+  // first removed lock silently reverted a director's rebuys.
+  if (!mayDrive(liveGameControl(tournamentId))) return 'skipped';
+
   const { doc, updateDoc } = await import('firebase/firestore');
   const { db } = await import('@/lib/firebase');
   const { sanitizeForFirestore } = await import('@/lib/utils');
@@ -76,4 +130,54 @@ export async function writeLiveGame(
     sanitizeForFirestore(fields),
   );
   return 'written';
+}
+
+/**
+ * The outcome of asking for control. `held` means another device has it and this
+ * was not a takeover, so nothing was written.
+ */
+export type ControlClaim = 'claimed' | 'already-mine' | 'held';
+
+/**
+ * Claim control of a live game, or take it.
+ *
+ * Deliberately NOT gated by the door above, which would be circular: a device
+ * with no control could never ask for it.
+ *
+ * A TRANSACTION, for the reason `lib/seatClaims.ts` gives for the same shape: it
+ * reads the live holder before writing, so two devices loading at the same
+ * moment cannot both come away believing they claimed an unheld game.
+ *
+ * `force` is the Take control button, and it must ALWAYS be able to win. A
+ * director whose phone has died, been left at home, or simply has a flat battery
+ * would otherwise be locked out of their own tournament by a device that cannot
+ * hand it back — which is worse than the problem this lock solves. There is no
+ * timeout, no heartbeat and no automatic steal: one explicit press, by the
+ * person standing there.
+ */
+export async function claimLiveGameControl(
+  tournamentId: string | number | null | undefined,
+  myDeviceId: string,
+  opts: { force?: boolean } = {},
+): Promise<ControlClaim> {
+  if (tournamentId === null || tournamentId === undefined || tournamentId === '') return 'held';
+
+  const { doc, runTransaction } = await import('firebase/firestore');
+  const { db } = await import('@/lib/firebase');
+  const ref = doc(db, 'activeTournaments', String(tournamentId));
+
+  return runTransaction(db, async (tx): Promise<ControlClaim> => {
+    const snap = await tx.get(ref);
+    const holder = snap.exists() ? (snap.data()?.controllingDeviceId ?? null) : null;
+    const state = controlOf(holder, myDeviceId);
+
+    if (state === 'mine') return 'already-mine';
+    if (state === 'other' && !opts.force) return 'held';
+
+    tx.update(ref, {
+      controllingDeviceId: myDeviceId,
+      controlClaimedAt: new Date().toISOString(),
+    });
+    return 'claimed';
+  });
 }

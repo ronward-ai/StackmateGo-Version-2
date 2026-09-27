@@ -129,6 +129,7 @@ export default function ConsoleHeader({
   brandingVisible,
   syncBlocked,
   isLive,
+  readOnly,
   clock,
   levelLabel,
 }: {
@@ -137,6 +138,8 @@ export default function ConsoleHeader({
   brandingVisible?: boolean;
   syncBlocked?: boolean;
   isLive?: boolean;
+  /** Another device holds control of this game — see lib/directorControl.ts. */
+  readOnly?: boolean;
   /** Set only while the timer card is off screen. */
   clock?: string | null;
   levelLabel?: string | null;
@@ -231,7 +234,7 @@ export default function ConsoleHeader({
         )}
 
           <div className="ml-auto flex items-center gap-2.5 flex-shrink-0">
-            <TournamentStatusChip syncBlocked={syncBlocked} isLive={isLive} />
+            <TournamentStatusChip syncBlocked={syncBlocked} isLive={isLive} readOnly={readOnly} />
             <AccountControl />
           </div>
         </div>
