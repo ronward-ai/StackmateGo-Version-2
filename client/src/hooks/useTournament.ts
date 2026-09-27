@@ -10,6 +10,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { initialDetails, needsLocalGameId } from '@/lib/localGameId';
 
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
@@ -275,15 +276,14 @@ export function useTournament(tournamentId?: string) {
     settings: mergedSettings,
     prizeStructure: loadSavedPrizeStructure(storageUid),
     isFinalTable: restored?.isFinalTable ?? false,
-    details: tournamentId ? {
-      type: 'database',
-      id: tournamentId
-    } : (mergedSettings as any)?.isSeasonTournament ? {
-      type: 'season',
-      localGameId: getOrCreateLocalGameId()
-    } : {
-      type: 'standalone'
-    }
+    // Through lib/localGameId.ts, because the standalone branch here used to
+    // omit the localGameId — and the document id IS the localGameId, so
+    // "a collision means JOIN" silently did not apply to standalone games.
+    details: initialDetails(
+      tournamentId,
+      (mergedSettings as any)?.isSeasonTournament === true,
+      getOrCreateLocalGameId,
+    ),
   };
 
   // Tournament state
@@ -1678,12 +1678,13 @@ export function useTournament(tournamentId?: string) {
   const updateTournamentDetails = useCallback((details: Partial<TournamentDetails>) => {
     setState(prev => {
       const merged = { type: 'standalone' as const, ...prev.details || {}, ...details };
-      // Ensure localGameId is set when switching to season mode
-      if (merged.type === 'season' && !merged.localGameId) {
-        const stored = readScoped('tournamentLocalGameId', storageUidRef.current);
-        const id = stored || `game_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        if (!stored) writeScoped('tournamentLocalGameId', id, storageUidRef.current);
-        merged.localGameId = id;
+      // Back-fill the local id for ANY game that is not already a document.
+      // This tested 'season' only, which is the other half of the same gap: a
+      // standalone game reaching Go Live without one was created with an
+      // auto-generated document id, and createDocViaRest's 409-adopt arm needs
+      // a docId to fire. lib/localGameId.ts owns which games need one.
+      if (needsLocalGameId(merged)) {
+        merged.localGameId = getOrCreateLocalGameId();
       }
       const newState = { ...prev, details: merged as TournamentDetails };
 

@@ -161,6 +161,23 @@ export async function createTournamentDocument(
   }
   const idToken = await currentUser.getIdToken(true);
 
+  // The document id IS the localGameId, and that is what makes a collision a
+  // JOIN rather than an overwrite. Without one, createDocViaRest auto-generates
+  // and its 409-adopt arm cannot fire, so two devices on one night make two
+  // documents with nothing to collide on — which is exactly what standalone
+  // games did until lib/localGameId.ts gave every local game an id.
+  //
+  // Said out loud rather than thrown: the game IS still saved without it, just
+  // without the protection, and refusing to save would cost a director their
+  // cloud copy over an invariant that is now guaranteed upstream. Silence is
+  // what let this run unnoticed.
+  if (!state.details?.localGameId) {
+    console.error(
+      'Creating a tournament document with no localGameId — the join-on-collision ' +
+      'protection does not apply to it. See lib/localGameId.ts.',
+    );
+  }
+
   return Promise.race([
     createDocViaRest(
       projectId,

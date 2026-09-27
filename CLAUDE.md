@@ -512,12 +512,35 @@ mutants — dropping the guard, dropping the continuation — are caught.
 `hooks/useOpenLiveGame.ts` is the one implementation of pinning and navigating to another of the
 account's games, shared by the banner and this dialog, so the two cannot drift.
 
-**A related gap, not the same one.** A STANDALONE game's document does not use `localGameId` as its
-id: `useTournament`'s initial `details` gives `localGameId` only to `type: 'season'`, so
-`createTournamentDocument` passes `undefined`, `createDocViaRest` auto-generates, and its
-409-adopt branch requires a `docId`. **"A collision means JOIN" therefore does not hold for standalone
-games** — two devices make two documents for one standalone night, with nothing to collide. After
-`resetTournament` the id is present, so this is the first-game-on-a-fresh-browser path.
+**A related gap, now closed: `lib/localGameId.ts`.** A STANDALONE game's document did not use
+`localGameId` as its id, because `useTournament`'s initial `details` gave one only to
+`type: 'season'`. So `createTournamentDocument` passed `undefined`, `createDocViaRest`
+auto-generated, and its 409-adopt arm — which requires a `docId` — could never fire. **"A collision
+means JOIN" simply did not hold for standalone games**: two devices made two documents with nothing
+to collide on.
+
+It was never a decision. `resetTournament` has always minted one for both kinds,
+`updateTournamentDetails` back-filled for league games only, and the local-progress mirror already
+worked around the gap in a comment reading *"A standalone game carries no localGameId on details —
+only league games do — so fall back to the stored id, which exists for every local game."* The stored
+id was always there; only `details` disagreed. `initialDetails()` and `needsLocalGameId()` now own the
+rule, because it is one line that appeared in three places and said something different in one of
+them.
+
+**A database game is deliberately excluded.** It has a document, and its `id` is the identity
+everything keys on; a second local identity that may not match it is the "two answers to one
+question" fault `consoleTournamentId()` exists to have fixed. The mint is passed as a thunk for the
+same reason — minting STORES the id, so minting one for a game that will never use it would leave it
+in scoped storage for the next local game to inherit.
+
+It also fixed history quietly: `useCompletedTournaments` keys its document on
+`${ownerId}_${localGameId}` and fell back to `${ownerId}_${Date.now()}`, so re-finishing the same
+STANDALONE game wrote a second history record every time. That fallback is now unreachable for a
+local game.
+
+`createTournamentDocument` says so out loud if it is ever asked to create without one — not thrown,
+because the game IS still saved without it, just unprotected, and refusing would cost a director
+their cloud copy over an invariant now guaranteed upstream. Silence is what let this run unnoticed.
 
 ### Every director-side write to a live game goes through one door
 
@@ -2219,6 +2242,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
+| `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
 | `directorControl.ts` | Which device is driving the live game, and whether this one may write to it. |
 
