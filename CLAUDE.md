@@ -1953,11 +1953,22 @@ long variable names (`position`, `totalPlayers`, …) that the real engine accep
 Preview** below it calls the real `calculatePoints` and is the one to trust. Collapsing the two is
 worth doing — same class as the rake formula and the duplicated timer.
 
-### `'default-season'`
+### `'default-season'`, and the `'default-league'` that went with it
 
 A synthetic season id used before Firestore resolves. Results tagged with it match no real season
 and vanish from every filtered view. Guard with `isRealSeasonId()` from `lib/seasonProgress.ts`
 before writing `seasonId` anywhere.
+
+**`LeagueSettings` carried the same shape and it is deleted.** `id: 'default-league'`, read by
+nothing, sitting in the object every league's settings are built from — one
+`where('leagueId', '==', settings.id)` away from a query that returns nothing and gets blamed on the
+data. It was **worse than the one above**, because `'default-season'` at least has a guard and a
+section warning about it; an unguarded synthetic id is invisible until it costs somebody a
+standings table.
+
+**A settings object is not an entity and does not need an id.** The leagueSettings DOCUMENT has a
+real one, which is what `savedSettings` rows carry and what `loadSettings` matches on. The interface
+says so where the field used to be, next to the same note about `name`.
 
 ### The landing page is short on purpose
 

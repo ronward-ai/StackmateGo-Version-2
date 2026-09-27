@@ -83,7 +83,17 @@ export interface LeagueStatsDisplay {
 }
 
 export interface LeagueSettings {
-  id: string;
+  // No `id` here either, and for a sharper reason than the name below. It was
+  // `'default-league'` — a SYNTHETIC id, the shape CLAUDE.md documents under
+  // `'default-season'`: a plausible-looking identifier that matches no real
+  // record, so anything querying by it returns nothing and blames the data
+  // rather than the id. That one at least has `isRealSeasonId()` guarding it.
+  // This one had no guard and sat in the object every league's settings are
+  // built from, one `where('leagueId', '==', settings.id)` away from a silent
+  // empty result. A settings object is not an entity and does not need an id;
+  // the leagueSettings DOCUMENT has a real one, which is what `savedSettings`
+  // rows carry and what `loadSettings` matches on.
+  //
   // No `name` here, deliberately. It existed, defaulted to 'Main League' and
   // was read by nothing — a THIRD thing called "league name" in a codebase that
   // has already paid for the two real ones disagreeing (see CLAUDE.md). The
@@ -218,7 +228,6 @@ export const DEFAULT_POINTS_SYSTEM: PointsSystem = POINTS_SYSTEMS.logarithmic;
 
 // Default league settings
 export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
-  id: 'default-league',
   pointsSystem: DEFAULT_POINTS_SYSTEM,
   statsToTrack: {
     points: true,
