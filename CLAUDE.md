@@ -68,6 +68,27 @@ They are genuinely different: a standalone tournament has an event name and no l
 resolve the display name through `lib/eventName.ts`, which reads the legacy `branding.leagueName`
 key for older tournaments and falls back to the league's name in league mode.
 
+**There was nearly a third, and it is deleted.** `LeagueSettings` carried a `name` defaulting to
+`'Main League'` that **nothing read** — one careless `settings.name` away from reproducing this
+entire section with a value no screen can edit. It went; the interface says why, so it cannot come
+back by accident.
+
+**One name on that object IS real, and it is not on that object.** A saved points TEMPLATE has a
+name, written by `saveSettingsToDatabase` as a **top-level field on the leagueSettings document**,
+beside `userId`, `leagueId`, `settings` and `isDefault` — a sibling of the settings object, not a
+field inside it. A director types it and picks it out of the Load list. `doc.name` is the template;
+`doc.settings.name` is the thing that must not exist.
+
+**And the event name beats the league name on purpose.** `eventNameOf` prefers
+`branding.eventName` and only falls back to the league, because a league night is often called
+something of its own — so a STALE event name shows on the app bar forever while the league panel
+reads correctly, and the two disagreeing is the app working as specified rather than a bug. That was
+reported as one: the app bar read "Main League" for a league called "Fish & Chips League", and the
+value was sitting in the director's own Event Name field, carried between games by
+`resetTournament`'s `keepStructure`. It only became visible when the app bar made the event name its
+headline; before that it rendered only with venue branding switched on. **If the app bar and the
+league panel disagree, look in Settings → Event Name before looking at the code.**
+
 **The screens PLAYERS see were the consumers that never did**, and it cost exactly what this note
 warns about. `TournamentParticipantView` and `PlayerClaimView` printed the document's own `name`
 field — which `lib/tournamentDocument.ts` sets ONCE, at creation, from `state.details?.name`, a

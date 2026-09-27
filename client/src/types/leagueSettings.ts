@@ -84,7 +84,13 @@ export interface LeagueStatsDisplay {
 
 export interface LeagueSettings {
   id: string;
-  name: string;
+  // No `name` here, deliberately. It existed, defaulted to 'Main League' and
+  // was read by nothing — a THIRD thing called "league name" in a codebase that
+  // has already paid for the two real ones disagreeing (see CLAUDE.md). The
+  // league's name is `leagues/{id}.name`; the event's is
+  // `settings.branding.eventName`. A saved points TEMPLATE also has a name, but
+  // it is a top-level field on the leagueSettings DOCUMENT, a sibling of this
+  // object rather than a field in it. Do not add one back here.
   pointsSystem: PointsSystem;
   statsToTrack: LeagueStatsTracked; // Always all enabled - these are calculated
   statsToDisplay: LeagueStatsDisplay; // User configurable for league table
@@ -213,7 +219,6 @@ export const DEFAULT_POINTS_SYSTEM: PointsSystem = POINTS_SYSTEMS.logarithmic;
 // Default league settings
 export const DEFAULT_LEAGUE_SETTINGS: LeagueSettings = {
   id: 'default-league',
-  name: 'Main League',
   pointsSystem: DEFAULT_POINTS_SYSTEM,
   statsToTrack: {
     points: true,
