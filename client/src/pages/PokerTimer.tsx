@@ -990,23 +990,6 @@ function PokerTimerInner({
 
   // Setup Socket.IO connection for real-time updates removed
 
-  // Listen for director coordination sync events
-  useEffect(() => {
-    const handleTournamentSync = (event: CustomEvent) => {
-      if (event.detail?.tournament) {
-        // Trigger a manual re-render by dispatching additional events
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('leagueDataChanged'));
-        }, 100);
-      }
-    };
-
-    window.addEventListener('tournament-sync', handleTournamentSync as EventListener);
-    return () => {
-      window.removeEventListener('tournament-sync', handleTournamentSync as EventListener);
-    };
-  }, []);
-
   // Auto-record eliminated players to league when season mode is enabled
   useEffect(() => {
     let cancelled = false;

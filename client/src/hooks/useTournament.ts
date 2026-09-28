@@ -294,7 +294,6 @@ export function useTournament(tournamentId?: string) {
 
   // Timer interval reference
   const timerIntervalRef = useRef<any>(null);
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   /**
@@ -704,70 +703,6 @@ export function useTournament(tournamentId?: string) {
   // reset the latch for no reason — the document had not changed.
   }, [state.details?.id]);
 
-  // Listen for tournament sync events (from director actions) with debouncing
-  const handleTournamentSync = (event: CustomEvent) => {
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    syncTimeoutRef.current = setTimeout(() => {
-      if (event.detail?.tournament) {
-        const syncedTournament = event.detail.tournament;
-        setState(currentState => {
-          // Check if this sync actually contains new data
-          const hasChanges = (
-            syncedTournament.currentLevel !== currentState.currentLevel ||
-            syncedTournament.secondsLeft !== currentState.secondsLeft ||
-            syncedTournament.isRunning !== currentState.isRunning ||
-            JSON.stringify(syncedTournament.players) !== JSON.stringify(currentState.players)
-          );
-
-          if (!hasChanges) {
-            return currentState;
-          }
-
-          // Apply the synced tournament data with the same elimination protection
-          const updatedState = {
-            ...currentState,
-            currentLevel: syncedTournament.currentLevel ?? currentState.currentLevel,
-            secondsLeft: syncedTournament.secondsLeft ?? currentState.secondsLeft,
-            isRunning: syncedTournament.isRunning ?? currentState.isRunning,
-            // Merge settings properly
-            settings: {
-              ...currentState.settings,
-              ...syncedTournament.settings,
-              tables: {
-                ...currentState.settings.tables,
-                ...syncedTournament.settings?.tables
-              }
-            }
-          };
-
-          // Apply elimination protection for players array if present
-          if (syncedTournament.players && Array.isArray(syncedTournament.players)) {
-            updatedState.players = syncedTournament.players.map(incomingPlayer => {
-              const currentPlayer = currentState.players.find(p => p.id === incomingPlayer.id);
-
-              // Protect eliminated players from resurrection during sync
-              if (currentPlayer && currentPlayer.isActive === false && incomingPlayer.isActive !== false) {
-                return currentPlayer;
-              }
-
-              return incomingPlayer;
-            });
-          }
-
-          return updatedState;
-        });
-      }
-    }, 100); // 100ms debounce
-  };
-
-  useEffect(() => {
-    window.addEventListener('tournament-sync', handleTournamentSync as EventListener);
-
-    return () => {
-      window.removeEventListener('tournament-sync', handleTournamentSync as EventListener);
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    };
-  }, [state.details?.id, state.details?.type]); // Add type to dependency to prevent unnecessary re-runs
 
   // Handle timer interval - single comprehensive timer effect
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { canRebuy, type EntryLimitStructure } from '@/lib/entryLimits';
-import { mostRecentlyBusted } from '@/lib/eliminationOrder';
+import { mostRecentlyBusted, bustedPlayers } from '@/lib/eliminationOrder';
+import { gameIsOver } from '@/lib/gameOver';
 
 /**
  * Whether to offer a rebuy right now, and to whom.
@@ -94,15 +95,19 @@ export function failsafeRebuyId(
 ): string | null {
   if (!latestKey) return null;
 
-  // Still busted, and still the same bust-out. The `isFinished` shape, for the
-  // reason `mostRecentlyBusted` filters on it too: a busted player carrying no
-  // finishing position is not a bust-out anyone can reason about.
-  const player = (players || []).find(
-    p => p.isActive === false
-      && typeof p.position === 'number'
-      && p.position > 0
-      && offerKey(p) === latestKey,
-  );
+  // A FINISHED game has no rebuy, whoever holds the key. Excluding the champion
+  // is not enough on its own: at the final bust-out the runner-up becomes the
+  // most recent, their key is unseen, and canRebuy passes on default settings —
+  // so the button would appear on a tournament PokerTimer has already written to
+  // history, and pressing it runs positionsAfterReEntry, which shifts the winner
+  // from 1st to 2nd and leaves nobody holding the title.
+  if (gameIsOver(players)) return null;
+
+  // Still busted, and still the same bust-out — through the one predicate, so
+  // this cannot drift from the one the dialog uses. It was spelled out inline
+  // here, which is how the WINNER kept a failsafe Rebuy button across a refresh
+  // even after mostRecentlyBusted stopped naming them: this path never asks it.
+  const player = bustedPlayers(players).find(p => offerKey(p) === latestKey);
   if (!player) return null;
 
   return canRebuy(structure, player, currentLevel) ? player.id : null;
@@ -199,8 +204,7 @@ export function answeredKeys(
 
 /** Every bust-out currently on the roster, as offer keys. */
 export function bustedKeys(players: OfferablePlayer[] | null | undefined): string[] {
-  return (players || [])
-    .filter(p => p.isActive === false && typeof p.position === 'number' && p.position > 0)
+  return bustedPlayers(players)
     .map(p => offerKey(p))
     .filter((k): k is string => k !== null);
 }
@@ -228,6 +232,10 @@ export function rebuyToOffer<T extends OfferablePlayer>(
   currentLevel: number,
   seen: ReadonlySet<string>,
 ): T | null {
+  // Nobody is offered a rebuy into a game that is over — see failsafeRebuyId
+  // for what taking one would do to the finishing positions.
+  if (gameIsOver(players)) return null;
+
   const justBusted = mostRecentlyBusted(players || []) as T | null;
   if (!justBusted) return null;
 

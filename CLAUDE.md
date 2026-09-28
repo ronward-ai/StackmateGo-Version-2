@@ -710,11 +710,22 @@ handler, which is this same fault for every non-player field. It does not bite t
 writes the fields that would clobber anything — `lib/tournamentDocument.ts` does not create
 `isFinalTable` — but a whitelist there is the medicine `tournamentResults` already takes.
 
-**And there is a second, unreachable copy of the merge rules.** `handleTournamentSync` in
-`useTournament.ts` listens for a `'tournament-sync'` CustomEvent that **nothing dispatches**, and
-re-implements the elimination protection inline; `PokerTimer` registers a listener for the same dead
-event. Dead, but it is a rival copy of the rules this section is about, so fix the lib and then check
-nobody has revived it.
+**There was a second, unreachable copy of the merge rules, and it is deleted.**
+`handleTournamentSync` in `useTournament.ts` listened for a `'tournament-sync'` CustomEvent that
+**nothing dispatched**, re-implementing the elimination protection inline and spreading a whole
+tournament over local state; `PokerTimer` registered a second listener for the same dead event. It
+cost nothing while it sat there — the harm was that it was a *rival* copy of the rules this section
+is about, in the same file, one revived dispatch away from fighting `lib/snapshotMerge.ts`. Its
+`syncTimeoutRef` went with it.
+
+**It is not the only dead wiring, and the rest is left deliberately.** `useLeagueSettings.ts` listens
+for `leagueSettingsChanged`, which nothing dispatches either, and ELEVEN events are dispatched with
+no listener anywhere (`tournamentStateChanged`, `leagueDataChanged`, `playerAdded`, `knockoutAdded`,
+`knockoutSync`, `playerEliminated`, `playersUpdated`, `settingsUpdated`, `tournamentDetailsUpdated`,
+`leagueKnockoutAdded`, `tournamentActionBroadcast`). Only `leagueSwitched` has a live round trip
+(`useLeague.ts:92/100`) — the one pattern to copy if a custom event is ever genuinely wanted. They
+are recorded here rather than swept because a dispatch nobody hears is inert, where a rival copy of
+the merge rules is a trap.
 
 ### "Do not reopen mine" is not "do not tell me about theirs"
 
@@ -2060,6 +2071,74 @@ structure ran out" into "the game is over", which are different questions. `Play
 `isFinished` deliberately stays as it is: it decides whether a seat badge is worth drawing and is
 already ORed with an active count.
 
+### The winner did not bust out, and five places thought they did
+
+`eliminatePlayer` awards the last player standing `position: 1` **and** `isActive: false` in one
+update — the fact the section above exists for. `lib/eliminationOrder.ts`'s `isFinished` is
+`isActive === false && position > 0`, which the champion satisfies, and `mostRecentlyBusted` takes
+the **smallest** position. 1 is the smallest number there is, so **at the end of every game it
+returned the winner.**
+
+What that reached: the rebuy offer opened on the champion — *"{Name} is out in 1st — rebuy?"* — they
+were handed a **persisted** failsafe Rebuy button, they headed the **"Busted — most recent first"**
+strip (position 1 sorts to the top, directly under the caption), and their row in the Players list
+and their seat both carried a **Re-enter** button.
+
+**On default settings.** `DEFAULT_PRIZE_STRUCTURE` allows rebuys with no period, and `canRebuy`
+deliberately does not ask whether the player is eliminated. The last hand of an ordinary tournament
+ended with a dialog asking the winner whether they would like to buy back in.
+
+**"A player who busted" was spelled out five times** — `isFinished` here, twice more inline in
+`lib/rebuyOffer.ts` (`failsafeRebuyId` and `bustedKeys`), and a bare `isActive === false` at the
+strip and the Players row. `isBustOut` and `bustedPlayers` in `lib/eliminationOrder.ts` are the one
+spelling now, and all five read it.
+
+**The exclusion is `position !== 1` FLAT, not "unless `gameIsOver`", and that is the whole fix rather
+than a shortcut.** Gating it on the roster looks tighter and hands the champion straight back,
+because a roster really can hold a winner at position 1 with somebody active:
+
+- **Add a player to a finished game.** `addPlayer` is unconditional and writes `isActive: true`, and
+  a finished game stays on screen until the next one starts — there is deliberately no End Game
+  button.
+- **Undo the RUNNER-UP's bust-out.** `undoBustOut` clears a false winner only when two or more
+  players are active afterwards, and restoring 2nd place makes exactly one. The champion is left
+  stranded, inactive at position 1.
+
+Bustedness is a fact about the player's own row, like `isFinished`, so no other row can resurrect
+it. A test asserts both states and a mutant re-introducing the `gameIsOver` gate turns six red.
+
+**`isFinished` survives, and must.** `nextEliminationPosition` and `positionsAfterReEntry` ask who
+already holds a finishing NUMBER, which the winner does — routing them through `bustedPlayers` hands
+the next bust-out a position somebody already has, the collision that module exists to fix. **Two
+predicates, and they are not the same predicate.** The test that catches it needs a roster of four
+(a late player added to a finished game): with only three, `Math.max(1, …)` clamps both answers to 1
+and the mutant survives.
+
+**A SECOND gate was needed, at the two sites that act on it: a finished game has no rebuy.**
+Excluding the champion hands the question to the runner-up, whose key is unseen and who passes
+`canRebuy` — so the dialog would open on a tournament `PokerTimer` has already written to history,
+and taking it runs `positionsAfterReEntry`, which shifts the winner from 1st to **2nd** and leaves
+nobody holding the title. `lib/rebuyOffer.ts` calls `gameIsOver` at the top of `rebuyToOffer` and
+`failsafeRebuyId`. Note the division of labour: **`position !== 1` is a fact about a player** and
+lives in `eliminationOrder.ts`; **"the game has ended" is a fact about the roster** and lives where
+it is acted on.
+
+**`failsafeRebuyId` is the leg nothing else covers.** It never calls `mostRecentlyBusted` — it
+resolves a key restored from localStorage itself, which is why its inline copy left the champion
+holding a Rebuy button across a refresh after the dialog was already fixed. A mutant restoring that
+copy turns a test red only because one fixture is a **stranded** champion; the finished-game gate
+returns early and hides it otherwise.
+
+**The way back from a misrecorded final hand is Undo bust-out, which still lists the winner** — free
+and reversible, where a re-entry charges a buy-in, increments `reEntries` and renumbers every finish.
+`components/PlayerEntryActions.tsx` is where the winner is refused, because CLAUDE.md already names
+it the only implementation of re-entering someone: one gate, not one per call site.
+
+**Every existing fixture used positions 2 through 9 and never 1**, in all three test files, which is
+why 900 passing tests said nothing. Driving it is what confirmed the fix: a real 3-player game to the
+final hand shows no dialog, no entry control anywhere, `Dave 2nd / Amy 3rd` in the Busted strip with
+the champion absent, and the Tournament Winner card up.
+
 ### Starting the next game is league business, and the number it offers is a different question
 
 `components/NextGameControl.tsx` is the only implementation of starting a game, and in league mode it
@@ -2802,7 +2881,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tournamentMode.ts` | Whether a tournament is a league game, and whether that can still be changed — **per direction**, since a finished game may stop being a league game but never become one. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |
-| `eliminationOrder.ts` | Finishing positions, who busted most recently, and the renumbering a re-entry forces. |
+| `eliminationOrder.ts` | Finishing positions, who busted most recently, and the renumbering a re-entry forces. **The winner did not bust** — `isBustOut` excludes position 1, while `isFinished` still counts it for numbering. |
 | `payoutTemplates.ts` | Payout percentages: non-increasing, ≥1 each, summing to 100. |
 | `liveTournament.ts` | Which of an account's tournaments is the one being run right now — and whether that is the one this console is on. |
 | `chop.ts` | Splitting the remaining prize money: ICM equity, proportional chop, and what is still on the table. |

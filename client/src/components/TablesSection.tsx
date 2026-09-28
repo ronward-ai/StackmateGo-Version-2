@@ -20,7 +20,7 @@ import SeatPlayersDialog from "./SeatPlayersDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
-import { mostRecentlyBusted } from '@/lib/eliminationOrder';
+import { bustedPlayers } from '@/lib/eliminationOrder';
 import { seatablePlayers, allSeated, planSeating, assignSeats, tablesNeededFor, tableNamesFor} from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
@@ -109,17 +109,23 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
 
   const [undoBustOutDialogOpen, setUndoBustOutDialogOpen] = useState(false);
 
-  // The one a director is almost always reaching for — they just knocked them
-  // out. Shared with the final-table prompt through lib/eliminationOrder.ts.
-  const justBusted = mostRecentlyBusted(state.players);
-
   // Most recent first, which means ASCENDING position: positions count down as
   // the night goes on, so the first player out of nine holds 9th and the one
   // who just busted holds the smallest number. This sorted the other way under
   // the same "most recent first" heading, so the strip was ordered backwards —
   // the same inversion `mostRecentlyBusted` had.
-  const bustedPlayers = state.players
-    .filter(p => p.isActive === false)
+  //
+  // Through lib/eliminationOrder.ts now, because the local filter was
+  // `isActive === false` alone — which the WINNER satisfies, so the champion
+  // headed a list captioned "Busted" the moment the game ended, at the very top
+  // since position 1 sorts first, with a Re-enter button beside their name. The
+  // way back from a misrecorded final hand is Undo bust-out, which still lists
+  // them: it is free and reversible, where a re-entry charges a buy-in,
+  // increments `reEntries` and renumbers everyone's finish.
+  //
+  // `bustedPlayers` returns a fresh array, so sorting it in place cannot touch
+  // state.players.
+  const busted = bustedPlayers(state.players)
     .sort((a, b) => (a.position || 0) - (b.position || 0));
 
   const [moveMode, setMoveMode]                         = useState(false);
@@ -756,7 +762,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
               busted player leaves the grid the instant they bust. There was no
               seat left to hang it on, and the only route back in was the players
               list. This is where they actually are. */}
-          {bustedPlayers.length > 0 && !moveMode && (
+          {busted.length > 0 && !moveMode && (
             <div className="mt-4 pt-4 border-t border-border/30">
               <div className="flex items-center gap-2 mb-2">
                 <UserMinus className="h-3.5 w-3.5 text-muted-foreground" />
@@ -776,7 +782,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                 </p>
               )}
               <div className="space-y-1.5">
-                {bustedPlayers.map(player => (
+                {busted.map(player => (
                   <div
                     key={player.id}
                     className="flex items-center justify-between gap-2 p-2 rounded-lg border border-white/10 bg-black/20"

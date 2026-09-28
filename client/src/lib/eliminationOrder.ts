@@ -38,9 +38,42 @@ export interface PositionedPlayer {
   knockouts?: number;
 }
 
-/** True when a player has been eliminated and holds a finishing position. */
+/**
+ * True when a player has been eliminated and holds a finishing position.
+ *
+ * **This counts the WINNER, and that is deliberate.** Position 1 is a finishing
+ * position like any other, and `nextEliminationPosition` and
+ * `positionsAfterReEntry` are asking who already holds a NUMBER. Excluding the
+ * champion from that count would hand the next bust-out a position somebody
+ * already has, which is the collision this whole module exists to fix.
+ *
+ * `isBustOut` below is the other question. Two predicates, and they are not the
+ * same predicate.
+ */
 function isFinished(p: PositionedPlayer): boolean {
   return p.isActive === false && typeof p.position === 'number' && p.position > 0;
+}
+
+/**
+ * Did this player BUST, rather than WIN?
+ *
+ * See `mostRecentlyBusted`'s header for why the exclusion is a flat
+ * `position !== 1` and not "unless the game is over".
+ */
+export function isBustOut(p: PositionedPlayer): boolean {
+  return isFinished(p) && p.position !== 1;
+}
+
+/**
+ * Everyone who busted, in roster order.
+ *
+ * Identity-preserving — the same objects come back out, so a caller can use
+ * them as React keys and hand them straight to a control.
+ */
+export function bustedPlayers<T extends PositionedPlayer>(
+  players: T[] | null | undefined,
+): T[] {
+  return (players || []).filter(isBustOut);
 }
 
 /**
@@ -68,13 +101,45 @@ function isFinished(p: PositionedPlayer): boolean {
  * fix, not tidying: a busted player carrying no position would read as 0 under
  * a minimum and win every time.
  *
- * Three dialogs ask this now — the final-table prompt, the uneven-tables
- * prompt, and the rebuy offer at bust-out (`lib/rebuyOffer.ts`). It lives here
- * so they cannot drift, and so the rule is testable away from all three.
+ * **The WINNER is not a bust-out, and that omission was a bug with teeth.**
+ * `eliminatePlayer` awards the last player standing `position: 1` AND
+ * `isActive: false` in one update — see `lib/gameOver.ts` — so the champion
+ * satisfies `isFinished`, and 1 is the smallest number there is. The minimum
+ * below therefore returned **the winner** at the end of every game, and the
+ * rebuy offer opened on them: *"{Champion} is out in 1st — rebuy?"*, with a
+ * persisted failsafe Rebuy button to match. On DEFAULT settings, not an edge
+ * case: `DEFAULT_PRIZE_STRUCTURE` allows rebuys with no period, and `canRebuy`
+ * deliberately does not ask whether the player is eliminated.
+ *
+ * **The exclusion is `position !== 1` flat, NOT "unless the game is over", and
+ * that distinction is the fix rather than a shortcut.** Gating it on
+ * `gameIsOver(players)` looks tighter and hands the champion straight back,
+ * because a roster can hold a winner at position 1 with somebody active:
+ *
+ * - **Add a player to a finished game.** `addPlayer` is unconditional and
+ *   writes `isActive: true`, and a finished game stays on screen until the next
+ *   one is started — there is deliberately no End Game button.
+ * - **Undo the RUNNER-UP's bust-out.** `undoBustOut` clears a false winner only
+ *   when two or more players are active afterwards, and restoring 2nd place
+ *   makes exactly one. The champion is left stranded, inactive at position 1.
+ *
+ * Bustedness is a fact about the player's own row, like `isFinished` itself, so
+ * no other row can resurrect it. A roster-wide gate is also the wrong shape for
+ * a per-player question — one stale entry from a Firestore round-trip would
+ * flip the champion back into the set.
+ *
+ * "The game has FINISHED" is a separate fact, and it lives at the two sites
+ * that act on it — `lib/rebuyOffer.ts`, which must not offer the runner-up a
+ * rebuy into a tournament already written to history.
+ *
+ * Three dialogs ask this one — the final-table prompt, the uneven-tables
+ * prompt, and the rebuy offer at bust-out (`lib/rebuyOffer.ts`) — plus the
+ * Busted strip and the entry controls, through `bustedPlayers` and `isBustOut`.
+ * It lives here so they cannot drift, and so the rule is testable away from all
+ * of them.
  */
 export function mostRecentlyBusted<T extends PositionedPlayer>(players: T[]): T | null {
-  return players
-    .filter(isFinished)
+  return bustedPlayers(players)
     .reduce<T | null>(
       (latest, p) => (!latest || (p.position as number) < (latest.position as number) ? p : latest),
       null,

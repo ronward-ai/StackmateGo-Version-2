@@ -11,6 +11,71 @@ const on = { allowRebuys: true } as const;
 const busted = (over: any = {}) => ({ id: 'a', name: 'Dave', isActive: false, position: 7, ...over });
 const active = (over: any = {}) => ({ id: 'b', name: 'Sam', isActive: true, ...over });
 
+const champion = (over: any = {}) => ({ id: 'w', name: 'Win', isActive: false, position: 1, ...over });
+const runnerUp = (over: any = {}) => ({ id: 'r', name: 'Run', isActive: false, position: 2, ...over });
+
+/**
+ * The end of a game, and the two rules that keep it quiet.
+ *
+ * `eliminatePlayer` marks the champion `position: 1, isActive: false`, so every
+ * "has this player busted" test in the app said yes about the winner. Two
+ * separate facts fix it and neither is sufficient alone: the winner is not a
+ * BUST-OUT (a fact about their row, in lib/eliminationOrder.ts), and a FINISHED
+ * game has no rebuy at all (a fact about the roster, here).
+ */
+describe('the end of the game', () => {
+  it('never offers the champion a rebuy', () => {
+    expect(rebuyToOffer([champion(), runnerUp(), busted()], on, 0, none)?.id).not.toBe('w');
+  });
+
+  // Excluding the winner is NOT enough on its own. At the final bust-out the
+  // runner-up becomes the most recent, their key is unseen and canRebuy passes
+  // on default settings — so the dialog would open on a tournament already
+  // written to history, and taking it runs positionsAfterReEntry, which shifts
+  // the champion from 1st to 2nd and leaves nobody holding the title.
+  it('offers nobody a rebuy once the game is over', () => {
+    expect(rebuyToOffer([champion(), runnerUp()], on, 0, none)).toBeNull();
+  });
+
+  // Still asked while anybody is in — this must not become "never ask again
+  // once somebody holds position 1".
+  it('still offers while a player is left in the game', () => {
+    expect(rebuyToOffer([busted(), active()], on, 0, none)?.id).toBe('a');
+  });
+
+  it('does not count the winner as a bust-out', () => {
+    expect(bustedKeys([champion(), runnerUp(), active()])).toEqual(['r:0']);
+  });
+
+  // THE LEG NOTHING ELSE CATCHES. failsafeRebuyId never calls
+  // mostRecentlyBusted — it looks the key up itself, and that lookup was a
+  // second, inline copy of "has this player busted". Fixing the dialog alone
+  // left the champion holding a Rebuy button, restored from localStorage after
+  // a refresh.
+  it('never hands the champion the failsafe, even when the stored key names them', () => {
+    expect(failsafeRebuyId([champion(), runnerUp()], on, 0, offerKey(champion()))).toBeNull();
+  });
+
+  // The finished-game gate returns early, so it HIDES whether the lookup below
+  // it is still the inline copy. This roster is the one that reaches it: a
+  // champion stranded at position 1 with somebody active — add a player to a
+  // finished game, or undo the runner-up's bust-out — where gameIsOver is false
+  // and only `isBustOut` stands between the winner and a Rebuy button.
+  it('never hands a STRANDED champion the failsafe either', () => {
+    const stranded = [champion(), runnerUp(), active()];
+    expect(failsafeRebuyId(stranded, on, 0, offerKey(champion()))).toBeNull();
+    expect(bustedKeys(stranded)).toEqual(['r:0']);
+  });
+
+  it('hands nobody the failsafe on a finished game', () => {
+    expect(failsafeRebuyId([champion(), runnerUp()], on, 0, offerKey(runnerUp()))).toBeNull();
+  });
+
+  it('still hands it over while the game is running', () => {
+    expect(failsafeRebuyId([busted(), active()], on, 0, offerKey(busted()))).toBe('a');
+  });
+});
+
 describe('offerKey', () => {
   // NOT the id alone. A player who busts, rebuys and busts again is a new
   // question — the "a count recurs; a question does not" lesson from the

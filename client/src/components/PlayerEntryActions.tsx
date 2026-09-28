@@ -8,6 +8,7 @@ import { entryCosts } from '@/lib/prizePool';
 import { currencyOf, money } from '@/lib/currency';
 import { reEntryUnavailableReason } from '@/lib/entryLimits';
 import type { Player, PrizeStructure, Settings } from '@/types';
+import { isBustOut } from '@/lib/eliminationOrder';
 
 /**
  * Getting a busted player back in: a re-entry, and — for exactly one player at
@@ -64,6 +65,22 @@ interface PlayerEntryActionsProps {
 export default function PlayerEntryActions({
   player, failsafeFor, prizeStructure, settings, currentLevel, onRebuy, onReEntry, variant = 'labelled',
 }: PlayerEntryActionsProps) {
+  // The WINNER is offered no way back in, and this is the one place that has to
+  // say so. All three call sites gate on `isActive === false`, which the
+  // champion satisfies — `eliminatePlayer` awards them `position: 1` and that
+  // flag in the same update — so the players list, the seat and the Busted strip
+  // each drew a Re-enter button against the person who had just won. A gate at
+  // each is the "three places out of twelve is not a rule" trap; this component
+  // is already the only implementation of re-entering someone.
+  //
+  // A misrecorded final hand comes back through Undo bust-out instead: free and
+  // reversible, where a re-entry charges a buy-in and renumbers every finish.
+  //
+  // It also drops an inactive player carrying NO finishing position, which only
+  // a legacy document can produce — every writer of `isActive: false` writes a
+  // position with it — and for whom these controls never made sense either.
+  if (!isBustOut(player)) return null;
+
   const sym = currencyOf(settings);
   const costs = entryCosts(prizeStructure);
   const compact = variant === 'compact';

@@ -139,3 +139,41 @@ describe('useRebuyOffer across a takeover', () => {
     expect(latest.answered).toContain('amy:0');
   });
 });
+
+/**
+ * The final hand, driven rather than reasoned about.
+ *
+ * `eliminatePlayer` marks the last player standing `position: 1` AND
+ * `isActive: false`, so the roster the hook sees at the end of a game has no
+ * active players and a champion who looks, to every "has this player busted"
+ * test, exactly like a bust-out. The dialog opened on them.
+ */
+describe('useRebuyOffer at the end of the game', () => {
+  beforeEach(() => {
+    rebought = [];
+    try { localStorage.clear(); } catch { /* jsdom without storage */ }
+  });
+
+  it('opens no offer and hands out no failsafe on the final hand', () => {
+    const h: Harness = { players: [active('amy'), active('dave')], readOnly: false };
+    const { rerender } = drive(h);
+    // Dave busts: an ordinary bust-out, the offer is due.
+    rerender({ ...h, players: [busted('dave', 2), active('amy')] });
+    expect(latest.player?.id).toBe('dave');
+    // Amy wins. Nobody is active and she holds position 1.
+    rerender({ ...h, players: [busted('dave', 2), busted('amy', 1)] });
+    expect(latest.player).toBeNull();
+    expect(latest.failsafeFor).toBeNull();
+  });
+
+  // The persisted leg: a refresh restores the key from localStorage and
+  // failsafeRebuyId resolves it WITHOUT going through mostRecentlyBusted, so
+  // this is the only thing that catches the inline copy coming back.
+  it('restores no failsafe for the champion across a refresh', () => {
+    const finishedGame = [busted('dave', 2), busted('amy', 1)];
+    // Whatever the reload restores, a finished game hands it to nobody.
+    drive({ players: finishedGame, readOnly: false });
+    expect(latest.failsafeFor).toBeNull();
+    expect(latest.player).toBeNull();
+  });
+});

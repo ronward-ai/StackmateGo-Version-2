@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   mostRecentlyBusted,
+  isBustOut,
+  bustedPlayers,
   nextEliminationPosition,
   positionsAfterReEntry,
   rostersMatchForUndo,
@@ -10,6 +12,15 @@ import {
 /** A roster of `n` players, all still in. */
 function roster(n: number): PositionedPlayer[] {
   return Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}`, isActive: true }));
+}
+
+/** A finished game: everyone busted in turn, the last one holding 1st.
+ *  Built through `bust`, so it is exactly the state `eliminatePlayer` leaves —
+ *  every player inactive, the champion at position 1. */
+function finished(n: number): PositionedPlayer[] {
+  let players = roster(n);
+  for (let i = 1; i <= n; i++) players = bust(players, `p${i}`);
+  return players;
 }
 
 /** Eliminate a player, awarding the next position — what the app does. */
@@ -108,6 +119,87 @@ describe('mostRecentlyBusted', () => {
       { id: 'still-out', isActive: false, position: 7 },
     ];
     expect(mostRecentlyBusted(players)?.id).toBe('still-out');
+  });
+});
+
+describe('the winner is not a bust-out', () => {
+  // THE BUG: eliminatePlayer awards the last player standing position 1 AND
+  // isActive: false in one update, so the champion satisfies `isFinished` — and
+  // 1 is the smallest number there is, so a minimum over finishing positions
+  // returned the WINNER at the end of every game. The rebuy dialog opened on
+  // them. No fixture in this file used position 1 before, which is why 900
+  // passing tests said nothing about it.
+  it('names the runner-up at the end of a game, never the champion', () => {
+    const players = finished(3);
+    expect(players.find(p => p.id === 'p3')?.position).toBe(1);   // the champion
+    expect(mostRecentlyBusted(players)?.id).toBe('p2');
+  });
+
+  // THE GATE THAT LOOKS RIGHT AND IS NOT. Excluding the winner only when
+  // `gameIsOver(players)` hands them straight back, because a roster really can
+  // hold a champion at position 1 with somebody active: adding a player to a
+  // finished game, or undoing the RUNNER-UP's bust-out, which leaves the winner
+  // stranded since undoBustOut only clears a false winner at two or more
+  // actives. This fixture is that state.
+  it('excludes position 1 even while another player is still in', () => {
+    const players: PositionedPlayer[] = [
+      { id: 'busted', isActive: false, position: 3 },
+      { id: 'champion', isActive: false, position: 1 },
+      { id: 'late-arrival', isActive: true },
+    ];
+    expect(mostRecentlyBusted(players)?.id).toBe('busted');
+    expect(bustedPlayers(players).map(p => p.id)).toEqual(['busted']);
+  });
+
+  it('lists every bust-out and no winner, in roster order', () => {
+    expect(bustedPlayers(finished(4)).map(p => p.id)).toEqual(['p1', 'p2', 'p3']);
+  });
+
+  it('hands back the same objects, so a caller can key on them', () => {
+    const players = finished(3);
+    expect(bustedPlayers(players)[0]).toBe(players[0]);
+  });
+
+  it('drops actives and positionless inactives, and survives nothing at all', () => {
+    expect(bustedPlayers([{ id: 'a', isActive: true }, { id: 'b', isActive: false }])).toEqual([]);
+    expect(bustedPlayers([])).toEqual([]);
+    expect(bustedPlayers(null)).toEqual([]);
+  });
+
+  it('is a fact about one player, needing no roster', () => {
+    expect(isBustOut({ id: 'w', isActive: false, position: 1 })).toBe(false);
+    expect(isBustOut({ id: 'r', isActive: false, position: 2 })).toBe(true);
+    expect(isBustOut({ id: 'a', isActive: true })).toBe(false);
+  });
+
+  // The trade taken deliberately with the flat rule, pinned so it is a decision
+  // rather than a surprise: busting the only player awards position 1, and
+  // gameOver.ts already refuses to call a one-player roster a finished game.
+  it('leaves a one-player game with no bust-outs at all', () => {
+    expect(mostRecentlyBusted([{ id: 'solo', isActive: false, position: 1 }])).toBeNull();
+  });
+
+  // THE TRAP IN THE OTHER DIRECTION. nextEliminationPosition and
+  // positionsAfterReEntry are asking who already holds a NUMBER, which the
+  // winner does. Routing them through bustedPlayers would hand the next bust a
+  // position somebody already has — the collision this module exists to fix.
+  it('still COUNTS the winner where a finishing number is what matters', () => {
+    // A late player added to a finished game — the same roster that makes the
+    // gameIsOver gate wrong above, used here because it is the shape that
+    // DISCRIMINATES: with the champion counted, the next bust takes 1st; with
+    // them dropped from the count it takes 2nd, which p3 already holds.
+    // `finished(3)` alone cannot catch this, because Math.max(1, …) clamps both
+    // answers to 1.
+    const late = [...finished(3), { id: 'late', isActive: true }];
+    expect(nextEliminationPosition(late)).toBe(1);
+
+    const players = finished(3);
+    expect(nextEliminationPosition(players)).toBe(1);
+    const after = positionsAfterReEntry(players, 'p2');
+    expect(after.find(p => p.id === 'p3')?.position).toBe(2);   // champion shifts down
+    expect(after.find(p => p.id === 'p2')?.position).toBeUndefined();
+    const taken = after.filter(p => typeof p.position === 'number').map(p => p.position);
+    expect(new Set(taken).size).toBe(taken.length);             // no duplicate finish
   });
 });
 
