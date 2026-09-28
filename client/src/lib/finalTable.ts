@@ -38,6 +38,50 @@ export function activeCount(players: SeatablePlayer[]): number {
 }
 
 /**
+ * Is the field ALREADY sitting at a single table?
+ *
+ * Derived from the seating, and that is the whole point: **a stored flag cannot
+ * answer this for a game that is already under way.**
+ *
+ * `isFinalTable` was for a long time written nowhere but a per-device
+ * localStorage mirror, and that mirror is deliberately never auto-restored for a
+ * live game (see CLAUDE.md — seeding a live tournament from localStorage is the
+ * hazard `hasLoadedRemoteState` exists to prevent). So for any game collapsed
+ * before the flag began being persisted, a reload loses it on every device at
+ * once, nothing is left holding `true` to write it, and the document stays empty
+ * for good. The prompt then fires forever: 4 players on an 8-seat final table
+ * satisfies every other clause by definition.
+ *
+ * Persisting the flag fixes games collapsed from now on. Only a derivation can
+ * fix the ones already running — the same read-side normalisation trade
+ * `payoutsOf()` and `bandsOf()` make, where the stored value is preferred and the
+ * shape is worked out when it is absent.
+ *
+ * **It also answers a question the flag never could**: a tournament that has only
+ * ever used ONE table has no final table to go to, and used to be asked anyway
+ * on every bust-out.
+ *
+ * Conservative on purpose. An active player who is unseated, or seated with no
+ * table, makes this FALSE — the director may not be using the seating chart at
+ * all, and claiming "you are already at the final table" about a game whose
+ * seats nobody has filled would suppress a question that is genuinely due.
+ */
+export function alreadyAtOneTable(players: SeatablePlayer[]): boolean {
+  const active = players.filter(p => p.isActive !== false);
+  if (active.length === 0) return false;
+
+  let table: number | null = null;
+  for (const p of active) {
+    if (!p.seated) return false;
+    const idx = p.tableAssignment?.tableIndex;
+    if (typeof idx !== 'number') return false;
+    if (table === null) table = idx;
+    else if (idx !== table) return false;
+  }
+  return true;
+}
+
+/**
  * Should the director be ASKED whether this is the final table?
  *
  * Asked, never told: the collapse moves everyone, and the director may be about
@@ -67,7 +111,12 @@ export function shouldPromptForFinalTable(
 ): boolean {
   const active = activeCount(players);
   const eliminatedAtLeastOne = players.some(p => p.isActive === false);
-  return active <= seatsPerTable && active > 1 && !isFinalTable && eliminatedAtLeastOne;
+  // The stored flag FIRST, then the seating — preferred-then-derived, the
+  // payoutsOf() shape. The flag alone was never enough: it could not be read
+  // back for a game collapsed before it was persisted, and asking a director
+  // about the final table they are already sitting at was reported twice.
+  const oneTableAlready = isFinalTable === true || alreadyAtOneTable(players);
+  return active <= seatsPerTable && active > 1 && !oneTableAlready && eliminatedAtLeastOne;
 }
 
 /**

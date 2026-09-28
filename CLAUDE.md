@@ -606,6 +606,35 @@ asserted *"does not ask once it is already the final table"* and has always pass
 hands the predicate the flag the app never persisted.** The predicate was never wrong. A green test over
 a real bug, because the test supplied what production did not.
 
+**STORING IT WAS NOT ENOUGH, and could not have been — the prompt was reported a second time.** Four
+players on an established eight-seat final table, on BOTH devices. The flag had only ever lived in the
+per-device mirror, which is never auto-restored for a live game, so once both devices reload onto a
+build that reads the field, **neither holds `true`, nothing is left to write it, and the document stays
+empty for good.** A stored fact cannot be recovered for a game that was already under way.
+
+So it is **derived as well as stored**: `alreadyAtOneTable(players)` — every player still in, seated, at
+the same table. Preferred-then-derived, the `payoutsOf()` shape, and the derivation is what fixes games
+already running. **The question "should we go to the final table?" means "should we consolidate onto one
+table", and if everyone is already sitting at one the answer is definitionally no** — the only thing the
+collapse adds there is a random redraw, which is a different action and already lives in the Seating tab
+as Randomize.
+
+It is **conservative on purpose**: an active player unseated, or seated with no table, makes it false. A
+director who never touches the seating chart must still be asked, or a genuinely due question would be
+suppressed. That conservatism is what keeps the `field()` fixtures in `finalTable.test.ts` — which seat
+nobody — asserting exactly what they did before.
+
+It also answers something the flag never could: **a tournament that has only ever used ONE table has no
+final table to go to**, and was being asked on every bust-out regardless.
+
+**Two existing assertions had to be reversed, and the FIXTURE was the thing that was wrong.**
+`nineAcrossTwoTables` seated 9 as **8 + 1** — a seating no cardroom would make — so busting the lone
+player on table two left the other eight already sitting together, and "the field now fits one table"
+and "the field is already AT one table" were the same state. The file was asserting that the prompt
+fires in a game needing no consolidation. It is 5 + 4 now, and the bust-out leaves 4 + 3 across two
+tables, which is what the prompt is actually for. Three mutants are caught: dropping the derivation
+turns two red, making it unconservative four, and counting busted players' old chairs three.
+
 Two things left deliberately:
 
 - **`preFinalTableSeating` is still not written**, so undo stays on the device that collapsed the table.
