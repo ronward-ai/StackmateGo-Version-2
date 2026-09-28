@@ -21,6 +21,49 @@ export interface Seat {
   seatIndex: number;
 }
 
+/**
+ * The lowest free seat at one table, or null when it is full.
+ *
+ * **`seatToReclaim` cannot answer this, and that is the bug it caused.** It asks
+ * one question — is any other active, seated player on this exact (table, seat)?
+ * It knows nothing of which tables are in USE. So after a final-table collapse
+ * moves everybody onto one table, a returning player's `seatInfo` naming table 2
+ * matches nobody, reads as "free", and they are seated alone at an empty table
+ * while the game is played elsewhere. Reported from a real game: nine players,
+ * one busted, collapse to the final table, rebuy — and he landed on table 2 by
+ * himself.
+ *
+ * A chair being unoccupied is not the same as it being part of the game.
+ *
+ * Seat ZERO is a free seat. The `?? null` rather than `|| null` is deliberate:
+ * `seating.test.ts` already carries a case named for that trap, because 0 is
+ * falsy and this is exactly the shape that gets it wrong.
+ */
+export interface SeatedLike {
+  isActive?: boolean;
+  seated?: boolean;
+  tableAssignment?: { tableIndex: number; seatIndex: number };
+}
+
+export function freeSeatAt(
+  // Structural, not `Player`, so `lib/finalTable.ts` can pass its own
+  // `SeatablePlayer` without either module widening its idea of a player.
+  players: SeatedLike[],
+  tableIndex: number,
+  seatsPerTable: number,
+): Seat | null {
+  for (let seatIndex = 0; seatIndex < seatsPerTable; seatIndex++) {
+    const taken = players.some(p =>
+      p.isActive !== false &&
+      p.seated &&
+      p.tableAssignment?.tableIndex === tableIndex &&
+      p.tableAssignment?.seatIndex === seatIndex
+    );
+    if (!taken) return { tableIndex, seatIndex };
+  }
+  return null;
+}
+
 export function seatToReclaim(player: Player, players: Player[]): Seat | null {
   const seat = player.seatInfo;
   if (!seat || typeof seat.tableIndex !== 'number' || typeof seat.seatIndex !== 'number') {

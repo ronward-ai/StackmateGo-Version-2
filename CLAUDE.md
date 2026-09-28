@@ -2251,6 +2251,56 @@ predicate — `lib/rebuyOffer.ts` was right throughout. Three mutants are caught
 levelling reopens the dialog, folding watched into answered leaks a false answer, and keying the
 failsafe off watched instead of answered hands Dave a button.
 
+### A player coming back has to meet the final table, whichever door they use
+
+Reported from a real game: nine players, bust one out, collapse to the final table via the prompt,
+then press the failsafe **Rebuy** — and he was seated **on table 2 on his own**, with the tournament
+still flagged as its own final table.
+
+**Two faults met, and the first is the one this codebase keeps paying for.** `undoBustOut` had unwound
+the collapse since the day it was written; `processRebuy` and `processReEntry` **never mentioned the
+final table at all**. A rule enforced at one door out of three is not a rule.
+
+**The second is subtler and is why the seat looked plausible.** `lib/seating.ts`'s `seatToReclaim` asks
+one question — *is any other active, seated player on this exact (table, seat)?* It knows nothing of
+which tables are in USE. So after a collapse moves everybody onto table 1, a pre-collapse chair on
+table 2 matches nobody and reads as **free — precisely because the collapse emptied that table.** A
+chair being unoccupied is not the same as it being part of the game. `freeSeatAt` exists for the
+question `seatToReclaim` cannot answer.
+
+`finalTableAfterReturn()` in `lib/finalTable.ts` is the one rule, and `undoBustOut` moved onto it
+rather than keeping its copy. Three outcomes:
+
+- **Not at a final table** — nothing changes.
+- **At one and the field now OUTGROWS it** — unwind: pre-collapse seating back, flag dropped, snapshot
+  cleared.
+- **At one and the field still FITS** — the collapse stands and the returning player joins it, in a free
+  seat at the table being played on. Never reported and far more common than the overflow case.
+
+**ORDER IS LOAD-BEARING and is why the unwind composes.** `seatToReclaim` runs FIRST and this goes over
+the top — the order `undoBustOut` already used. `snapshotSeating` keeps only ACTIVE players, so someone
+already busted at the moment of the collapse is **not in the snapshot**; `restoreSeating` leaves them
+alone and everyone else goes back across both tables, so the lone-player-on-table-2 state cannot arise.
+
+**`oneTableIndex` replaced the inline walk in `alreadyAtOneTable`**, which now delegates to it.
+`goToFinalTable` hard-codes `tableIndex: 0`; a second literal elsewhere would be two answers to one
+question. And it derives the table from everyone EXCEPT the returning player — by then `seatToReclaim`
+has already put them on their old chair, so "which one table is the field at" otherwise has two answers
+and theirs is the wrong one.
+
+**Driving the real game caught a residue no unit test would have.** The first version unwound correctly
+and left the player **unseated**: `seatToReclaim` had asked its question against the COLLAPSED roster,
+where the redraw had handed his chair to somebody else, so it returned null — and the unwind then
+vacated that very seat. `reclaimSeat` re-asks after the restore, which is the only moment the answer is
+true. *"A rebuy is chips bought in the chair they never left"* now survives a collapse.
+
+`processReEntry` deliberately gets **no** `reclaimSeat`: a re-entry stays unseated by design, so only
+the unwind branch can change anything there. Six mutants are caught across the rule and `freeSeatAt`,
+including the one that treats seat **zero** as falsy.
+
+Verified by driving the reported sequence in the devstub: nine seated 5+4 → bust → 4+4 → collapse →
+8 on one table → **rebuy → back to 5+4 with the flag cleared**, the exact state before the bust-out.
+
 ### A chop splits only the money still to be won
 
 `ChipChopCalculator`, behind the **Chop** button in the Payouts header of `TournamentInfoCard`, is

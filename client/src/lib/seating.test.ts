@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim, seatablePlayers, allSeated, planSeating } from './seating';
+import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -127,5 +127,45 @@ describe('planSeating', () => {
   it('handles nobody, and nonsense configuration, without throwing', () => {
     expect(planSeating(0, { numberOfTables: 3, seatsPerTable: 6 })).toEqual({ perTable: [], overflow: 0 });
     expect(planSeating(4, { numberOfTables: 0, seatsPerTable: 0 })).toEqual({ perTable: [1], overflow: 3 });
+  });
+});
+
+/**
+ * `seatToReclaim` cannot answer "is this chair part of the game", only "is
+ * anybody sitting in it" — and after a final-table collapse those differ. A
+ * pre-collapse chair on table 2 reads as free PRECISELY because the collapse
+ * emptied that table, which is how a rebought player ended up sitting alone
+ * there while the game carried on at table 1.
+ */
+describe('freeSeatAt', () => {
+  const at = (id: string, tableIndex: number, seatIndex: number) =>
+    ({ id, isActive: true, seated: true, tableAssignment: { tableIndex, seatIndex } }) as any;
+
+  it('finds the lowest free seat at the table', () => {
+    expect(freeSeatAt([at('a', 0, 0), at('b', 0, 1)], 0, 8)).toEqual({ tableIndex: 0, seatIndex: 2 });
+  });
+
+  it('fills a gap rather than always appending', () => {
+    expect(freeSeatAt([at('a', 0, 0), at('b', 0, 2)], 0, 8)).toEqual({ tableIndex: 0, seatIndex: 1 });
+  });
+
+  /** Seat 0 is a real seat, and it is falsy. This shape gets that wrong. */
+  it('offers seat zero when the table is empty', () => {
+    expect(freeSeatAt([], 0, 8)).toEqual({ tableIndex: 0, seatIndex: 0 });
+    expect(freeSeatAt([at('a', 1, 0)], 0, 8)).toEqual({ tableIndex: 0, seatIndex: 0 });
+  });
+
+  it('is null when the table is full, rather than inventing a chair', () => {
+    const full = Array.from({ length: 4 }, (_, i) => at(`p${i}`, 0, i));
+    expect(freeSeatAt(full, 0, 4)).toBeNull();
+  });
+
+  it('ignores players at other tables', () => {
+    expect(freeSeatAt([at('a', 1, 0), at('b', 1, 1)], 0, 8)).toEqual({ tableIndex: 0, seatIndex: 0 });
+  });
+
+  it('does not let an ELIMINATED player hold a seat', () => {
+    const out = [{ id: 'z', isActive: false, seated: true, tableAssignment: { tableIndex: 0, seatIndex: 0 } }] as any;
+    expect(freeSeatAt(out, 0, 8)).toEqual({ tableIndex: 0, seatIndex: 0 });
   });
 });

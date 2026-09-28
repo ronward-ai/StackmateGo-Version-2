@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  activeCount, alreadyAtOneTable, dismissalIsStale, outgrowsFinalTable, promptDismissedFor,
+  activeCount, alreadyAtOneTable, dismissalIsStale, finalTableAfterReturn, outgrowsFinalTable, promptDismissedFor,
   restoreSeating, shouldPromptForFinalTable, snapshotSeating, type SeatablePlayer,
 } from './finalTable';
 
@@ -307,5 +307,148 @@ describe('alreadyAtOneTable', () => {
       busted('out'),
     ];
     expect(shouldPromptForFinalTable(players, 8, false)).toBe(false);
+  });
+});
+
+/**
+ * THE REPORTED GAME: nine players, bust one out, collapse to the final table via
+ * the prompt, then press the failsafe Rebuy — and he was seated **on table 2 on
+ * his own**, with the tournament still flagged as its own final table.
+ *
+ * Two faults met here. `processRebuy` never mentioned the final table at all,
+ * while `undoBustOut` had unwound it since the day it was written; and
+ * `seatToReclaim` handed back a pre-collapse chair that reads as "free" PRECISELY
+ * because the collapse emptied that table. One rule, three doors.
+ */
+describe('finalTableAfterReturn', () => {
+  const seat = (id: string, tableIndex: number, seatIndex: number): SeatablePlayer =>
+    ({ id, isActive: true, seated: true, tableAssignment: { tableIndex, seatIndex } });
+
+  /** Eight survivors collapsed onto table 1, plus the player who just rebought. */
+  const collapsedPlusOne = (): SeatablePlayer[] => [
+    ...Array.from({ length: 8 }, (_, i) => seat(`a${i}`, 0, i)),
+    seat('back', 1, 0), // seatToReclaim gave him his pre-collapse chair
+  ];
+
+  const snapshot = [
+    ...Array.from({ length: 5 }, (_, i) => ({ playerId: `a${i}`, seated: true, tableIndex: 0, seatIndex: i })),
+    ...Array.from({ length: 3 }, (_, i) => ({ playerId: `a${i + 5}`, seated: true, tableIndex: 1, seatIndex: i })),
+  ];
+
+  it('unwinds when the returning player no longer fits — the reported game', () => {
+    const out = finalTableAfterReturn(collapsedPlusOne(), {
+      isFinalTable: true,
+      preFinalTableSeating: snapshot,
+      seatsPerTable: 8,
+    });
+
+    expect(out.isFinalTable).toBe(false);
+    expect(out.preFinalTableSeating).toBeUndefined();
+    // The eight go back across BOTH tables, so nobody is left sitting alone.
+    const tables = new Set(out.players.map(p => p.tableAssignment?.tableIndex));
+    expect([...tables].sort()).toEqual([0, 1]);
+  });
+
+  /**
+   * The composition the whole thing rests on: the returning player is NOT in the
+   * snapshot (it keeps only actives, and he was busted at the collapse), so
+   * restoreSeating leaves him on the chair seatToReclaim gave him — which is his
+   * real pre-collapse seat.
+   */
+  it('leaves the returning player on the chair he reclaimed', () => {
+    const out = finalTableAfterReturn(collapsedPlusOne(), {
+      isFinalTable: true, preFinalTableSeating: snapshot, seatsPerTable: 8,
+    });
+    expect(out.players.find(p => p.id === 'back')?.tableAssignment).toEqual({ tableIndex: 1, seatIndex: 0 });
+  });
+
+  it('keeps the final table and seats him AT it when the field still fits', () => {
+    // Six on an eight-seat final table; one more still fits.
+    const players: SeatablePlayer[] = [
+      ...Array.from({ length: 6 }, (_, i) => seat(`a${i}`, 0, i)),
+      seat('back', 1, 0),
+    ];
+    const out = finalTableAfterReturn(players, {
+      isFinalTable: true, preFinalTableSeating: snapshot, seatsPerTable: 8, returningId: 'back',
+    });
+
+    expect(out.isFinalTable).toBe(true);
+    expect(out.preFinalTableSeating).toBe(snapshot);
+    // Not his old table-2 chair — a free seat at the table being played on.
+    expect(out.seatForReturner).toEqual({ tableIndex: 0, seatIndex: 6 });
+  });
+
+  it('changes nothing at all when there is no final table', () => {
+    const players = collapsedPlusOne();
+    const out = finalTableAfterReturn(players, { isFinalTable: false, seatsPerTable: 8 });
+    expect(out.players).toBe(players);
+    expect(out.isFinalTable).toBe(false);
+    expect(out.seatForReturner).toBeNull();
+  });
+
+  it('still clears the flag when there is no snapshot to restore', () => {
+    // Matches undoFinalTable: the flag goes even when no seats can move.
+    const out = finalTableAfterReturn(collapsedPlusOne(), {
+      isFinalTable: true, preFinalTableSeating: undefined, seatsPerTable: 8,
+    });
+    expect(out.isFinalTable).toBe(false);
+  });
+
+  it('offers no seat when the field is not seated, rather than inventing one', () => {
+    const out = finalTableAfterReturn([{ id: 'a' }, { id: 'b' }], {
+      isFinalTable: true, seatsPerTable: 8,
+    });
+    expect(out.seatForReturner).toBeNull();
+  });
+});
+
+/**
+ * The residue the first fix left, caught by driving the real game rather than by
+ * reading: the collapse unwound correctly, but the returning player came back
+ * UNSEATED. `seatToReclaim` runs before the unwind, so it asks its question
+ * against the collapsed roster — where the redraw has handed his old chair to
+ * somebody else — and returns null. The unwind then vacates that very seat.
+ */
+describe('finalTableAfterReturn — the chair back after an unwind', () => {
+  const seat = (id: string, tableIndex: number, seatIndex: number): SeatablePlayer =>
+    ({ id, isActive: true, seated: true, tableAssignment: { tableIndex, seatIndex } });
+
+  const collapsed = (): SeatablePlayer[] => [
+    ...Array.from({ length: 8 }, (_, i) => seat(`a${i}`, 0, i)),
+    { id: 'back', isActive: true, seated: false },
+  ];
+  const snapshot = [
+    ...Array.from({ length: 4 }, (_, i) => ({ playerId: `a${i}`, seated: true, tableIndex: 0, seatIndex: i })),
+    ...Array.from({ length: 4 }, (_, i) => ({ playerId: `a${i + 4}`, seated: true, tableIndex: 1, seatIndex: i })),
+  ];
+
+  it('gives the returning player their own chair back once the restore vacates it', () => {
+    const out = finalTableAfterReturn(collapsed(), {
+      isFinalTable: true,
+      preFinalTableSeating: snapshot,
+      seatsPerTable: 8,
+      returningId: 'back',
+      reclaimSeat: { tableIndex: 0, seatIndex: 4 }, // taken pre-unwind, free after
+    });
+    expect(out.isFinalTable).toBe(false);
+    expect(out.seatForReturner).toEqual({ tableIndex: 0, seatIndex: 4 });
+  });
+
+  it('leaves them unseated when somebody really is in that chair', () => {
+    const out = finalTableAfterReturn(collapsed(), {
+      isFinalTable: true,
+      preFinalTableSeating: snapshot,
+      seatsPerTable: 8,
+      returningId: 'back',
+      reclaimSeat: { tableIndex: 1, seatIndex: 0 }, // a4 sits here after the restore
+    });
+    expect(out.seatForReturner).toBeNull();
+  });
+
+  it('leaves them unseated when they had no recorded chair', () => {
+    const out = finalTableAfterReturn(collapsed(), {
+      isFinalTable: true, preFinalTableSeating: snapshot, seatsPerTable: 8, returningId: 'back',
+    });
+    expect(out.seatForReturner).toBeNull();
   });
 });

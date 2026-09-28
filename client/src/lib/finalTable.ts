@@ -1,3 +1,5 @@
+import { freeSeatAt } from '@/lib/seating';
+
 /**
  * When a tournament collapses to one table, and how to put it back.
  *
@@ -67,18 +69,31 @@ export function activeCount(players: SeatablePlayer[]): number {
  * seats nobody has filled would suppress a question that is genuinely due.
  */
 export function alreadyAtOneTable(players: SeatablePlayer[]): boolean {
+  return oneTableIndex(players) !== null;
+}
+
+/**
+ * WHICH table the field is all sitting at, or null.
+ *
+ * The same walk `alreadyAtOneTable` used to do inline, returning the index
+ * rather than throwing it away — because a player coming back during a final
+ * table has to be seated AT that table, and `goToFinalTable` hard-coding
+ * `tableIndex: 0` is not a second place to re-read that from. Two literals for
+ * one fact is how `consoleTournamentId()` came to exist.
+ */
+export function oneTableIndex(players: SeatablePlayer[]): number | null {
   const active = players.filter(p => p.isActive !== false);
-  if (active.length === 0) return false;
+  if (active.length === 0) return null;
 
   let table: number | null = null;
   for (const p of active) {
-    if (!p.seated) return false;
+    if (!p.seated) return null;
     const idx = p.tableAssignment?.tableIndex;
-    if (typeof idx !== 'number') return false;
+    if (typeof idx !== 'number') return null;
     if (table === null) table = idx;
-    else if (idx !== table) return false;
+    else if (idx !== table) return null;
   }
-  return true;
+  return table;
 }
 
 /**
@@ -215,6 +230,122 @@ export function restoreSeating<T extends SeatablePlayer>(
  * asks about the state AFTER the restore, which is why it takes the count that
  * will exist rather than the one that does.
  */
+/**
+ * What the final table becomes when a player comes back into the game.
+ *
+ * ONE rule, THREE doors. A player re-enters the tournament by rebuy, by
+ * re-entry, or by having their bust-out undone, and until now only the last of
+ * those knew the final table existed. `undoBustOut` unwound the collapse when the
+ * returning player no longer fitted; `processRebuy` and `processReEntry` never
+ * mentioned it at all, so a rebuy during a final table left nine players on an
+ * eight-seat table with one of them sitting alone on table 2.
+ *
+ * A rule enforced at one door out of three is not a rule, which is why this is a
+ * function rather than a third copy.
+ *
+ * THREE OUTCOMES:
+ *
+ * - **Not at a final table** — nothing changes, exactly as before.
+ * - **At one, and the field now OUTGROWS it** — unwind: put the pre-collapse
+ *   seating back, drop the flag, clear the snapshot. The tournament is plainly
+ *   not at its final table when more players are in it than that table seats.
+ * - **At one, and the field still FITS** — the collapse stands and the returning
+ *   player joins it. Their old chair is on a table nobody is playing at, so
+ *   "the chair they never left" cannot be honoured literally; a free seat at the
+ *   table the game is actually on is the nearest honest thing.
+ *
+ * **ORDER IS LOAD-BEARING on the unwind, and it is why this composes.** The
+ * caller applies `seatToReclaim` FIRST and this runs over the top, which is how
+ * `undoBustOut` already ordered it. `snapshotSeating` keeps only ACTIVE players,
+ * so somebody who was already busted at the moment of the collapse is NOT in the
+ * snapshot — `restoreSeating` leaves them exactly as they are, on the chair they
+ * just reclaimed, which IS their real pre-collapse seat. Everyone else goes back
+ * across both tables, so the lone-player-on-table-2 state cannot arise.
+ */
+export interface FinalTableState {
+  isFinalTable?: boolean;
+  preFinalTableSeating?: SeatSnapshot[];
+  seatsPerTable: number;
+  /**
+   * Who has just come back, so the final table can be found from everyone ELSE.
+   *
+   * Needed because `seatToReclaim` has already put them on their pre-collapse
+   * chair by the time this runs — so "which one table is the field at" has two
+   * answers, and the returning player is the wrong one. Excluding them leaves
+   * the collapsed field, which is the table the game is actually on.
+   */
+  returningId?: string;
+  /**
+   * The chair the returning player was sitting in BEFORE the collapse, from
+   * their `seatInfo`.
+   *
+   * Needed because `seatToReclaim` runs before this and therefore asks its
+   * question against the COLLAPSED roster, where the redraw has handed their old
+   * chair to somebody else — so it returns null and they come back unseated even
+   * though the unwind is about to vacate that very seat. Re-asked here, after the
+   * restore, which is the only moment the answer is true.
+   */
+  reclaimSeat?: { tableIndex: number; seatIndex: number };
+}
+
+export interface FinalTablePatch<T> {
+  players: T[];
+  isFinalTable: boolean;
+  preFinalTableSeating: SeatSnapshot[] | undefined;
+  /**
+   * The seat the returning player should take, or null to leave them unseated.
+   *
+   * Their own chair back when the collapse is unwound, a free seat at the final
+   * table when it stands.
+   */
+  seatForReturner: { tableIndex: number; seatIndex: number } | null;
+}
+
+export function finalTableAfterReturn<T extends SeatablePlayer>(
+  players: T[],
+  state: FinalTableState,
+): FinalTablePatch<T> {
+  const unchanged = {
+    players,
+    isFinalTable: !!state.isFinalTable,
+    preFinalTableSeating: state.preFinalTableSeating,
+    seatForReturner: null,
+  };
+
+  if (!state.isFinalTable) return unchanged;
+
+  if (outgrowsFinalTable(activeCount(players), state.seatsPerTable)) {
+    const restored = restoreSeating(players, state.preFinalTableSeating);
+    // Their own chair back, now that the restore has vacated it. "A rebuy is
+    // chips bought in the chair they never left" finally survives a collapse.
+    const seat = state.reclaimSeat;
+    const free = seat && !restored.some(p =>
+      p.id !== state.returningId &&
+      p.isActive !== false &&
+      p.seated &&
+      p.tableAssignment?.tableIndex === seat.tableIndex &&
+      p.tableAssignment?.seatIndex === seat.seatIndex
+    );
+    return {
+      players: restored,
+      isFinalTable: false,
+      preFinalTableSeating: undefined,
+      seatForReturner: free ? seat : null,
+    };
+  }
+
+  // The collapse stands, so the returning player joins it rather than sitting
+  // alone at the table everyone was moved off. A free seat is guaranteed here —
+  // the field fits, and every other active player is on this table, so at most
+  // seats-1 are taken — but a null falls back to unseated rather than inventing
+  // a chair.
+  const table = oneTableIndex(players.filter(p => p.id !== state.returningId));
+  return {
+    ...unchanged,
+    seatForReturner: table === null ? null : freeSeatAt(players, table, state.seatsPerTable),
+  };
+}
+
 export function outgrowsFinalTable(activeAfterRestore: number, seatsPerTable: number): boolean {
   return activeAfterRestore > seatsPerTable;
 }

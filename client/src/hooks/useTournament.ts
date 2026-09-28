@@ -31,8 +31,7 @@ import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
 import { seatToReclaim } from '@/lib/seating';
 import {
-  activeCount as activePlayerCount,
-  outgrowsFinalTable,
+  finalTableAfterReturn,
   restoreSeating,
   shouldPromptForFinalTable as finalTableIsDue,
   snapshotSeating,
@@ -1369,15 +1368,29 @@ export function useTournament(tournamentId?: string) {
           : p
       );
 
+      // Same rule as the rebuy, and it needs no seat logic: a re-entry stays
+      // unseated by design, so only the UNWIND branch can change anything here.
+      // Nine players on an eight-seat final table is wrong however they got
+      // there, and the flag drives the seating screen and the next bust-out's
+      // prompt.
+      const ft = finalTableAfterReturn(updatedPlayers, {
+        isFinalTable: prev.isFinalTable,
+        preFinalTableSeating: prev.preFinalTableSeating,
+        seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
+        returningId: playerId,
+      });
+
       const newState = {
         ...prev,
-        players: updatedPlayers
+        players: ft.players,
+        isFinalTable: ft.isFinalTable,
+        preFinalTableSeating: ft.preFinalTableSeating,
       };
 
       playerReturnUndoRef.current = {
         label: `${player.name} — re-entry #${(player.reEntries || 0) + 1}`,
         previous: prev.players,
-        resulting: updatedPlayers,
+        resulting: ft.players,
       };
 
       // Broadcast re-entry
@@ -1432,13 +1445,39 @@ export function useTournament(tournamentId?: string) {
           : p
       );
 
+      // A player coming back has to meet the final table, and this door never
+      // knew it existed. Nine players, one busted, collapse to the final table,
+      // press Rebuy — and he was seated alone on table 2, because `seatToReclaim`
+      // reads his pre-collapse chair as "free" precisely BECAUSE the collapse
+      // emptied that table. See lib/finalTable.ts; one rule, three doors.
+      //
+      // seatToReclaim ran above and this goes over the top, which is the order
+      // `undoBustOut` already used and the reason the unwind composes.
+      const ft = finalTableAfterReturn(updatedPlayers, {
+        isFinalTable: prev.isFinalTable,
+        preFinalTableSeating: prev.preFinalTableSeating,
+        seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
+        returningId: playerId,
+        reclaimSeat: player.seatInfo,
+      });
+      const seatedPlayers = ft.seatForReturner
+        ? ft.players.map(p => p.id === playerId
+            ? { ...p, seated: true, tableAssignment: ft.seatForReturner ?? undefined }
+            : p)
+        : ft.players;
+
       playerReturnUndoRef.current = {
         label: `${player.name} — rebuy #${(player.rebuys || 0) + 1}`,
         previous: prev.players,
-        resulting: updatedPlayers,
+        resulting: seatedPlayers,
       };
 
-      const newState = { ...prev, players: updatedPlayers };
+      const newState = {
+        ...prev,
+        players: seatedPlayers,
+        isFinalTable: ft.isFinalTable,
+        preFinalTableSeating: ft.preFinalTableSeating,
+      };
       broadcastTournamentAction('player_rebuy', newState);
       return newState;
     });
@@ -2093,18 +2132,29 @@ export function useTournament(tournamentId?: string) {
       // seats, so the tournament is plainly not at its final table any more —
       // and their own chair, which seatToReclaim just returned, is on a table
       // everyone else was moved off.
-      const seatsPerTable = prev.settings.tables?.seatsPerTable || 6;
-      const overflows = outgrowsFinalTable(activePlayerCount(finalPlayers), seatsPerTable);
-      const unwind = prev.isFinalTable && overflows;
+      // Through the shared rule now, not a second copy of it. This site is where
+      // the behaviour was WRITTEN — and it stayed here alone, so a rebuy during a
+      // final table left a player sitting on his own at table 2. Leaving the
+      // inline version behind is exactly the drift moving it exists to prevent.
+      const ft = finalTableAfterReturn(finalPlayers, {
+        isFinalTable: prev.isFinalTable,
+        preFinalTableSeating: prev.preFinalTableSeating,
+        seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
+        returningId: playerToRestore.id,
+        reclaimSeat: playerToRestore.seatInfo,
+      });
+      const seatedPlayers = ft.seatForReturner
+        ? ft.players.map(p => p.id === playerToRestore.id
+            ? { ...p, seated: true, tableAssignment: ft.seatForReturner ?? undefined }
+            : p)
+        : ft.players;
 
-      const newState = unwind
-        ? {
-            ...prev,
-            players: restoreSeating(finalPlayers, prev.preFinalTableSeating),
-            isFinalTable: false,
-            preFinalTableSeating: undefined,
-          }
-        : { ...prev, players: finalPlayers };
+      const newState = {
+        ...prev,
+        players: seatedPlayers,
+        isFinalTable: ft.isFinalTable,
+        preFinalTableSeating: ft.preFinalTableSeating,
+      };
 
       // Broadcast undo bustout action to all connected clients
       broadcastTournamentAction('undo_bustout', newState);
