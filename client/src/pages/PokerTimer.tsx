@@ -23,6 +23,9 @@ import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
 import FinalTablePrompt from '@/components/FinalTablePrompt';
 import RebuyOffer from '@/components/RebuyOffer';
+import DirectorOnly from '@/components/DirectorOnly';
+import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
+import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import { useRebuyOffer } from '@/hooks/useRebuyOffer';
 import BlindLevelsSection from '@/components/BlindLevelsSection';
 import BuyInSection from '@/components/BuyInSection';
@@ -1236,13 +1239,26 @@ function PokerTimerInner({
             while that one tab was on screen. A director busting players out
             from the Players tab, which is where the roster is, was never asked
             about the final table at all. It renders nothing until the question
-            is due. */}
-        <RebuyOffer tournament={tournament} offer={rebuyOffer} />
-        <FinalTablePrompt
-          tournament={tournament}
-          onOpenChange={setFinalTablePromptOpen}
-          standDown={rebuyOfferOpen}
-        />
+            is due.
+
+            NOT MOUNTED ON A READ-ONLY CONSOLE, and that is the sharpest half of
+            this. Both open off a predicate over `state.players`, which on a
+            device that is not driving arrives BY SNAPSHOT from the one that is —
+            so a second console did not merely accept presses, it interrupted
+            whoever was holding it with a dialog asking them to decide something
+            about a bust-out that happened on somebody else's screen. The
+            uneven-tables prompt went the same way for free: it lives inside
+            TablesSection, which a read-only console no longer renders. */}
+        {!readOnlyConsole && (
+          <>
+            <RebuyOffer tournament={tournament} offer={rebuyOffer} />
+            <FinalTablePrompt
+              tournament={tournament}
+              onOpenChange={setFinalTablePromptOpen}
+              standDown={rebuyOfferOpen}
+            />
+          </>
+        )}
 
 
 
@@ -1259,7 +1275,7 @@ function PokerTimerInner({
 
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
-          <TournamentInfoCard tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} otherLiveGame={accountLiveGame} />
+          <TournamentInfoCard readOnly={readOnlyConsole} tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} otherLiveGame={accountLiveGame} />
         </div>
 
         {/* Directly beneath the card that holds the mode slider, so flipping it
@@ -1275,6 +1291,7 @@ function PokerTimerInner({
                 league's business and it is not rendered in the setup card
                 below, so it still exists exactly once. */}
             <LeagueSection
+              readOnly={readOnlyConsole}
               tournament={tournament}
               nextGame={<NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
             />
@@ -1402,7 +1419,7 @@ function PokerTimerInner({
             how a live game was overwritten once already. The offer only appears
             where the saved game has NO players and this device's copy is of the
             same game. */}
-        {recoverable && (
+        {recoverable && !readOnlyConsole && (
           <div className="mb-6 rounded-xl border border-primary/30 bg-primary/[0.08] p-4 flex items-start gap-3">
             <History className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
             <div className="flex-1 text-body text-foreground/90">
@@ -1450,7 +1467,7 @@ function PokerTimerInner({
                 <TournamentHistoryDialog />
                 {/* Standalone only — a league game's copy lives in the league
                     panel above. One mount either way. */}
-                {!isLeagueMode && <NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
+                {!isLeagueMode && !readOnlyConsole && <NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
               </div>
             </div>
             <div className="relative">
@@ -1486,11 +1503,27 @@ function PokerTimerInner({
               </TabsList>
             </div>
 
+            {/* The read-only console gets the VIEWER, not the editor disabled.
+                PlayerSectionReadOnly already exists for the participant view and
+                the console's `tournament` carries the shape it declares, so the
+                roster still reads correctly on a second screen while offering
+                no KO, no rebuy, no chip edit and no way to add anybody. */}
             <TabsContent value="players" className="mt-0 p-4 pt-5">
-              <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} />
+              <DirectorOnly
+                readOnly={readOnlyConsole}
+                instead={<PlayerSectionReadOnly tournament={tournament} />}
+              >
+                <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} />
+              </DirectorOnly>
             </TabsContent>
 
+            {/* The four tabs below exist only to edit, so they carry the bare
+                notice. The TRIGGERS stay: a tab row that changes shape between
+                the two devices is the bug already fixed once when the League tab
+                came and went, and on a phone TabsList is a four-column grid, so
+                dropping two would reflow it. */}
             <TabsContent value="buyins" className="mt-0 p-4 pt-5">
+              <DirectorOnly readOnly={readOnlyConsole}>
               <BuyInSection
                 tournament={tournament}
                 templateActions={
@@ -1504,26 +1537,43 @@ function PokerTimerInner({
                   />
                 }
               />
+              </DirectorOnly>
             </TabsContent>
 
             <TabsContent value="levels" className="mt-0 p-4 pt-5">
-              <BlindLevelsSection tournament={tournament} />
+              <DirectorOnly readOnly={readOnlyConsole}>
+                <BlindLevelsSection tournament={tournament} />
+              </DirectorOnly>
             </TabsContent>
 
+            {/* Same swap, and it takes the uneven-tables prompt with it: that
+                dialog lives inside TablesSection, so not rendering the editor
+                removes the third bust-out question without a gate anywhere. */}
             <TabsContent value="tables" className="mt-0 p-4 pt-5">
-              <TablesSection
-                tournament={tournament}
-                finalTablePromptOpen={finalTablePromptOpen || rebuyOfferOpen}
-                failsafeFor={rebuyOffer.failsafeFor}
-              />
+              <DirectorOnly
+                readOnly={readOnlyConsole}
+                instead={<TablesSectionReadOnly tournament={tournament} />}
+              >
+                <TablesSection
+                  tournament={tournament}
+                  finalTablePromptOpen={finalTablePromptOpen || rebuyOfferOpen}
+                  failsafeFor={rebuyOffer.failsafeFor}
+                />
+              </DirectorOnly>
             </TabsContent>
 
+            {/* Share is in this list because Go Live PUBLISHES the game, which
+                is a change to it like any other. */}
             <TabsContent value="qr" className="mt-0 p-4 pt-5">
-              <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} syncBlocked={syncBlocked || preflightFailed || unreadTournament} />
+              <DirectorOnly readOnly={readOnlyConsole}>
+                <QRCodeSection tournament={tournament} dbTournamentId={dbTournamentId} onGoLive={setDbTournamentId} syncBlocked={syncBlocked || preflightFailed || unreadTournament} />
+              </DirectorOnly>
             </TabsContent>
 
             <TabsContent value="settings" className="mt-0 p-4 pt-5">
-              <SettingsSection tournament={tournament} />
+              <DirectorOnly readOnly={readOnlyConsole}>
+                <SettingsSection tournament={tournament} />
+              </DirectorOnly>
             </TabsContent>
           </Tabs>
         </Card>

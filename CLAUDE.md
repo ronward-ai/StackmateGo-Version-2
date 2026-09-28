@@ -440,7 +440,7 @@ would re-record the whole night. `recordResultByName`'s dedupe is cloud-backed r
 and catches it, but the gate is there so it never has to.
 
 **The read-only console says so in three places, and the timer's transport is REPLACED rather than
-disabled.** An amber `Read-only` chip in the app bar (`lib/statusChip.ts` — it beats Broadcasting for
+disabled** — and since then so is every other control on the page; see the section below. An amber `Read-only` chip in the app bar (`lib/statusChip.ts` — it beats Broadcasting for
 the same reason a blocked browser does, and loses to one, because that is the fault a director can
 actually fix from this device), an amber banner reading *nothing you do here is being saved*, and a
 line where Start and Next were. A row of greyed buttons says "broken"; a line of text says what is
@@ -462,8 +462,11 @@ optimistically and must not have its own echo resurrect them — and wrong for o
 standing down.
 
 **The divergence was sticky.** They run on every snapshot, so a read-only console prodded once never
-healed, and the takeover then wrote the staleness over the real game. A read-only console is easy to
-prod: only the timer transport is replaced, while the Players tab, KO, rebuy and seating stay live.
+healed, and the takeover then wrote the staleness over the real game. A read-only console USED TO BE
+easy to prod — only the timer transport was replaced, while the Players tab, KO, rebuy and seating
+stayed live. It is not any more (see "A read-only console shows the game" below), which makes this much
+harder to reach; `shouldAdoptRemote` stays regardless, because a device that was DRIVING and then lost
+control still carries whatever it held, and that is the transition it was written for.
 
 `shouldAdoptRemote(previous, next)` is the fix, and **the exclusions are the whole design** — both
 would be worse than the bug it closes:
@@ -497,6 +500,64 @@ two devices on ONE account, which is the common case.
 their phone opening a laptop and starting a SECOND game 5. Two devices minting two `localGameId`s
 make two DOCUMENTS, and a lock on one document says nothing about the other. The lock keeps two
 consoles off one game; the section below is what stops them being put on two.
+
+### A read-only console shows the game, it does not offer to change it
+
+`components/DirectorOnly.tsx`, and the rule is **not mounted, not disabled**.
+
+The second device used to render the whole editor and let `lib/liveGameWrite.ts` skip the writes. So
+the screen responded to every press and nothing happened, under a banner saying nothing was being
+saved. Reported twice as crazy confusing, and fairly: an amber chip does not undo a button that looks
+like it works.
+
+**The prompts were the sharp end, and they were worse than "you can press things".** `RebuyOffer`,
+`FinalTablePrompt` and the uneven-tables dialog all open off a predicate over `state.players`, which on
+a device that is not driving arrives **by snapshot from the one that is**. None of the three had any
+control gate. So a second console did not merely accept input — it interrupted whoever was holding it
+with a dialog asking them to decide something about a bust-out that had happened on somebody else's
+screen, and their answer went nowhere.
+
+**Why non-mounting rather than disabling.** Disabling is a rule at every button, which is the "three
+places out of twelve is not a rule" trap this codebase has paid for twice — and the next person adding
+a control to the Buy-in tab has to remember. A control that is not rendered cannot be pressed and needs
+no discipline from future code. Same argument the tab structure already leans on: `TabsContent` has no
+`forceMount` anywhere, which is what makes putting something in one tab actually remove it from the
+others.
+
+**A single `inert` wrapper was considered and is not possible.** Take control, the read-only banner, Go
+home and the six `TabsTrigger`s are flat siblings of every mutating card inside `PokerTimer`'s one
+container, with no intermediate grouping element — so one inert region would take the way out with it.
+Do not add one without moving the banners first.
+
+What a read-only console shows, all decided in `PokerTimer`'s render:
+
+- **Players and Seating show the VIEWERS** — `PlayerSectionReadOnly` and `TablesSectionReadOnly`, which
+  already existed for the participant view. The console's `tournament` carries the shape they declare,
+  so it passes its own state in; the participant view needs its `tournamentForComponents` adapter only
+  because it holds a raw document. Swapping `TablesSection` out **removes the uneven-tables prompt for
+  free**, since that dialog lives inside it.
+- **Buy-in, Levels, Settings and Share carry one line of text.** Share is in that list because Go Live
+  publishes the game. **All six triggers stay** — a tab row that changes shape between the two devices
+  is the bug already fixed once when the League tab came and went, and on a phone `TabsList` is a
+  four-column grid.
+- **Gone:** the mode slider (`TournamentInfoCard`'s `readOnly` hides only that), Next Game and Manage
+  League (`LeagueSection` has had a `readOnly` prop all along that `PokerTimer` never passed), and the
+  local-mirror **restore banner**, which was found during the sweep rather than reported — its button
+  writes the roster, and a device that is not driving must not offer to restore a mirror over the real
+  game.
+- **Still live, deliberately:** Take control, the banners, Go home, the history dialog, tab switching,
+  the account menu, fullscreen, the standings, and the **Chop calculator** — a chop is arithmetic on
+  stacks typed into the dialog and changes nothing, so refusing it would cost a tool for no gain.
+
+A line of text, not greyed-out buttons, and **not amber**: nothing is broken and nothing is at risk —
+the game is being run properly, just not here. The chip and the banner carry that; `DirectorOnly` is
+only the hole where a control was.
+
+**Measured, not eyeballed**, through the devstub with control forced and a `git grep` marker (the patch
+that shipped once and made every console read-only is why the marker is not optional). Read-only: **0
+enabled buttons and 0 inputs on all six tabs**. Driving: Structure 15 buttons / 11 inputs, Levels 21 /
+36, Settings 12 / 3, Seating 4 / 2, and the slider back. The contrast is the proof; a screenshot is
+not, because a disabled-looking button and an absent one photograph the same.
 
 ### A snapshot must not revert a change this device has not had written yet
 

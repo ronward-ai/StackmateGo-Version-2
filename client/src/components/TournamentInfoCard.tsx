@@ -33,6 +33,16 @@ interface TournamentInfoCardProps {
   totalGames?: number;
   /** The account's live game when another device is running it — the guard. */
   otherLiveGame?: AccountLiveGame | null;
+  /**
+   * Another device is driving this game, so the MODE SLIDER is not rendered.
+   *
+   * Only the slider. Everything else on this card is a reading of the game —
+   * the prize pool, the payouts, the late-entry window, the winner — and a
+   * second screen exists to be read from. The Chop calculator stays too: it is
+   * arithmetic on stacks typed into the dialog and changes nothing about the
+   * tournament, so refusing it would cost a director a tool for no gain.
+   */
+  readOnly?: boolean;
 }
 
 type TournamentProp = TournamentInfoCardProps['tournament'];
@@ -223,7 +233,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
   );
 }
 
-export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, gameNumber: gameNumberProp, totalGames: totalGamesProp, otherLiveGame }: TournamentInfoCardProps) {
+export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, gameNumber: gameNumberProp, totalGames: totalGamesProp, otherLiveGame, readOnly = false }: TournamentInfoCardProps) {
   const { state } = tournament;
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
@@ -316,6 +326,10 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
 
             Outside the collapse on purpose — folding the body away must not take
             the mode control with it. */}
+        {/* Hidden rather than disabled on a read-only console: the slider decides
+            whether tonight is a league game, which is the last thing a device
+            that is not running it should be able to say. */}
+        {!readOnly && (
         <div className="mt-3">
           <TournamentModeToggle
             tournament={tournament}
@@ -326,6 +340,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
             otherLiveGame={otherLiveGame}
           />
         </div>
+        )}
 
         {isExpanded && (
           <div className="mt-4 space-y-3">

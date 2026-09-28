@@ -10,9 +10,14 @@ import { badgesFor } from '@/lib/playerBadges';
 interface Player {
   id: string;
   name: string;
-  knockouts: number;
-  seated: boolean;
-  isActive: boolean;
+  // Optional, to match the app's own Player. Declaring these REQUIRED only ever
+  // compiled because the participant view hands this component an adapter built
+  // from a raw Firestore document; the director console passes its real state.
+  // An absent `isActive` means ACTIVE, which every test below already spells as
+  // `!== false`.
+  knockouts?: number;
+  seated?: boolean;
+  isActive?: boolean;
   position?: number;
   prizeMoney?: number;
   rebuys?: number;
@@ -128,7 +133,7 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
                     <span className="font-medium">{player.name}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    {player.knockouts > 0 && (
+                    {(player.knockouts || 0) > 0 && (
                       <span className="text-red-400">{player.knockouts} KO{player.knockouts !== 1 ? 's' : ''}</span>
                     )}
                     {player.prizeMoney > 0 && (
