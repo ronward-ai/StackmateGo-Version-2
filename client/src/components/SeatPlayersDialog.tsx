@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { seatablePlayers, allSeated, planSeating } from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating, tablesNeededFor } from '@/lib/seating';
 import { Button } from "@/components/ui/button";
 import { buttonCombinations, getButtonVariant } from "@/lib/buttonUtils";
 import {
@@ -24,6 +24,14 @@ interface SeatPlayersDialogProps {
      the list described a seating the app was never going to perform. */
   numberOfTables: number;
   seatsPerTable: number;
+  /**
+   * Add tables and seat everyone, for the overflow offer.
+   *
+   * The dialog cannot do it itself: `numberOfTables` is state in `TablesSection`
+   * synced from settings by an effect, so a write made in the same tick reads the
+   * OLD count. The owner takes the new count explicitly.
+   */
+  onAddTables?: (tables: number, selected: Player[]) => void;
 }
 
 export default function SeatPlayersDialog({
@@ -33,6 +41,7 @@ export default function SeatPlayersDialog({
   onSeatPlayers,
   numberOfTables,
   seatsPerTable,
+  onAddTables,
 }: SeatPlayersDialogProps) {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [showOnlyUnseated, setShowOnlyUnseated] = useState(false);
@@ -207,7 +216,9 @@ export default function SeatPlayersDialog({
               });
               const low = Math.min(...perTable);
               const high = Math.max(...perTable);
-              const spread = low === high ? `${low} per table` : `${low}\u2013${high} per table`;
+              const spread = low === high ? `${low} per table` : `${low}–${high} per table`;
+              const needed = tablesNeededFor(selectedPlayers.length, seatsPerTable);
+              const extra = needed - numberOfTables;
               return (
                 <>
                   <div className="mt-1 text-xs text-blue-400">
@@ -216,12 +227,33 @@ export default function SeatPlayersDialog({
                       : `Will seat ${perTable.reduce((a, b) => a + b, 0)} players across ${perTable.length} tables (${spread})`}
                   </div>
                   {overflow > 0 && (
-                    /* Nothing said this before: the tables simply filled and the
-                       rest were left standing. */
-                    <div className="mt-1 text-xs text-amber-400">
-                      {overflow} {overflow === 1 ? 'player has' : 'players have'} nowhere to sit \u2014
-                      {' '}{numberOfTables} {numberOfTables === 1 ? 'table' : 'tables'} of {seatsPerTable}
-                      {' '}seats {numberOfTables * seatsPerTable === 1 ? 'holds' : 'hold'} {numberOfTables * seatsPerTable}.
+                    /* A PANEL, not a 12px line under a count — this was missed at
+                       the busiest moment of the night, and the em-dash was written
+                       as a \u escape in a JSX TEXT node, where it is not an escape:
+                       it printed the seven characters on screen.
+
+                       It warns and never refuses, the call lateEntryClosedReason
+                       makes: seating 16 of 17 while you find another table is a
+                       perfectly reasonable thing to want. */
+                    <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+                      <p className="text-label text-amber-300">
+                        {overflow} {overflow === 1 ? 'player has' : 'players have'} nowhere to sit
+                      </p>
+                      <p className="text-caption text-amber-200/80">
+                        {numberOfTables} {numberOfTables === 1 ? 'table' : 'tables'} of {seatsPerTable}
+                        {' '}{seatsPerTable === 1 ? 'seat' : 'seats'} {numberOfTables === 1 ? 'holds' : 'hold'}
+                        {' '}{numberOfTables * seatsPerTable}. Seat them anyway and the rest stay unseated.
+                      </p>
+                      {onAddTables && extra > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => { onAddTables(needed, getSelectedPlayerObjects()); onClose(); }}
+                        >
+                          Add {extra === 1 ? 'a table' : `${extra} tables`} and seat everyone
+                        </Button>
+                      )}
                     </div>
                   )}
                 </>
@@ -239,7 +271,15 @@ export default function SeatPlayersDialog({
             disabled={selectedPlayers.length === 0}
             className="mt-2"
           >
-            {redrawOnly ? 'Randomize Selected' : 'Seat Selected Players'}
+            {(() => {
+              // The number, at the moment the button is pressed. "Seat 16 of 17"
+              // is the one place a director cannot miss it.
+              if (redrawOnly) return 'Randomize Selected';
+              const { overflow } = planSeating(selectedPlayers.length, { numberOfTables, seatsPerTable });
+              return overflow > 0
+                ? `Seat ${selectedPlayers.length - overflow} of ${selectedPlayers.length}`
+                : 'Seat Selected Players';
+            })()}
           </Button>
         </DialogFooter>
       </DialogContent>

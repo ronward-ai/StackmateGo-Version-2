@@ -13,6 +13,7 @@ import EmptyState from '@/components/ui/empty-state';
 import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
 import { badgesFor, badgeText } from '@/lib/playerBadges';
 import { addOnsOpen, lateEntryClosedReason } from '@/lib/entryLimits';
+import { planSeating, assignSeats, tablesNeededFor, tableNamesFor } from '@/lib/seating';
 import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
@@ -101,6 +102,10 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     (state.settings as any)?.isSeasonTournament === true;
 
   // KO dialog state
+  /** How many will not fit, when Seat Players has been pressed on too big a
+   *  field. Null means no question is up — the count rather than a boolean
+   *  because the dialog states it. */
+  const [seatOverflow, setSeatOverflow] = useState<number | null>(null);
   const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
   const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
   const [hitmanId, setHitmanId] = useState<string | null>(null);
@@ -319,50 +324,86 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   };
 
 
-  // Seat Players — reseats ALL active players from scratch each time.
-  // Uses the minimum number of tables needed so no table exceeds seatsPerTable.
-  // e.g. 6 players, 8-seat tables → 1 table (all together)
-  //      10 players, 8-seat tables → 2 tables (5 + 5)
-  //      18 players, 8-seat tables → 3 tables (6 + 6 + 6)
-  const seatAllPlayers = () => {
-    const { updatePlayers } = tournament;
-    const currentPlayers = [...state.players];
-    const tables = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
-    const { numberOfTables, seatsPerTable = 9 } = tables;
+  /**
+   * Seat Players — reseats every active player from scratch.
+   *
+   * **This used to be a second seater with its own arithmetic, and that is what
+   * the reported bug was.** It worked out `tablesNeeded` as
+   * `min(ceil(field / seatsPerTable), numberOfTables)` and then divided the whole
+   * field across that cap **without ever consulting `seatsPerTable` again** — so
+   * 17 players on 2 tables of 8 gave `base = 8, extra = 1` and table one was
+   * handed NINE chairs, seat indexes 0 to 8. The grid draws eight, so the ninth
+   * player was a ghost: seated, invisible, no KO button, and the header read
+   * `9/8 seated · -1 empty`, which was a faithful rendering of it.
+   *
+   * It does not mint chairs any more, because it does not do the arithmetic any
+   * more: `planSeating` and `assignSeats` are the one derivation, shared with the
+   * Seating tab's dialog. Two seaters disagreeing about how many chairs a table
+   * has is the same fault as two answers to "which document is the console
+   * driving" — and this one reached a director.
+   *
+   * When the field will not fit it ASKS rather than seating 16 of 17 quietly.
+   */
+  const seatsForAll = () => {
+    const { numberOfTables, seatsPerTable = 9 } =
+      state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
+    const activePlayers = state.players.filter(p => p.isActive !== false);
+    return { activePlayers, numberOfTables, seatsPerTable };
+  };
 
-    const activePlayers = currentPlayers.filter(p => p.isActive !== false);
+  /** Hand out the chairs, leaving anyone who does not fit honestly unseated. */
+  const applySeating = (tableCount: number) => {
+    const { updatePlayers } = tournament;
+    const { activePlayers, seatsPerTable } = seatsForAll();
     if (activePlayers.length === 0) return;
 
-    const totalN = activePlayers.length;
+    const cfg = { numberOfTables: tableCount, seatsPerTable };
+    const plan = planSeating(activePlayers.length, cfg);
+    // Every active player is being reseated, so no chair is held by anyone else.
+    const seats = assignSeats(activePlayers.length, new Set<string>(), plan, cfg);
+    const shuffled = [...seats].sort(() => Math.random() - 0.5);
 
-    // Minimum tables needed so no table exceeds seatsPerTable, capped at configured tables
-    const tablesNeeded = Math.min(Math.max(1, Math.ceil(totalN / seatsPerTable)), numberOfTables);
-    const base  = Math.floor(totalN / tablesNeeded);
-    const extra = totalN % tablesNeeded; // first 'extra' tables get base+1 players
-
-    // Build seat list distributed evenly across tablesNeeded tables
-    const seats: { tableIndex: number; seatIndex: number }[] = [];
-    for (let t = 0; t < tablesNeeded; t++) {
-      const count = t < extra ? base + 1 : base;
-      for (let s = 0; s < count; s++) {
-        seats.push({ tableIndex: t, seatIndex: s });
-      }
-    }
-
-    // Fisher-Yates shuffle for random assignment
-    for (let i = seats.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [seats[i], seats[j]] = [seats[j], seats[i]];
-    }
-
-    // Reseat all active players; leave eliminated players untouched
-    const updatedPlayers = currentPlayers.map(p => {
+    updatePlayers(state.players.map(p => {
       if (p.isActive === false) return p;
       const idx = activePlayers.findIndex(a => a.id === p.id);
-      return idx !== -1 ? { ...p, seated: true, tableAssignment: seats[idx] } : p;
-    });
+      const seat = idx === -1 ? undefined : shuffled[idx];
+      // A seat that does not exist is not a seat. Unseated is a state the whole
+      // app already understands; seat 8 of an 8-seat table is not.
+      return seat
+        ? { ...p, seated: true, tableAssignment: seat }
+        : { ...p, seated: false, tableAssignment: undefined };
+    }));
+  };
 
-    updatePlayers(updatedPlayers);
+  const seatAllPlayers = () => {
+    const { activePlayers, numberOfTables, seatsPerTable } = seatsForAll();
+    if (activePlayers.length === 0) return;
+    const { overflow } = planSeating(activePlayers.length, { numberOfTables, seatsPerTable });
+    // Warn and never refuse — the same call lateEntryClosedReason makes. The
+    // director is the one standing there, and seating most of the field is a
+    // legitimate thing to want.
+    if (overflow > 0) { setSeatOverflow(overflow); return; }
+    applySeating(numberOfTables);
+  };
+
+  /** Add the tables the field actually needs, then seat everybody.
+   *
+   *  The count is passed through explicitly rather than read back from state:
+   *  `updateSettings` is asynchronous as far as this tick is concerned, so
+   *  `applySeating()` reading `state.settings` would use the OLD table count —
+   *  the same trap the Seating tab's own "Add a table" had to avoid. */
+  const addTablesAndSeat = () => {
+    const { activePlayers, seatsPerTable } = seatsForAll();
+    const needed = tablesNeededFor(activePlayers.length, seatsPerTable);
+    tournament.updateSettings({
+      tables: {
+        numberOfTables: needed,
+        seatsPerTable,
+        tableNames: tableNamesFor(state.settings.tables?.tableNames, needed),
+      },
+    });
+    setSeatOverflow(null);
+    applySeating(needed);
   };
 
   // Seat a single late-entry player — emptiest table first, random seat within that table.
@@ -566,6 +607,14 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
   // Calculate active players
   const activePlayers = state.players.filter(p => p.isActive);
+
+  /** The table configuration, spelled once for the overflow dialog. Same
+   *  fallback as the seater, which is the point of having it here. */
+  const tablesConfigured = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
+  /** Who the seater will actually try to seat. `isActive !== false`, not
+   *  `isActive`, because an absent flag means active everywhere in this app —
+   *  and the dialog must count the same heads the seating does. */
+  const seatableCount = state.players.filter(p => p.isActive !== false).length;
 
   // Check if tournament is finished (all players eliminated OR only one active player remaining)
   const eliminatedPlayers = state.players.filter(p => p.isActive === false);
@@ -778,6 +827,52 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
             </Button>
           </div>
         )}
+
+        {/* MORE PLAYERS THAN SEATS.
+            The warning the director asked for, and it warns rather than refusing
+            — the call lateEntryClosedReason already makes for someone walking in
+            late. Seating most of a field is a legitimate thing to want; minting a
+            ninth chair at an eight-seat table, which is what this replaced, is
+            not. The offer to add tables works the count out itself, because
+            "how many more do I need" is the arithmetic a director does in their
+            head at the busiest moment of the night. */}
+        <AlertDialog open={seatOverflow !== null} onOpenChange={o => { if (!o) setSeatOverflow(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>More players than seats</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm">
+                  <p>
+                    {seatableCount} players, and {tablesConfigured.numberOfTables}
+                    {tablesConfigured.numberOfTables === 1 ? ' table of ' : ' tables of '}
+                    {tablesConfigured.seatsPerTable} seats
+                    {' '}— {tablesConfigured.numberOfTables * tablesConfigured.seatsPerTable} in all.
+                  </p>
+                  <p className="text-muted-foreground">
+                    {seatOverflow === 1
+                      ? 'One player will be left unseated.'
+                      : `${seatOverflow} players will be left unseated.`}
+                    {' '}They stay in the tournament and can be seated by hand from the Seating tab.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <Button
+                variant="outline"
+                onClick={addTablesAndSeat}
+              >
+                Use {tablesNeededFor(seatableCount, tablesConfigured.seatsPerTable)} tables and seat everyone
+              </Button>
+              <AlertDialogAction
+                onClick={() => { const n = tablesConfigured.numberOfTables; setSeatOverflow(null); applySeating(n); }}
+              >
+                Seat {seatableCount - (seatOverflow || 0)} of {seatableCount}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Players List with Rankings - Mobile Optimized */}
         <div className="space-y-2">

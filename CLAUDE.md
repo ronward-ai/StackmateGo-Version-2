@@ -1895,6 +1895,75 @@ Worth knowing for the next harness: the add-player field uses **`onKeyPress`**, 
 synthetic `keydown` never adds anybody — click the Add button. And the dialog's Select All is a
 shadcn `Checkbox` with `id="select-all"`, not a `<button>` with text.
 
+### Nobody gets a seat that does not exist, and there were TWO seaters handing them out
+
+Reported from a real game: 17 players, press **Seat Players**, and 16 are seated with Table 1's
+header reading `9/8 seated · -1 empty`.
+
+**A display bug it is not.** A ninth player really was on an eight-seat table, at `seatIndex: 8` —
+`seated: true`, drawn nowhere, with no KO button and unreachable by Move mode. A ghost. The header
+was a faithful rendering of corrupt data, and `-1 empty` is how the director found out at all.
+
+**There were two seaters, with different arithmetic, and only one of them was the one that bit.**
+That is the fault, not either bug:
+
+- `TablesSection`'s `seatPlayersManually` called `planSeating`, which correctly answers
+  `{ perTable: [8, 8], overflow: 1 }` — and **used only `perTable`, throwing `overflow` away**. The
+  seat list held 16 entries for 17 players and a never-crash fallback,
+  `shuffledSeats[i] || { tableIndex: 0, seatIndex: i }`, **fabricated** the seventeenth chair from
+  the array index.
+- `PlayerSection`'s `seatAllPlayers` — the button on the Players tab, which is the one a director
+  presses **having just added the players** — did the whole thing itself. It worked out
+  `tablesNeeded = min(ceil(field / seatsPerTable), numberOfTables)` and then divided the field across
+  that cap **without consulting `seatsPerTable` again**: `base = 8, extra = 1`, so table one was
+  handed NINE chairs, seat indexes 0 to 8. No fallback needed — it minted the chair directly.
+
+Two components, two answers to "how many chairs does a table have", and the app's own `planSeating`
+consulted properly by neither. The same shape as `consoleTournamentId()` and the rake formula: one
+fact deriving itself twice.
+
+**`lib/seating.ts`'s `assignSeats(count, occupied, plan, cfg)` is the one derivation now**, and both
+seaters call it. It returns only chairs that EXIST; the caller leaves anyone it could not place
+`seated: false, tableAssignment: undefined` — a state the whole app already understands, unlike a
+seat that is not there. **The extraction is the fix rather than tidying**: the defect lived inline in
+two components, neither exported and neither testable, which is the argument `lib/tableBalance.ts`
+was pulled out on.
+
+**It heals a game already in that state.** A player at a seat index beyond `seatsPerTable` is not
+treated as holding a chair, so the next Seat Players frees the ghost. Nothing is migrated — the
+`payoutsOf()` trade.
+
+**The count is clamped in the header too**, `Math.max(0, seatsPerTable - tablePlayers.length)`. Belt
+as well as braces: nothing new can go negative, but a game seated before this shipped still carries
+the ghost. `9/8` is left honest rather than hidden — a table genuinely over capacity should say so.
+
+**It warns and never refuses**, the call `lateEntryClosedReason()` already makes. Seating most of a
+field is a legitimate thing to want and the director is the one standing there; what is not
+legitimate is doing it silently, which is what "16 of 17 and one ghost" was. Both entry points now
+put the same three choices up — Cancel, **Use N tables and seat everyone**, and a confirm that says
+what it will do (**Seat 16 of 17**) so the number is in front of the director as they press it.
+`tablesNeededFor(count, seatsPerTable)` works the count out, clamped to the Tables field's own
+maximum of 20, because offering a count the input would refuse is worse than offering none.
+
+**The Seating tab's warning already existed and was unreadable.** It carried a literal `\u2013` in a
+JSX **text node**, where it is not an escape — so it printed those six characters on screen. That is
+most of why a warning that was there read as the app being broken.
+
+**Two traps in the "add tables" button, both real.** `numberOfTables` is `useState` synced from
+settings by an effect and `updateSettings` does not reach it in the same tick, so **the new count is
+passed explicitly** to the seating and to `saveTableConfig` rather than read back from state. And
+the Tables input keeps its own draft string, so `setTablesDraft` has to move with it or the field
+shows the stale number.
+
+`tableNamesFor(existing, n)` is in the lib for the same one-derivation reason: **two places add a
+table now**, and a second spelling of `Table {n}` is how one table ends up named and another not.
+
+Verified by driving the reported sequence in the devstub and reading the MIRROR, not the picture —
+a ghost at seat 8 and a correctly unseated player look identical on the grid, which is how this
+survived. Before: `perTable [9, 8], maxSeat 8`. After, both entry points: the prompt, then
+`[8, 8], maxSeat 7`, one honestly unseated — or **Use 3 tables**, giving `[6, 6, 5]`, all 17 seated,
+no duplicate chair and nothing out of range.
+
 ### What kind of game it is, is decided before the first hand
 
 The Standalone ↔ League slider was live for the whole game, and that was not cosmetic. League result
@@ -2751,7 +2820,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `imageDownscale.ts` | Bounding an uploaded logo before it is stored. |
 | `playerBadges.ts` | The chips beside a player's name. |
 | `pointsBands.ts` / `pointsBonuses.ts` / `pointsPresets.ts` | Points per place, the two bonuses, and the ready-made schemes. |
-| `seating.ts` | Whether a returning player's chair is still free. |
+| `seating.ts` | Whether a returning player's chair is still free, and which chairs a seating hands out — only ones that exist. |
 | `tournamentDocument.ts` | The single creation path for a tournament document. |
 | `seatClaims.ts` | Who has checked in as whom — `claims`, a top-level map, playerId to device id. |
 | `formulaEval.ts` | A custom points formula, evaluated without ever handing the string to a JS engine. |

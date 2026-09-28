@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { mostRecentlyBusted } from '@/lib/eliminationOrder';
-import { seatablePlayers, allSeated, planSeating } from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating, assignSeats, tablesNeededFor, tableNamesFor} from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
@@ -209,7 +209,10 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     const grow = <T,>(prev: T[], fill: (i: number) => T) => n > prev.length
       ? [...prev, ...Array.from({ length: n - prev.length }, (_, i) => fill(prev.length + i))]
       : prev.slice(0, n);
-    const names = grow(tableNames, i => `Table ${i + 1}`);
+    // The names come from lib/seating.ts, because the Players tab's own
+    // "add a table" offer grows them too and a second spelling of `Table {n}`
+    // is how one table ends up named and another not.
+    const names = tableNamesFor(tableNames, n);
     setTableNames(names);
     setTableBackgrounds(prev => grow(prev, () => 'felt-green'));
     return names;
@@ -242,7 +245,12 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     saveTableConfig(numberOfTables, seatsPerTable, updated);
   };
 
-  const seatPlayersManually = (chosen: Player[]) => {
+  const seatPlayersManually = (chosen: Player[], tablesOverride?: number) => {
+    // Taken explicitly, never read from state, for the "Add a table" path:
+    // `numberOfTables` is synced from settings by an effect, so a call made in
+    // the same tick as the settings write reads the OLD count and seats into
+    // tables that do not exist yet.
+    const tableCount = tablesOverride ?? numberOfTables;
     // The SECOND gate, and not redundant: a check in the dialog alone is walked
     // around by the next caller, which is why `attemptAddPlayer` is the single
     // route for adding a player. A busted player has no seat.
@@ -252,44 +260,32 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     const occupied = new Set<string>();
     current.forEach(p => {
       if (p.seated && p.tableAssignment && !ids.has(p.id)) {
+        // A seat index beyond the table does not hold a chair — it is the ghost
+        // this fix ends, and ignoring it here is what frees one in a game that
+        // already has it. See assignSeats in lib/seating.ts.
+        if (p.tableAssignment.seatIndex >= seatsPerTable) return;
         occupied.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
       }
     });
 
     const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
-    const seats: { tableIndex: number; seatIndex: number }[] = [];
 
     // How many land on each table comes from lib/seating.ts, the same function
     // the dialog's summary renders from, so the sentence a director reads and
-    // the seating they then get cannot disagree. Which SEAT each player takes
-    // stays here, because that depends on which chairs are already occupied by
-    // players outside this selection.
-    const plan = planSeating(shuffled.length, { numberOfTables, seatsPerTable });
+    // the seating they then get cannot disagree. WHICH chairs is `assignSeats`,
+    // also there, because it depends on the seats players outside this selection
+    // are holding — and because the fault it fixes had no test while it sat here.
+    const plan = planSeating(shuffled.length, { numberOfTables: tableCount, seatsPerTable });
+    const seats = assignSeats(shuffled.length, occupied, plan, { numberOfTables: tableCount, seatsPerTable });
 
-    if (plan.perTable.length <= 1) {
-      for (let s = 0; s < seatsPerTable && seats.length < shuffled.length; s++) {
-        if (!occupied.has(`0-${s}`)) seats.push({ tableIndex: 0, seatIndex: s });
-      }
-      if (seats.length < shuffled.length) {
-        for (let t = 0; t < numberOfTables && seats.length < shuffled.length; t++) {
-          for (let s = 0; s < seatsPerTable && seats.length < shuffled.length; s++) {
-            if (!occupied.has(`${t}-${s}`)) seats.push({ tableIndex: t, seatIndex: s });
-          }
-        }
-      }
-    } else {
-      let pi = 0;
-      for (let t = 0; t < numberOfTables && pi < shuffled.length; t++) {
-        const need = plan.perTable[t] ?? 0;
-        let got = 0;
-        for (let s = 0; s < seatsPerTable && got < need && pi < shuffled.length; s++) {
-          if (!occupied.has(`${t}-${s}`)) { seats.push({ tableIndex: t, seatIndex: s }); got++; pi++; }
-        }
-      }
-    }
-
-    const shuffledSeats = seats.sort(() => Math.random() - 0.5);
-    const nowSeated = shuffled.map((p, i) => ({ ...p, seated: true, tableAssignment: shuffledSeats[i] || { tableIndex: 0, seatIndex: i } }));
+    const shuffledSeats = [...seats].sort(() => Math.random() - 0.5);
+    // Anyone there was no chair for stays UNSEATED. This used to fall back to
+    // `{ tableIndex: 0, seatIndex: i }`, which invented a seat that does not
+    // exist: the player was marked seated, drawn nowhere, and could not be
+    // knocked out or moved. Unseated is a state the app already understands.
+    const nowSeated = shuffled.map((p, i) => shuffledSeats[i]
+      ? { ...p, seated: true, tableAssignment: shuffledSeats[i] }
+      : { ...p, seated: false, tableAssignment: undefined });
     updatePlayers(current.map(p => ids.has(p.id) ? (nowSeated.find(s => s.id === p.id) || p) : p));
   };
 
@@ -619,7 +615,12 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                   {/* Occupancy bar */}
                   <div className="flex items-center justify-between text-xs mb-3 text-white/60">
                     <span>{tablePlayers.length}/{seatsPerTable} seated</span>
-                    <span>{seatsPerTable - tablePlayers.length} empty</span>
+                    {/* Clamped: a game seated BEFORE the fabrication was fixed
+                        still carries a ghost at an out-of-range seat, and
+                        `-1 empty` is how this was found in the first place. The
+                        `9/8` above is left honest — a table genuinely over
+                        capacity should say so rather than hide it. */}
+                    <span>{Math.max(0, seatsPerTable - tablePlayers.length)} empty</span>
                   </div>
 
                   {/* Seats */}
@@ -816,6 +817,14 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
         onSeatPlayers={seatPlayersManually}
         numberOfTables={numberOfTables}
         seatsPerTable={seatsPerTable}
+        onAddTables={(tables, selected) => {
+          // The draft too, or the Tables field keeps showing the old number.
+          setNumberOfTables(tables);
+          setTablesDraft(String(tables));
+          saveTableConfig(tables, seatsPerTable, expandTableNames(tables));
+          // The new count explicitly — see seatPlayersManually.
+          seatPlayersManually(selected, tables);
+        }}
       />
 
       {/* Bust Out Dialog */}

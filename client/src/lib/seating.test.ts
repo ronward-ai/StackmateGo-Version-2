@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt } from './seating';
+import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt, assignSeats, tablesNeededFor, tableNamesFor } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -167,5 +167,129 @@ describe('freeSeatAt', () => {
   it('does not let an ELIMINATED player hold a seat', () => {
     const out = [{ id: 'z', isActive: false, seated: true, tableAssignment: { tableIndex: 0, seatIndex: 0 } }] as any;
     expect(freeSeatAt(out, 0, 8)).toEqual({ tableIndex: 0, seatIndex: 0 });
+  });
+});
+
+/**
+ * THE REPORTED BUG: 17 players, 2 tables of 8, press Seat Players — 16 seated and
+ * Table 1 reading `9/8 seated · -1 empty`.
+ *
+ * The seater used `planSeating`'s `perTable` and threw `overflow` away, then fell
+ * back to `{ tableIndex: 0, seatIndex: i }` for anyone left over — FABRICATING
+ * seat 16 on a table with eight chairs. The player was `seated: true`, drawn
+ * nowhere, and could not be knocked out or moved.
+ *
+ * This lived inline in a component and could not be tested. That is why it moved.
+ */
+describe('assignSeats', () => {
+  const cfg = { numberOfTables: 2, seatsPerTable: 8 };
+  const none = new Set<string>();
+
+  it('hands out only seats that EXIST — the reported game', () => {
+    const plan = planSeating(17, cfg);
+    const seats = assignSeats(17, none, plan, cfg);
+
+    expect(seats).toHaveLength(16);
+    // The assertion the bug would fail: no chair beyond the table.
+    expect(seats.every(s => s.seatIndex < cfg.seatsPerTable)).toBe(true);
+    expect(seats.every(s => s.tableIndex < cfg.numberOfTables)).toBe(true);
+  });
+
+  it('never returns the same chair twice', () => {
+    const plan = planSeating(16, cfg);
+    const seats = assignSeats(16, none, plan, cfg);
+    const keys = new Set(seats.map(s => `${s.tableIndex}-${s.seatIndex}`));
+    expect(keys.size).toBe(16);
+  });
+
+  it('seats everybody when they fit', () => {
+    const plan = planSeating(12, cfg);
+    expect(assignSeats(12, none, plan, cfg)).toHaveLength(12);
+  });
+
+  it('skips chairs held by players outside the selection', () => {
+    const taken = new Set(['0-0', '0-1', '1-0']);
+    const plan = planSeating(4, cfg);
+    const seats = assignSeats(4, taken, plan, cfg);
+    expect(seats.some(s => `${s.tableIndex}-${s.seatIndex}` === '0-0')).toBe(false);
+    expect(seats.some(s => `${s.tableIndex}-${s.seatIndex}` === '1-0')).toBe(false);
+    expect(seats.every(s => s.seatIndex < cfg.seatsPerTable)).toBe(true);
+  });
+
+  /** The one-table branch planSeating's own test protects. */
+  it('keeps everyone on one table when they fit on one', () => {
+    const plan = planSeating(6, cfg);
+    const seats = assignSeats(6, none, plan, cfg);
+    expect(seats.every(s => s.tableIndex === 0)).toBe(true);
+  });
+
+  it('spills to the next table when table one is occupied by others', () => {
+    const taken = new Set(Array.from({ length: 8 }, (_, i) => `0-${i}`));
+    const plan = planSeating(3, cfg);
+    const seats = assignSeats(3, taken, plan, cfg);
+    expect(seats).toHaveLength(3);
+    expect(seats.every(s => s.tableIndex === 1)).toBe(true);
+  });
+
+  /**
+   * The plan itself must not be trusted to bound the table.
+   *
+   * In the shipped code `plan.perTable[t]` happens to bound the inner loop, so a
+   * mutant widening `s < seatsEach` is invisible to every case above. That is a
+   * coincidence of how planSeating fills, not a guarantee — and the bug this
+   * function exists to end WAS a caller trusting a count it had not checked. A
+   * hostile plan asking for more than the table holds must still hand out only
+   * chairs that exist.
+   */
+  it('never exceeds the table even when the plan asks for more', () => {
+    const plan = { perTable: [20, 20], overflow: 0 };
+    const seats = assignSeats(40, none, plan, cfg);
+    expect(seats.every(s => s.seatIndex < cfg.seatsPerTable)).toBe(true);
+    expect(seats).toHaveLength(16);
+  });
+
+  it('gives out nothing for nobody, and survives nonsense configuration', () => {
+    expect(assignSeats(0, none, planSeating(0, cfg), cfg)).toEqual([]);
+    const silly = { numberOfTables: 0, seatsPerTable: 0 };
+    expect(assignSeats(4, none, planSeating(4, silly), silly).every(s => s.seatIndex < 1)).toBe(true);
+  });
+});
+
+/** For the "Add a table" offer, so the director does no arithmetic. */
+describe('tableNamesFor', () => {
+  it('grows, numbering from where the existing names stop', () => {
+    expect(tableNamesFor(['Table 1', 'The Kitchen'], 4)).toEqual(['Table 1', 'The Kitchen', 'Table 3', 'Table 4']);
+  });
+
+  it('trims without renaming what stays', () => {
+    expect(tableNamesFor(['The Kitchen', 'Table 2', 'Table 3'], 1)).toEqual(['The Kitchen']);
+  });
+
+  it('builds from nothing, and never returns none', () => {
+    expect(tableNamesFor(undefined, 3)).toEqual(['Table 1', 'Table 2', 'Table 3']);
+    expect(tableNamesFor([], 0)).toEqual(['Table 1']);
+  });
+});
+
+describe('tablesNeededFor', () => {
+  it('works out the reported case', () => {
+    expect(tablesNeededFor(17, 8)).toBe(3);
+  });
+
+  it('does not round up an exact fit', () => {
+    expect(tablesNeededFor(16, 8)).toBe(2);
+    expect(tablesNeededFor(8, 8)).toBe(1);
+  });
+
+  it('never offers fewer than one table, or more than the field accepts', () => {
+    expect(tablesNeededFor(0, 8)).toBe(1);
+    expect(tablesNeededFor(1, 8)).toBe(1);
+    // The Tables input caps at 20; offering a number it would refuse is worse
+    // than offering none.
+    expect(tablesNeededFor(500, 2)).toBe(20);
+  });
+
+  it('survives nonsense seats per table', () => {
+    expect(tablesNeededFor(10, 0)).toBe(10);
   });
 });
