@@ -33,9 +33,22 @@ interface FinalTablePromptProps {
    * first may remove the need for this question entirely.
    */
   standDown?: boolean;
+  /**
+   * This device is not driving the game.
+   *
+   * It stays MOUNTED while read-only rather than being left out, so that it can
+   * watch: a prompt that starts blind the moment control is taken opens on a
+   * condition it has never had the chance to answer, which is how taking control
+   * ambushed a director twice. While read-only it opens nothing and instead keeps
+   * the dismissal latched to the field size as it stands, so takeover is silent —
+   * and `dismissalIsStale` drops that latch the moment the field changes, which is
+   * what makes the next bust-out ask normally. Nothing is lost; you are just not
+   * asked the second you pick the device up.
+   */
+  readOnly?: boolean;
 }
 
-export default function FinalTablePrompt({ tournament, onOpenChange, standDown = false }: FinalTablePromptProps) {
+export default function FinalTablePrompt({ tournament, onOpenChange, standDown = false, readOnly = false }: FinalTablePromptProps) {
   const {
     state, shouldPromptForFinalTable, goToFinalTable,
   } = tournament;
@@ -73,14 +86,26 @@ export default function FinalTablePrompt({ tournament, onOpenChange, standDown =
     setDismissedAt(null);
   }, [dismissedAt, state.players, state.settings.tables?.seatsPerTable]);
 
+  // While another device drives, stay silent AND stay current: latch the
+  // dismissal to the field as it stands, so the instant control is taken there is
+  // nothing outstanding to open. Re-armed by dismissalIsStale above the moment the
+  // field changes.
   useEffect(() => {
+    if (!readOnly) return;
+    if (!shouldPromptForFinalTable()) return;
+    setDismissedAt(activeCount(state.players));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readOnly, shouldPromptForFinalTable, state.players]);
+
+  useEffect(() => {
+    if (readOnly) return;
     if (silenced) return;
     if (standDown) return;
     if (!shouldPromptForFinalTable()) return;
     if (promptDismissedFor(dismissedAt, state.players)) return;
     open(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldPromptForFinalTable, dismissedAt, silenced, standDown, state.players]);
+  }, [shouldPromptForFinalTable, dismissedAt, silenced, standDown, readOnly, state.players]);
 
   const justBusted = mostRecentlyBusted(state.players);
 

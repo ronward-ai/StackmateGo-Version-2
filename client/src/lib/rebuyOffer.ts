@@ -163,6 +163,40 @@ export function rememberedFailsafeKey(
   }
 }
 
+/**
+ * Every bust-out that has been ANSWERED, from the game record and from this
+ * console, as one set.
+ *
+ * WHY THIS IS SHARED, when the final-table dismissal deliberately is not:
+ *
+ * The answer used to live only in a ref on the device that gave it. So a
+ * director could bust a player out, press "No — they are out", take control on
+ * their phone, and be asked the identical question again — the phone had watched
+ * the bust-out arrive by snapshot and had never heard the answer. Reported from a
+ * real game.
+ *
+ * "Was this bust-out offered a rebuy" is a fact about how the night was run, not
+ * a preference about a question — which is the line the final-table dismissal
+ * sits on the other side of. And sharing it buys the thing nothing else could:
+ * the ability to tell **nobody answered** from **somebody said no**, so a
+ * director whose other device died mid-bust-out can still take that rebuy.
+ *
+ * **It only ever GROWS, and that is what makes it cheap.** A set that cannot
+ * shrink cannot be reverted by its own echo, so this needs none of
+ * `lib/pendingRoster.ts`'s machinery: a stale snapshot can only ever be a subset
+ * of the truth, and the union heals it on the next render. That is the whole
+ * difference between this field and `isFinalTable`, which needed a guard.
+ */
+export function answeredKeys(
+  remote: readonly string[] | null | undefined,
+  local: ReadonlySet<string> | null | undefined,
+): Set<string> {
+  const out = new Set<string>();
+  for (const k of remote || []) if (typeof k === 'string' && k) out.add(k);
+  for (const k of local || []) if (k) out.add(k);
+  return out;
+}
+
 /** Every bust-out currently on the roster, as offer keys. */
 export function bustedKeys(players: OfferablePlayer[] | null | undefined): string[] {
   return (players || [])

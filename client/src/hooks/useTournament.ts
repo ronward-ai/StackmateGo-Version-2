@@ -419,6 +419,12 @@ export function useTournament(tournamentId?: string) {
               // stored before the field existed still loads correctly — the same
               // read-side normalisation payoutsOf() and bandsOf() make.
               isFinalTable: tournamentData.isFinalTable === true,
+              // Read here as well as through the snapshot's spread, because THIS
+              // is the transform that hard-coded isFinalTable false and threw the
+              // last cross-device fix away. Absent means nothing answered yet.
+              rebuysAnswered: Array.isArray(tournamentData.rebuysAnswered)
+                ? tournamentData.rebuysAnswered
+                : [],
               details: {
                 type: 'database',
                 id: tournamentId,

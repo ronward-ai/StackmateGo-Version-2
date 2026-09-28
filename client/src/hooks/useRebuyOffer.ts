@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId,
-  failsafeMemory, rememberedFailsafeKey, type OfferablePlayer,
+  failsafeMemory, rememberedFailsafeKey, answeredKeys, type OfferablePlayer,
 } from '@/lib/rebuyOffer';
 import { mostRecentlyBusted } from '@/lib/eliminationOrder';
 
@@ -53,6 +53,22 @@ function writeFailsafe(value: string | null): void {
  */
 export function useRebuyOffer(
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>,
+  /**
+   * This device is not driving the game.
+   *
+   * **Passed in rather than derived here**, because `PokerTimer` already works it
+   * out and `useTournament` exposes `controllingDeviceId` raw on purpose — two
+   * answers to "may this device drive" could only disagree, which is the fault
+   * `consoleTournamentId()` exists to have fixed.
+   *
+   * TAKING CONTROL MUST NEVER POP THIS DIALOG. A device that was only watching
+   * did not witness the bust-out — it arrived by snapshot — so it has no standing
+   * to ask about it, and the rebuy moment has passed by the time anybody picks
+   * that device up. What it may still do is offer the FAILSAFE BUTTON for a
+   * bust-out nobody has answered, which is the dead-other-device case and is
+   * exactly what the shared answered set makes distinguishable.
+   */
+  readOnly: boolean = false,
 ) {
   const { state, processRebuy } = tournament;
 
@@ -68,6 +84,24 @@ export function useRebuyOffer(
    * treat every existing bust-out as fresh.
    */
   const seenRef = useRef<Set<string> | null>(null);
+  /**
+   * Bust-outs this device merely WATCHED, while another was driving.
+   *
+   * Deliberately a SECOND set rather than adding them to `seenRef`, and the
+   * distinction is load-bearing in both directions:
+   *
+   * - "I did not witness this" suppresses the DIALOG, because the rebuy moment
+   *   passed while somebody else was holding the game.
+   * - It must NOT count as ANSWERED, because the answered set is shared. Folding
+   *   these in would have this device write "answered" for a bust-out nobody
+   *   answered — telling the other device, and every later one, that a question it
+   *   should still be able to act on is closed. That would break the
+   *   dead-other-device case at the far end while fixing the dialog at this one.
+   *
+   * So the failsafe BUTTON keys off the shared answers alone, which is exactly
+   * what lets an unanswered bust-out stay reachable here.
+   */
+  const watchedRef = useRef<Set<string>>(new Set());
   const latestKeyRef = useRef<string | null>(null);
   const [, bump] = useState(0);
 
@@ -92,8 +126,38 @@ export function useRebuyOffer(
     latestKeyRef.current = rememberedFailsafeKey(readFailsafe(), gameId);
   }
 
+  /**
+   * While this device is NOT driving, keep the seen set level with the roster.
+   *
+   * This is the reported bug. The seeding above runs ONCE, at the first render
+   * with a roster — which on a watching device is BEFORE the bust-out it is about
+   * to be shown. The bust-out then arrived by snapshot, its key was not in `seen`,
+   * and the dialog was sitting there truthy waiting for the moment `readOnly`
+   * flipped. `RebuyOffer` renders `<AlertDialog open>` as a literal, so taking
+   * control opened it instantly.
+   *
+   * Levelling it here means a device that takes control has, by construction,
+   * already "seen" every bust-out that happened while it was watching — so the
+   * dialog can only ever open for one this device witnessed itself.
+   */
+  if (readOnly) {
+    for (const key of bustedKeys(state.players as OfferablePlayer[])) watchedRef.current.add(key);
+  }
+
+  /**
+   * The answers from the game record, unioned with this console's own.
+   *
+   * Monotonic, so a stale snapshot can only ever be a subset and the union heals
+   * it on the next render — which is why this field needs no echo guard. See
+   * `answeredKeys`. This is what the page syncs, and it contains ANSWERS only.
+   */
+  const answered = answeredKeys(state.rebuysAnswered, seenRef.current);
+
+  /** What suppresses the dialog: answered by anyone, or watched from the sidelines. */
+  const noAsk = answeredKeys(Array.from(answered), watchedRef.current);
+
   const player = seenRef.current
-    ? rebuyToOffer(state.players as OfferablePlayer[], state.prizeStructure, state.currentLevel, seenRef.current)
+    ? rebuyToOffer(state.players as OfferablePlayer[], state.prizeStructure, state.currentLevel, noAsk)
     : null;
 
   /**
@@ -118,7 +182,14 @@ export function useRebuyOffer(
    */
   if (seenRef.current) {
     const justBustedKey = offerKey(mostRecentlyBusted(state.players as OfferablePlayer[]));
-    if (justBustedKey && !seenRef.current.has(justBustedKey)) {
+    // Against the SHARED set, not the local one. That is what keeps Dave out of
+    // it on a device that has just taken control: rebuy Amy on the other device
+    // and `mostRecentlyBusted` moves BACKWARDS to Dave, whose bust-out was
+    // answered long ago — the fault this file already carries a section about,
+    // which would otherwise come straight back on a second device with an empty
+    // memory. An answer nobody has given is the one case that still advances it,
+    // and that is the dead-other-device case the button is for.
+    if (justBustedKey && !answered.has(justBustedKey)) {
       latestKeyRef.current = justBustedKey;
     }
   }
@@ -161,5 +232,12 @@ export function useRebuyOffer(
     bump(n => n + 1);
   };
 
-  return { player, answer, failsafeFor };
+  /**
+   * What the page syncs to the game record, so the OTHER device knows this was
+   * answered. Sorted, so an unchanged set serialises identically and the sync
+   * effect's guard can skip it rather than writing on every render.
+   */
+  const answeredList = Array.from(answered).sort();
+
+  return { player, answer, failsafeFor, answered: answeredList };
 }

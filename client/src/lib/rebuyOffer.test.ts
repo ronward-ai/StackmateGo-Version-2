@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId, failsafeMemory, rememberedFailsafeKey,
+  answeredKeys,
 } from './rebuyOffer';
 
 const none = new Set<string>();
@@ -257,5 +258,51 @@ describe('the failsafe across a refresh', () => {
     const raw = failsafeMemory('g1', offerKey(before)!)!;
     const after = { id: 'a', isActive: true, rebuys: 1 };
     expect(failsafeRebuyId([after], on, 0, rememberedFailsafeKey(raw, 'g1'))).toBeNull();
+  });
+});
+
+/**
+ * THE REPORTED BUG: bust a player out on the laptop, press "No — they are out",
+ * take control on the phone, and the same dialog opens again. The answer lived
+ * only in a ref on the laptop.
+ */
+describe('answeredKeys', () => {
+  it('unions the game record with this console', () => {
+    expect([...answeredKeys(['a:0'], new Set(['b:0']))].sort()).toEqual(['a:0', 'b:0']);
+  });
+
+  it('takes the record alone — the reported bug, reduced to one assertion', () => {
+    // The phone answered nothing; the laptop's "No" arrives in the record.
+    const seen = answeredKeys(['amy:0'], new Set());
+    const players = [{ id: 'amy', isActive: false, position: 4, rebuys: 0 }];
+    expect(rebuyToOffer(players, { allowRebuys: true } as any, 0, seen)).toBeNull();
+  });
+
+  it('takes this console alone, for a game whose record has none yet', () => {
+    expect([...answeredKeys(undefined, new Set(['a:0']))]).toEqual(['a:0']);
+    expect([...answeredKeys(null, new Set(['a:0']))]).toEqual(['a:0']);
+  });
+
+  it('is empty when neither side has anything', () => {
+    expect(answeredKeys(undefined, undefined).size).toBe(0);
+    expect(answeredKeys([], new Set()).size).toBe(0);
+  });
+
+  it('de-duplicates rather than double-counting the same answer', () => {
+    expect(answeredKeys(['a:0'], new Set(['a:0'])).size).toBe(1);
+  });
+
+  it('ignores junk in the record, which is read back from a place we do not control', () => {
+    expect([...answeredKeys(['a:0', '', null as any, 7 as any], new Set())]).toEqual(['a:0']);
+  });
+
+  /**
+   * The property the whole design rests on: it only grows, so a stale snapshot
+   * can only be a SUBSET and the union heals it. No echo guard needed.
+   */
+  it('is monotonic — a subset from the record cannot unanswer anything', () => {
+    const local = new Set(['a:0', 'b:0']);
+    expect(answeredKeys([], local).size).toBe(2);
+    expect(answeredKeys(['a:0'], local).size).toBe(2);
   });
 });

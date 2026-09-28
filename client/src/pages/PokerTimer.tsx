@@ -365,7 +365,7 @@ function PokerTimerInner({
    * the top of it — two dialogs about one bust-out, which is precisely what the
    * stand-down exists to prevent. Found by driving a real bust-out.
    */
-  const rebuyOffer = useRebuyOffer(tournament);
+  const rebuyOffer = useRebuyOffer(tournament, readOnlyConsole);
   const rebuyOfferOpen = !!rebuyOffer.player;
 
   // Save finished tournaments to history. Standalone games are the point of
@@ -465,6 +465,7 @@ function PokerTimerInner({
   const lastSyncedPlayersRef = useRef<string>('');
   const lastSyncedTimerRef = useRef<string>('');
   const lastSyncedSettingsRef = useRef<string>('');
+  const lastSyncedAnsweredRef = useRef<string>('');
 
   // Save the game to the director's account as soon as there IS one.
   //
@@ -745,6 +746,7 @@ function PokerTimerInner({
     lastSyncedPlayersRef.current = '';
     lastSyncedTimerRef.current = '';
     lastSyncedSettingsRef.current = '';
+    lastSyncedAnsweredRef.current = '';
     // Null, not '': "nothing has been written for this game" is not the same as
     // "an empty roster was written", and only the first may let a snapshot seed.
     markRosterWritten(null);
@@ -885,6 +887,35 @@ function PokerTimerInner({
     };
     sync();
   }, [tournament.state.players, tournament.state.isFinalTable, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Which bust-outs have been answered, so the OTHER device does not ask again.
+  //
+  // Its own effect rather than riding with the players, because DECLINING a rebuy
+  // changes the answered set and changes nothing about the roster — folding it
+  // into that payload would mean a "No" was never written.
+  //
+  // No echo guard, and that is a property of the data rather than an oversight:
+  // the set only grows, so a stale snapshot can only be a subset and
+  // `answeredKeys`' union heals it. Contrast `isFinalTable`, which can go back to
+  // false and therefore needed lib/pendingRoster.ts.
+  useEffect(() => {
+    if (!activeTournamentId || !user || isAnonymous) return;
+    if (!tournament.hasLoadedRemoteState) return;
+    const sync = async () => {
+      const serialised = JSON.stringify(rebuyOffer.answered);
+      if (serialised === lastSyncedAnsweredRef.current) return;
+      // Nothing to say yet. Writing an empty array on every fresh game would be a
+      // write per mount for no information.
+      if (rebuyOffer.answered.length === 0) return;
+      try {
+        const result = await writeLiveGame(activeTournamentId, { rebuysAnswered: rebuyOffer.answered });
+        if (result === 'written') lastSyncedAnsweredRef.current = serialised;
+      } catch (e) {
+        reportSyncFailure('Rebuy answers', e);
+      }
+    };
+    sync();
+  }, [rebuyOffer.answered, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {
@@ -1268,16 +1299,20 @@ function PokerTimerInner({
             about a bust-out that happened on somebody else's screen. The
             uneven-tables prompt went the same way for free: it lives inside
             TablesSection, which a read-only console no longer renders. */}
-        {!readOnlyConsole && (
-          <>
-            <RebuyOffer tournament={tournament} offer={rebuyOffer} />
-            <FinalTablePrompt
-              tournament={tournament}
-              onOpenChange={setFinalTablePromptOpen}
-              standDown={rebuyOfferOpen}
-            />
-          </>
-        )}
+        {!readOnlyConsole && <RebuyOffer tournament={tournament} offer={rebuyOffer} />}
+        {/* MOUNTED even while read-only, unlike the rebuy dialog, and that is the
+            fix rather than an inconsistency. It renders nothing until the question
+            is due, so it is not a control — and it needs to WATCH, because a
+            component that starts blind on takeover opens on a condition it has
+            never had the chance to answer. While read-only it latches the
+            dismissal to what is already true, so taking control is silent and the
+            next bust-out asks normally. */}
+        <FinalTablePrompt
+          tournament={tournament}
+          onOpenChange={setFinalTablePromptOpen}
+          standDown={rebuyOfferOpen}
+          readOnly={readOnlyConsole}
+        />
 
 
 

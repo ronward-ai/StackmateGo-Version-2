@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { currencyOf, money } from '@/lib/currency';
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -163,6 +163,25 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   // still there — ignoring one does not fix it — and reopened instantly.
   // "Ignore for now" could never work.
   const currentImbalance = imbalance(state.players);
+
+  /**
+   * An imbalance that was already there when this screen appeared is not one this
+   * director caused, and must not ambush them.
+   *
+   * Unlike the final-table prompt this component is NOT mounted on a read-only
+   * console — `TablesSectionReadOnly` stands in — so there is nothing to watch
+   * with, and the latch has to be seeded on the first render instead. Taking
+   * control is then silent, and a DIFFERENT imbalance re-arms it exactly as the
+   * latch already works: `imbalanceKey` records which tables and what gap.
+   *
+   * It also makes a tab switch silent, which is a fair reading of the same rule —
+   * wandering to Buy-ins and back is not a new bust-out.
+   */
+  const seededBalanceRef = useRef(false);
+  if (!seededBalanceRef.current && currentImbalance) {
+    seededBalanceRef.current = true;
+    if (balanceDismissedKey === null) setBalanceDismissedKey(imbalanceKey(currentImbalance));
+  }
 
   useEffect(() => {
     if (finalTablePromptOpen || moveMode || shouldPromptForFinalTable()) return;

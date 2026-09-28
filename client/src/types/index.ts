@@ -258,6 +258,17 @@ export interface TournamentState {
   isFinalTable?: boolean;
   /** Where everyone sat before the final-table redraw, so it can be undone. */
   preFinalTableSeating?: { playerId: string; seated: boolean; tableIndex?: number; seatIndex?: number }[];
+
+  /**
+   * Bust-outs whose rebuy question has been answered, either way, as
+   * `playerId:rebuyCount` keys — SHARED through the tournament document so the
+   * other device does not ask again.
+   *
+   * It only ever grows, so a stale snapshot can only be a subset and the union in
+   * `lib/rebuyOffer.ts`'s `answeredKeys` heals it. That is why this needs no echo
+   * guard where `isFinalTable` did.
+   */
+  rebuysAnswered?: string[];
   details?: TournamentDetails;
   notes?: string;
 }

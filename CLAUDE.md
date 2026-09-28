@@ -2129,9 +2129,13 @@ can and stay silent if they cannot. **Do not "tidy" it into the scoped helpers.*
 Persisted from an EFFECT rather than from render: the ref advances during render, matching the seeding
 above it, but a storage write is a real side effect and React may render twice and discard one.
 
-**It still does not survive moving to another DEVICE** — taking control on a laptop gives no failsafe
-until the next bust-out there. That genuinely would need the bust-out order on the tournament
-document, and it is the wrong trade for a recovery window measured in seconds.
+**It DOES cross devices now, and only because the answered set became shared** — see "Taking control
+is not a bust-out" below. Taking control hands the failsafe button to a bust-out **nobody has
+answered**, which is the case where the other device died holding the question. It hands it to nobody
+otherwise, and specifically not to Dave: with Amy rebought on the other device, `mostRecentlyBusted`
+moves backwards to him, and the only thing that can tell a fresh device his bust-out was dealt with is
+the shared set. This note used to say it would need the bust-out ORDER on the document; what it
+actually needed was the ANSWERS.
 
 Everything else beside a busted player is the **re-entry**, which is exactly the action that is meant
 to be available later.
@@ -2170,6 +2174,65 @@ has passed anyway.
 `seatInfo` used to be **passed in by the caller**, and only `TablesSection` passed it; busting a
 player out from the Players list lost their seat outright, and undo could not restore it either. The
 hook has the player, so it takes the seat from them when the caller says nothing.
+
+### Taking control is not a bust-out, and an answered question is a fact about the game
+
+Reported from a real night: bust a player out on the laptop, press **No — they are out**, take control
+on the phone, and the identical dialog opens straight away.
+
+**`seenRef` was in-memory, per device, seeded ONCE** at the first render with a roster and never
+re-seeded. The hook runs on a read-only console too — only the dialog was unmounted — so the phone
+seeded its set BEFORE the bust-out, watched the bust-out arrive by snapshot, and never heard the
+answer, which lived in a ref on the laptop and was written nowhere. `RebuyOffer` renders
+`<AlertDialog open>` as a literal, so the moment `readOnly` flipped it rendered open.
+
+**All three prompts re-ask on a takeover; only this one is wrong to.** The final-table and
+uneven-tables prompts re-derive a condition that is **still true right now**, and the director who has
+just picked the device up has not answered it. The rebuy asks about a **moment that has passed**, and
+nothing in the roster tells "just happened" from "happened while you were watching". The seeding was the
+only thing that ever did.
+
+Two halves, and each is what makes the other safe:
+
+**1. The answered set is SHARED** — `rebuysAnswered: string[]` on the live document, the
+`playerId:rebuyCount` keys answered either way, unioned on read by `answeredKeys`. "Was this bust-out
+offered a rebuy" is a fact about how the night was run, not a preference about a question — the line the
+final-table dismissal sits on the other side of. **It only ever GROWS, and that is what makes it cheap:
+a set that cannot shrink cannot be reverted by its own echo, so this needs none of
+`lib/pendingRoster.ts`'s machinery** — a stale snapshot can only be a subset and the union heals it.
+That is the whole difference between this field and `isFinalTable`, which can go back to false and
+therefore needed a guard. Its own sync effect, because DECLINING changes the answered set and changes
+nothing about the roster, so folding it into that payload would mean a "No" was never written. And it
+is read in the initial `getDoc` transform as well as through the snapshot, because that transform is
+where `isFinalTable: false` was hard-coded and threw the previous cross-device fix away.
+
+**2. Taking control never pops a dialog.** While read-only, the hook keeps a `watchedRef` of the
+bust-outs it has merely observed; the dialog is suppressed by answered ∪ watched, so it can only ever
+open for a bust-out this device witnessed itself.
+
+**`watched` and `answered` are two sets, and collapsing them is a bug I nearly shipped.** Suppressing
+the dialog by marking the watched bust-out ANSWERED would have synced that claim — telling the other
+device, and every later one, that a question nobody answered is closed. It fixes the dialog at this end
+by breaking the dead-other-device case at the far end. So the failsafe BUTTON keys off the shared
+answers alone, which is exactly what keeps an unanswered bust-out reachable. A mutant folding the two
+turns a test red.
+
+**The other two prompts go silent at takeover without losing anything**, because both latch against
+what they asked about and both re-arm when it changes:
+
+- `FinalTablePrompt` **stays mounted** while read-only and takes `readOnly`. That is the fix rather than
+  an inconsistency with `DirectorOnly` — it renders nothing until the question is due, so it is not a
+  control, and it needs to WATCH: a prompt that starts blind on takeover opens on a condition it has
+  never had the chance to answer. While read-only it latches `dismissedAt` to the field as it stands, and
+  `dismissalIsStale` drops that the moment the field changes.
+- The uneven-tables prompt cannot watch, because `TablesSectionReadOnly` stands in for `TablesSection`
+  on a read-only console. So it seeds `balanceDismissedKey` from the imbalance present on its first
+  render instead. That also makes a tab switch silent, which is a fair reading of the same rule.
+
+A hook test drives the whole thing across a control change, because the fault was never in the
+predicate — `lib/rebuyOffer.ts` was right throughout. Three mutants are caught: dropping the read-only
+levelling reopens the dialog, folding watched into answered leaks a false answer, and keying the
+failsafe off watched instead of answered hands Dave a button.
 
 ### A chop splits only the money still to be won
 
