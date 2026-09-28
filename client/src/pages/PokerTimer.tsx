@@ -48,7 +48,7 @@ import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
 import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
-import { markRosterWritten } from '@/lib/pendingRoster';
+import { markRosterWritten, rosterPayload } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
 import { getDeviceId } from '@/lib/deviceId';
 
@@ -838,11 +838,30 @@ function PokerTimerInner({
     if (!activeTournamentId || !user || isAnonymous) return;
     if (!tournament.hasLoadedRemoteState) return;
     const sync = async () => {
-      const serialised = JSON.stringify(tournament.state.players);
+      // Through rosterPayload, so the write guard and the echo guard in
+      // lib/pendingRoster.ts serialise the identical thing. Serialising the
+      // roster ALONE here would skip a write that only moved isFinalTable as
+      // "unchanged" — and comparing a different shape in the two places would
+      // leave the roster permanently pending, which is worse.
+      const serialised = rosterPayload({
+        players: tournament.state.players,
+        isFinalTable: tournament.state.isFinalTable,
+      });
       if (serialised === lastSyncedPlayersRef.current) return;
       try {
         const result = await writeLiveGame(activeTournamentId, {
           players: tournament.state.players,
+          // A FACT about the game, so it belongs in the record every device
+          // reads — not just in the local state of whoever collapsed the table.
+          // Without it a second device asks "Final table?" about a final table
+          // that is already under way, because the only thing suppressing that
+          // question is a flag it was never told about.
+          //
+          // It rides in THIS effect because goToFinalTable and undoFinalTable
+          // both rewrite the seats and the flag in one setState, so this is
+          // already the write that carries the redraw. No new effect, no extra
+          // traffic.
+          isFinalTable: !!tournament.state.isFinalTable,
           // updatedAt makes "which game am I running?" answerable on another
           // device: resume picks the most recently ACTIVE tournament, not the
           // most recently created one.
@@ -865,7 +884,7 @@ function PokerTimerInner({
       }
     };
     sync();
-  }, [tournament.state.players, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.players, tournament.state.isFinalTable, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {

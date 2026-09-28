@@ -559,6 +559,72 @@ enabled buttons and 0 inputs on all six tabs**. Driving: Structure 15 buttons / 
 36, Settings 12 / 3, Seating 4 / 2, and the slider back. The contrast is the proof; a screenshot is
 not, because a disabled-looking button and an absent one photograph the same.
 
+### `isFinalTable` is a fact about the game, so it lives in the game record
+
+It did not. `lib/tournamentDocument.ts`'s creation whitelist never carried it and no sync effect wrote
+it, so **the only place it has ever been persisted is the per-device localStorage mirror** — which is
+keyed per uid on that device and reaches nobody else. It existed solely in the local state of whichever
+device collapsed the table.
+
+So a second device, on a game already at its final table, had `isFinalTable === false`. And
+`!isFinalTable` is the ONLY thing suppressing the prompt: `shouldPromptForFinalTable` asks whenever the
+field fits one table, more than one player is left, and somebody has busted — all true by definition at
+a final table. **The question was due, and had been for a while.**
+
+**It surfaced on Take control**, which is what made it look like a takeover bug: a read-only console does
+not mount `FinalTablePrompt` any more, so the prompt mounted for the first time the instant control
+flipped, evaluated a predicate that had been true for twenty minutes, and opened. The dialog was new;
+the wrong answer under it was not.
+
+**There were TWO causes, and fixing one would have looked like fixing none.** Besides nothing writing
+the field, `useTournament`'s initial `getDoc` transform hard-coded `isFinalTable: false` — so the flag
+could be written, arrive, and be discarded by the very load path a device uses to open the game. It
+reads `tournamentData.isFinalTable === true` now. The identical line in `resetTournament` is a NEW game
+and is correct; leave it.
+
+**The write rides in the players sync effect**, because `goToFinalTable` and `undoFinalTable` both
+rewrite the seats and the flag in one `setState` — that effect is already the write carrying the redraw.
+No new effect and no extra traffic.
+
+**And the echo had to be guarded, or this would have been the rebuy revert with a new field name.**
+`...data` spreads the document over local state, so the echo of the previous write arrives still saying
+`false` and undoes the collapse on screen. `keepLocal` is computed once and used TWICE — for the roster
+merge and for the flag — because they travel in one payload and are therefore pending under exactly the
+same condition. Not applied when `adopt` is set: a takeover means local state is stale rather than
+optimistic. `preFinalTableSeating` is held on the same condition, since it moves with the flag.
+
+**`lib/pendingRoster.ts` now exports `rosterPayload`, and that is the load-bearing part.** The write
+guard and the echo guard must serialise the IDENTICAL thing. Serialising the roster alone in the effect
+would skip a write that only moved the flag as "unchanged" — and the opposite mismatch is worse: a
+reader comparing a narrower shape than the writer recorded leaves the roster pending on every snapshot
+for the rest of the night, so the console stops applying the document at all. One builder is the only
+thing that makes both impossible. A mutant dropping the flag from it turns two tests red; a mutant
+making the reader serialise only players turns five red.
+
+**The existing unit test is the warning here, not the safety net.** `finalTable.test.ts` has always
+asserted *"does not ask once it is already the final table"* and has always passed — **because the test
+hands the predicate the flag the app never persisted.** The predicate was never wrong. A green test over
+a real bug, because the test supplied what production did not.
+
+Two things left deliberately:
+
+- **`preFinalTableSeating` is still not written**, so undo stays on the device that collapsed the table.
+  Not for size — it snapshots only ACTIVE players, so at a final table it is under 2 KB against a limit
+  the roster already dwarfs. It is also absent from `LocalProgress`, so the undo snapshot does not
+  survive a refresh even locally.
+- **`dismissedAt` and `silenced` stay per-device**, for the reason recorded below them: they are
+  preferences about a QUESTION, not facts about the game, and in `state` they would sync to every
+  participant's phone. So a device taking control can still be asked once about a final table that is
+  genuinely due but was answered "Not yet" elsewhere. Different question, far less wrong.
+
+**A game that was already at a final table before this shipped carries no stored flag**, so the driving
+device keeps its local `true` and a second device will still ask once. Nothing is migrated, per the
+`payoutsOf()` trade.
+
+**Nothing on a participant's phone or a read-only console says "final table" yet** —
+`TablesSectionReadOnly` renders `Table 1` and cannot even be passed the flag. Now possible for the first
+time, since the fact finally reaches those screens.
+
 ### A snapshot must not revert a change this device has not had written yet
 
 `lib/pendingRoster.ts`, gating `lib/snapshotMerge.ts`'s `keepLocal`. The mirror image of

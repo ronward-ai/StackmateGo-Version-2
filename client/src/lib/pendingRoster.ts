@@ -36,8 +36,37 @@
  */
 
 /**
- * The players payload last SUCCESSFULLY written, exactly as the sync effect
- * serialised it. `null` means nothing has been written yet this game.
+ * What the players sync effect actually sends, as one string.
+ *
+ * **The writer and the reader MUST serialise the same thing**, or this breaks in
+ * the worst direction: if the write guard records a wider payload than the
+ * pending check compares, the roster reads as pending on every snapshot for the
+ * rest of the night and the console stops applying the document at all. One
+ * builder, used by both, is the only way that cannot drift.
+ *
+ * `isFinalTable` rides in here because it rides in the same WRITE — it is a fact
+ * about the game, it changes in the same `setState` as the seats it redraws, and
+ * a device that has just collapsed the table must not have the echo of the
+ * previous write tell it otherwise. `updatedAt` is deliberately absent: it
+ * changes on every write by definition, so including it would make every payload
+ * differ from the last and defeat the comparison entirely — the same trap
+ * `lib/setupSync.ts` records for its own fingerprint.
+ */
+export interface RosterPayload {
+  players: unknown;
+  isFinalTable?: boolean;
+}
+
+export function rosterPayload(payload: RosterPayload): string {
+  return JSON.stringify({
+    players: payload.players ?? [],
+    isFinalTable: !!payload.isFinalTable,
+  });
+}
+
+/**
+ * The payload last SUCCESSFULLY written, from `rosterPayload`. `null` means
+ * nothing has been written yet this game.
  */
 let lastWritten: string | null = null;
 
@@ -62,7 +91,7 @@ export function markRosterWritten(serialised: string | null): void {
  * Self-clearing: the moment the write lands the payloads match again, so the
  * window is exactly as long as the hazard and not one snapshot longer.
  */
-export function rosterIsPending(players: unknown): boolean {
+export function rosterIsPending(payload: RosterPayload): boolean {
   if (lastWritten === null) return false;
-  return JSON.stringify(players ?? []) !== lastWritten;
+  return rosterPayload(payload) !== lastWritten;
 }

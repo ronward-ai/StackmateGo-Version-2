@@ -411,7 +411,14 @@ export function useTournament(tournamentId?: string) {
                         prizeStructure: tournamentData.prizeStructure
                           ? withNormalisedPayouts(tournamentData.prizeStructure)
                           : loadSavedPrizeStructure(storageUidRef.current),
-              isFinalTable: false,
+              // READ, not hard-coded false. This line WAS `false`, and that was
+              // an independent cause of a second device asking "Final table?"
+              // about a final table already under way: the flag could be written
+              // and arrive, and then be thrown away by the very load path a
+              // device uses when it opens the game. Absent means false, so a game
+              // stored before the field existed still loads correctly — the same
+              // read-side normalisation payoutsOf() and bandsOf() make.
+              isFinalTable: tournamentData.isFinalTable === true,
               details: {
                 type: 'database',
                 id: tournamentId,
@@ -577,13 +584,20 @@ export function useTournament(tournamentId?: string) {
               // skipped by the door, so its last-written payload never advances
               // and its roster would read as pending for the rest of the night,
               // leaving it unable to track the game it is only there to watch.
+              //
+              // Computed once and used TWICE — for the roster and for
+              // `isFinalTable` below — because the two are written in one
+              // payload, so they are pending under exactly the same condition.
+              // One question, one answer; a second check could only disagree.
+              const keepLocal = mayDrive(nextControl) && rosterIsPending({
+                players: currentState.players,
+                isFinalTable: currentState.isFinalTable,
+              });
+
               const finalPlayers = mergePlayersFromSnapshot(
                 currentState.players,
                 data.players,
-                {
-                  adopt,
-                  keepLocal: mayDrive(nextControl) && rosterIsPending(currentState.players),
-                },
+                { adopt, keepLocal },
               );
 
               // Complete tournament state update with elimination protection
@@ -602,6 +616,22 @@ export function useTournament(tournamentId?: string) {
                   }
                 }
               };
+
+              // `...data` above spreads the document over local state, so the
+              // echo of this device's own write can arrive still saying
+              // isFinalTable: false and undo a collapse the moment it happens —
+              // the rebuy revert with a new field name. While our write is in
+              // flight the local value wins.
+              //
+              // NOT when adopting: a takeover means local state is stale rather
+              // than optimistic, which is the whole reason shouldAdoptRemote
+              // exists. `preFinalTableSeating` travels with the flag, so it is
+              // held on the same condition — it is not written to the document,
+              // and letting an echo blank it would cost the undo.
+              if (keepLocal && !adopt) {
+                updatedState.isFinalTable = currentState.isFinalTable;
+                updatedState.preFinalTableSeating = currentState.preFinalTableSeating;
+              }
 
               // Update timer state if provided with validation
               if (typeof data.currentLevel === 'number' && data.currentLevel >= 0) {
