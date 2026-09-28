@@ -897,7 +897,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                   <div>
                     <div className="font-medium">{player.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {player.position}th place
+                      {ordinal(player.position)} place
                       {player.eliminatedBy && ` · KO'd by ${state.players.find(p => p.id === player.eliminatedBy)?.name}`}
                     </div>
                   </div>
