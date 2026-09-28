@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isUnlimited, limitLabel, periodLabel, canRebuy, canReEnter, addOnsOpen,
   rebuyUnavailableReason, reEntryUnavailableReason,
-  lateEntryOpen, lateEntryClosedReason,
+  lateEntryOpen, lateEntryClosedReason, rebuyRules,
 } from './entryLimits';
 
 const rebuysOn = { allowRebuys: true };
@@ -252,5 +252,67 @@ describe('lateEntryClosedReason', () => {
           .toBe(lateEntryOpen(structure, level));
       }
     }
+  });
+});
+
+/**
+ * The rebuy dialog used to end with "Later they would have to re-enter" —
+ * confusing, because it explained the thing the director was NOT doing. These
+ * pin what replaced it, and specifically the two OMISSIONS, which are the part
+ * that only shows up in a game with no limits.
+ */
+describe('rebuyRules', () => {
+  it('states the cap, worded as rebuyUnavailableReason words it', () => {
+    expect(rebuyRules({ maxRebuys: 3 }, { rebuys: 1 })).toEqual([
+      { label: 'Rebuys used', value: '1 of 3' },
+    ]);
+    // The same sentence the blocked case gives, so the two cannot drift.
+    expect(rebuyUnavailableReason({ allowRebuys: true, maxRebuys: 3 }, { rebuys: 3 }, 0))
+      .toBe('Rebuys used (3 of 3)');
+  });
+
+  it('counts a first rebuy against the cap as none used', () => {
+    expect(rebuyRules({ maxRebuys: 2 }, {})).toEqual([
+      { label: 'Rebuys used', value: '0 of 2' },
+    ]);
+  });
+
+  it('reports the count alone when there is no cap, because "1 of Unlimited" is not English', () => {
+    expect(rebuyRules({ maxRebuys: 0 }, { rebuys: 2 })).toEqual([
+      { label: 'Rebuys used', value: '2' },
+    ]);
+  });
+
+  it('says NOTHING about the cap on a first rebuy with no cap', () => {
+    // No limit to report and no history to report.
+    expect(rebuyRules({ maxRebuys: 0 }, {})).toEqual([]);
+    expect(rebuyRules({}, { rebuys: 0 })).toEqual([]);
+  });
+
+  it('states the window when one was set', () => {
+    expect(rebuyRules({ rebuyPeriodLevels: 5 }, {})).toEqual([
+      { label: 'Available', value: 'First 5 levels' },
+    ]);
+  });
+
+  it('says NOTHING about the window when there is none — "All game" is not a rule', () => {
+    expect(rebuyRules({ rebuyPeriodLevels: 0 }, {})).toEqual([]);
+    expect(rebuyRules({}, {})).toEqual([]);
+  });
+
+  it('states both, cap first', () => {
+    expect(rebuyRules({ maxRebuys: 3, rebuyPeriodLevels: 5 }, { rebuys: 1 })).toEqual([
+      { label: 'Rebuys used', value: '1 of 3' },
+      { label: 'Available', value: 'First 5 levels' },
+    ]);
+  });
+
+  it('adds nothing at all to an unlimited, all-game tournament', () => {
+    expect(rebuyRules({ allowRebuys: true, maxRebuys: 0, rebuyPeriodLevels: 0 }, { rebuys: 0 })).toEqual([]);
+  });
+
+  it('survives a missing structure and a missing player', () => {
+    expect(rebuyRules(null, null)).toEqual([]);
+    expect(rebuyRules(undefined, undefined)).toEqual([]);
   });
 });

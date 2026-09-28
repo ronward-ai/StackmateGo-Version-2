@@ -3,6 +3,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { entryCosts } from '@/lib/prizePool';
+import { rebuyRules } from '@/lib/entryLimits';
 import { currencyOf, money } from '@/lib/currency';
 import { ordinal } from '@/lib/ordinal';
 
@@ -44,6 +45,11 @@ export default function RebuyOffer({ tournament, offer }: RebuyOfferProps) {
   const sym = currencyOf(state.settings);
   const costs = entryCosts(state.prizeStructure);
   const total = (state.prizeStructure?.rebuyAmount || 0) + costs.rebuyRake + costs.rebuyBounty;
+  // The rules that actually apply, from lib/entryLimits.ts — the positive
+  // counterpart to the rebuyUnavailableReason that PlayerEntryActions prints when
+  // a rebuy is blocked. Empty for an unlimited, all-game tournament, which is the
+  // point: a row only appears when there is a rule to state.
+  const rules = rebuyRules(state.prizeStructure, player);
 
   return (
     <AlertDialog open onOpenChange={o => { if (!o) answer(false); }}>
@@ -69,11 +75,28 @@ export default function RebuyOffer({ tournament, offer }: RebuyOfferProps) {
               <div className="flex justify-between font-semibold border-t border-border pt-1">
                 <span>Total</span><span className="font-mono">{money(total, sym)}</span>
               </div>
-              {/* Said plainly, because it is the whole rule and the director is
-                  about to lose the option. Re-entry is named as the way back in
-                  so "No" does not read as "they can never return". */}
+              {/* THE RULES, where a sentence about re-entry used to be.
+                  "Later they would have to re-enter" was reported as confusing,
+                  and it was: at the busiest moment of the night it asked the
+                  director to hold a second concept — with its own cap, window and
+                  price — while answering a question about a rebuy. It explained
+                  the thing they were NOT doing. What they need is what applies to
+                  THIS rebuy. */}
+              {rules.length > 0 && (
+                <div className="border-t border-border pt-1 space-y-2">
+                  {rules.map(rule => (
+                    <div key={rule.label} className="flex justify-between">
+                      <span>{rule.label}</span><span className="font-mono">{rule.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* The half that survives, because it is a fact about what is about
+                  to happen rather than about an alternative: the player does not
+                  move. That is what makes a rebuy not a re-entry, and it says so
+                  without naming re-entry. */}
               <p className="text-muted-foreground pt-1">
-                A rebuy is taken now, in the same seat. Later they would have to re-enter.
+                A rebuy is taken now, in the same seat.
               </p>
             </div>
           </AlertDialogDescription>

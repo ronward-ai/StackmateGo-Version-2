@@ -163,6 +163,60 @@ export function rebuyUnavailableReason(
   return null;
 }
 
+/**
+ * The rules that apply to a rebuy RIGHT NOW, for the offer made at the bust-out.
+ *
+ * The positive counterpart to `rebuyUnavailableReason`, and it lives beside it
+ * deliberately. `PlayerEntryActions` prints that one when a rebuy is BLOCKED; the
+ * dialog prints this one when it is available. Two halves of one question, so
+ * their wording has to be written once — "Rebuys used (1 of 3)" and
+ * "Rebuys used 1 of 3" drifting apart is exactly what this file exists to stop.
+ *
+ * It replaced a sentence that explained the thing the director was NOT doing:
+ * *"Later they would have to re-enter."* Reported as confusing, and fairly — at
+ * the busiest moment of the night it asked them to hold a second concept, with
+ * its own cap, window and price, while answering a question about a rebuy.
+ *
+ * **A row only appears when there is a rule to state**, which is the whole of the
+ * logic here:
+ *
+ * - No cap and no rebuys yet: nothing. There is no limit to report and no history
+ *   to report, and `1 of Unlimited` is not English.
+ * - No period: nothing. "All game" is the absence of a window, not a window.
+ *
+ * So an unlimited, all-game tournament adds no rows at all, and one with real
+ * limits shows exactly the limits it has — the same instinct that has the Busted
+ * strip render nothing when rebuys are switched off for the whole tournament,
+ * rather than a row of "Rebuys are off" against every name.
+ */
+export interface EntryRule {
+  label: string;
+  value: string;
+}
+
+export function rebuyRules(
+  structure: EntryLimitStructure | null | undefined,
+  player: EntryCounts | null | undefined,
+): EntryRule[] {
+  const rules: EntryRule[] = [];
+
+  const used = player?.rebuys || 0;
+  const capped = !isUnlimited(structure?.maxRebuys);
+  if (capped) {
+    // Worded to match rebuyUnavailableReason, which says the same thing once the
+    // cap is reached.
+    rules.push({ label: 'Rebuys used', value: `${used} of ${limitLabel(structure?.maxRebuys)}` });
+  } else if (used > 0) {
+    rules.push({ label: 'Rebuys used', value: String(used) });
+  }
+
+  if (!isUnlimited(structure?.rebuyPeriodLevels)) {
+    rules.push({ label: 'Available', value: periodLabel(structure?.rebuyPeriodLevels) });
+  }
+
+  return rules;
+}
+
 /** The re-entry twin. Same shape, same ordering, same reason for existing. */
 export function reEntryUnavailableReason(
   structure: EntryLimitStructure | null | undefined,

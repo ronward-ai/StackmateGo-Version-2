@@ -2166,6 +2166,23 @@ bust-out and a single-key guard would not match it, reopening the dialog to offe
 who busted long before — the lingering offer rebuilt as a popup. It is seeded from the roster on the
 first render that has one, so a refresh mid-game does not re-ask about a bust-out from an hour ago.
 
+**The dialog states the RULES, and used to explain the alternative.** It ended with *"A rebuy is taken
+now, in the same seat. Later they would have to re-enter."* The second sentence was put there so "No"
+would not read as "they can never return", and it was reported as confusing — fairly. At the busiest
+moment of the night it asked the director to hold a second concept, with its own cap, window and price,
+while answering a question about a rebuy: it explained the thing they were NOT doing. The first
+sentence stays, because it is a fact about what is about to happen — the player does not move — and it
+says what makes a rebuy not a re-entry without naming re-entry.
+
+`rebuyRules()` in `lib/entryLimits.ts` replaced it, and lives there rather than in the dialog because
+it is the positive counterpart to `rebuyUnavailableReason`: `PlayerEntryActions` prints that one when a
+rebuy is BLOCKED, so the two halves of one question would otherwise be worded in two files.
+**A row only appears when there is a rule to state** — no cap and no rebuys yet shows nothing, since
+`1 of Unlimited` is not English; no period shows nothing, since "All game" is the absence of a window.
+An unlimited, all-game tournament therefore adds no rows at all. Same instinct as the Busted strip
+rendering nothing when rebuys are off for the whole game. Three mutants are caught, all in the
+omissions, because those are the half that only misbehaves in a game with no limits.
+
 **Both downstream rebuy offers are gone with it.** `FinalTableDialog` and the uneven-tables dialog
 each carried a "{name} is rebuying" button; with the rebuy asked at every bust-out, first, those
 became a second question about one bust-out — and by the time either is on screen the rebuy moment
