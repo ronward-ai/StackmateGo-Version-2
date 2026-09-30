@@ -14,6 +14,7 @@ import { initialDetails, needsLocalGameId } from '@/lib/localGameId';
 import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
 import { controlOf, mayDrive, shouldAdoptRemote, type Control } from '@/lib/directorControl';
 import { rosterIsPending } from '@/lib/pendingRoster';
+import { breakTable as doBreakTable, consolidationDue, reindexAfterBreak, tableToBreak } from '@/lib/tableBreak';
 import { getDeviceId } from '@/lib/deviceId';
 
 import { useAuth } from './useAuth';
@@ -31,7 +32,7 @@ import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
 import { seatToReclaim } from '@/lib/seating';
 import {
-  finalTableAfterReturn,
+  consolidationAfterReturn,
   restoreSeating,
   shouldPromptForFinalTable as finalTableIsDue,
   snapshotSeating,
@@ -213,6 +214,39 @@ const savePrizeStructure = (prizeStructure: PrizeStructure, uid: string | null) 
  * Every remaining director-side write goes through `lib/liveGameWrite.ts`.
  * Do not add a writer here.
  */
+
+/**
+ * Put the table configuration back when an unwind asks for it.
+ *
+ * A consolidation lowers `settings.tables.numberOfTables` and drops the broken
+ * table's name and felt, so undoing one has to restore all three. Restoring the
+ * chairs alone would leave the seating pointing at tables the render loop no
+ * longer walks — the ghost, by another route.
+ *
+ * `seatsPerTable` is deliberately NOT restored: it is a setting about the game
+ * that a consolidation never touched, and a director may have changed it since.
+ */
+/** Keep only the first table's name/felt, for the collapse to one table. */
+function reindexToOne<T>(items: readonly T[] | undefined): T[] | undefined {
+  return items ? items.slice(0, 1) : undefined;
+}
+
+function settingsAfterRestore(
+  settings: any,
+  restore: { numberOfTables: number; names?: string[]; backgrounds?: string[] } | null,
+): any {
+  if (!restore) return settings;
+  return {
+    ...settings,
+    tables: {
+      ...(settings?.tables || {}),
+      numberOfTables: restore.numberOfTables,
+      seatsPerTable: settings?.tables?.seatsPerTable ?? 6,
+      ...(restore.names ? { tableNames: restore.names } : {}),
+    },
+    ...(restore.backgrounds ? { tableBackgrounds: restore.backgrounds } : {}),
+  };
+}
 
 export function useTournament(tournamentId?: string) {
   const { user, isAnonymous } = useAuth();
@@ -634,7 +668,7 @@ export function useTournament(tournamentId?: string) {
               // and letting an echo blank it would cost the undo.
               if (keepLocal && !adopt) {
                 updatedState.isFinalTable = currentState.isFinalTable;
-                updatedState.preFinalTableSeating = currentState.preFinalTableSeating;
+                updatedState.preConsolidation = currentState.preConsolidation;
               }
 
               // Update timer state if provided with validation
@@ -1308,10 +1342,11 @@ export function useTournament(tournamentId?: string) {
       // Nine players on an eight-seat final table is wrong however they got
       // there, and the flag drives the seating screen and the next bust-out's
       // prompt.
-      const ft = finalTableAfterReturn(updatedPlayers, {
+      const ft = consolidationAfterReturn(updatedPlayers, {
         isFinalTable: prev.isFinalTable,
-        preFinalTableSeating: prev.preFinalTableSeating,
+        preConsolidation: prev.preConsolidation,
         seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
+        numberOfTables: prev.settings.tables?.numberOfTables || 1,
         returningId: playerId,
       });
 
@@ -1319,7 +1354,8 @@ export function useTournament(tournamentId?: string) {
         ...prev,
         players: ft.players,
         isFinalTable: ft.isFinalTable,
-        preFinalTableSeating: ft.preFinalTableSeating,
+        preConsolidation: ft.preConsolidation,
+        settings: settingsAfterRestore(prev.settings, ft.restoreTables),
       };
 
       playerReturnUndoRef.current = {
@@ -1388,10 +1424,11 @@ export function useTournament(tournamentId?: string) {
       //
       // seatToReclaim ran above and this goes over the top, which is the order
       // `undoBustOut` already used and the reason the unwind composes.
-      const ft = finalTableAfterReturn(updatedPlayers, {
+      const ft = consolidationAfterReturn(updatedPlayers, {
         isFinalTable: prev.isFinalTable,
-        preFinalTableSeating: prev.preFinalTableSeating,
+        preConsolidation: prev.preConsolidation,
         seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
+        numberOfTables: prev.settings.tables?.numberOfTables || 1,
         returningId: playerId,
         reclaimSeat: player.seatInfo,
       });
@@ -1411,7 +1448,8 @@ export function useTournament(tournamentId?: string) {
         ...prev,
         players: seatedPlayers,
         isFinalTable: ft.isFinalTable,
-        preFinalTableSeating: ft.preFinalTableSeating,
+        preConsolidation: ft.preConsolidation,
+        settings: settingsAfterRestore(prev.settings, ft.restoreTables),
       };
       broadcastTournamentAction('player_rebuy', newState);
       return newState;
@@ -1687,12 +1725,39 @@ export function useTournament(tournamentId?: string) {
     });
   }, []);
 
+  /**
+   * Settings are persisted when they CHANGE, wherever the change came from.
+   *
+   * `updateSettings` used to be the only thing that saved them, from inside its
+   * own `setState` updater. That made every other writer of `state.settings` a
+   * silent memory-only change — and `breakTable` and `goToFinalTable` are both
+   * such writers now, lowering the table count. A reload restored the old count
+   * while the players stayed where the consolidation had put them, which is the
+   * orphaned-on-a-table-that-no-longer-exists state by a new route.
+   *
+   * Guarded on the serialised value, the shape the Firestore sync effects use:
+   * the snapshot handler spreads `...data` over state on every snapshot, so the
+   * settings object is a fresh reference each time even when nothing in it moved,
+   * and an unguarded write here would run per snapshot.
+   */
+  const lastSavedSettingsRef = useRef<string | null>(null);
+  useEffect(() => {
+    const serialised = JSON.stringify(state.settings);
+    if (serialised === lastSavedSettingsRef.current) return;
+    lastSavedSettingsRef.current = serialised;
+    saveSettings(state.settings, storageUidRef.current);
+  }, [state.settings]);
+
   // Update settings with comprehensive validation and persistence
   const updateSettings = useCallback((updates: Partial<Settings>) => {
     setState(prev => {
       const newSettings = { ...prev.settings, ...updates };
-      // Validate and save settings to localStorage
-      saveSettings(newSettings, storageUidRef.current);
+      // The localStorage write used to be here, INSIDE the updater — which React
+      // is free to run more than once — and it was the only thing that persisted
+      // settings at all. So a change made anywhere else was kept in memory only:
+      // `breakTable` and `goToFinalTable` lower `tables.numberOfTables`, and a
+      // reload put it straight back while the players stayed on the tables the
+      // break had left them at. One writer, in an effect, below.
 
       const newState = {
         ...prev,
@@ -1787,13 +1852,39 @@ export function useTournament(tournamentId?: string) {
     state.isFinalTable,
   ), [state.players, state.settings.tables, state.isFinalTable]);
 
-  // Set final table mode and reseat players
+  /**
+   * Should the director be asked to BREAK a table — and down to how many?
+   *
+   * The sibling of `shouldPromptForFinalTable`, kept separate for the reason
+   * `lib/tableBreak.ts` gives: the final table carries the stored `isFinalTable`
+   * flag and a `<=` that a real bug turned on, and one predicate answering both
+   * at overlapping sizes is how a single bust-out gets two dialogs.
+   */
+  const tableBreakDue = useCallback(() => consolidationDue(
+    state.players,
+    {
+      numberOfTables: state.settings.tables?.numberOfTables || 1,
+      seatsPerTable: state.settings.tables?.seatsPerTable || 6,
+    },
+  ), [state.players, state.settings.tables]);
+
+  /**
+   * Collapse to the final table.
+   *
+   * A final table draw is supposed to be RANDOM, which is what separates this
+   * from `breakTable` below: that one moves only the broken table's players and
+   * leaves everyone else in their chair, because an intermediate break has no
+   * reason to move anybody who does not have to move.
+   *
+   * It now lowers `settings.tables.numberOfTables` to 1 as well. It never did,
+   * so a final table rendered with every other table still under it as an empty
+   * felt with a full row of seats.
+   */
   const goToFinalTable = useCallback(() => {
     setState(prev => {
       const activePlayers = prev.players.filter(p => p.isActive !== false);
       const seatsPerTable = prev.settings.tables?.seatsPerTable || 6;
 
-      // Randomly assign seats at Table 1 for final table
       const arr = [...activePlayers];
       for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -1803,20 +1894,20 @@ export function useTournament(tournamentId?: string) {
 
       const updatedPlayers = prev.players.map(player => {
         const playerIndex = shuffledPlayers.findIndex(p => p.id === player.id);
-
-        if (playerIndex !== -1) {
-          // Assign random seat at final table (Table 1)
-          return {
-            ...player,
-            seated: true,
-            tableAssignment: {
-              tableIndex: 0, // Table 1
-              seatIndex: playerIndex
-            }
-          };
+        if (playerIndex === -1) return player;
+        // Never a chair that does not exist. `seatsPerTable` was computed here
+        // and thrown away, so collapsing more players than the table seats minted
+        // seat 8 and seat 9 of an eight-seat table — the ghost, in the one place
+        // it had not been closed. The prompt cannot reach it (it only asks at or
+        // below one table's worth) but the Seating tab's button can.
+        if (playerIndex >= seatsPerTable) {
+          return { ...player, seated: false, tableAssignment: undefined };
         }
-
-        return player;
+        return {
+          ...player,
+          seated: true,
+          tableAssignment: { tableIndex: 0, seatIndex: playerIndex },
+        };
       });
 
       return {
@@ -1827,26 +1918,96 @@ export function useTournament(tournamentId?: string) {
         // supposed to be random, which is exactly why the arrangement it
         // replaces has to be kept: without this, undoing the bust-out that
         // caused the collapse left everyone on their new random seat.
-        preFinalTableSeating: snapshotSeating(prev.players),
+        preConsolidation: {
+          seats: snapshotSeating(prev.players),
+          tables: prev.settings.tables?.numberOfTables || 1,
+          names: prev.settings.tables?.tableNames,
+          backgrounds: prev.settings.tableBackgrounds,
+        },
+        settings: {
+          ...prev.settings,
+          tables: {
+            ...(prev.settings.tables || { seatsPerTable }),
+            numberOfTables: 1,
+            seatsPerTable,
+            tableNames: reindexToOne(prev.settings.tables?.tableNames),
+          },
+          tableBackgrounds: reindexToOne(prev.settings.tableBackgrounds),
+        },
       };
     });
   }, []);
 
   /**
-   * Put the tables back as they were before the collapse.
+   * Break ONE table: move its players onto the others and drop the count.
+   *
+   * The intermediate step the app never offered. Three tables of eight with
+   * sixteen left is plainly a two-table tournament, and nothing said so — the
+   * only question ever asked was about the FINAL table, at eight.
+   *
+   * `lib/tableBreak.ts` owns which table goes and where its players sit; this
+   * only applies the answer and keeps what it replaced, so it can be undone.
+   */
+  const breakTable = useCallback((brokenIndex?: number) => {
+    setState(prev => {
+      const seatsPerTable = prev.settings.tables?.seatsPerTable || 6;
+      const numberOfTables = prev.settings.tables?.numberOfTables || 1;
+      if (numberOfTables < 2) return prev;
+
+      const broken = brokenIndex ?? tableToBreak(prev.players, numberOfTables);
+      if (broken === null || broken === undefined) return prev;
+
+      const result = doBreakTable(prev.players, { numberOfTables, seatsPerTable, broken });
+
+      return {
+        ...prev,
+        players: result.players,
+        // Snapshotted BEFORE the move, for the same reason the collapse does it.
+        preConsolidation: {
+          seats: snapshotSeating(prev.players),
+          tables: numberOfTables,
+          names: prev.settings.tables?.tableNames,
+          backgrounds: prev.settings.tableBackgrounds,
+        },
+        settings: {
+          ...prev.settings,
+          tables: {
+            ...(prev.settings.tables || { seatsPerTable }),
+            numberOfTables: result.tables,
+            seatsPerTable,
+            // Names and felts move WITH their tables rather than being trimmed
+            // off the end — `tableNamesFor` trims the last one, which is wrong
+            // when the table that went was in the middle.
+            tableNames: reindexAfterBreak(prev.settings.tables?.tableNames, result.broken),
+          },
+          tableBackgrounds: reindexAfterBreak(prev.settings.tableBackgrounds, result.broken),
+        },
+      };
+    });
+  }, []);
+
+  /**
+   * Put the tables back as they were before the last consolidation.
    *
    * Clears the snapshot on the way out, so it can never be applied twice or
    * linger as a rival arrangement — the hazard the local mirror note warns
    * about, in a smaller form.
+   *
+   * The table CONFIGURATION comes back with the chairs. Restoring seats alone
+   * would leave them pointing at tables the render loop no longer walks.
    */
   const undoFinalTable = useCallback(() => {
     setState(prev => {
-      if (!prev.isFinalTable && !prev.preFinalTableSeating) return prev;
+      if (!prev.isFinalTable && !prev.preConsolidation) return prev;
+      const snap = prev.preConsolidation;
       return {
         ...prev,
-        players: restoreSeating(prev.players, prev.preFinalTableSeating),
+        players: restoreSeating(prev.players, snap?.seats),
         isFinalTable: false,
-        preFinalTableSeating: undefined,
+        preConsolidation: undefined,
+        settings: settingsAfterRestore(prev.settings, snap
+          ? { numberOfTables: snap.tables, names: snap.names, backgrounds: snap.backgrounds }
+          : null),
       };
     });
   }, []);
@@ -2071,10 +2232,11 @@ export function useTournament(tournamentId?: string) {
       // the behaviour was WRITTEN — and it stayed here alone, so a rebuy during a
       // final table left a player sitting on his own at table 2. Leaving the
       // inline version behind is exactly the drift moving it exists to prevent.
-      const ft = finalTableAfterReturn(finalPlayers, {
+      const ft = consolidationAfterReturn(finalPlayers, {
         isFinalTable: prev.isFinalTable,
-        preFinalTableSeating: prev.preFinalTableSeating,
+        preConsolidation: prev.preConsolidation,
         seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
+        numberOfTables: prev.settings.tables?.numberOfTables || 1,
         returningId: playerToRestore.id,
         reclaimSeat: playerToRestore.seatInfo,
       });
@@ -2088,7 +2250,8 @@ export function useTournament(tournamentId?: string) {
         ...prev,
         players: seatedPlayers,
         isFinalTable: ft.isFinalTable,
-        preFinalTableSeating: ft.preFinalTableSeating,
+        preConsolidation: ft.preConsolidation,
+        settings: settingsAfterRestore(prev.settings, ft.restoreTables),
       };
 
       // Broadcast undo bustout action to all connected clients
@@ -2234,6 +2397,9 @@ export function useTournament(tournamentId?: string) {
     resetTournament,
     shouldPromptForFinalTable,
     goToFinalTable,
+    breakTable,
+    tableBreakDue,
+    tableToBreak: () => tableToBreak(state.players, state.settings.tables?.numberOfTables || 1),
     // `isComplete` was exported here and read by nobody. It also answered a
     // different question from the one its name implies — it ORed "the blind
     // structure ran out" into "the game is over", which are not the same thing

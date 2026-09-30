@@ -17,6 +17,7 @@ import {
 import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties, Check, Scale, MousePointerClick, UserMinus } from "lucide-react";
 import { TableConfig, Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
+import BreakTableDialog from "./BreakTableDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
@@ -68,7 +69,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     state, updateSettings, updatePlayers,
     addKnockout, eliminatePlayer, undoBustOut,
     processRebuy, processReEntry,
-    shouldPromptForFinalTable, goToFinalTable
+    shouldPromptForFinalTable, goToFinalTable, breakTable
   } = tournament;
 
   const tables = state.settings.tables || { numberOfTables: 3, seatsPerTable: 6, tableNames: ['Table 1','Table 2','Table 3'] };
@@ -331,61 +332,19 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     setBalanceOptions(null);
   };
 
-  // Break a table — distribute its active players to the emptiest remaining tables.
-  const breakTable = (breakIdx: number) => {
-    const current = [...state.players];
-    const { seatsPerTable: spt = 9 } = tables;
-
-    const toRedistribute = current
-      .filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === breakIdx)
-      .sort(() => Math.random() - 0.5);
-
-    let updated = current.map(p =>
-      toRedistribute.some(r => r.id === p.id)
-        ? { ...p, seated: false, tableAssignment: undefined }
-        : p
-    );
-
-    for (const player of toRedistribute) {
-      const occupied = new Set(
-        updated.filter(p => p.seated && p.tableAssignment)
-               .map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`)
-      );
-
-      const tableCount: Record<number, number> = {};
-      for (let t = 0; t < numberOfTables; t++) {
-        if (t !== breakIdx) tableCount[t] = 0;
-      }
-      updated.forEach(p => {
-        if (p.seated && p.isActive !== false && p.tableAssignment && p.tableAssignment.tableIndex !== breakIdx) {
-          tableCount[p.tableAssignment.tableIndex] = (tableCount[p.tableAssignment.tableIndex] || 0) + 1;
-        }
-      });
-
-      const sorted = Object.entries(tableCount)
-        .map(([t, count]) => ({ tableIndex: parseInt(t), count }))
-        .sort((a, b) => a.count - b.count);
-
-      let assignedSeat: { tableIndex: number; seatIndex: number } | null = null;
-      for (const { tableIndex } of sorted) {
-        const emptySeats: number[] = [];
-        for (let s = 0; s < spt; s++) {
-          if (!occupied.has(`${tableIndex}-${s}`)) emptySeats.push(s);
-        }
-        if (emptySeats.length > 0) {
-          const seatIndex = emptySeats[Math.floor(Math.random() * emptySeats.length)];
-          assignedSeat = { tableIndex, seatIndex };
-          break;
-        }
-      }
-
-      if (assignedSeat) {
-        const seat = assignedSeat;
-        updated = updated.map(p => p.id === player.id ? { ...p, seated: true, tableAssignment: seat } : p);
-      }
-    }
-
-    updatePlayers(updated);
+  /**
+   * Break a table by hand.
+   *
+   * Through the hook's one action now. It used to be 57 lines inline here with
+   * its own emptiest-table walk, its own random free-seat pick, and its own
+   * `seatsPerTable` read (defaulting to 9 against this component's 6) — and it
+   * never lowered `numberOfTables`, never renumbered, and snapshotted nothing,
+   * so the table it broke stayed on screen as an empty felt and there was no
+   * way back. `lib/tableBreak.ts` owns all of that now, and the prompt that
+   * fires on a bust-out goes through the same door.
+   */
+  const confirmBreakTable = (breakIdx: number) => {
+    breakTable(breakIdx);
     setBreakTableDialogOpen(false);
     setTableToBreak(null);
   };
@@ -977,32 +936,21 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
         </DialogContent>
       </Dialog>
 
-      {/* Break Table Dialog */}
-      <Dialog open={breakTableDialogOpen} onOpenChange={open => { setBreakTableDialogOpen(open); if (!open) setTableToBreak(null); }}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Break {tableToBreak !== null ? (tableNames[tableToBreak] || `Table ${tableToBreak + 1}`) : ''}</DialogTitle>
-            <DialogDescription>
-              {tableToBreak !== null && (() => {
-                const count = state.players.filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === tableToBreak).length;
-                return `${count} player${count !== 1 ? 's' : ''} will be randomly distributed to the emptiest remaining tables.`;
-              })()}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => { setBreakTableDialogOpen(false); setTableToBreak(null); }}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              className="flex-1"
-              onClick={() => tableToBreak !== null && breakTable(tableToBreak)}
-            >
-              Break Table
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* THE SAME DIALOG the bust-out prompt uses. Two descriptions of one
+          action is how they drift — this one used to say only that players
+          "will be randomly distributed", which was true and told a director
+          nothing about whether anyone ELSE was going to be moved. */}
+      {tableToBreak !== null && (
+        <BreakTableDialog
+          isOpen={breakTableDialogOpen}
+          onClose={() => { setBreakTableDialogOpen(false); setTableToBreak(null); }}
+          onConfirm={() => confirmBreakTable(tableToBreak)}
+          tableName={tableNames[tableToBreak] || `Table ${tableToBreak + 1}`}
+          movingCount={state.players.filter(p => p.seated && p.isActive !== false && p.tableAssignment?.tableIndex === tableToBreak).length}
+          toTables={Math.max(1, numberOfTables - 1)}
+          overflow={Math.max(0, state.players.filter(p => p.isActive !== false && p.seated).length - Math.max(1, numberOfTables - 1) * seatsPerTable)}
+        />
+      )}
     </div>
   );
 }

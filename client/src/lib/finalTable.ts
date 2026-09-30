@@ -1,4 +1,5 @@
-import { freeSeatAt } from '@/lib/seating';
+import { freeSeatAt, tablesNeededFor } from '@/lib/seating';
+import { tableOccupancy } from '@/lib/tableBreak';
 
 /**
  * When a tournament collapses to one table, and how to put it back.
@@ -167,8 +168,19 @@ export function promptDismissedFor(
  * got one prompt a night and collapsed the table by hand, which is exactly the
  * hand-arranging that `lib/seating.ts` documents the cost of.
  *
- * So a dismissal survives only while the field still fits one table. Grow back
- * past it and the answer is spent: whatever happens next is a new question.
+ * So a dismissal survives only while the question is still due. Once it is not,
+ * the answer is spent: whatever happens next is a new question.
+ *
+ * **It takes the question rather than the field size, and that generalisation
+ * is load-bearing now there is more than one question.** It used to ask
+ * `activeCount > seatsPerTable`, which is the right test for exactly one of
+ * them: the final-table prompt only ever fires at or below one table's worth,
+ * so growing past that is the only way its answer can go stale. A TABLE BREAK is
+ * dismissed far above that line — sixteen left on three tables of eight — and
+ * under the old test every one of those dismissals read as stale the instant it
+ * was made, dropping the latch on the next render and reopening the dialog. That
+ * is the "Ignore for now" loop `lib/tableBalance.ts` was written to end, rebuilt
+ * with a different number.
  *
  * This is the SAME class of bug as the one the latch was added to fix, one
  * level up — that version reopened on every render, this version stayed shut
@@ -177,11 +189,10 @@ export function promptDismissedFor(
  */
 export function dismissalIsStale(
   dismissedAtCount: number | null,
-  players: SeatablePlayer[],
-  seatsPerTable: number,
+  questionIsDue: boolean,
 ): boolean {
   if (dismissedAtCount === null) return false;
-  return activeCount(players) > seatsPerTable;
+  return !questionIsDue;
 }
 
 /** Where everyone is sitting now, so it can be restored. */
@@ -262,10 +273,20 @@ export function restoreSeating<T extends SeatablePlayer>(
  * just reclaimed, which IS their real pre-collapse seat. Everyone else goes back
  * across both tables, so the lone-player-on-table-2 state cannot arise.
  */
+export interface ConsolidationSnapshot {
+  seats: SeatSnapshot[];
+  tables: number;
+  names?: string[];
+  backgrounds?: string[];
+}
+
 export interface FinalTableState {
   isFinalTable?: boolean;
-  preFinalTableSeating?: SeatSnapshot[];
+  /** What the last consolidation replaced — seats AND the table configuration. */
+  preConsolidation?: ConsolidationSnapshot;
   seatsPerTable: number;
+  /** How many tables the game is configured for RIGHT NOW, after the consolidation. */
+  numberOfTables: number;
   /**
    * Who has just come back, so the final table can be found from everyone ELSE.
    *
@@ -291,7 +312,15 @@ export interface FinalTableState {
 export interface FinalTablePatch<T> {
   players: T[];
   isFinalTable: boolean;
-  preFinalTableSeating: SeatSnapshot[] | undefined;
+  preConsolidation: ConsolidationSnapshot | undefined;
+  /**
+   * The table configuration to put back, or null to leave it alone.
+   *
+   * Restoring the chairs without the table is not a restore: every render walks
+   * `0..numberOfTables-1`, so a seat on table 3 of a two-table game is drawn
+   * nowhere at all.
+   */
+  restoreTables: { numberOfTables: number; names?: string[]; backgrounds?: string[] } | null;
   /**
    * The seat the returning player should take, or null to leave them unseated.
    *
@@ -301,21 +330,33 @@ export interface FinalTablePatch<T> {
   seatForReturner: { tableIndex: number; seatIndex: number } | null;
 }
 
-export function finalTableAfterReturn<T extends SeatablePlayer>(
+export function consolidationAfterReturn<T extends SeatablePlayer>(
   players: T[],
   state: FinalTableState,
 ): FinalTablePatch<T> {
   const unchanged = {
     players,
     isFinalTable: !!state.isFinalTable,
-    preFinalTableSeating: state.preFinalTableSeating,
+    preConsolidation: state.preConsolidation,
+    restoreTables: null,
     seatForReturner: null,
   };
 
-  if (!state.isFinalTable) return unchanged;
+  const outgrown = outgrowsTables(activeCount(players), state);
 
-  if (outgrowsFinalTable(activeCount(players), state.seatsPerTable)) {
-    const restored = restoreSeating(players, state.preFinalTableSeating);
+  // Nothing has been consolidated, so there is nothing for a returning player to
+  // meet. A break leaves a snapshot without the flag, which is why this can no
+  // longer key on `isFinalTable` alone.
+  //
+  // NOT widened to "the field outgrows the tables". That is true of any game with
+  // more players than chairs, consolidated or not, and acting on it here would
+  // silently add a table on an ordinary rebuy — where the app already ASKS, through
+  // the Seat Players overflow offer. Three tests said so when it was tried.
+  if (!state.isFinalTable && !state.preConsolidation) return unchanged;
+
+  if (outgrown) {
+    const snap = state.preConsolidation;
+    const restored = restoreSeating(players, snap?.seats);
     // Their own chair back, now that the restore has vacated it. "A rebuy is
     // chips bought in the chair they never left" finally survives a collapse.
     const seat = state.reclaimSeat;
@@ -329,21 +370,74 @@ export function finalTableAfterReturn<T extends SeatablePlayer>(
     return {
       players: restored,
       isFinalTable: false,
-      preFinalTableSeating: undefined,
+      preConsolidation: undefined,
+      // The table comes back with the chairs, or the restored seating points at
+      // tables the render loop no longer walks.
+      // The table comes back with the chairs. WITHOUT a snapshot it is still
+      // raised to what the field needs: after a break the remaining tables are
+      // exactly full — sixteen on two eights — so the very next rebuy has
+      // nowhere to go, and `preConsolidation` is local state that no reload of a
+      // live game survives. Raising the count moves nobody and changes no seat;
+      // it only makes room, which beats leaving a player standing.
+      restoreTables: snap
+        ? { numberOfTables: snap.tables, names: snap.names, backgrounds: snap.backgrounds }
+        : { numberOfTables: tablesNeededFor(activeCount(players), state.seatsPerTable) },
       seatForReturner: free ? seat : null,
     };
   }
 
-  // The collapse stands, so the returning player joins it rather than sitting
-  // alone at the table everyone was moved off. A free seat is guaranteed here —
-  // the field fits, and every other active player is on this table, so at most
-  // seats-1 are taken — but a null falls back to unseated rather than inventing
-  // a chair.
-  const table = oneTableIndex(players.filter(p => p.id !== state.returningId));
-  return {
-    ...unchanged,
-    seatForReturner: table === null ? null : freeSeatAt(players, table, state.seatsPerTable),
-  };
+  // The consolidation stands, so the returning player joins the game where it is
+  // actually being played rather than sitting alone at a table everyone was
+  // moved off. A null falls back to unseated rather than inventing a chair.
+  return { ...unchanged, seatForReturner: seatForReturningPlayer(players, state) };
+}
+
+/**
+ * Where a returning player sits when the consolidation STANDS.
+ *
+ * Two shapes, because the two consolidations leave different states behind.
+ *
+ * At a FINAL table the answer is `oneTableIndex` over everyone else — deliberately
+ * conservative, and excluding the returner because `seatToReclaim` has already put
+ * them on their pre-collapse chair, so "which one table is the field at" otherwise
+ * has two answers and theirs is the wrong one.
+ *
+ * After a table BREAK there is more than one table in play, so the question is
+ * which of them has room. The emptiest, for the same reason the break itself
+ * picks the emptiest table: it is the one a seat belongs at.
+ */
+function seatForReturningPlayer<T extends SeatablePlayer>(
+  players: T[],
+  state: FinalTableState,
+): { tableIndex: number; seatIndex: number } | null {
+  const others = players.filter(p => p.id !== state.returningId);
+
+  if (state.isFinalTable) {
+    const table = oneTableIndex(others);
+    return table === null ? null : freeSeatAt(players, table, state.seatsPerTable);
+  }
+
+  const counts = tableOccupancy(others, state.numberOfTables);
+  const order = counts.map((n, t) => ({ n, t })).sort((a, b) => a.n - b.n || a.t - b.t);
+  for (const { t } of order) {
+    const seat = freeSeatAt(players, t, state.seatsPerTable);
+    if (seat) return seat;
+  }
+  return null;
+}
+
+/**
+ * Does the field now need MORE tables than the game is configured for?
+ *
+ * The generalisation of `outgrowsFinalTable`, and the test the unwind turns on.
+ * Through `tablesNeededFor` rather than a second ceil, so it cannot disagree with
+ * the predicate that asked for the consolidation in the first place.
+ */
+export function outgrowsTables(
+  activeAfterRestore: number,
+  { numberOfTables, seatsPerTable }: { numberOfTables: number; seatsPerTable: number },
+): boolean {
+  return tablesNeededFor(activeAfterRestore, seatsPerTable) > Math.max(1, Math.floor(numberOfTables) || 1);
 }
 
 export function outgrowsFinalTable(activeAfterRestore: number, seatsPerTable: number): boolean {

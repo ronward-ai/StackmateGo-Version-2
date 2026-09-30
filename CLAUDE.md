@@ -2449,6 +2449,109 @@ including the one that treats seat **zero** as falsy.
 Verified by driving the reported sequence in the devstub: nine seated 5+4 → bust → 4+4 → collapse →
 8 on one table → **rebuy → back to 5+4 with the flag cleared**, the exact state before the bust-out.
 
+### The final table is one size of a question the app only ever asked at one size
+
+Reported from a real league on **three tables of eight**: at sixteen players the field
+plainly fits two tables, and nothing said so. The only question ever asked was about the
+FINAL table, at eight.
+
+**Most of the mechanism already existed, unprompted and untested.** `TablesSection` carried
+a `breakTable(breakIdx)` behind a small `TableProperties` icon in each table header, which a
+director had to notice and know the meaning of. It also never lowered
+`settings.tables.numberOfTables`, so the table it broke went on rendering as an empty felt
+with a full row of seats; never renumbered, so breaking the middle table of three left
+players on table 3 while only tables 1 and 2 were in play; snapshotted nothing, so there was
+no undo; read `seatsPerTable` from a second source defaulting to 9 against the component's
+own 6; and sat inline in a component, so it had no test and could not have one.
+
+`lib/tableBreak.ts` owns it now, and both doors — the icon and the new prompt — go through
+one action.
+
+**A break is NOT a small final table, and the difference is the whole feature.** The final
+table REDRAWS every seat at random, which is what a final table draw is supposed to be. A
+break moves **only the players at the table that goes**; everybody else keeps the chair they
+were already in, which is what a cardroom does and what makes a director say yes without
+hesitating. The copy says so out loud: *"Only Table 3 moves — everyone else keeps their
+seat."*
+
+**The emptiest table breaks, ties to the HIGHEST index.** Fewest people moved, and a tie
+goes to the table added last rather than the feature table. An empty table is the ideal
+answer, not an excluded one: breaking it moves nobody. A mutant narrowing `<=` to `<` picks
+table 1 and turns a test red.
+
+**The renumber is why breaking the middle table is safe.** `settings.tables` stores a COUNT,
+not a set, and every render walks `0..numberOfTables-1` — "tables 1 and 3" cannot be
+expressed. Players left on index 2 of a two-table game would be drawn nowhere, with no KO
+button and out of reach of Move mode: the 17-player ghost by another route. Names and felts
+move WITH their tables through `reindexAfterBreak`, because `tableNamesFor` trims the LAST
+entry, which is wrong when the table that went was in the middle.
+
+**Two predicates, deliberately.** `consolidationDue` returns null at one table and leaves it
+to `shouldPromptForFinalTable`, which carries the stored `isFinalTable` flag read
+preferred-then-derived and the `<=` a real bug turned on. One predicate answering both at
+overlapping sizes is how a single bust-out gets two dialogs. The prompt reads them in order
+of size, so even if they ever did overlap, one bust-out still gets one dialog.
+
+**ONE prompt component, not a fourth.** Three dialogs already race over one bust-out — the
+rebuy offer, the final table and the uneven-tables prompt — wired together by `standDown`
+and `finalTablePromptOpen`. `FinalTablePrompt` asks both questions and renders whichever
+dialog fits; everything that makes it behave is untouched, including the page-level mount
+that made it tab-independent and the read-only watching that keeps a takeover silent.
+
+**`dismissalIsStale` had to take the QUESTION rather than the field size, and that is
+load-bearing.** It asked `activeCount > seatsPerTable`, which is right for exactly one
+prompt: the final table only ever fires at or below one table's worth, so growing past that
+is the only way its answer goes stale. **A break is dismissed far above that line** — sixteen
+on three eights — so every such dismissal read as stale the instant it was made, dropping the
+latch on the next render and reopening the dialog. That is the "Ignore for now" loop
+`lib/tableBalance.ts` exists to end, rebuilt with a different number.
+
+**The final table now lowers the count too**, so it no longer renders with every other table
+under it as an empty felt. `goToFinalTable` also stopped minting chairs that do not exist: it
+computed `seatsPerTable` and threw it away, assigning `seatIndex: playerIndex` to every
+active player, so collapsing more than the table seats produced seat 8 of an eight-seat
+table. The prompt cannot reach it — it only asks at or below one table's worth — but the
+Seating tab's button can.
+
+**Undo restores the table with the chairs.** `preFinalTableSeating` became
+`preConsolidation`, carrying the seats AND the configuration: restoring the seating alone
+would leave it pointing at tables the render loop no longer walks. `finalTableAfterReturn`
+became `consolidationAfterReturn` and unwinds on `tablesNeededFor(active) > numberOfTables`
+rather than "outgrows one table" — same three outcomes, same load-bearing ordering
+(`seatToReclaim` first, this over the top).
+
+**It was NOT widened to "the field outgrows the tables", and three tests are why.** After a
+break the remaining tables are exactly full — sixteen on two eights — so the very next rebuy
+has nowhere to go, and `preConsolidation` is local state that no reload of a live game
+survives. Raising the count automatically looked like the fix and broke three well-considered
+assertions: that shape is true of any game with more players than chairs, consolidated or
+not, so it would silently add a table on an ordinary rebuy. **The app already ASKS in that
+situation**, through the Seat Players overflow offer. So the limitation stands: refresh
+between a break and a rebuy and the unwind is gone, exactly as the final table has always
+worked.
+
+**Settings are persisted by one writer now, and finding that was the point of driving it.**
+`updateSettings` saved to localStorage from inside its own `setState` updater, and it was the
+ONLY thing that saved settings at all — so every other writer of `state.settings` was a
+memory-only change. Both consolidations lower the table count, and a reload put it straight
+back while the players stayed where the consolidation left them: orphaned on a table that no
+longer exists, again. One guarded effect owns it, serialised like the Firestore sync effects
+because the snapshot handler spreads `...data` over state on every snapshot.
+
+**The shared dialog warns when a manual break leaves people standing.** The prompted path
+cannot reach it — it only fires when the field fits — but the Break icon has no such guard and
+never had one, so breaking a table on a full house left players unseated while the copy
+claimed everyone kept their seat. Warns and never refuses, the call `lateEntryClosedReason()`
+already makes.
+
+Nine mutants are caught across `lib/tableBreak.ts`. The `>=` in `consolidationDue` needs a
+fixture with an active player UNSEATED, or the already-consolidated guard catches the mutant
+first and it survives. Verified by driving the reported game: seventeen on 6/6/5, one KO →
+the prompt names **Table 3** (tied with table 1, tie to the highest) → 8+8 on two tables,
+`numberOfTables: 2`, names trimmed to `['Table 1','The Kitchen']`, no duplicate chairs — then
+a rebuy back to seventeen restores 6/6/5, three tables and all three names. Nine down to
+eight then asks **Final table?** and collapses to one.
+
 ### A chop splits only the money still to be won
 
 `ChipChopCalculator`, behind the **Chop** button in the Payouts header of `TournamentInfoCard`, is
@@ -2909,6 +3012,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `accountWipe.ts` | What deleting an account removes, and the one order that does not strand it. |
 | `finalTable.ts` | Whether to ask for a final table, whether a dismissal still applies, and how to put the seats back if it is undone. |
 | `tableBalance.ts` | Whether the tables are uneven enough to say so, and what a dismissal remembers. |
+| `tableBreak.ts` | When the field fits fewer tables, which one breaks, and where its players sit. **Only the broken table moves**; the rest renumber, because the model stores a table COUNT, not a set. |
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |

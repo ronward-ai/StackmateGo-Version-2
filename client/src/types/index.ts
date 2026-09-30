@@ -256,8 +256,24 @@ export interface TournamentState {
   settings: Settings;
   prizeStructure?: PrizeStructure;
   isFinalTable?: boolean;
-  /** Where everyone sat before the final-table redraw, so it can be undone. */
-  preFinalTableSeating?: { playerId: string; seated: boolean; tableIndex?: number; seatIndex?: number }[];
+  /**
+   * What the last consolidation replaced, so it can be undone.
+   *
+   * Both the SEATS and the table configuration, because a consolidation now
+   * lowers `settings.tables.numberOfTables` — putting the chairs back without
+   * putting the table back would leave the restored seating pointing at a table
+   * the render loop no longer walks. They are one fact and travel as one.
+   *
+   * Local state only: never written to Firestore and absent from
+   * `LocalProgress`, so undo stays on the device that consolidated. It is named
+   * in the snapshot handler's `keepLocal` echo guard, which must travel with it.
+   */
+  preConsolidation?: {
+    seats: { playerId: string; seated: boolean; tableIndex?: number; seatIndex?: number }[];
+    tables: number;
+    names?: string[];
+    backgrounds?: string[];
+  };
 
   /**
    * Bust-outs whose rebuy question has been answered, either way, as

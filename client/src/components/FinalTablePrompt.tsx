@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import FinalTableDialog from './FinalTableDialog';
+import BreakTableDialog from './BreakTableDialog';
 import { activeCount, dismissalIsStale, promptDismissedFor } from '@/lib/finalTable';
 import { mostRecentlyBusted } from '@/lib/eliminationOrder';
 
@@ -51,7 +52,21 @@ interface FinalTablePromptProps {
 export default function FinalTablePrompt({ tournament, onOpenChange, standDown = false, readOnly = false }: FinalTablePromptProps) {
   const {
     state, shouldPromptForFinalTable, goToFinalTable,
+    tableBreakDue, tableToBreak, breakTable,
   } = tournament;
+
+  /**
+   * The two questions, asked in order of size.
+   *
+   * The final table wins when both could apply, because it is the more specific
+   * one and owns everything at or below a single table's worth. `consolidationDue`
+   * deliberately returns null there so the two cannot both be true — but reading
+   * them in this order means that even if it ever did, one bust-out still gets
+   * one dialog.
+   */
+  const finalTableDue = shouldPromptForFinalTable();
+  const breakTo = finalTableDue ? null : tableBreakDue();
+  const questionIsDue = finalTableDue || breakTo !== null;
 
   const [isOpen, setIsOpen] = useState(false);
   /**
@@ -79,12 +94,16 @@ export default function FinalTablePrompt({ tournament, onOpenChange, standDown =
     onOpenChange?.(next);
   };
 
-  // A dismissal is spent once the field grows back past one table — a rebuy
-  // makes the next bust-out a new question. See lib/finalTable.ts.
+  // A dismissal is spent once the question stops being due — a rebuy makes the
+  // next bust-out a new question. It takes the QUESTION rather than the field
+  // size now there is more than one: a break is dismissed far above one table's
+  // worth, and the old test read every such dismissal as stale immediately,
+  // dropping the latch on the next render and reopening the dialog. See
+  // lib/finalTable.ts.
   useEffect(() => {
-    if (!dismissalIsStale(dismissedAt, state.players, state.settings.tables?.seatsPerTable || 6)) return;
+    if (!dismissalIsStale(dismissedAt, questionIsDue)) return;
     setDismissedAt(null);
-  }, [dismissedAt, state.players, state.settings.tables?.seatsPerTable]);
+  }, [dismissedAt, questionIsDue]);
 
   // While another device drives, stay silent AND stay current: latch the
   // dismissal to the field as it stands, so the instant control is taken there is
@@ -92,35 +111,58 @@ export default function FinalTablePrompt({ tournament, onOpenChange, standDown =
   // field changes.
   useEffect(() => {
     if (!readOnly) return;
-    if (!shouldPromptForFinalTable()) return;
+    if (!questionIsDue) return;
     setDismissedAt(activeCount(state.players));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readOnly, shouldPromptForFinalTable, state.players]);
+  }, [readOnly, questionIsDue, state.players]);
 
   useEffect(() => {
     if (readOnly) return;
     if (silenced) return;
     if (standDown) return;
-    if (!shouldPromptForFinalTable()) return;
+    if (!questionIsDue) return;
     if (promptDismissedFor(dismissedAt, state.players)) return;
     open(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldPromptForFinalTable, dismissedAt, silenced, standDown, readOnly, state.players]);
+  }, [questionIsDue, dismissedAt, silenced, standDown, readOnly, state.players]);
 
   const justBusted = mostRecentlyBusted(state.players);
+
+  const closing = () => {
+    open(false);
+    // Rebuy and close fire in the same tick, so on that path this records
+    // the count from BEFORE the rebuy. Deliberately left alone: the
+    // staleness effect above drops the latch the moment the question stops
+    // being due, so the value stops mattering — and "the number it holds" is
+    // exactly what must not be relied on to mean anything later.
+    setDismissedAt(activeCount(state.players));
+  };
+
+  if (breakTo !== null) {
+    const broken = tableToBreak();
+    const names = state.settings.tables?.tableNames;
+    const tableName = (broken !== null && names?.[broken]) || `Table ${(broken ?? 0) + 1}`;
+    const movingCount = state.players.filter(
+      p => p.isActive !== false && p.seated && p.tableAssignment?.tableIndex === broken,
+    ).length;
+    return (
+      <BreakTableDialog
+        isOpen={isOpen}
+        onClose={closing}
+        onConfirm={() => breakTable()}
+        tableName={tableName}
+        movingCount={movingCount}
+        toTables={breakTo}
+        triggeredBy={justBusted}
+        onSilence={() => setSilenced(true)}
+      />
+    );
+  }
 
   return (
     <FinalTableDialog
       isOpen={isOpen}
-      onClose={() => {
-        open(false);
-        // Rebuy and close fire in the same tick, so on that path this records
-        // the count from BEFORE the rebuy. Deliberately left alone: the
-        // staleness effect above drops the latch the moment the field grows,
-        // so the value stops mattering — and "the number it holds" is exactly
-        // what must not be relied on to mean anything later.
-        setDismissedAt(activeCount(state.players));
-      }}
+      onClose={closing}
       playerCount={activeCount(state.players)}
       onConfirm={goToFinalTable}
       triggeredBy={justBusted}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  activeCount, alreadyAtOneTable, dismissalIsStale, finalTableAfterReturn, outgrowsFinalTable, promptDismissedFor,
+  activeCount, alreadyAtOneTable, dismissalIsStale, consolidationAfterReturn, outgrowsFinalTable, promptDismissedFor,
   restoreSeating, shouldPromptForFinalTable, snapshotSeating, type SeatablePlayer,
 } from './finalTable';
 
@@ -77,16 +77,16 @@ describe('dismissalIsStale', () => {
   it('is spent once the field grows back past one table', () => {
     // The rebuy put the ninth player back. The collapse is not due at all now,
     // so the answer given about the last bust-out has nothing left to apply to.
-    expect(dismissalIsStale(8, nineAcrossTwoTables(), 8)).toBe(true);
+    expect(dismissalIsStale(8, shouldPromptForFinalTable(nineAcrossTwoTables(), 8, false))).toBe(true);
   });
 
   it('still holds while the field fits one table', () => {
     const players = [...nineAcrossTwoTables().slice(0, 8), busted('t2-0')];
-    expect(dismissalIsStale(8, players, 8)).toBe(false);
+    expect(dismissalIsStale(8, shouldPromptForFinalTable(players, 8, false))).toBe(false);
   });
 
   it('is nothing to clear when no answer was given', () => {
-    expect(dismissalIsStale(null, nineAcrossTwoTables(), 8)).toBe(false);
+    expect(dismissalIsStale(null, shouldPromptForFinalTable(nineAcrossTwoTables(), 8, false))).toBe(false);
   });
 });
 
@@ -121,7 +121,7 @@ describe('bust, rebuy, bust again', () => {
 
     // The rebuy lands: nine again, and the answer is spent.
     players = nineAcrossTwoTables();
-    expect(dismissalIsStale(dismissedAt, players, seatsPerTable)).toBe(true);
+    expect(dismissalIsStale(dismissedAt, shouldPromptForFinalTable(players, seatsPerTable, false))).toBe(true);
     dismissedAt = null;
 
     // Same player busts again. A NEW question, and it must be asked.
@@ -134,7 +134,7 @@ describe('bust, rebuy, bust again', () => {
     // The regression the latch exists for, and which the staleness rule must
     // not trade away: no rebuy, so nothing is stale and "Not yet" holds.
     const players = eightAcrossTwoTables();
-    expect(dismissalIsStale(8, players, seatsPerTable)).toBe(false);
+    expect(dismissalIsStale(8, shouldPromptForFinalTable(players, seatsPerTable, false))).toBe(false);
     expect(promptDismissedFor(8, players)).toBe(true);
   });
 });
@@ -320,7 +320,7 @@ describe('alreadyAtOneTable', () => {
  * `seatToReclaim` handed back a pre-collapse chair that reads as "free" PRECISELY
  * because the collapse emptied that table. One rule, three doors.
  */
-describe('finalTableAfterReturn', () => {
+describe('consolidationAfterReturn', () => {
   const seat = (id: string, tableIndex: number, seatIndex: number): SeatablePlayer =>
     ({ id, isActive: true, seated: true, tableAssignment: { tableIndex, seatIndex } });
 
@@ -336,14 +336,16 @@ describe('finalTableAfterReturn', () => {
   ];
 
   it('unwinds when the returning player no longer fits — the reported game', () => {
-    const out = finalTableAfterReturn(collapsedPlusOne(), {
+    const out = consolidationAfterReturn(collapsedPlusOne(), {
       isFinalTable: true,
-      preFinalTableSeating: snapshot,
+      preConsolidation: { seats: snapshot, tables: 2 },
+        numberOfTables: 1,
       seatsPerTable: 8,
     });
 
     expect(out.isFinalTable).toBe(false);
-    expect(out.preFinalTableSeating).toBeUndefined();
+    expect(out.preConsolidation).toBeUndefined();
+    expect(out.restoreTables).toEqual({ numberOfTables: 2, names: undefined, backgrounds: undefined });
     // The eight go back across BOTH tables, so nobody is left sitting alone.
     const tables = new Set(out.players.map(p => p.tableAssignment?.tableIndex));
     expect([...tables].sort()).toEqual([0, 1]);
@@ -356,8 +358,9 @@ describe('finalTableAfterReturn', () => {
    * real pre-collapse seat.
    */
   it('leaves the returning player on the chair he reclaimed', () => {
-    const out = finalTableAfterReturn(collapsedPlusOne(), {
-      isFinalTable: true, preFinalTableSeating: snapshot, seatsPerTable: 8,
+    const out = consolidationAfterReturn(collapsedPlusOne(), {
+      isFinalTable: true, preConsolidation: { seats: snapshot, tables: 2 },
+        numberOfTables: 1, seatsPerTable: 8,
     });
     expect(out.players.find(p => p.id === 'back')?.tableAssignment).toEqual({ tableIndex: 1, seatIndex: 0 });
   });
@@ -368,19 +371,21 @@ describe('finalTableAfterReturn', () => {
       ...Array.from({ length: 6 }, (_, i) => seat(`a${i}`, 0, i)),
       seat('back', 1, 0),
     ];
-    const out = finalTableAfterReturn(players, {
-      isFinalTable: true, preFinalTableSeating: snapshot, seatsPerTable: 8, returningId: 'back',
+    const out = consolidationAfterReturn(players, {
+      isFinalTable: true, preConsolidation: { seats: snapshot, tables: 2 },
+        numberOfTables: 1, seatsPerTable: 8, returningId: 'back',
     });
 
     expect(out.isFinalTable).toBe(true);
-    expect(out.preFinalTableSeating).toBe(snapshot);
+    expect(out.preConsolidation?.seats).toBe(snapshot);
+    expect(out.restoreTables).toBeNull();
     // Not his old table-2 chair — a free seat at the table being played on.
     expect(out.seatForReturner).toEqual({ tableIndex: 0, seatIndex: 6 });
   });
 
   it('changes nothing at all when there is no final table', () => {
     const players = collapsedPlusOne();
-    const out = finalTableAfterReturn(players, { isFinalTable: false, seatsPerTable: 8 });
+    const out = consolidationAfterReturn(players, { isFinalTable: false, numberOfTables: 1, seatsPerTable: 8 });
     expect(out.players).toBe(players);
     expect(out.isFinalTable).toBe(false);
     expect(out.seatForReturner).toBeNull();
@@ -388,15 +393,16 @@ describe('finalTableAfterReturn', () => {
 
   it('still clears the flag when there is no snapshot to restore', () => {
     // Matches undoFinalTable: the flag goes even when no seats can move.
-    const out = finalTableAfterReturn(collapsedPlusOne(), {
-      isFinalTable: true, preFinalTableSeating: undefined, seatsPerTable: 8,
+    const out = consolidationAfterReturn(collapsedPlusOne(), {
+      isFinalTable: true, preConsolidation: undefined,
+        numberOfTables: 1, seatsPerTable: 8,
     });
     expect(out.isFinalTable).toBe(false);
   });
 
   it('offers no seat when the field is not seated, rather than inventing one', () => {
-    const out = finalTableAfterReturn([{ id: 'a' }, { id: 'b' }], {
-      isFinalTable: true, seatsPerTable: 8,
+    const out = consolidationAfterReturn([{ id: 'a' }, { id: 'b' }], {
+      isFinalTable: true, numberOfTables: 1, seatsPerTable: 8,
     });
     expect(out.seatForReturner).toBeNull();
   });
@@ -409,7 +415,7 @@ describe('finalTableAfterReturn', () => {
  * against the collapsed roster — where the redraw has handed his old chair to
  * somebody else — and returns null. The unwind then vacates that very seat.
  */
-describe('finalTableAfterReturn — the chair back after an unwind', () => {
+describe('consolidationAfterReturn — the chair back after an unwind', () => {
   const seat = (id: string, tableIndex: number, seatIndex: number): SeatablePlayer =>
     ({ id, isActive: true, seated: true, tableAssignment: { tableIndex, seatIndex } });
 
@@ -423,9 +429,10 @@ describe('finalTableAfterReturn — the chair back after an unwind', () => {
   ];
 
   it('gives the returning player their own chair back once the restore vacates it', () => {
-    const out = finalTableAfterReturn(collapsed(), {
+    const out = consolidationAfterReturn(collapsed(), {
       isFinalTable: true,
-      preFinalTableSeating: snapshot,
+      preConsolidation: { seats: snapshot, tables: 2 },
+        numberOfTables: 1,
       seatsPerTable: 8,
       returningId: 'back',
       reclaimSeat: { tableIndex: 0, seatIndex: 4 }, // taken pre-unwind, free after
@@ -435,9 +442,10 @@ describe('finalTableAfterReturn — the chair back after an unwind', () => {
   });
 
   it('leaves them unseated when somebody really is in that chair', () => {
-    const out = finalTableAfterReturn(collapsed(), {
+    const out = consolidationAfterReturn(collapsed(), {
       isFinalTable: true,
-      preFinalTableSeating: snapshot,
+      preConsolidation: { seats: snapshot, tables: 2 },
+        numberOfTables: 1,
       seatsPerTable: 8,
       returningId: 'back',
       reclaimSeat: { tableIndex: 1, seatIndex: 0 }, // a4 sits here after the restore
@@ -446,8 +454,9 @@ describe('finalTableAfterReturn — the chair back after an unwind', () => {
   });
 
   it('leaves them unseated when they had no recorded chair', () => {
-    const out = finalTableAfterReturn(collapsed(), {
-      isFinalTable: true, preFinalTableSeating: snapshot, seatsPerTable: 8, returningId: 'back',
+    const out = consolidationAfterReturn(collapsed(), {
+      isFinalTable: true, preConsolidation: { seats: snapshot, tables: 2 },
+        numberOfTables: 1, seatsPerTable: 8, returningId: 'back',
     });
     expect(out.seatForReturner).toBeNull();
   });
