@@ -56,7 +56,7 @@ export default function DirectorOnly({ readOnly, children, instead, notice }: Di
   return (
     <div className="flex items-start gap-2.5 py-6 text-body text-muted-foreground">
       <Eye className="h-4 w-4 flex-shrink-0 mt-0.5" />
-      <p>{notice || 'This game is being run on another device, and that is where it is set up. Take control above to change it from here.'}</p>
+      <p>{notice || 'Another device has control of this game, and that is where it is set up. Take control above to change it from here.'}</p>
     </div>
   );
 }

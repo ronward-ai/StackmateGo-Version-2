@@ -55,8 +55,23 @@ describe('controlLockReason', () => {
   // "Nothing you do here is being saved" is the load-bearing half. A read-only
   // console that merely looks normal is how the half-enforced lock cost a
   // director their rebuys without anybody noticing.
-  it('warns that nothing is being saved', () => {
+  it('warns that nothing is being saved, with or without a time', () => {
+    // BOTH branches. The timed one used to be asserted only on the time, so a
+    // reword could drop the warning from it and every test still passed.
     expect(controlLockReason('other')).toMatch(/not being saved|being saved/i);
+    expect(controlLockReason('other', '2026-09-27T19:42:00.000Z')).toMatch(/not being saved|being saved/i);
+  });
+
+  // It must not assert a fact it does not have. "This game is being run on
+  // another device" was reported from a live night as plainly wrong — the holder
+  // was an iPad at home and nobody was running anything. All the app knows is
+  // that a device claimed control.
+  it('says a device has control, never that anyone is running the game', () => {
+    for (const reason of [controlLockReason('other'), controlLockReason('other', '2026-09-27T19:42:00.000Z')]) {
+      expect(reason).not.toMatch(/being run on another device/i);
+      expect(reason).toMatch(/has control/i);
+      expect(reason).toMatch(/take control/i);
+    }
   });
 
   it('names the time when it has one, and omits it when it does not', () => {

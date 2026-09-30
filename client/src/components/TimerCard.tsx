@@ -261,7 +261,7 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
         // useful for, and they keep tracking the real game through the
         // snapshot. It is only the controls that would lie.
         <div className="w-full px-4 sm:px-8 mb-4 sm:mb-6 text-center text-label text-muted-foreground">
-          The clock is being run on another device. Take control to drive it from here.
+          Another device has control of the clock. Take control to drive it from here.
         </div>
       ) : (
       <div className="flex justify-between items-center w-full px-4 sm:px-8 mb-4 sm:mb-6">

@@ -133,6 +133,54 @@ export async function writeLiveGame(
 }
 
 /**
+ * Hand control back, if this device is the one holding it.
+ *
+ * **Nothing in this app ever released a claim, and that was the bug.** There was
+ * exactly one write of `controllingDeviceId` — the claim below — and it only ever
+ * SET. Not when a game finished, not when the director signed out, not on
+ * teardown. So every game an account had ever taken live carried a holder for
+ * good, and any OTHER device opening it read `other` and went read-only: a
+ * director who ran a game on the laptop and opened it next week on a tablet was
+ * locked out of their own finished tournament until they found Take control.
+ *
+ * Reported from a live night in exactly that shape — a banner reading "this game
+ * is being run on another device" about a game nobody was running, on a phone
+ * that had resumed an old test game from home.
+ *
+ * **A transaction that checks first, for the reason the claim is one**: it reads
+ * the live holder and clears the field only when `controlOf` says the claim is
+ * ours. A device can give up its own control and can never strip anybody else's,
+ * which is what keeps this from being the automatic steal the claim's own comment
+ * rules out.
+ *
+ * **This is release, not timeout.** Control is given back by the holder — when the
+ * game ends, or when the director signs out, which in this app IS the handover.
+ * Nothing takes it on a clock: a tournament break is twenty minutes of silence and
+ * indistinguishable from an abandoned game, so idleness can never be the signal.
+ */
+export async function releaseLiveGameControl(
+  tournamentId: string | number | null | undefined,
+  myDeviceId: string,
+): Promise<'released' | 'not-mine'> {
+  if (tournamentId === null || tournamentId === undefined || tournamentId === '') return 'not-mine';
+
+  const { doc, runTransaction } = await import('firebase/firestore');
+  const { db } = await import('@/lib/firebase');
+  const ref = doc(db, 'activeTournaments', String(tournamentId));
+
+  return runTransaction(db, async (tx): Promise<'released' | 'not-mine'> => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return 'not-mine';
+    const holder = snap.data()?.controllingDeviceId ?? null;
+    // Only our own claim. `unclaimed` is already released and needs no write.
+    if (controlOf(holder, myDeviceId) !== 'mine') return 'not-mine';
+
+    tx.update(ref, { controllingDeviceId: null, controlClaimedAt: null });
+    return 'released';
+  });
+}
+
+/**
  * The outcome of asking for control. `held` means another device has it and this
  * was not a takeover, so nothing was written.
  */

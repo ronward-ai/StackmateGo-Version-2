@@ -34,7 +34,7 @@ describe('DirectorOnly', () => {
     const { container } = render(
       <DirectorOnly readOnly><button>Bust out</button></DirectorOnly>,
     );
-    expect(container.textContent).toContain('being run on another device');
+    expect(container.textContent).toContain('has control of this game');
   });
 
   it('takes a sharper sentence when a region needs one', () => {
@@ -58,7 +58,7 @@ describe('DirectorOnly', () => {
     );
     expect(getByText('Roster (read-only)')).toBeTruthy();
     expect(queryByText('Bust out')).toBeNull();
-    expect(container.textContent).not.toContain('being run on another device');
+    expect(container.textContent).not.toContain('has control of this game');
   });
 
   it('ignores `instead` while this device is driving', () => {

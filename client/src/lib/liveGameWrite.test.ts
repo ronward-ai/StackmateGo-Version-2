@@ -14,10 +14,11 @@ const doc = vi.fn((_db: unknown, coll: string, id: string) => ({ coll, id }));
 // The transaction is exercised for real against a stub `tx`, so the read-then-
 // decide logic is tested rather than mocked away.
 let held: string | null = null;
+let docExists = true;
 const txUpdate = vi.fn((_ref: unknown, _fields: Record<string, unknown>) => undefined);
 const runTransaction = vi.fn(async (_db: unknown, fn: (tx: any) => Promise<unknown>) =>
   fn({
-    get: async () => ({ exists: () => true, data: () => ({ controllingDeviceId: held }) }),
+    get: async () => ({ exists: () => docExists, data: () => ({ controllingDeviceId: held }) }),
     update: txUpdate,
   }));
 
@@ -28,13 +29,14 @@ vi.mock('firebase/firestore', () => ({
 }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 
-import { writeLiveGame, setLiveGameControl, liveGameControl, claimLiveGameControl } from './liveGameWrite';
+import { writeLiveGame, setLiveGameControl, liveGameControl, claimLiveGameControl, releaseLiveGameControl } from './liveGameWrite';
 
 beforeEach(() => {
   updateDoc.mockClear();
   doc.mockClear();
   txUpdate.mockClear();
   held = null;
+  docExists = true;
   setLiveGameControl(null);
 });
 
@@ -142,5 +144,52 @@ describe('claimLiveGameControl', () => {
     held = null;
     await claimLiveGameControl('g1', 'd_me');
     expect(typeof txUpdate.mock.calls[0][1].controlClaimedAt).toBe('string');
+  });
+});
+
+/**
+ * Handing control back.
+ *
+ * Nothing ever did. `controllingDeviceId` had one writer and it only ever SET, so
+ * every game an account had taken live stayed held by whichever device last ran
+ * it — and the next device to open it went read-only under a banner claiming the
+ * game was being run somewhere, about a game nobody was running.
+ */
+describe('releaseLiveGameControl', () => {
+  it('hands back a claim this device holds', async () => {
+    held = 'd_me';
+    expect(await releaseLiveGameControl('g1', 'd_me')).toBe('released');
+    expect(txUpdate.mock.calls[0][1]).toMatchObject({ controllingDeviceId: null, controlClaimedAt: null });
+  });
+
+  // THE MUTANT THAT MATTERS. Without the holder check, signing out on any device
+  // would strip the claim of the device actually running the game — the automatic
+  // steal the whole lock is built to refuse, arriving through the back door.
+  it('never strips a claim another device holds', async () => {
+    held = 'd_them';
+    expect(await releaseLiveGameControl('g1', 'd_me')).toBe('not-mine');
+    expect(txUpdate).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when the game is already unheld', async () => {
+    held = null;
+    expect(await releaseLiveGameControl('g1', 'd_me')).toBe('not-mine');
+    expect(txUpdate).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when the game is gone', async () => {
+    held = 'd_me';
+    docExists = false;
+    expect(await releaseLiveGameControl('g1', 'd_me')).toBe('not-mine');
+    expect(txUpdate).not.toHaveBeenCalled();
+  });
+
+  it('does not reach Firestore at all without a game', async () => {
+    // beforeEach does not clear this one, so it carries the whole file's calls.
+    runTransaction.mockClear();
+    for (const id of [null, undefined, '']) {
+      expect(await releaseLiveGameControl(id, 'd_me')).toBe('not-mine');
+    }
+    expect(runTransaction).not.toHaveBeenCalled();
   });
 });

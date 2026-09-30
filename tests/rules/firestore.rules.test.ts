@@ -161,6 +161,29 @@ describe('only the director may change a live game', () => {
     await assertSucceeds(updateDoc(doc(db, 'activeTournaments', TOURNAMENT), { smallBlind: 50, bigBlind: 100 }));
   });
 
+  /**
+   * The ordering the sign-out release rests on.
+   *
+   * Handing control back is an ordinary owner write, so it MUST happen while the
+   * session still exists. `logout()` awaits it before `signOut(auth)` for exactly
+   * this reason — afterwards there is no `request.auth.uid` and the rule refuses
+   * it, so a fire-and-forget release would silently leave the game held forever,
+   * which is the bug it exists to fix.
+   */
+  it('lets the owner hand control back, and refuses it once signed out', async () => {
+    await assertSucceeds(updateDoc(doc(director(), 'activeTournaments', TOURNAMENT), {
+      controllingDeviceId: null, controlClaimedAt: null,
+    }));
+    // Signed out — the state `logout()` would be in if the release came after it.
+    await assertFails(updateDoc(doc(anon(), 'activeTournaments', TOURNAMENT), {
+      controllingDeviceId: null, controlClaimedAt: null,
+    }));
+    // And nobody else may release it either, session or no session.
+    await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), {
+      controllingDeviceId: null, controlClaimedAt: null,
+    }));
+  });
+
   it('stops an anonymous participant running the clock', async () => {
     await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { isRunning: true }));
     await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { secondsLeft: 1 }));

@@ -501,6 +501,85 @@ their phone opening a laptop and starting a SECOND game 5. Two devices minting t
 make two DOCUMENTS, and a lock on one document says nothing about the other. The lock keeps two
 consoles off one game; the section below is what stops them being put on two.
 
+### Control is HANDED BACK, and nothing ever handed it back
+
+Reported live, mid-tournament. The two-logins-one-account handover worked. Then, on a third
+device, signing in as a different account showed **"This game is being run on another device"** —
+about a game nobody was running.
+
+**It was not a cross-account bug, and every defence named above behaved.** The resume query is
+owner-filtered, the pin is cleared unconditionally on sign-out, and `TournamentDirector` refuses a
+game owned by someone else. What happened was simpler:
+
+1. Each test account **owned its own** abandoned game from home testing, inside the 12-hour window
+   and never marked `completed` — a legitimate resume candidate, so the app reopened it.
+2. That game's `controllingDeviceId` still named the iPad, because **nothing in the codebase ever
+   cleared it.** `git grep controllingDeviceId` found exactly one write, and it only ever SET — not
+   on completion, not on sign-out, not on teardown.
+3. So `controlOf` said `other`, and the console asserted a fact it could not know.
+
+**The consequence generalises far past that night:** every game an account had ever taken live
+carried a holder for good, so ANY new device opening ANY old game was read-only until somebody found
+Take control. Run a game on the laptop, open it next week on a tablet, and you are locked out of
+your own finished tournament.
+
+**Three changes, and the shape of them is the point: control is RELEASED by the holder, never TAKEN
+by a timer.**
+
+- **`releaseLiveGameControl`** in `lib/liveGameWrite.ts`, a transaction beside the claim and for the
+  same reason `lib/seatClaims.ts` gives: it reads the live holder and clears the field **only when
+  the claim is ours**. A device can give up its own control and can never strip anybody else's. A
+  mutant dropping that check turns two tests red — it would make signing out on any device the
+  automatic steal the claim's own comment rules out, arriving through the back door.
+- **Sign-out releases**, because logging out IS the handover in this app. Side effect worth knowing:
+  the receiving device now finds the game `unclaimed` and picks it up by itself, so a handover no
+  longer needs Take control pressed.
+- **Completion releases**, one field added to the `status: 'completed'` write that already existed.
+  Safe by construction — that effect returns early when `readOnlyConsole`, so only the holder reaches
+  it.
+
+**The sign-out ordering is load-bearing and there is a rules test for it.** The release is an
+ordinary owner write, gated on `isExistingDocOwner()`, so it must be **awaited before
+`signOut(auth)`** — afterwards there is no `request.auth.uid` and Firestore refuses it, and a
+fire-and-forget release loses the same race against the full page load that follows. `test:rules`
+asserts the owner can release, a signed-out client cannot, and a stranger cannot.
+
+It is **best effort**: a failure logs and sign-out proceeds. Being unable to release a claim must not
+trap somebody signed in. And the id comes from the pin rather than `consoleTournamentId()`, which is
+the honest answer but lives in `PokerTimer`'s state and cannot be reached from `useAuth` — the pin
+names the console's game in every ordinary case, and where it does not this simply does nothing.
+
+**Deliberately NOT released on New Game.** A director starting a second game has not finished the
+first, which may genuinely still be running on the other device — that is what `otherLiveGame()` and
+`NewGameGuardDialog` exist for, and releasing there would hand it away.
+
+**And NOT on a timeout, which is the one thing that must not be added.** A tournament break is twenty
+minutes of silence and indistinguishable from an abandoned game, so idleness can never be the signal
+— the reasoning already recorded under Take control, unchanged.
+
+**The banner said something it could not know.** *"This game is being run on another device"* was
+reported as plainly wrong, and it was: the holder was an iPad at home. All the app has is a device id
+in a field. It now says a device **has control**, names when it was claimed, and puts the way out in
+the sentence — at all three sites that repeated the claim (`controlLockReason`, `DirectorOnly`,
+`TimerCard`), so the screen cannot say three different things.
+
+**"Nothing you do here is being saved" STAYS**, and a test that already existed is why: its comment
+records that a read-only console which merely looks normal is how the half-enforced lock cost a
+director their rebuys without anybody noticing. The first reword dropped it and that test went red,
+correctly. Only the false half goes. The assertion is now pinned from both directions — a mutant
+restoring *"being run on another device"* turns a test red, and so does dropping the not-saved
+warning from **either** branch, which needed the timed branch asserting more than its timestamp.
+
+**What this does not fix, and cannot safely:** a game abandoned without finishing or signing out —
+a closed tab, a flat battery — still reads as held, because no signal distinguishes it from a game in
+progress. The honest banner and Take control are what cover it.
+
+**Verified with the emulator and a forced state.** The rules test is the real end-to-end check, since
+the devstub's Firestore is offline and cannot exercise either release. The banner was read on screen
+through the devstub with control forced behind a `FORCED_CONTROL_MARKER_REMOVE_ME` comment, removed
+by `git grep` afterwards — the procedure this file prescribes, because the patch that once made every
+console read-only shipped by being removed from memory instead.
+
 ### A read-only console shows the game, it does not offer to change it
 
 `components/DirectorOnly.tsx`, and the rule is **not mounted, not disabled**.
@@ -3021,7 +3100,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `pendingRoster.ts` | Whether a roster change is still waiting on Firestore, so its own echo cannot revert it. |
 | `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
-| `directorControl.ts` | Which device is driving the live game, and whether this one may write to it. |
+| `directorControl.ts` | Which device is driving the live game, whether this one may write to it, and what to say when it may not — **that a device has control, never that anyone is running the game**. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already

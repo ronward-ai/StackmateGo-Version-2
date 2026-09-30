@@ -417,6 +417,13 @@ function PokerTimerInner({
         try {
           await writeLiveGame(String(details.id), {
             status: 'completed',
+            // Hand control back with it. Nothing used to release a claim, so a
+            // finished game stayed held by the device that ran it and opening it
+            // anywhere else read as "being run on another device" — about a game
+            // that was over. Safe here by construction: this effect returns above
+            // when `readOnlyConsole`, so only the holder reaches it.
+            controllingDeviceId: null,
+            controlClaimedAt: null,
             updatedAt: new Date().toISOString(),
           });
         } catch (err) {
@@ -1413,7 +1420,7 @@ function PokerTimerInner({
           <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/[0.08] p-4 flex items-start gap-3">
             <MonitorSmartphone className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 text-body text-foreground/90">
-              <div className="font-semibold text-amber-400 mb-1">Being run on another device</div>
+              <div className="font-semibold text-amber-400 mb-1">Another device has control</div>
               {controlLockReason(control, tournament.controlClaimedAt)}
               <div className="mt-1 text-muted-foreground">
                 Whoever is running it sees everything you do not. Take control here and that device

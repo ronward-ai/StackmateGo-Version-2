@@ -127,6 +127,41 @@ export function useAuth() {
     // whatever the last person to use this browser had. That distinction is the
     // whole reason the buckets exist: this used to hand a second account the
     // first one's roster and structure.
+    // HAND THE GAME BACK BEFORE FORGETTING WHICH ONE IT WAS.
+    //
+    // Logging out IS the handover in this app, so the device giving up the game
+    // gives up its claim on it too. Nothing used to: `controllingDeviceId` had
+    // one writer and it only ever SET, so a game stayed held by whichever device
+    // last ran it — for good — and the next device to open it went read-only
+    // under a banner claiming the game was "being run on another device" when
+    // nobody was running it at all. Reported from a live night.
+    //
+    // Two things about the ordering are load-bearing:
+    //
+    // - **Awaited, and BEFORE `signOut`.** The rule on this write is
+    //   `isExistingDocOwner()`, so once the session is gone there is no
+    //   `request.auth.uid` and Firestore refuses it. Fire-and-forget loses the
+    //   same race against the full page load the caller does next.
+    // - **Never blocking.** A failure logs and sign-out proceeds. Being unable to
+    //   release a claim must not trap somebody signed in.
+    //
+    // The id comes from the pin rather than `consoleTournamentId()`, which is the
+    // honest answer but lives in PokerTimer's state and cannot be reached from
+    // here. The pin names the game the console is on in every ordinary case, and
+    // where it does not, this simply does nothing — today's behaviour exactly.
+    try {
+      const pinned = localStorage.getItem('activeDirectorTournamentId');
+      if (pinned) {
+        const [{ releaseLiveGameControl }, { getDeviceId }] = await Promise.all([
+          import('@/lib/liveGameWrite'),
+          import('@/lib/deviceId'),
+        ]);
+        await releaseLiveGameControl(pinned, getDeviceId());
+      }
+    } catch (err) {
+      console.error('Could not hand back control of the live game:', err);
+    }
+
     try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
     // Forget WHO was signed in, but not what they saved. Their setup stays in
     // their own bucket and is waiting for them next time; what must not survive

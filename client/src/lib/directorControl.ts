@@ -101,9 +101,21 @@ export function shouldAdoptRemote(previous: Control | null | undefined, next: Co
 export function controlLockReason(control: Control, claimedAt?: string | null): string | null {
   if (control !== 'other') return null;
   const when = describeClaimTime(claimedAt);
+  // SAY WHAT IS KNOWN, NOT WHAT IS ASSUMED.
+  //
+  // This read "This game is being run on another device", which the app cannot
+  // know: all it has is a device id in a field. Reported from a live night as
+  // plainly wrong, and it was — the holder was an iPad at home and nobody was
+  // running anything. What IS true is that a device claimed control, and when.
+  //
+  // The way out goes in the sentence rather than being left to the button, since
+  // the director reading this has been told they cannot do anything.
+  // "Nothing you do here is saved" STAYS — a read-only console that merely looks
+  // normal is how the half-enforced lock cost a director their rebuys without
+  // anybody noticing, and its test says so. Only the false half goes.
   return when
-    ? `This game is being run on another device (since ${when}). Nothing you do here is being saved.`
-    : 'This game is being run on another device. Nothing you do here is being saved.';
+    ? `Another device has control of this game (since ${when}). Nothing you do here is being saved — take control to run it from here.`
+    : 'Another device has control of this game. Nothing you do here is being saved — take control to run it from here.';
 }
 
 /**
