@@ -24,6 +24,8 @@ import { STAT_LABELS } from '@/types/leagueSettings';
 import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
 import { useToast } from '@/hooks/use-toast';
 import PlayerSeasonDialog from '@/components/PlayerSeasonDialog';
+import StandingsSheet, { type StandingsSheetRow } from '@/components/export/StandingsSheet';
+import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page. This
 // component renders in the participant view, where that matters most.
@@ -51,7 +53,6 @@ function RealTimeLeagueTable({
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   // previousRankings is derived from data (no component state needed)
   // computed below after seasonFilteredPlayers is defined
-  const exportRef = useRef<HTMLDivElement>(null);
   const { isLoading: authLoading } = useAuth();
   // For participant view pass the leagueId directly so useLeague can skip the
   // ownerId → leagues lookup (faster, and works even if ownerId isn't in the snapshot yet)
@@ -96,6 +97,10 @@ function RealTimeLeagueTable({
   const overrideSeason = seasonIdOverride
     ? seasons.find(s => String(s.id) === String(seasonIdOverride))
     : null;
+
+  /** Spelled once: the row and the exported sheet must agree about whether this
+   *  league shows movement at all. */
+  const showMovementArrows = leagueSettings?.displaySettings?.showMovementArrows !== false;
 
   // Use the actual season doc name first — leagueSettings.seasonSettings.seasonName is legacy/stale
   const currentSeasonName = overrideSeason?.name
@@ -480,75 +485,52 @@ function RealTimeLeagueTable({
     }
   };
 
+  /**
+   * The standings, as a picture.
+   *
+   * **Built rather than photographed, and that is the whole change.** It used to
+   * capture this very table, which meant fighting the screen the entire way: find
+   * the scroll container by structure, unset its `height`, `maxHeight` and
+   * `overflow` so the 400px cap did not crop the rows, wait for layout, capture,
+   * then put all three inline styles back — and an `onclone` pass deleting every
+   * Lucide `<svg>` (which is why the trophy in the title vanished from the image),
+   * deleting every `<button>`, and swapping each movement arrow for a hidden text
+   * twin that existed in the markup for no other reason.
+   *
+   * None of that is needed once the sheet owns its own markup. It is also what
+   * fixes the striping: the capture used to pass `backgroundColor: '#1e1e1e'`, the
+   * same literal the even rows were striped with, so in the image every other row
+   * dissolved into the backdrop.
+   *
+   * The columns come from the SAME `enabledStats` + `getPlayerStat` pair the table
+   * renders with and the CSV writes from. A third column list is how the rake
+   * formula reached nine sites.
+   */
   const handleExportImage = async () => {
-    if (!exportRef.current) return;
-
     setIsExporting(true);
     try {
-      // Lift the height cap so the image holds every row rather than the first
-      // 400px of them.
-      //
-      // Found STRUCTURALLY — the scroll container is the table's own parent, by
-      // construction (ui/table.tsx) — rather than by utility class. It used to
-      // query `.overflow-x-auto`, which is the very class that moved when the
-      // cap moved, so the export would have kept working right up until it
-      // silently cropped. A second probe for `[data-radix-scroll-area-viewport]`
-      // went with it: ScrollArea has not been in this component for a long time,
-      // so that branch was permanently null.
-      const tableContainer = exportRef.current.querySelector('table')?.parentElement as HTMLElement | null;
+      const rows: StandingsSheetRow[] = displayPlayers.map((player: any, index: number) => {
+        const rank = index + 1;
+        const movement = showMovementArrows ? getRankingMovement(player.id, rank) : null;
+        return {
+          key: String(player.id),
+          rank,
+          name: player.name,
+          cells: enabledStats.map(stat => String(getPlayerStat(player, stat))),
+          movement: (movement?.direction as 'up' | 'down' | 'same' | undefined) ?? null,
+        };
+      });
 
-      const originalTableStyles = tableContainer ? {
-        height: tableContainer.style.height,
-        maxHeight: tableContainer.style.maxHeight,
-        overflow: tableContainer.style.overflow
-      } : null;
-
-      if (tableContainer) {
-        tableContainer.style.height = 'auto';
-        tableContainer.style.maxHeight = 'none';
-        tableContainer.style.overflow = 'visible';
-      }
-
-      // Wait for layout to settle
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(exportRef.current, {
-        backgroundColor: '#1e1e1e',
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        height: exportRef.current.scrollHeight,
-        windowWidth: exportRef.current.scrollWidth,
-        windowHeight: exportRef.current.scrollHeight,
-        onclone: (_doc: Document, el: HTMLElement) => {
-          // For movement arrow cells: swap the SVG for the pre-built text fallback
-          el.querySelectorAll('.movement-arrow-cell').forEach(cell => {
-            cell.querySelector('.movement-arrow-svg')?.remove();
-            const text = cell.querySelector('.movement-arrow-text') as HTMLElement | null;
-            if (text) text.style.display = 'inline';
-          });
-          // Strip remaining Lucide SVG icons (decorative — they render as broken glyphs)
-          el.querySelectorAll('svg').forEach(svg => {
-            if (!svg.closest('button') && !svg.closest('[role="img"]')) svg.remove();
-          });
-          // Strip export button itself so it doesn't appear in the image
-          el.querySelectorAll('button').forEach(btn => btn.remove());
-        }
-      } as any);
-
-      // Restore original styles
-      if (tableContainer && originalTableStyles) {
-        tableContainer.style.height = originalTableStyles.height;
-        tableContainer.style.maxHeight = originalTableStyles.maxHeight;
-        tableContainer.style.overflow = originalTableStyles.overflow;
-      }
-
-      const link = document.createElement('a');
-      const date = new Date().toISOString().split('T')[0];
-      link.download = `league-standings-${currentSeasonName.replace(/\s+/g, '-')}-${date}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
+      await captureSheet(
+        <StandingsSheet
+          title={leagueName || 'League standings'}
+          subtitle={[currentSeasonName, `${rows.length} player${rows.length === 1 ? '' : 's'}`]
+            .filter(Boolean).join(' · ')}
+          columns={enabledStats.map(stat => STAT_LABELS[stat] || stat)}
+          rows={rows}
+        />,
+        { filename: sheetFilename(['league-standings', currentSeasonName]) },
+      );
     } catch (error) {
       // The spinner stopped and nothing downloaded, which is indistinguishable
       // from a button that does not work.
@@ -655,7 +637,7 @@ function RealTimeLeagueTable({
 
   return (
     <Card className="w-full">
-      <div ref={exportRef}>
+      <div>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -715,18 +697,19 @@ function RealTimeLeagueTable({
                 header -200. `overflow-auto` is already on that wrapper, so the
                 cap is all this needs. */}
               <Table wrapperClassName="max-h-[400px]" className="w-full">
-                {/* Opaque background is load-bearing: rows slide UNDER this. */}
-                <TableHeader className="bg-[#2a2a2a] sticky top-0 z-10">
+                {/* Opaque background is load-bearing: rows slide UNDER this — hence a solid
+                    token rather than one of the translucent card treatments. */}
+                <TableHeader className="bg-muted sticky top-0 z-10">
                   <TableRow>
-                    <TableHead className="text-white w-6 text-center px-0.5 text-xs border-r border-slate-600">Rank</TableHead>
-                    <TableHead className="text-white w-16 px-1 text-xs border-r border-slate-600">Player</TableHead>
+                    <TableHead className="text-white w-6 text-center px-1 text-caption border-r border-border">Rank</TableHead>
+                    <TableHead className="text-white w-16 px-2 text-caption border-r border-border">Player</TableHead>
                     {enabledStats.map(stat => {
                       const label = STAT_LABELS[stat] || stat;
                       const words = label.split(' ');
                       const isMultiWord = words.length > 1;
 
                       return (
-                        <TableHead key={stat} className="text-white text-center w-10 px-0.5 text-xs border-r border-slate-600 last:border-r-0">
+                        <TableHead key={stat} className="text-white text-right w-10 px-2 text-caption border-r border-border last:border-r-0">
                           {isMultiWord ? (
                             <div className="flex flex-col items-center">
                               {words.map((word, index) => (
@@ -749,15 +732,14 @@ function RealTimeLeagueTable({
                       <TableRow
                         key={player.id}
                         onClick={() => setOpenPlayer(player)}
-                        className={`${index % 2 === 0 ? 'bg-[#1e1e1e]' : ''} cursor-pointer hover:bg-primary/10 transition-colors`}
+                        className={`${index % 2 === 0 ? 'bg-white/[0.02]' : ''} cursor-pointer hover:bg-primary/10 transition-colors`}
                         title={`See ${player.name}'s season game by game`}
                       >
-                        <TableCell className="font-medium w-6 text-center px-0.5 text-xs border-r border-slate-700">
+                        <TableCell className="font-mono font-medium w-6 text-center px-1 text-caption border-r border-border">
                           <div className="flex items-center justify-center gap-1">
                             <span>{currentRank}</span>
-                            {movement && (leagueSettings?.displaySettings?.showMovementArrows !== false) && (
+                            {movement && showMovementArrows && (
                               <span
-                                className="movement-arrow-cell"
                                 data-direction={movement.direction}
                                 title={
                                   movement.direction === 'same'
@@ -765,34 +747,23 @@ function RealTimeLeagueTable({
                                     : `Moved ${movement.direction} from rank ${previousRankings[player.id]} to ${currentRank}`
                                 }
                               >
-                                {/* SVG icon shown in UI, hidden during export */}
+                                {/* The hidden text twin that used to live here —
+                                    and the `onclone` pass that swapped it in — were
+                                    both for the export. The sheet writes its own
+                                    arrows, so the screen keeps only the icon. */}
                                 <movement.icon
-                                  className={`h-3 w-3 ${movement.color} movement-arrow-svg`}
+                                  className={`h-3 w-3 ${movement.color}`}
                                   strokeWidth={3}
                                 />
-                                {/* Text fallback shown only in PNG export (SVG fonts don't render in html2canvas) */}
-                                <span
-                                  className="movement-arrow-text"
-                                  style={{
-                                    display: 'none',
-                                    fontWeight: 'bold',
-                                    fontSize: '10px',
-                                    color: movement.direction === 'up' ? '#22c55e'
-                                      : movement.direction === 'down' ? '#ef4444'
-                                      : '#f97316'
-                                  }}
-                                >
-                                  {movement.direction === 'up' ? '↑' : movement.direction === 'down' ? '↓' : '→'}
-                                </span>
                               </span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium w-16 px-1 text-xs truncate border-r border-slate-700" title={player.name}>
+                        <TableCell className="font-medium w-16 px-2 text-caption truncate border-r border-border" title={player.name}>
                           {player.name}
                         </TableCell>
                       {enabledStats.map(stat => (
-                        <TableCell key={stat} className="text-center w-10 px-0.5 text-xs whitespace-nowrap border-r border-slate-700 last:border-r-0">
+                        <TableCell key={stat} className="font-mono text-right w-10 px-2 text-caption whitespace-nowrap border-r border-border last:border-r-0">
                            {getPlayerStat(player, stat)}
                         </TableCell>
                       ))}

@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { currencyOf } from '@/lib/currency';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Users, Trophy, Target, ChevronUp, ChevronDown } from 'lucide-react';
 import EmptyState from '@/components/ui/empty-state';
-import PlayerBadge from '@/components/ui/player-badge';
-import { badgesFor } from '@/lib/playerBadges';
+import ResultRow from '@/components/ResultRow';
+import { resultRowsFor } from '@/lib/resultRows';
 
 interface Player {
   id: string;
@@ -49,23 +47,22 @@ interface PlayerSectionReadOnlyProps {
 export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadOnlyProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const { players, settings, prizeStructure } = tournament.state;
-  const currencySymbol = currencyOf(settings);
 
-  // Separate active and eliminated players
-  const activePlayers = players.filter(p => p.isActive !== false);
-  const eliminatedPlayers = players
-    .filter(p => p.isActive === false && p.position)
-    .sort((a, b) => (a.position || 0) - (b.position || 0));
-
-  // Calculate tournament stats
-  const totalKnockouts = players.reduce((sum, p) => sum + (p.knockouts || 0), 0);
-
-  // Deliberately NOT lib/gameOver.ts's gameIsOver, though it looks like it.
-  // This asks "is there a champion yet" to decide whether a SEAT BADGE is worth
-  // showing, and it is already ORed with an active count — swapping it in would
-  // tie a badge's visibility to the end-of-game rule and change nothing.
-  const isFinished = players.some(p => p.position === 1);
-  const hideTableBadge = isFinished || activePlayers.length <= 1;
+  /**
+   * The SAME rows the director's console renders, from `lib/resultRows.ts`.
+   *
+   * This screen used to build its own, and being the one screen a director never
+   * looks at, it had drifted furthest: `#9` instead of an ordinal, so first place
+   * was indistinguishable from ninth; `3 KOs` in red beside raw `prizeMoney` in
+   * green, hand-rolled past `lib/playerBadges.ts` and reproducing the exact third
+   * vocabulary that module was written to end.
+   *
+   * The two sections stay, because they are a real difference of purpose on a
+   * phone — who is still in, and how it finished — not drift.
+   */
+  const rows = resultRowsFor(players, { prizeStructure, settings });
+  const activeRows = rows.filter(r => r.position === 0);
+  const finishedRows = rows.filter(r => r.position > 0);
 
   return (
     <Card className="bg-card/80 backdrop-blur-sm border-border/50">
@@ -83,67 +80,26 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
       {isExpanded && <CardContent className="space-y-6">
 
 
-        {/* Active Players */}
-        {activePlayers.length > 0 && (
+        {activeRows.length > 0 && (
           <div>
             <h4 className="font-semibold text-green-500 mb-3 flex items-center gap-2">
               <Target className="h-4 w-4" />
-              Active Players ({activePlayers.length})
+              Active Players ({activeRows.length})
             </h4>
             <div className="grid gap-2">
-              {activePlayers.map((player) => (
-                <div key={player.id} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="font-medium">{player.name}</span>
-                    {badgesFor({
-                      seat: player.tableAssignment,
-                      seated: player.seated,
-                      gameFinished: hideTableBadge,
-                      currencySymbol: '',
-                    }).map(badge => <PlayerBadge key={badge.key} badge={badge} />)}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {badgesFor({
-                      gameFinished: true,
-                      knockouts: player.knockouts,
-                      currencySymbol: '',
-                    }).map(badge => <PlayerBadge key={badge.key} badge={badge} />)}
-                  </div>
-                </div>
-              ))}
+              {activeRows.map(row => <ResultRow key={row.player.id} row={row} />)}
             </div>
           </div>
         )}
 
-        {/* Eliminated Players */}
-        {eliminatedPlayers.length > 0 && (
+        {finishedRows.length > 0 && (
           <div>
             <h4 className="font-semibold text-red-500 mb-3 flex items-center gap-2">
               <Trophy className="h-4 w-4" />
-              Final Rankings ({eliminatedPlayers.length})
+              Final Rankings ({finishedRows.length})
             </h4>
             <div className="space-y-2">
-              {eliminatedPlayers.map((player) => (
-                <div key={player.id} className="flex items-center justify-between p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-bold text-red-400 min-w-[2rem]">
-                      #{player.position}
-                    </div>
-                    <span className="font-medium">{player.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    {(player.knockouts || 0) > 0 && (
-                      <span className="text-red-400">{player.knockouts} KO{player.knockouts !== 1 ? 's' : ''}</span>
-                    )}
-                    {player.prizeMoney > 0 && (
-                      <span className="font-bold text-green-400">
-                        {currencySymbol}{player.prizeMoney.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {finishedRows.map(row => <ResultRow key={row.player.id} row={row} />)}
             </div>
           </div>
         )}

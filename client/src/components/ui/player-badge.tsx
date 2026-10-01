@@ -25,15 +25,18 @@ const TONES: Record<BadgeTone, string> = {
   points:     'bg-primary/10 border-primary/30 text-primary',
 };
 
-/** The same colours as inline styles, for the PNG export — html2canvas gets
- *  plain DOM nodes rather than JSX, so it cannot use the classes above. */
-export const TONE_STYLES: Record<BadgeTone, { bg: string; border: string; fg: string }> = {
-  neutral:    { bg: 'rgba(255,255,255,0.05)',  border: 'rgba(255,255,255,0.10)', fg: '#94A3B8' },
-  money:      { bg: 'rgba(74,222,128,0.10)',   border: 'rgba(74,222,128,0.30)',  fg: '#4ADE80' },
-  bounty:     { bg: 'rgba(251,191,36,0.10)',   border: 'rgba(251,191,36,0.30)',  fg: '#FBBF24' },
-  eliminated: { bg: 'rgba(248,113,113,0.08)',  border: 'rgba(248,113,113,0.25)', fg: '#F87171' },
-  points:     { bg: 'rgba(249,115,22,0.10)',   border: 'rgba(249,115,22,0.30)',  fg: '#F97316' },
-};
+/*
+ * There was a SECOND copy of the table above, `TONE_STYLES` — the same five
+ * tones spelled again as inline styles, kept in step with it by hand — because
+ * the results PNG was built from `document.createElement` nodes that could not
+ * carry a class. The exports render real JSX now, so the mirror is gone.
+ *
+ * Do not bring it back. html2canvas reads COMPUTED styles from a node that is in
+ * the document, which is why capturing Tailwind markup has always worked; a
+ * second palette buys nothing and is a drift waiting to happen. An export that
+ * wants a different LOOK changes `components/export/exportStyle.ts`, which owns
+ * the frame, the type and the rank colours and deliberately not the chips.
+ */
 
 export function PlayerBadge({ badge, className }: { badge: Badge; className?: string }) {
   return (

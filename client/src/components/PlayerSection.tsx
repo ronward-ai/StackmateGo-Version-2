@@ -10,8 +10,12 @@ import { currencyOf } from '@/lib/currency';
 import { buyInOf, investedIn } from '@/lib/resultStats';
 import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
-import PlayerBadge, { TONE_STYLES } from '@/components/ui/player-badge';
-import { badgesFor, badgeText } from '@/lib/playerBadges';
+import { resultRowsFor } from '@/lib/resultRows';
+import { gameIsOver } from '@/lib/gameOver';
+import ResultRow from '@/components/ResultRow';
+import ResultsSheet from '@/components/export/ResultsSheet';
+import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
+import { eventNameOf } from '@/lib/eventName';
 import { addOnsOpen, lateEntryClosedReason } from '@/lib/entryLimits';
 import { planSeating, assignSeats, tablesNeededFor, tableNamesFor } from '@/lib/seating';
 import { ordinal } from '@/lib/ordinal';
@@ -101,6 +105,29 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     state.details?.type === 'season' ||
     (state.settings as any)?.isSeasonTournament === true;
 
+  /**
+   * The finishing order, derived ONCE for the rows on screen and the exported
+   * image alike. They each used to work it out, and they disagreed: this screen
+   * said "21th" past twentieth where the picture said "21st", the two spelled
+   * "is the game over" differently, and the points chip was fed a raw buy-in
+   * here and the `buyInOf` fallback there. See `lib/resultRows.ts`.
+   */
+  const resultRows = resultRowsFor(state.players, {
+    prizeStructure: state.prizeStructure,
+    settings: state.settings,
+    isLeagueMode,
+    calculatePoints,
+  });
+
+  /** Dates and sizes the picture, so it still means something in a group chat
+   *  weeks later. */
+  const subtitleForExport = [
+    isLeagueMode && (state.settings as any)?.gameNumber
+      ? `Game ${(state.settings as any).gameNumber}`
+      : null,
+    `${state.players.length} player${state.players.length === 1 ? '' : 's'}`,
+  ].filter(Boolean).join(' · ');
+
   // KO dialog state
   /** How many will not fit, when Seat Players has been pressed on too big a
    *  field. Null means no question is up — the count rather than a boolean
@@ -124,7 +151,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   // Cost helpers for confirmation dialogs
   const sym = currencyOf(state.settings);
   const ps = state.prizeStructure;
-  const exportRef = useRef<HTMLDivElement>(null);
 
   // Recent players is not a setting.
   //
@@ -456,143 +482,26 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
   // Handle export image functionality — builds a fresh off-screen DOM from
   // state data so no scroll-container clipping can affect the output.
+  /**
+   * The results, as a picture.
+   *
+   * Was ~130 lines of `document.createElement` and `cssText` building a parallel
+   * DOM by hand — which is why its ordinal was right while the row on screen said
+   * "21th", why it fed the points formula a different buy-in, and why it needed
+   * `TONE_STYLES`, a hand-kept second copy of the badge palette. It renders the
+   * same rows the screen does now, through one capture.
+   */
   const handleExportImage = async () => {
     setIsExporting(true);
     try {
-      const sym = currencyOf(state.settings);
-      const ps = state.prizeStructure;
-      const buyIn = ps?.buyIn || 0;
-      const totalRebuys = state.players.reduce((s, p) => s + (p.rebuys || 0), 0);
-      const { gross, rake, net: prizePool } = prizePoolFor(state.players, ps);
-
-      const sorted = [...state.players].sort((a, b) => {
-        if (a.isActive !== false && b.isActive === false) return -1;
-        if (a.isActive === false && b.isActive !== false) return 1;
-        return (a.position || 999) - (b.position || 999);
-      });
-
-      // Build off-screen container — no overflow, no height limits
-      const wrap = document.createElement('div');
-      wrap.style.cssText = [
-        'position:fixed', 'left:-9999px', 'top:0',
-        'width:700px', 'background:#1e1e1e',
-        'padding:20px', 'font-family:system-ui,sans-serif',
-        'box-sizing:border-box'
-      ].join(';');
-
-      sorted.forEach(player => {
-        const pos = player.position || 0;
-        const rankText = pos > 0 ? ordinal(pos) : 'Active';
-        const rankBg = pos === 1 ? '#f59e0b' : pos === 2 ? '#d1d5db' : pos === 3 ? '#d97706'
-          : pos > 0 ? '#7f1d1d' : '#16a34a';
-        const rankFg = pos <= 2 ? '#000' : '#fff';
-
-        // Winnings (split into prize and bounty for separate display)
-        let exportPrize = 0;
-        let exportBounty = 0;
-        let exportBounties = 0;
-        if (ps?.enableBounties && ps?.bountyAmount) {
-          const kos = player.knockouts || 0;
-          exportBounties = pos === 1 ? kos + 1 : kos;
-          exportBounty = exportBounties * ps.bountyAmount;
-        }
-        if (pos > 0 && ps?.manualPayouts) {
-          const payout = ps.manualPayouts.find((p: any) => p.position === pos);
-          exportPrize = payoutAmount(prizePool, payout?.percentage);
-        }
-
-        const row = document.createElement('div');
-        row.style.cssText = [
-          'display:flex', 'align-items:center', 'justify-content:space-between',
-          'padding:10px 12px', 'margin-bottom:8px',
-          'background:#1a1a1a', 'border-radius:8px',
-          'border:1px solid #2a2a2a'
-        ].join(';');
-
-        // Left: rank badge + name
-        const left = document.createElement('div');
-        left.style.cssText = 'display:flex;align-items:center;gap:10px;';
-
-        const badge = document.createElement('span');
-        badge.textContent = rankText;
-        badge.style.cssText = `background:${rankBg};color:${rankFg};padding:5px 9px;border-radius:5px;font-size:13px;font-weight:700;white-space:nowrap;`;
-
-        const name = document.createElement('span');
-        name.textContent = player.name;
-        name.style.cssText = 'font-size:17px;font-weight:700;color:#fff;';
-
-        left.append(badge, name);
-
-        // Right: info badges
-        const right = document.createElement('div');
-        right.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;';
-
-        // Exactly what the screen shows, from the same list — the export used to
-        // build its own badges and word them differently: `KO x3` here against
-        // a target emoji on screen, in a different colour, for the same fact.
-        const exportActivePlayers = state.players.filter(p => p.isActive !== false);
-        const exportFinished = state.players.some(p => p.position === 1) || exportActivePlayers.length <= 1;
-
-        badgesFor({
-          seat: player.tableAssignment,
-          seated: player.seated,
-          gameFinished: exportFinished,
-          knockouts: player.knockouts,
-          eliminatedByName: player.isActive === false && player.eliminatedBy
-            ? state.players.find(p => String(p.id) === String(player.eliminatedBy))?.name
-            : null,
-          rebuys: player.rebuys,
-          points: isLeagueMode && pos > 0
-            // The same six the standings score with, or the chip beside a name
-            // and the league table would disagree for any formula using them.
-            ? calculatePoints(
-                pos, state.players.length, player.knockouts || 0,
-                buyIn, investedIn({ buyIn, rebuys: player.rebuys, addons: player.addons }), buyIn * state.players.length,
-              )
-            : 0,
-          bountiesCollected: exportBounties,
-          prize: exportPrize,
-          bounty: exportBounty,
-          currencySymbol: sym,
-        }).forEach(badge => {
-          const tone = TONE_STYLES[badge.tone];
-          const b = document.createElement('span');
-          b.textContent = badgeText(badge);
-          b.style.cssText = [
-            `background:${tone.bg}`,
-            `color:${tone.fg}`,
-            `border:1px solid ${tone.border}`,
-            'padding:4px 8px',
-            'border-radius:4px',
-            'font-size:12px',
-            'font-weight:600',
-            'white-space:nowrap',
-          ].join(';');
-          right.appendChild(b);
-        });
-
-        row.append(left, right);
-        wrap.appendChild(row);
-      });
-
-      document.body.appendChild(wrap);
-      await new Promise(resolve => setTimeout(resolve, 80));
-
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(wrap, {
-        backgroundColor: '#1e1e1e',
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-      } as any);
-
-      document.body.removeChild(wrap);
-
-      const link = document.createElement('a');
-      const date = new Date().toISOString().split('T')[0];
-      link.download = `tournament-results-${date}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
+      await captureSheet(
+        <ResultsSheet
+          title={eventNameOf(state.settings) || 'Tournament results'}
+          subtitle={subtitleForExport}
+          rows={resultRows}
+        />,
+        { filename: sheetFilename(['tournament-results']) },
+      );
     } catch (error) {
       console.error('Error exporting players & rankings:', error);
       toast({
@@ -605,8 +514,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     }
   };
 
-  // Calculate active players
-  const activePlayers = state.players.filter(p => p.isActive);
+  // `isActive !== false`, not truthy: an ABSENT flag means active everywhere in
+  // this app, and a player restored from a Firestore round-trip may carry none.
+  const activePlayers = state.players.filter(p => p.isActive !== false);
 
   /** The table configuration, spelled once for the overflow dialog. Same
    *  fallback as the seater, which is the point of having it here. */
@@ -616,10 +526,12 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
    *  and the dialog must count the same heads the seating does. */
   const seatableCount = state.players.filter(p => p.isActive !== false).length;
 
-  // Check if tournament is finished (all players eliminated OR only one active player remaining)
-  const eliminatedPlayers = state.players.filter(p => p.isActive === false);
-  const tournamentFinished = (activePlayers.length === 0 && eliminatedPlayers.length > 0) || 
-                            (activePlayers.length === 1 && eliminatedPlayers.length > 0);
+  // `lib/gameOver.ts`, not a fourth spelling of it. The old one was
+  // `(active === 0 && eliminated > 0) || (active === 1 && eliminated > 0)` off a
+  // TRUTHY active filter — and its `=== 1` arm is the dead predicate CLAUDE.md
+  // records, since `eliminatePlayer` awards position 1 and `isActive: false` in
+  // the same update, so a finished game has ZERO active players, never one.
+  const tournamentFinished = gameIsOver(state.players);
 
   
 
@@ -662,9 +574,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
         </div>
       </div>
 
-      <div className="pt-4 space-y-4" ref={exportRef}>
+      <div className="pt-4 space-y-4">
         {/* Add Player Section - Mobile Optimized */}
-        <div className="space-y-3 export-hide">
+        <div className="space-y-3">
           <div className="flex gap-2">
             <div className="flex-1 relative" ref={autocompleteRef}>
               <Input
@@ -814,7 +726,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
         {/* Seat Players — centred above player list, visible while unseated players exist */}
         {activePlayers.length > 0 && (
-          <div className="flex justify-center export-hide">
+          <div className="flex justify-center">
             <Button
               variant="outline"
               size="sm"
@@ -876,206 +788,102 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
         {/* Players List with Rankings - Mobile Optimized */}
         <div className="space-y-2">
-          {/* Helper functions for rankings */}
-          {(() => {
-            const currencySymbol = currencyOf(state.settings);
-            
-            const { rake: rakeAmount, net: totalPrizePool } =
-              prizePoolFor(state.players, state.prizeStructure);
-
-            const calculatePlayerWinnings = (player: any): { prize: number; bounty: number; bountiesCollected: number } => {
-              let prize = 0;
-              let bounty = 0;
-              let bountiesCollected = 0;
-
-              // Bounty winnings from knockouts. The winner takes their own
-              // bounty back at the end, which is the +1 — so the count and the
-              // money multiply out against each other on the row.
-              if (state.prizeStructure?.enableBounties && state.prizeStructure?.bountyAmount) {
-                const knockouts = player.knockouts || 0;
-                bountiesCollected = player.position === 1 ? knockouts + 1 : knockouts;
-                bounty = bountiesCollected * state.prizeStructure.bountyAmount;
-              }
-
-              // Position-based prize money
-              if (player.position && player.position > 0 && state.prizeStructure?.manualPayouts) {
-                const positionPayout = state.prizeStructure.manualPayouts.find((p: any) => p.position === player.position);
-                if (positionPayout && positionPayout.percentage > 0) {
-                  prize = payoutAmount(totalPrizePool, positionPayout.percentage);
-                }
-              }
-
-              return { prize, bounty, bountiesCollected };
-            };
-
-            // Sort players by position: active players first (no position), then by position (1st, 2nd, 3rd, etc.)
-            const sortedPlayers = [...state.players].sort((a, b) => {
-              // Active players (no position) come first
-              if (a.isActive !== false && b.isActive === false) return -1;
-              if (a.isActive === false && b.isActive !== false) return 1;
-
-              // Both active - sort by name
-              if (a.isActive !== false && b.isActive !== false) {
-                return a.name.localeCompare(b.name);
-              }
-
-              // Both eliminated - sort by position (1st, 2nd, 3rd, etc.)
-              const aPos = a.position || 999;
-              const bPos = b.position || 999;
-              return aPos - bPos;
-            });
-
-            if (sortedPlayers.length === 0) {
+          {resultRows.length === 0 ? (
+            <EmptyState icon={Users} className="fade-in" title="No players yet">
+              Add players above to track knockouts, rebuys and standings through the night.
+            </EmptyState>
+          ) : (
+            /* One row component, shared with the participant's phone, fed by one
+               derivation shared with the exported picture. This block used to
+               re-sort the roster, re-derive every payout and spell the rank
+               badge itself — which is where "21th" lived. */
+            resultRows.map(row => {
+              const player = row.player as Player;
               return (
-                <EmptyState icon={Users} className="fade-in" title="No players yet">
-                  Add players above to track knockouts, rebuys and standings through the night.
-                </EmptyState>
-              );
-            }
-
-            return sortedPlayers.map((player) => {
-              const { prize, bounty, bountiesCollected } = calculatePlayerWinnings(player);
-
-              // Check if player has been eliminated (has a position)
-              let displayRank = "Active";
-              let rankBadgeClass = "bg-green-600 text-white";
-
-              if (player.position && player.position > 0) {
-                if (player.position === 1) {
-                  displayRank = "1st";
-                  rankBadgeClass = "bg-yellow-500 text-black";
-                } else if (player.position === 2) {
-                  displayRank = "2nd";
-                  rankBadgeClass = "bg-gray-300 text-black";
-                } else if (player.position === 3) {
-                  displayRank = "3rd";
-                  rankBadgeClass = "bg-amber-600 text-white";
-                } else {
-                  displayRank = `${player.position}th`;
-                  rankBadgeClass = "bg-red-900 text-white";
-                }
-              }
-
-              return (
-                <div
+                <ResultRow
                   key={player.id}
-                  className="flex items-center p-3 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] hover:bg-[#1e1e1e] transition-colors gap-2"
-                >
-                  {/* Left: rank + name + status badges (wraps on narrow screens) */}
-                  <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap flex-shrink-0 ${rankBadgeClass}`}>
-                      {displayRank}
-                    </span>
-                    <span className="font-bold text-white text-base truncate" title={player.name}>{player.name}</span>
+                  row={row}
+                  actions={
+                    <>
+                      {player.isActive && !player.seated && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => seatSinglePlayer(player)}
+                          className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
+                        >
+                          Seat
+                        </Button>
+                      )}
 
-                    {/* One vocabulary, from lib/playerBadges.ts — the export and
-                        the participant's phone render from the same list. */}
-                    {badgesFor({
-                      seat: player.tableAssignment,
-                      seated: player.seated,
-                      gameFinished: tournamentFinished,
-                      knockouts: player.knockouts,
-                      eliminatedByName: player.isActive === false && player.eliminatedBy
-                        ? state.players.find(p => String(p.id) === String(player.eliminatedBy))?.name
-                        : null,
-                      rebuys: player.rebuys,
-                      bountiesCollected,
-                      points: isLeagueMode && player.position && player.position > 0
-                        ? calculatePoints(
-                            player.position, state.players.length, player.knockouts || 0,
-                            buyInOf({ buyIn: state.prizeStructure?.buyIn }),
-                            investedIn({ buyIn: state.prizeStructure?.buyIn, rebuys: player.rebuys, addons: player.addons }),
-                            buyInOf({ buyIn: state.prizeStructure?.buyIn }) * state.players.length,
-                          )
-                        : 0,
-                      prize,
-                      bounty,
-                      currencySymbol,
-                    }).map(badge => (
-                      <PlayerBadge key={badge.key} badge={badge} />
-                    ))}
-                  </div>
+                      {player.isActive !== false && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPlayerToBustOut(player);
+                            setHitmanId(null);
+                            setBustOutDialogOpen(true);
+                          }}
+                          className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-caption font-bold flex-shrink-0 transition-colors"
+                        >
+                          KO
+                        </button>
+                      )}
 
-                  {/* Right: action buttons — always on the same row */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {player.isActive && !player.seated && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => seatSinglePlayer(player)}
-                        className="text-xs bg-card border border-primary text-primary hover:bg-primary hover:bg-opacity-10 px-2 py-1 font-medium h-7"
-                      >
-                        Seat
-                      </Button>
-                    )}
+                      {/* The same controls the seating screen shows, from one
+                          implementation — see PlayerEntryActions. This screen used
+                          to draw the rebuy button DISABLED and silent while the
+                          seating screen HID it, so a used-up cap looked like two
+                          different bugs. Both now say why. */}
+                      {!player.isActive && (
+                        <PlayerEntryActions
+                          player={player}
+                          failsafeFor={failsafeFor}
+                          prizeStructure={state.prizeStructure}
+                          onRebuy={id => returnPlayerToTable('rebuy', id)}
+                          settings={state.settings}
+                          currentLevel={state.currentLevel}
+                          onReEntry={id => returnPlayerToTable('reentry', id)}
+                        />
+                      )}
 
-                    {player.isActive !== false && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPlayerToBustOut(player);
-                          setHitmanId(null);
-                          setBustOutDialogOpen(true);
-                        }}
-                        className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-caption font-bold flex-shrink-0 transition-colors"
-                      >
-                        KO
-                      </button>
-                    )}
-
-                    {/* The same controls the seating screen shows, from one
-                        implementation — see PlayerEntryActions. This screen used
-                        to draw the rebuy button DISABLED and silent while the
-                        seating screen HID it, so a used-up cap looked like two
-                        different bugs. Both now say why. */}
-                    {!player.isActive && (
-                      <PlayerEntryActions
-                        player={player}
-                        failsafeFor={failsafeFor}
-                        prizeStructure={state.prizeStructure}
-                        onRebuy={id => returnPlayerToTable('rebuy', id)}
-                        settings={state.settings}
-                        currentLevel={state.currentLevel}
-                        onReEntry={id => returnPlayerToTable('reentry', id)}
-                      />
-                    )}
-
-                    {player.isActive && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-400 hover:text-red-300 hover:bg-red-900/20 w-8 h-8 p-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to remove <strong>{player.name}</strong> from the tournament?
-                              This action cannot be undone and will permanently delete their tournament data.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => removePlayer(player.id)}
-                              className="bg-red-600 hover:bg-red-700"
+                      {player.isActive && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-400 hover:text-red-300 hover:bg-red-900/20 w-8 h-8 p-0"
                             >
-                              Remove Player
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                  </div>
-                </div>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to remove <strong>{player.name}</strong> from the tournament?
+                                This action cannot be undone and will permanently delete their tournament data.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => removePlayer(player.id)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Remove Player
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </>
+                  }
+                />
               );
-            });
-          })()}
+            })
+          )}
         </div>
 
         {/* The standalone Rebuys and Re-entries lists that used to sit here are
@@ -1090,7 +898,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
         {/* Add-on Section - Compact - Only show when add-ons are enabled and level reached */}
         {addOnsOpen(state.prizeStructure, state.currentLevel) &&
           state.players.filter(p => p.isActive !== false).length > 0 && (
-          <div className="mt-4 pt-3 border-t border-[#2a2a2a] export-hide">
+          <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <PlusCircle className="h-4 w-4" />

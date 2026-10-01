@@ -1110,6 +1110,133 @@ in dollars saw pounds in their own standings. `currencyOf(settings)` and `money(
 it; `RealTimeLeagueTable` asks for both shapes of the `tournament` prop, because the console passes the
 hook and the participant view passes the raw document.
 
+### A results row is one fact, and FOUR screens each had their own answer
+
+`lib/resultRows.ts` owns the finishing order — who is where, what their place is called, and what the
+chips beside their name say. `components/ResultRow.tsx` is the one screen row. Before them there were
+four implementations, and they disagreed about the thing nobody could get wrong by accident: the name
+of a place.
+
+| Where | Rank read |
+|---|---|
+| the director's own row (`PlayerSection`) | `1st`, `2nd`, `3rd`, then **`21th`** |
+| the participant's phone (`PlayerSectionReadOnly`) | **`#9`** — no ordinal, no medal, 1st identical to 9th |
+| the exported PNG (`PlayerSection`, again) | `21st`, correctly |
+| the league standings | a bare integer, no medal at all |
+
+**`lib/ordinal.ts` exists for exactly that string**, and its own comment records four implementations
+being wrong past tenth. It was applied to the EXPORT and not to the row directly above it — so the
+console said *21th* all night and the picture the director posted afterwards said *21st*, of the same
+game, seconds apart. A home game of twenty-odd is ordinary, so this was visible rather than
+theoretical. **A fix landing at one call site out of two is the fault this codebase keeps paying for,
+and the only cure is that there stops being a second call site.**
+
+Three more divergences were hiding under that one, none of them visible on screen:
+
+- **"Is the game finished" was spelled twice and neither was `gameIsOver`.** The row asked
+  `(active === 0 && eliminated > 0) || (active === 1 && …)` off `filter(p => p.isActive)` — TRUTHY,
+  so a player whose flag is absent read as eliminated, which `lib/gameOver.ts` is explicit about
+  having cost before. The export asked `some(position === 1) || active <= 1`. That flag decides
+  whether a seat chip shows, so the two could draw the same player differently. And the `=== 1` arm
+  was dead on arrival: `eliminatePlayer` awards position 1 and `isActive: false` in one update, so a
+  finished game has ZERO active players, never one.
+- **The points chip was fed different money.** The row passed `buyInOf(...)` and `investedIn(...)`;
+  the export passed a raw `prizeStructure.buyIn || 0`. `buyInOf` falls back to 10 for a game that
+  never recorded a price, so any formula weighted on `b` or `c` scored one figure on the console and
+  another in the image.
+- **The payout guard differed** — the row required `percentage > 0`, the export did not.
+
+**`rankTone` returns a NAME, not a colour** (`gold | silver | bronze | out | active`), and that is
+what lets the screen and the exported image look different on purpose while agreeing about which
+places are special. It also kills a shipped bug by construction: the export computed its text colour
+as `position <= 2 ? black : white`, and an ACTIVE player's position is **0**, which is `<= 2` — so
+the picture drew black text on the green badge where the screen drew white. Once "which colour" is a
+lookup on a named tone rather than a sum over the position, there is nowhere for that to live.
+
+**The money is derived first and falls back to the stored `prizeMoney`.** `manualPayouts` is the one
+source of every money figure, so where there is a structure it wins — but a document written without
+one still carries `prizeMoney` on each player from the moment they busted, and that is all a
+participant's phone has ever had to show. Deriving only would have silently emptied the money column
+on every older game. Narrow by construction: the fallback can only ADD a figure where the derivation
+found none, so it can never disagree with the Payouts panel.
+
+`calculatePoints` arrives as a **callback** rather than an import, because it lives on
+`useLeagueSettings` and importing a hook would end the React-free property that lets the export sheet
+render from the identical list.
+
+### An export is a different medium, which is why it is BUILT and not photographed
+
+`components/export/` — `exportStyle.ts` (the print tokens), `ExportSheet.tsx` (the frame both images
+wear), `ResultsSheet.tsx`, `StandingsSheet.tsx` and `captureSheet.ts` (the one capture).
+
+The console is glass over a near-black page. That is right on a tablet in a dim room and wrong in a
+picture, because a picture gets posted to a group chat, recompressed, and looked at on somebody
+else's phone in daylight. It is also not merely a preference: **all three card treatments use
+`backdrop-filter: blur(12px)`, and html2canvas does not render backdrop-filter at all** — it
+composites the translucent background straight onto the canvas colour. A captured glass card is not a
+slightly worse glass card; it is a nearly transparent panel. A print style that never uses glass is
+the honest option rather than a compromise.
+
+**Deciding that settles the strategy question rather than complicating it.** If an export is
+deliberately not the screen, then capturing the live DOM is wrong *by definition*, because the live
+DOM is the screen's style. So the off-screen-sheet strategy wins and both sets of hacks go:
+
+| | the old results PNG | the old standings PNG |
+|---|---|---|
+| Built by | ~130 lines of `createElement` + `cssText` | capturing this very table |
+| Therefore needed | `TONE_STYLES`, a hand-kept second badge palette | unsetting the wrapper's `height`/`maxHeight`/`overflow`, then restoring all three |
+| And | `font-family: system-ui` — **not the app's typeface at all** | an `onclone` deleting every `<svg>` (the title's trophy vanished) and every `<button>` |
+| And | — | a hidden `.movement-arrow-text` twin in the markup, for no other purpose |
+| Cleaned up on failure | no — a thrown capture parked the tree for the life of the page | n/a |
+
+**`TONE_STYLES` is deleted and must not come back.** html2canvas reads COMPUTED styles from a node
+that is in the document — which is why capturing Tailwind markup always worked — so the sheets are
+real JSX with real classes. The print style owns the frame, the type, the page and row colours, the
+rank badges and the density, and **deliberately not the chips**: a second badge palette would be
+exactly the drift the mirror was.
+
+**The standings export used to invert its own striping.** It passed `backgroundColor: '#1e1e1e'` —
+the very literal its even rows were striped with — so in the finished image every other row dissolved
+into the backdrop. One module owning both colours is what makes that impossible rather than unlikely,
+and a test asserts `SHEET.row !== SHEET.page`.
+
+Three things in `captureSheet` are load-bearing. **Teardown is in a `finally`** — the builder it
+replaces removed its off-screen node on the happy path only, so a thrown capture left a whole DOM
+tree in the document, invisible, clearable only by reloading mid-tournament; a mutant moving it out
+turns a test red. **Fonts are awaited**, because a sheet is measured in px rather than laid out
+responsively and arriving a frame early captures the fallback stack. And the host is **off-screen at
+-10000px rather than `display:none`**, which has no layout for html2canvas to measure.
+
+`sheetFilename` appends the date SEPARATELY from the descriptive parts — with the date in the list the
+stem is never empty, so its own fallback was unreachable and a nameless sheet downloaded as
+`2026-10-01.png`. It also strips path separators, because a season called `Winter 25/26` is ordinary
+and a slash is how a download quietly fails to save.
+
+**The standings sheet is handed its columns already resolved**, from the same `enabledStats` +
+`getPlayerStat` pair the table renders with and the CSV writes from. A third column list is how the
+rake formula reached nine sites.
+
+### The standings table ignored the app's own type ramp
+
+`RealTimeLeagueTable` was ten `text-xs` and **zero** uses of the `caption`/`label`/`body` ramp that
+`tailwind.config.ts` declares *for table cells* — with **no `font-mono` anywhere**, so money, points
+and ROI were proportional with no `tabular-nums` and the digits did not line up down a column. Its
+own child `PlayerSeasonDialog` had it right all along, so a table and the dialog it opened were
+typographically inconsistent with each other.
+
+It also hard-coded `bg-[#2a2a2a]` for the header, `bg-[#1e1e1e]` for the stripe, and **two different
+gridline shades** — `border-slate-600` in the header against `border-slate-700` in the body — for one
+gridline. All now tokens, one shade, `text-caption`, and `font-mono` on every figure.
+
+**The header's opaque background is still load-bearing** and `bg-muted` keeps it: `--muted` is a
+plain HSL with no alpha, and rows slide UNDER that header. Do not reach for a translucent card
+treatment there. The `wrapperClassName="max-h-[400px]"` placement and the sticky header are
+deliberately untouched — the section above records what moving that cost.
+
+**Dead wiring swept with this:** `export-hide` was applied at three places in `PlayerSection` and
+**defined in no stylesheet anywhere**; `exportRef` was declared and attached in both components and
+read by nothing. Both were leftovers from when these exports captured live DOM.
+
 ### A player's chips are written once, in `lib/playerBadges.ts`
 
 The director's row, the exported PNG and the participant's phone all render the chips beside a
@@ -1131,8 +1258,12 @@ The split is still on the Payouts panel.
 for a winner and the count multiplies out against the money on the same row. That `+1` was already in
 the money arithmetic in both call sites; the count only surfaces it.
 
-`TONE_STYLES` in `ui/player-badge.tsx` repeats those colours as inline styles because the PNG export
-hands plain DOM nodes to html2canvas and cannot use Tailwind classes. Change one, change both.
+**`TONES` in `ui/player-badge.tsx` is now the ONLY colour table, and there used to be a second.**
+`TONE_STYLES` repeated all five tones as inline styles, kept in step by hand, because the results PNG
+was assembled from plain DOM nodes that could not carry a class. The exports render real JSX now, so
+it is deleted — see "An export is a different medium" above. Do not reintroduce it: an export that
+wants a different LOOK changes `components/export/exportStyle.ts`, which owns the frame, the type and
+the rank colours and deliberately not the chips.
 
 ### Icons are lucide, and there are no emoji
 
@@ -3134,6 +3265,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
+| `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and the chips. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |
 | `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out — and who holds the failsafe after. |
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `pendingRoster.ts` | Whether a roster change is still waiting on Firestore, so its own echo cannot revert it. |
