@@ -538,6 +538,45 @@ by a timer.**
   Safe by construction — that effect returns early when `readOnlyConsole`, so only the holder reaches
   it.
 
+**A THIRD release, and it is the one that explains why two were not enough.** The automatic claim
+plants this device as the holder of **every** game it opens, while sign-out and completion each act
+on exactly ONE game — the one being held at the time. So opening game A and then moving to game B
+without signing out left A held by this device for good, and that is how a night of testing left a
+pile of old games stuck behind a banner about a game nobody was running.
+`hooks/useReleaseControlOnLeave.ts` hands back the game the console has moved OFF. **A console drives
+one game at a time, so holding a claim on a game it has left is never right.**
+
+Moving to NO game counts as leaving, and is the commonest route: New Tournament makes the game local
+again, so `consoleTournamentId()` returns null.
+
+**It is a HOOK rather than six lines inside `PokerTimer`, and the reason is the test.** What can go
+wrong here is not which game to release — it is whether the effect fires at all, and whether it fires
+too often, and an effect inline in that page has neither test by construction. `useRebuyOffer.test.tsx`
+is the precedent for driving one across real state changes.
+
+**The `previous === current` guard looks like defence and is not.** The dep array already stops the
+effect re-running on an unchanged id, so the only way to arrive with them equal is for one of the
+OTHER deps to change — and **signing in does exactly that while the console sits on a game.** Without
+the guard, the sign-in releases the game this device is driving, at the moment it starts driving it.
+A mutant dropping it survived every test until a fixture flipped `signedIn` with the id held still;
+that test is the one that catches it.
+
+Six mutants are caught. The one worth naming is "release on every render": this page re-renders once
+a second because that is how the clock advances, so that mutant is a Firestore write a second — the
+shape that once plausibly exhausted a day's write allowance in an evening.
+
+**Verified by driving it, as far as offline Firestore allows.** The A-to-B transition cannot be
+reached in the devstub, because `activeTournamentId` needs a real document. What was confirmed there
+is the half most likely to be wrong anyway: the hook mounts, its effect runs **once**, and it does
+not run again across four seconds of clock ticks. Instrumented behind a `RELEASE_PROBE_REMOVE_ME`
+marker and removed by grep — and note `git grep` reports nothing for a file that is still untracked,
+so the removal was asserted on the content instead.
+
+**Games claimed BEFORE any of this shipped keep their stale holder**, and nothing sweeps them —
+a bulk rewrite of live documents on a guess about which are abandoned is not a migration worth
+having. Each clears with one Take control, or on its own the next time the holding device signs out
+while on it.
+
 **The sign-out ordering is load-bearing and there is a rules test for it.** The release is an
 ordinary owner write, gated on `isExistingDocOwner()`, so it must be **awaited before
 `signOut(auth)`** — afterwards there is no `request.auth.uid` and Firestore refuses it, and a

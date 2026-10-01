@@ -48,6 +48,7 @@ import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
 import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
+import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
 import { markRosterWritten, rosterPayload } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
 import { getDeviceId } from '@/lib/deviceId';
@@ -616,6 +617,16 @@ function PokerTimerInner({
       myDeviceId,
     });
   }, [activeTournamentId, tournament.controllingDeviceId, myDeviceId]);
+
+  // Hand back the game this console has moved OFF, before claiming the next.
+  //
+  // The claim below plants this device as the holder of every game it opens, and
+  // until now the only things that ever gave one back acted on a SINGLE game —
+  // the one held at sign-out, and the one being finished. So opening game A and
+  // then moving to game B left A held by this device for good, which is how a
+  // night of testing left a pile of old games stuck behind a banner about a game
+  // nobody was running. See the hook for the whole argument.
+  useReleaseControlOnLeave(activeTournamentId, myDeviceId, !!user?.id && !isAnonymous);
 
   // Claim a game nobody holds, so an ordinary single-device night never meets
   // any of this. Never a takeover — that is the button below, pressed by the
