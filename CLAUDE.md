@@ -1314,6 +1314,35 @@ which fights the row striping; worth doing deliberately rather than as a sidecar
 list rather than a table; both this and the standings were loosened by it and both are tightened.
 Measured: 61px per row before, 45px after.
 
+**The picker is `components/ResultColumnsPicker.tsx`, and it is a component because that was the
+fix.** Reported as "the move up and down feature isn't working" — and the arrows WERE working: the
+stored order changed and the table and the exported image reordered with it. What never moved was the
+list in Settings, because its rows were rendered from `offerableResultColumns`, which is always
+CANONICAL order. No feedback at all, so it read as a dead control rather than an odd one.
+
+Two more faults sat in the same twenty lines, neither reported. The arrows' **disabled states read
+backwards**, being computed from an index into the director's order while the row sat in canonical
+order — so the top row's ↑ could work and a lower row's be dead. And a press **silently dropped
+configuration**: it wrote back the feature-FILTERED list, so pressing an arrow in a game with
+bounties off removed those keys from the stored order for good.
+
+All three shipped with `npm run check` clean and every test green, because `moveColumn` and
+`toggleColumn` are correct in isolation and the defect was entirely in the call site — twenty lines
+inline in a settings page, which has no test by construction. The extraction is what makes it
+testable, the same argument `lib/tableBalance.ts` and `lib/seating.ts` were pulled out on.
+
+**The rule that prevents all three: render in the order the TABLE will use, and edit the STORED array
+rather than the filtered one.** Which creates the opposite hazard immediately — a swap could trade
+places with a key that is hidden right now and the row would not move, *literally the league picker's
+fault this file mocks* — so `moveColumn` takes a `canSwapWith` predicate and skips to the nearest
+visible neighbour. A column whose feature is off keeps its place in the stored order and simply is not
+a row.
+
+**The test asserts the RENDERED ROW ORDER, not the value handed to `onChange`.** A test on `onChange`
+alone passes against the exact bug that shipped — it was always given the right array. The mutant that
+restores canonical rendering turns six red. Verified by driving the real picker too: one press, one
+visible move, and the hidden `bounties` key still in the stored array afterwards.
+
 **An asymmetry this made visible, pinned rather than quietly fixed.** With no `rebuyAmount` stored,
 `lib/prizePool.ts` adds nothing to the pool for that rebuy while `lib/resultStats.ts`'s `investedIn`
 charges it at the buy-in — its own comment calls that "much closer than charging nothing" for a

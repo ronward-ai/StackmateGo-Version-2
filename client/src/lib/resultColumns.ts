@@ -220,12 +220,31 @@ export function moveColumn(
   order: readonly string[],
   key: string,
   direction: -1 | 1,
+  /**
+   * Which keys a swap may land on. Defaults to all of them.
+   *
+   * **This exists because the picker reorders the STORED array, which can hold
+   * keys that are not on screen right now** — a bounty column in a game with
+   * bounties switched off. Swapping blindly with the adjacent entry would then
+   * trade places with something invisible and the row would not move, which is
+   * exactly the league picker's fault that this module's header mocks: there the
+   * arrows step through all twenty-five keys including the hidden ones, so a
+   * press can appear to do nothing at all.
+   *
+   * So the swap skips to the nearest neighbour that is itself visible. The
+   * hidden keys keep their places relative to everything else and a press always
+   * moves the row the director is looking at.
+   */
+  canSwapWith: (key: string) => boolean = () => true,
 ): string[] {
   const next = [...order];
   const i = next.indexOf(key);
   if (i < 0) return next;
-  const j = i + direction;
+
+  let j = i + direction;
+  while (j >= 0 && j < next.length && !canSwapWith(next[j])) j += direction;
   if (j < 0 || j >= next.length) return next;
+
   [next[i], next[j]] = [next[j], next[i]];
   return next;
 }
