@@ -109,6 +109,28 @@ describe('PlayerSectionReadOnly', () => {
     expect(screen.getByText('Active')).toBeTruthy();
   });
 
+  /**
+   * The columns are the DIRECTOR's, and they reach here for free: `settings`
+   * rides into the tournament document because `PokerTimer` syncs the whole
+   * object, which is how a player's phone shows the table the console shows.
+   */
+  it('shows the columns the director chose', () => {
+    render(
+      <PlayerSectionReadOnly
+        tournament={{
+          state: {
+            players: finished,
+            settings: { currency: '£', resultColumns: ['knockouts', 'invested'] },
+            prizeStructure: { buyIn: 10, manualPayouts: [{ position: 1, percentage: 100 }] },
+          },
+        } as any}
+      />,
+    );
+    expect(screen.getByText('KO')).toBeTruthy();
+    expect(screen.getByText('Invested')).toBeTruthy();
+    expect(screen.queryByText('Won')).toBeNull();
+  });
+
   it('says so when nobody has joined', () => {
     render(<PlayerSectionReadOnly tournament={tournament([]) as any} />);
     expect(screen.getByText('Nobody has joined yet')).toBeTruthy();

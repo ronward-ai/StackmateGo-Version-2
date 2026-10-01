@@ -1112,10 +1112,11 @@ hook and the participant view passes the raw document.
 
 ### A results row is one fact, and FOUR screens each had their own answer
 
-`lib/resultRows.ts` owns the finishing order — who is where, what their place is called, and what the
-chips beside their name say. `components/ResultRow.tsx` is the one screen row. Before them there were
-four implementations, and they disagreed about the thing nobody could get wrong by accident: the name
-of a place.
+`lib/resultRows.ts` owns the finishing order — who is where, what their place is called, and every
+figure known about them. `components/ResultsTable.tsx` is the one screen table; it was
+`ResultRow.tsx`, a row of chips, until the section below turned the results into a grid. Before them
+there were four implementations, and they disagreed about the thing nobody could get wrong by
+accident: the name of a place.
 
 | Where | Rank read |
 |---|---|
@@ -1236,6 +1237,91 @@ deliberately untouched — the section above records what moving that cost.
 **Dead wiring swept with this:** `export-hide` was applied at three places in `PlayerSection` and
 **defined in no stylesheet anywhere**; `exportRef` was declared and attached in both components and
 read by nothing. Both were leftovers from when these exports captured live DOM.
+
+### The results are a table, and the columns are the director's
+
+`lib/resultColumns.ts` defines every column a night can show; `components/ResultsTable.tsx` is the
+one screen table and `components/export/ResultsSheet.tsx` the picture of it. Both read the same
+accessor, so the console, the participant's phone and the exported image cannot disagree about a
+column — the trade `RealTimeLeagueTable` and its CSV already make.
+
+**Reported after the exports were unified:** the standings "look crisp and read much easier because
+they have definitive columns", and the results did not. The reason is structural rather than
+cosmetic. A grid gives every row the same shape, so the eye runs down a column; a strip of chips
+changes width and order per player, so nothing lines up and each row has to be parsed on its own.
+`components/ResultRow.tsx` is deleted.
+
+**The league's column machinery could not be reused, and the reason is worth knowing before anyone
+tries again.** `statsToDisplay` + `statsOrder` persist into a `leagueSettings` document keyed on
+`defaultSettingsDocId(userId, leagueId)`, and `LeagueSettingsDialog`'s auto-save **returns early with
+no league** — so a STANDALONE tournament could never configure a column, which is exactly the game
+where a results table earns its place. The `leagueId: null` path is worse than useless: it lists
+every settings document a director owns, unfiltered. And about ten of the twenty-five league stats —
+Games, Avg. Points, Attendance, Streak, Final Tables — are aggregates over a season and say nothing
+about one night.
+
+**So the choice lives on `settings.resultColumns`, and `timerPiping` is the precedent.** Stored with
+the rest of the settings, carried to the account by `useDirectorSetupSync`, and into the tournament
+document because `PokerTimer` syncs the whole object — which is how a participant's phone shows the
+columns the director picked. No new collection, and **no Firestore rule to publish by hand**, which
+is the trap this file opens with.
+
+**One ordered array of enabled keys, not the league's boolean map plus a separate order list.** Those
+two can disagree, and visibly do: the ↑/↓ buttons there step through all twenty-five keys including
+the hidden ones, so moving an enabled column past a block of disabled ones takes several presses and
+appears to do nothing. A single array cannot have that bug, and the picker here disables the arrows
+on a column that is switched off rather than letting it be stepped through.
+
+**A column whose FEATURE is off is not drawn** — `requires` on each column, against the prize
+structure. The rule the Busted strip already follows: *a feature switched off for the whole
+tournament renders nothing.* A game without bounties prints no bounty column even if the key is
+enabled, and Points needs league mode. This is what makes a dozen configurable columns usable by a
+director who never opens the picker.
+
+Keyed on the **setting, never the data**. A rebuy column of zeros in a game that allowed rebuys is
+information — nobody rebought — and hiding a column because tonight was quiet would make the same
+tournament print a different table from one week to the next.
+
+**An unknown key is dropped rather than rendered.** Settings travel: to the account, into the
+document, out to every phone. A key written by a newer build WILL reach an older one, and a column
+nobody can resolve must be absent rather than a header with nothing under it. A mutant that renders
+it blank turns a test red.
+
+**`toggleColumn` inserts at the canonical position and leaves the rest of the order alone.** Sorting
+the whole array instead is the obvious one-liner and throws away a director's arrangement every time
+they tick a box — one control quietly undoing the control beside it. Mutation-tested.
+
+**`ResultRow` carries the FIGURES now, not a finished chip list.** `resultRowsFor` was already
+deriving every one of them and handing them straight to `badgesFor`; exposing them as `stats` adds no
+derivation, it stops one being discarded. Currency went the other way — out of `resultRows.ts`
+entirely, because how a figure is spelled is a formatting question and belongs with the columns.
+`lib/playerBadges.ts` is untouched and still right where chips belong: the seating view and the
+participant's own check-in row.
+
+**The column order on screen is a decision, not a layout: rank · name · actions · stats.** The table
+scrolls sideways on a phone, as the standings do, and the KO button is the most-pressed control of
+the night — anything right of the fold can be scrolled out of reach when a director is busiest. Rank
+and name are narrow, so the controls sit third and stay on screen at any width while the configurable
+columns are what move. **Measured, not eyeballed**, by constraining the CONTAINER rather than the
+window, since headless Chrome clamps the viewport to ~500px: at 360px the table's own wrapper scrolls
+(659 against 358), the page itself does not, and the KO button's right edge is at 237px.
+
+They are not PINNED, though — scroll right for Points and the controls go with everything else,
+exactly as the standings behave. Sticky first columns would need an opaque background under them,
+which fights the row striping; worth doing deliberately rather than as a sidecar to this.
+
+**Rows are `py-2`.** The table primitive's `p-4` is 16px above and below 11px type, which reads as a
+list rather than a table; both this and the standings were loosened by it and both are tightened.
+Measured: 61px per row before, 45px after.
+
+**An asymmetry this made visible, pinned rather than quietly fixed.** With no `rebuyAmount` stored,
+`lib/prizePool.ts` adds nothing to the pool for that rebuy while `lib/resultStats.ts`'s `investedIn`
+charges it at the buy-in — its own comment calls that "much closer than charging nothing" for a
+result written before prices were stored. Both are defensible; they answer different questions. It
+never showed while these were chips, because a row carried one money figure. In a table, Invested and
+Prize are adjacent columns and the same rebuy is counted in one and not the other. Changing
+`prizePool` is a real money change and does not belong in a display commit; `resultColumns.test.ts`
+asserts the current behaviour so the next person meets the fact rather than rediscovering it.
 
 ### A player's chips are written once, in `lib/playerBadges.ts`
 
@@ -3265,7 +3351,8 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
-| `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and the chips. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |
+| `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and every figure one night knows about a player. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |
+| `resultColumns.ts` | Which columns a results table can show, what each cell says, and which ones this game can offer at all. **A column whose feature is switched off is not drawn.** |
 | `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out — and who holds the failsafe after. |
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `pendingRoster.ts` | Whether a roster change is still waiting on Firestore, so its own echo cannot revert it. |

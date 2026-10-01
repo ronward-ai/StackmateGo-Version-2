@@ -735,7 +735,7 @@ function RealTimeLeagueTable({
                         className={`${index % 2 === 0 ? 'bg-white/[0.02]' : ''} cursor-pointer hover:bg-primary/10 transition-colors`}
                         title={`See ${player.name}'s season game by game`}
                       >
-                        <TableCell className="font-mono font-medium w-6 text-center px-1 text-caption border-r border-border">
+                        <TableCell className="font-mono font-medium w-6 text-center px-1 py-2 text-caption border-r border-border">
                           <div className="flex items-center justify-center gap-1">
                             <span>{currentRank}</span>
                             {movement && showMovementArrows && (
@@ -759,11 +759,11 @@ function RealTimeLeagueTable({
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium w-16 px-2 text-caption truncate border-r border-border" title={player.name}>
+                        <TableCell className="font-medium w-16 px-2 py-2 text-caption truncate border-r border-border" title={player.name}>
                           {player.name}
                         </TableCell>
                       {enabledStats.map(stat => (
-                        <TableCell key={stat} className="font-mono text-right w-10 px-2 text-caption whitespace-nowrap border-r border-border last:border-r-0">
+                        <TableCell key={stat} className="font-mono text-right w-10 px-2 py-2 text-caption whitespace-nowrap border-r border-border last:border-r-0">
                            {getPlayerStat(player, stat)}
                         </TableCell>
                       ))}

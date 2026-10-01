@@ -1,87 +1,135 @@
-import PlayerBadge from '@/components/ui/player-badge';
 import type { ResultPlayerLike, ResultRow } from '@/lib/resultRows';
+import { visibleResultColumns, type ColumnContext } from '@/lib/resultColumns';
 import ExportSheet from './ExportSheet';
 import { RANK_PRINT, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
 
 /**
  * The finishing order, as a picture.
  *
- * It takes rows from `lib/resultRows.ts` — the same list the console renders —
- * so the image and the screen cannot disagree about a place, a payout or a chip.
- * They used to, in all three: the screen said *21th* where this said *21st*, the
- * two spelled "is the game over" differently, and the points chip here was fed a
- * buy-in of 0 where the screen was fed the fallback of 10.
+ * **A table, from the same `lib/resultColumns.ts` accessor the console uses**, so
+ * the image and the screen cannot disagree about a column — the trade
+ * `RealTimeLeagueTable` and its CSV already make, and the reason `getPlayerStat`
+ * is shared there rather than copied.
  *
- * The old builder was ~130 lines of `document.createElement` and `cssText`,
- * which is why none of that was visible and why it had no test. This is
- * ordinary React with ordinary classes, because html2canvas reads computed
- * styles off a node that is in the document — the standings export has always
- * captured live Tailwind markup, so the hand-built DOM bought nothing.
+ * It was a stack of rows, each a rank badge and then a ragged strip of chips.
+ * Beside the standings sheet that read badly, and the reason is structural: a
+ * grid lets the eye compare down a column, where a chip strip changes width and
+ * order per player so nothing lines up. Reported exactly so.
+ *
+ * `StandingsSheet` and this now differ only in their columns, which is the
+ * point: two pictures of one league that look like one product.
+ *
+ * `lib/playerBadges.ts` is untouched and still right where chips belong — the
+ * seating view and the participant's own check-in row.
  */
 interface ResultsSheetProps {
   title: string;
   subtitle?: string;
   rows: ResultRow<ResultPlayerLike>[];
+  /** The chosen columns and the currency, from `state.settings`. */
+  settings?: { resultColumns?: string[]; currency?: string } | null;
+  columnContext?: ColumnContext;
+  currencySymbol: string;
 }
 
-export default function ResultsSheet({ title, subtitle, rows }: ResultsSheetProps) {
+export default function ResultsSheet({
+  title, subtitle, rows, settings, columnContext, currencySymbol,
+}: ResultsSheetProps) {
+  const columns = visibleResultColumns(settings?.resultColumns, columnContext);
+
+  // The sheet grows with the table rather than being a fixed canvas, because the
+  // column count is the director's choice and a fixed width would either squeeze
+  // eight columns into an unreadable row or leave four floating in whitespace.
+  // Floored at the standard results width so a short table still looks like a
+  // sheet and not a receipt.
+  const width = Math.max(SHEET_WIDTH.results, 360 + columns.length * 96);
+
+  const cell: React.CSSProperties = {
+    padding: '8px 10px',
+    fontSize: SHEET_TYPE.cell,
+    borderBottom: `1px solid ${SHEET.rule}`,
+    whiteSpace: 'nowrap',
+  };
+  const headCell: React.CSSProperties = {
+    ...cell,
+    fontSize: SHEET_TYPE.head,
+    color: SHEET.inkDim,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  };
+
   return (
-    <ExportSheet title={title} subtitle={subtitle} width={SHEET_WIDTH.results}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {rows.map(row => {
-          const rank = RANK_PRINT[row.rankTone];
-          return (
-            <div
-              key={String(row.player.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                padding: '11px 13px',
-                background: SHEET.row,
-                border: `1px solid ${SHEET.rule}`,
-                borderRadius: 8,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-                <span
+    <ExportSheet title={title} subtitle={subtitle} width={width}>
+      <table
+        style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          background: SHEET.row,
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}
+      >
+        <thead>
+          <tr style={{ background: SHEET.band }}>
+            <th style={{ ...headCell, textAlign: 'center' }}>#</th>
+            <th style={{ ...headCell, textAlign: 'left' }}>Player</th>
+            {columns.map(col => (
+              <th
+                key={col.key}
+                style={{ ...headCell, textAlign: col.align }}
+              >
+                {col.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(row => {
+            const rank = RANK_PRINT[row.rankTone];
+            return (
+              <tr key={String(row.player.id)}>
+                <td style={{ ...cell, textAlign: 'center' }}>
+                  <span
+                    className="font-mono"
+                    style={{
+                      background: rank.bg,
+                      color: rank.fg,
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {row.rankLabel}
+                  </span>
+                </td>
+                <td
                   style={{
-                    background: rank.bg,
-                    color: rank.fg,
-                    padding: '4px 9px',
-                    borderRadius: 5,
-                    fontSize: SHEET_TYPE.rank,
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
+                    ...cell,
+                    fontWeight: 600,
+                    color: SHEET.ink,
+                    maxWidth: 200,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
-                  {row.rankLabel}
-                </span>
-                <span style={{ fontSize: SHEET_TYPE.name, fontWeight: 700, color: SHEET.ink }}>
                   {row.player.name}
-                </span>
-              </div>
-
-              {/* The chips are the SCREEN's chips, classes and all. A second
-                  palette for print is the drift `TONE_STYLES` was. */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  flexWrap: 'wrap',
-                  justifyContent: 'flex-end',
-                }}
-              >
-                {row.badges.map(badge => (
-                  <PlayerBadge key={badge.key} badge={badge} />
+                </td>
+                {columns.map(col => (
+                  <td
+                    key={col.key}
+                    className={col.numeric ? 'font-mono' : undefined}
+                    style={{ ...cell, textAlign: col.align, color: SHEET.ink }}
+                  >
+                    {col.value(row, currencySymbol)}
+                  </td>
                 ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </ExportSheet>
   );
 }

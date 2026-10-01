@@ -14,11 +14,19 @@ import { RANK_PRINT, SHEET } from './exportStyle';
  * colour it filled its own canvas with.
  */
 
-const rowsFor = (players: ResultPlayerLike[]) =>
-  resultRowsFor(players, {
-    prizeStructure: { buyIn: 10, manualPayouts: [{ position: 1, percentage: 100 }] },
-    settings: { currency: '£' },
-  });
+const PRIZE = { buyIn: 10, allowRebuys: true, manualPayouts: [{ position: 1, percentage: 100 }] };
+
+const rowsFor = (players: ResultPlayerLike[]) => resultRowsFor(players, { prizeStructure: PRIZE });
+
+/** The sheet under test, with the columns a game would actually show. */
+const results = (props: any) => (
+  <ResultsSheet
+    settings={{ resultColumns: ['knockouts', 'rebuys', 'won'], currency: '£' }}
+    columnContext={{ prizeStructure: PRIZE }}
+    currencySymbol="£"
+    {...props}
+  />
+);
 
 describe('ResultsSheet', () => {
   const rows = rowsFor([
@@ -28,7 +36,7 @@ describe('ResultsSheet', () => {
   ]);
 
   it('names every place with a real ordinal', () => {
-    render(<ResultsSheet title="Thursday Night" rows={rows} />);
+    render(results({ title: 'Thursday Night', rows }));
     expect(screen.getByText('1st')).toBeTruthy();
     expect(screen.getByText('2nd')).toBeTruthy();
     // The one the screen got wrong for as long as this export got it right.
@@ -37,7 +45,7 @@ describe('ResultsSheet', () => {
   });
 
   it('wears the print medals, which are not the screen medals', () => {
-    const { container } = render(<ResultsSheet title="Thursday Night" rows={rows} />);
+    const { container } = render(results({ title: 'Thursday Night', rows }));
     const first = screen.getByText('1st') as HTMLElement;
     expect(first.style.background).toBeTruthy();
     // A lookup on a named tone, so an active player's position of 0 can never
@@ -46,15 +54,30 @@ describe('ResultsSheet', () => {
     expect(container.textContent).toContain('Dan');
   });
 
-  it('carries the money and the chips the screen carries', () => {
-    render(<ResultsSheet title="Thursday Night" rows={rows} />);
-    expect(screen.getByText('£30')).toBeTruthy();
-    expect(screen.getByText('3')).toBeTruthy();
+  // COLUMNS, not chips. Every row has the same shape, which is the whole reason
+  // the standings read better than the strip this replaced.
+  it('prints the chosen columns as a header, once, with figures under them', () => {
+    render(results({ title: 'Thursday Night', rows }));
     expect(screen.getByText('KO')).toBeTruthy();
+    expect(screen.getByText('Rebuys')).toBeTruthy();
+    expect(screen.getByText('Won')).toBeTruthy();
+    expect(screen.getByText('£30')).toBeTruthy();
+    // The header says KO once; it is not repeated against every player the way
+    // a chip was.
+    expect(screen.getAllByText('KO')).toHaveLength(1);
+  });
+
+  it('draws no column for a feature this game switched off', () => {
+    render(results({
+      title: 'Thursday Night',
+      rows,
+      settings: { resultColumns: ['knockouts', 'bounties'], currency: '£' },
+    }));
+    expect(screen.queryByText('Bounties')).toBeNull();
   });
 
   it('frames the sheet with its title, and says what made it', () => {
-    render(<ResultsSheet title="Thursday Night" subtitle="Game 4 · 3 players" rows={rows} />);
+    render(results({ title: 'Thursday Night', subtitle: 'Game 4 · 3 players', rows }));
     expect(screen.getByText('Thursday Night')).toBeTruthy();
     expect(screen.getByText('Game 4 · 3 players')).toBeTruthy();
     expect(screen.getByText('StackMate Go')).toBeTruthy();
@@ -65,7 +88,7 @@ describe('ResultsSheet', () => {
       { id: '1', name: 'Zoe', isActive: true },
       { id: '2', name: 'Amy', isActive: false, position: 2 },
     ]);
-    render(<ResultsSheet title="Thursday Night" rows={live} />);
+    render(results({ title: 'Thursday Night', rows: live }));
     expect(screen.getByText('Active')).toBeTruthy();
   });
 });

@@ -11,6 +11,9 @@ import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { downscaleImage } from '@/lib/imageDownscale';
 import { eventNameOf } from '@/lib/eventName';
+import {
+  offerableResultColumns, visibleResultColumns, moveColumn, toggleColumn,
+} from '@/lib/resultColumns';
 import DangerZone from '@/components/DangerZone';
 
 /**
@@ -25,7 +28,7 @@ const PIPING_OPTIONS: { value: TimerPiping; label: string; hint: string }[] = [
   { value: 'rails', label: 'Rails',      hint: 'Top and bottom only' },
   { value: 'ember', label: 'Ember',      hint: 'Gradient with an outer glow' },
 ];
-import { Image, X, Mic, RefreshCw, Settings2, Palette, FileText, Timer, Check } from "lucide-react";
+import { Image, X, Mic, RefreshCw, Settings2, Palette, FileText, Timer, Check, ChevronUp, ChevronDown } from "lucide-react";
 
 interface SettingsSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -194,6 +197,92 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Beside the piping, because both are per-game display choices and
+                  both ride into the tournament document inside `settings` — so a
+                  participant's phone shows the columns the director picked.
+                  The LEAGUE's own column picker cannot do this: it saves into a
+                  leagueSettings document keyed on a leagueId, and a standalone
+                  game has none. */}
+              <div className="py-3">
+                <Label className="text-sm font-medium">Results columns</Label>
+                <p className="text-label text-muted-foreground mt-0.5 mb-3">
+                  What the results table shows, on screen and in the exported image. A column for
+                  something this game has switched off is not offered.
+                </p>
+                {(() => {
+                  const ctx = {
+                    prizeStructure: state.prizeStructure,
+                    isLeagueMode:
+                      state.details?.type === 'season' ||
+                      (state.settings as any)?.isSeasonTournament === true,
+                  };
+                  // The CURRENT list, resolved the same way the table resolves it,
+                  // so the picker and the table cannot disagree about what is on.
+                  const shown = visibleResultColumns(state.settings.resultColumns, ctx)
+                    .map(c => c.key as string);
+                  const offerable = offerableResultColumns(ctx);
+                  return (
+                    <div className="space-y-1">
+                      {offerable.map(col => {
+                        const on = shown.includes(col.key);
+                        const at = shown.indexOf(col.key);
+                        return (
+                          <div
+                            key={col.key}
+                            className="flex items-center gap-2 rounded-lg border border-border/40 px-2 py-1.5"
+                          >
+                            <input
+                              type="checkbox"
+                              id={`col-${col.key}`}
+                              checked={on}
+                              onChange={e =>
+                                updateSettings({
+                                  resultColumns: toggleColumn(shown, col.key, e.target.checked),
+                                })
+                              }
+                              className="h-4 w-4 accent-primary flex-shrink-0"
+                            />
+                            <Label htmlFor={`col-${col.key}`} className="flex-1 text-label cursor-pointer">
+                              {col.label}
+                            </Label>
+                            {/* Only an enabled column can move, and the ends
+                                disable — the league picker steps through hidden
+                                keys too, so a press there can appear to do
+                                nothing at all. */}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              disabled={!on || at <= 0}
+                              aria-label={`Move ${col.label} up`}
+                              onClick={() =>
+                                updateSettings({ resultColumns: moveColumn(shown, col.key, -1) })
+                              }
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              disabled={!on || at < 0 || at >= shown.length - 1}
+                              aria-label={`Move ${col.label} down`}
+                              onClick={() =>
+                                updateSettings({ resultColumns: moveColumn(shown, col.key, 1) })
+                              }
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </SettingsGroup>
             <Card className="card-glass rounded-xl">

@@ -115,19 +115,19 @@ describe('resultRowsFor', () => {
   it('pays the places out of the prize pool once', () => {
     const rows = resultRowsFor(finished, {
       prizeStructure: { buyIn: 10, manualPayouts: [{ position: 1, percentage: 100 }] },
-      settings: { currency: '$' },
     });
-    expect(rows[0].badges.find(b => b.key === 'cash')?.figure).toBe('$30');
-    expect(rows[1].badges.find(b => b.key === 'cash')).toBeUndefined();
+    expect(rows[0].stats.prize).toBe(30);
+    expect(rows[0].stats.won).toBe(30);
+    expect(rows[1].stats.prize).toBe(0);
   });
 
   // A payout row sitting at 0% is not a payout. The export dropped this guard
   // and the screen kept it, so one of the two could show a £0 money chip.
-  it('does not hand out a money chip for a zero-percent place', () => {
+  it('does not pay out a zero-percent place', () => {
     const rows = resultRowsFor(finished, {
       prizeStructure: { buyIn: 10, manualPayouts: [{ position: 1, percentage: 0 }] },
     });
-    expect(rows[0].badges.find(b => b.key === 'cash')).toBeUndefined();
+    expect(rows[0].stats.prize).toBe(0);
   });
 
   it('gives the winner their own bounty back, so the count matches the money', () => {
@@ -135,8 +135,9 @@ describe('resultRowsFor', () => {
       prizeStructure: { buyIn: 10, enableBounties: true, bountyAmount: 5 },
     });
     // Three knockouts plus their own bounty back.
-    expect(rows[0].badges.find(b => b.key === 'bounties')?.figure).toBe('4');
-    expect(rows[0].badges.find(b => b.key === 'cash')?.figure).toBe('£20');
+    expect(rows[0].stats.bountiesCollected).toBe(4);
+    expect(rows[0].stats.bountyMoney).toBe(20);
+    expect(rows[0].stats.won).toBe(20);
   });
 
   // THE DIVERGENCE NOBODY COULD SEE. The screen passed `buyInOf(...)`, which
@@ -170,27 +171,27 @@ describe('resultRowsFor', () => {
 
   it('scores nothing for a standalone game, or with no scorer to ask', () => {
     const scored = resultRowsFor(finished, { isLeagueMode: false, calculatePoints: () => 99 });
-    expect(scored[0].badges.find(b => b.key === 'points')).toBeUndefined();
+    expect(scored[0].stats.points).toBe(0);
     const unscored = resultRowsFor(finished, { isLeagueMode: true });
-    expect(unscored[0].badges.find(b => b.key === 'points')).toBeUndefined();
+    expect(unscored[0].stats.points).toBe(0);
   });
 
-  // Seat chips stop being interesting once the game is over, and THAT is the
+  // A seat stops being interesting once the game is over, and THAT is the
   // only thing the finished flag decides here — but it used to be spelled twice,
   // differently, so one row could carry a seat in the picture and not on screen.
-  it('drops the seat chip once the game is over, and keeps it while it runs', () => {
+  it('drops the seat once the game is over, and keeps it while it runs', () => {
     const seat = { tableIndex: 0, seatIndex: 2 };
     const over = resultRowsFor([
       player({ id: '1', name: 'Dan', position: 1, seated: true, tableAssignment: seat }),
       player({ id: '2', name: 'Amy', position: 2, seated: true, tableAssignment: seat }),
     ]);
-    expect(over[0].badges.find(b => b.key === 'seat')).toBeUndefined();
+    expect(over[0].stats.seat).toBeNull();
 
     const running = resultRowsFor([
       player({ id: '1', name: 'Dan', isActive: true, seated: true, tableAssignment: seat }),
       player({ id: '2', name: 'Amy', position: 2 }),
     ]);
-    expect(running[0].badges.find(b => b.key === 'seat')?.figure).toBe('T1·S3');
+    expect(running[0].stats.seat).toEqual(seat);
   });
 
   it('names who knocked a player out, and only for the ones who are out', () => {
@@ -198,8 +199,8 @@ describe('resultRowsFor', () => {
       player({ id: '1', name: 'Dan', isActive: true }),
       player({ id: '2', name: 'Amy', position: 4, eliminatedBy: '1' }),
     ]);
-    expect(rows[0].badges.find(b => b.key === 'out')).toBeUndefined();
-    expect(rows[1].badges.find(b => b.key === 'out')?.label).toBe('out to Dan');
+    expect(rows[0].stats.eliminatedByName).toBeNull();
+    expect(rows[1].stats.eliminatedByName).toBe('Dan');
   });
 
   it('survives an empty or absent roster', () => {

@@ -78,6 +78,22 @@ export interface Settings {
   enableSounds: boolean;
   /** Piping around the timer card. Absent means 'ring'. */
   timerPiping?: TimerPiping;
+  /**
+   * Which columns the tournament results table shows, in order — an ordered list
+   * of enabled keys from `lib/resultColumns.ts`. Absent means the default set.
+   *
+   * It lives on SETTINGS for the reason `timerPiping` does: it is stored with
+   * the rest of them, travels to the account through `useDirectorSetupSync`, and
+   * reaches the tournament document because `PokerTimer` syncs the whole object
+   * — which is how a participant's phone shows the same columns the director
+   * chose. It also works for a STANDALONE game, which the league's own column
+   * picker cannot: that saves into a `leagueSettings` document keyed on a
+   * leagueId, and returns early without one.
+   *
+   * One array rather than the league's boolean map plus a separate order list,
+   * which can disagree with each other. See `lib/resultColumns.ts`.
+   */
+  resultColumns?: string[];
   /** When a BREAK ends, wait for the director to press play instead of
    *  starting the next level automatically. */
   pauseAfterBreak?: boolean;

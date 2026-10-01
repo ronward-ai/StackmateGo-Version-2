@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Trophy, Target, ChevronUp, ChevronDown } from 'lucide-react';
 import EmptyState from '@/components/ui/empty-state';
-import ResultRow from '@/components/ResultRow';
+import ResultsTable from '@/components/ResultsTable';
 import { resultRowsFor } from '@/lib/resultRows';
 
 interface Player {
@@ -61,6 +61,9 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
    * phone — who is still in, and how it finished — not drift.
    */
   const rows = resultRowsFor(players, { prizeStructure, settings });
+  /** The SAME columns the director chose: `settings` rides into the tournament
+   *  document, so a player's phone shows the table the console shows. */
+  const columnContext = { prizeStructure, isLeagueMode: !!(settings as any)?.isSeasonTournament };
   const activeRows = rows.filter(r => r.position === 0);
   const finishedRows = rows.filter(r => r.position > 0);
 
@@ -86,9 +89,7 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
               <Target className="h-4 w-4" />
               Active Players ({activeRows.length})
             </h4>
-            <div className="grid gap-2">
-              {activeRows.map(row => <ResultRow key={row.player.id} row={row} />)}
-            </div>
+            <ResultsTable rows={activeRows} settings={settings} columnContext={columnContext} />
           </div>
         )}
 
@@ -98,9 +99,7 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
               <Trophy className="h-4 w-4" />
               Final Rankings ({finishedRows.length})
             </h4>
-            <div className="space-y-2">
-              {finishedRows.map(row => <ResultRow key={row.player.id} row={row} />)}
-            </div>
+            <ResultsTable rows={finishedRows} settings={settings} columnContext={columnContext} />
           </div>
         )}
 

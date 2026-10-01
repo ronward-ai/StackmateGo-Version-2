@@ -12,7 +12,7 @@ import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import { resultRowsFor } from '@/lib/resultRows';
 import { gameIsOver } from '@/lib/gameOver';
-import ResultRow from '@/components/ResultRow';
+import ResultsTable from '@/components/ResultsTable';
 import ResultsSheet from '@/components/export/ResultsSheet';
 import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
 import { eventNameOf } from '@/lib/eventName';
@@ -118,6 +118,10 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     isLeagueMode,
     calculatePoints,
   });
+
+  /** Which columns this game can show at all — a feature switched off for the
+   *  whole tournament draws nothing, the rule the Busted strip already follows. */
+  const columnContext = { prizeStructure: state.prizeStructure, isLeagueMode };
 
   /** Dates and sizes the picture, so it still means something in a group chat
    *  weeks later. */
@@ -499,6 +503,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
           title={eventNameOf(state.settings) || 'Tournament results'}
           subtitle={subtitleForExport}
           rows={resultRows}
+          settings={state.settings}
+          columnContext={columnContext}
+          currencySymbol={currencyOf(state.settings)}
         />,
         { filename: sheetFilename(['tournament-results']) },
       );
@@ -793,18 +800,18 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
               Add players above to track knockouts, rebuys and standings through the night.
             </EmptyState>
           ) : (
-            /* One row component, shared with the participant's phone, fed by one
-               derivation shared with the exported picture. This block used to
-               re-sort the roster, re-derive every payout and spell the rank
-               badge itself — which is where "21th" lived. */
-            resultRows.map(row => {
-              const player = row.player as Player;
-              return (
-                <ResultRow
-                  key={player.id}
-                  row={row}
-                  actions={
-                    <>
+            /* A table, not a strip of chips — the standings read better because
+               every row has the same shape, and this is the same roster. The
+               columns are the director's, from lib/resultColumns.ts, and the
+               exported image renders from the identical list. */
+            <ResultsTable
+              rows={resultRows}
+              settings={state.settings}
+              columnContext={columnContext}
+              actions={row => {
+                const player = row.player as Player;
+                return (
+                  <>
                       {player.isActive && !player.seated && (
                         <Button
                           variant="outline"
@@ -878,11 +885,10 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                           </AlertDialogContent>
                         </AlertDialog>
                       )}
-                    </>
-                  }
-                />
-              );
-            })
+                  </>
+                );
+              }}
+            />
           )}
         </div>
 

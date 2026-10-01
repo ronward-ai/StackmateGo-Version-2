@@ -1,9 +1,7 @@
 import { ordinal } from '@/lib/ordinal';
 import { gameIsOver } from '@/lib/gameOver';
-import { badgesFor, type PlayerBadge } from '@/lib/playerBadges';
 import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { buyInOf, investedIn } from '@/lib/resultStats';
-import { currencyOf } from '@/lib/currency';
 
 /**
  * The finishing order of the game being run: who is where, what their place is
@@ -60,6 +58,7 @@ export interface ResultPlayerLike {
   addons?: number | null;
   seated?: boolean;
   tableAssignment?: { tableIndex: number; seatIndex: number } | null;
+  reEntries?: number | null;
   eliminatedBy?: string | number | null;
   /**
    * What the player was recorded as winning, written onto them at bust-out.
@@ -106,19 +105,56 @@ export function rankLabel(position?: number | null): string {
   return pos > 0 ? ordinal(pos) : 'Active';
 }
 
+/**
+ * Everything one night knows about one player, already derived.
+ *
+ * The row used to carry a finished `PlayerBadge[]` and nothing else, which was
+ * right while the results were a ragged strip of chips and wrong the moment they
+ * became a table: a column needs the FIGURE, not a rendered chip. All of these
+ * were being computed here already and thrown straight into `badgesFor` — so
+ * exposing them adds no derivation, it stops one being discarded.
+ *
+ * `lib/resultColumns.ts` is the only consumer that decides what any of it looks
+ * like. This module answers what is true.
+ */
+export interface RowStats {
+  knockouts: number;
+  /** Heads taken, plus the winner's own bounty back. */
+  bountiesCollected: number;
+  bountyMoney: number;
+  rebuys: number;
+  reEntries: number;
+  addons: number;
+  /** Buy-in plus everything put in again — `investedIn`. */
+  invested: number;
+  /** The payout for their finishing place. */
+  prize: number;
+  /** Prize plus bounty money: the one figure anybody actually asks about. */
+  won: number;
+  profit: number;
+  points: number;
+  seat: { tableIndex: number; seatIndex: number } | null;
+  eliminatedByName: string | null;
+}
+
 export interface ResultRow<T> {
   player: T;
   /** 0 while they are still in. */
   position: number;
   rankLabel: string;
   rankTone: RankTone;
-  badges: PlayerBadge[];
+  stats: RowStats;
 }
 
 export interface ResultRowOptions {
   /** `state.prizeStructure`. */
   prizeStructure?: any;
-  /** `state.settings` — read only for the currency symbol. */
+  /**
+   * `state.settings`. Kept because callers pass it and the prize structure is
+   * read beside it — but NOT for the currency symbol, which is a question about
+   * how a figure is spelled rather than what it is, and belongs with the rest of
+   * the formatting in `lib/resultColumns.ts`.
+   */
   settings?: { currency?: string } | null;
   /** Whether tonight is a league game, so the points chip is worth showing. */
   isLeagueMode?: boolean;
@@ -171,9 +207,8 @@ export function resultRowsFor<T extends ResultPlayerLike>(
   options: ResultRowOptions = {},
 ): ResultRow<T>[] {
   const roster = players || [];
-  const { prizeStructure: ps, settings, isLeagueMode, calculatePoints } = options;
+  const { prizeStructure: ps, isLeagueMode, calculatePoints } = options;
 
-  const sym = currencyOf(settings);
   const { net: prizePool } = prizePoolFor(roster as any, ps);
 
   // ONE predicate, and it is the app's own. Seat chips stop being interesting
@@ -231,28 +266,44 @@ export function resultRowsFor<T extends ResultPlayerLike>(
           Number(player.knockouts) || 0,
           buyIn,
           investedIn({ buyIn: ps?.buyIn, rebuys: player.rebuys ?? 0, addons: player.addons ?? 0 }),
+          // (the same figure as `invested` below; kept inline so the six
+          //  arguments read in the order the formula documents them)
           buyIn * roster.length,
         )
       : 0;
+
+    const invested = investedIn({
+      buyIn: ps?.buyIn, rebuys: player.rebuys ?? 0, addons: player.addons ?? 0,
+    });
+    // ONE total, added here so two columns cannot disagree about what "won"
+    // means — the same reason `badgesFor` adds the prize and the bounty into a
+    // single money chip rather than printing two for the reader to add up.
+    const won = prize + bounty;
 
     return {
       player,
       position: pos,
       rankLabel: rankLabel(pos),
       rankTone: rankTone(pos),
-      badges: badgesFor({
-        seat: player.tableAssignment,
-        seated: player.seated,
-        gameFinished: finished,
-        knockouts: player.knockouts ?? 0,
-        eliminatedByName,
-        rebuys: player.rebuys ?? 0,
+      stats: {
+        knockouts: Number(player.knockouts) || 0,
         bountiesCollected,
-        points,
+        bountyMoney: bounty,
+        rebuys: Number(player.rebuys) || 0,
+        reEntries: Number(player.reEntries) || 0,
+        addons: Number(player.addons) || 0,
+        invested,
         prize,
-        bounty,
-        currencySymbol: sym,
-      }),
+        won,
+        profit: won - invested,
+        points,
+        // A seat stops being interesting once the game is over — the same call
+        // the chips made, kept so the column agrees with what the strip showed.
+        seat: !finished && player.seated && player.tableAssignment
+          ? player.tableAssignment
+          : null,
+        eliminatedByName,
+      },
     };
   });
 }
