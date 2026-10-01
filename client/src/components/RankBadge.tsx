@@ -52,12 +52,13 @@ interface RankBadgeProps {
   /** Colour of a null-tone box's text. Defaults to inheriting. */
   mutedColor?: string;
   minWidth?: number;
-  height?: number;
+  /** Vertical padding. The box's height derives from this and the font size. */
+  padY?: number;
   fontSize?: number;
 }
 
 export default function RankBadge({
-  label, tone, className, mutedColor, minWidth = 48, height = 22, fontSize,
+  label, tone, className, mutedColor, minWidth = 48, padY = 4, fontSize,
 }: RankBadgeProps) {
   return (
     <span
@@ -67,19 +68,38 @@ export default function RankBadge({
         display: 'inline-block',
         boxSizing: 'border-box',
         minWidth,
-        height,
-        // Equal to the height, which is the whole reason the text sits in the
-        // middle of the box rather than near the top of it.
-        lineHeight: `${height}px`,
-        padding: '0 8px',
+        // NO explicit line-height, and NOT flex. This was settled by capturing
+        // six variants through the real html2canvas and looking: `height` +
+        // matching `lineHeight`, `lineHeight: 1`, `lineHeight: 1.2` and both
+        // inline-flex centrings ALL drew the label low, half out of the fill.
+        // Only an inline-block with padding and line-height left at `normal`
+        // centres — so the box's height is the font's own line box plus the
+        // padding, which is identical for every label because both are.
+        //
+        // A browser centres all six correctly, which is exactly why this cannot
+        // be checked on screen: the fault only exists in the canvas. Verify any
+        // change here by capturing the PNG, never by screenshotting the DOM.
+        padding: `${padY}px 8px`,
         borderRadius: 4,
         textAlign: 'center',
         fontWeight: 700,
         whiteSpace: 'nowrap',
         ...(fontSize ? { fontSize } : null),
-        ...(tone
-          ? { background: tone.bg, color: tone.fg }
-          : { background: 'transparent', ...(mutedColor ? { color: mutedColor } : null) }),
+        // `undefined` and `null` mean DIFFERENT things here, and collapsing them
+        // into one truthiness check is what broke the screen badges: the console
+        // passes its colours as a className and no tone, so the else branch set
+        // `background: 'transparent'` INLINE — which beats a Tailwind class. Every
+        // fill disappeared, and gold and silver are the only two tones carrying
+        // `text-black`, so first and second went black on a dark row.
+        //
+        //   undefined -> say nothing; the className owns the colours (screen)
+        //   null      -> an explicitly empty box, same size as a medal (standings)
+        //   a tone    -> paint it (the sheets)
+        ...(tone === undefined
+          ? null
+          : tone === null
+            ? { background: 'transparent', ...(mutedColor ? { color: mutedColor } : null) }
+            : { background: tone.bg, color: tone.fg }),
       }}
     >
       {label}

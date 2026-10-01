@@ -1343,6 +1343,21 @@ alone passes against the exact bug that shipped — it was always given the righ
 restores canonical rendering turns six red. Verified by driving the real picker too: one press, one
 visible move, and the hidden `bounties` key still in the stored array afterwards.
 
+**A screenshot of the DOM is not the exported image, and that distinction cost two rounds.** The
+badge work above was verified by driving the live page over CDP and photographing it — which proves
+the geometry and proves nothing about the PNG, because **html2canvas lays text out differently from
+the browser.** The first fix shipped with the label sitting half out of its fill in the real export
+while looking perfect on screen. Capture the CANVAS when the thing being checked is an export:
+render the sheet, run `html2canvas` on it in the page, and read the resulting data URL.
+
+**Settled empirically, by capturing six variants of one badge and looking at them:** an explicit
+`line-height` of any kind — a fixed `height` with a matching `lineHeight`, `lineHeight: 1`,
+`lineHeight: 1.2` — and both `inline-flex` centrings ALL drew the label low, half outside the
+coloured box. **Only `display: inline-block` with padding and `line-height` left at `normal`
+centres.** A browser renders all six correctly, which is exactly why this is invisible on screen.
+**Do not set a line-height on anything html2canvas will draw**, and do not reach for flex to centre
+inside it.
+
 **A rank sits in a box from `components/RankBadge.tsx`, and it is one box.** Reported as the
 position badges looking janky in both exported images, which was two faults with one symptom. The
 badge had horizontal padding and **no width**, so it was sized by its own text — `1st` narrow, `11th`
@@ -1364,7 +1379,15 @@ row has the same shape" argument these tables exist for, broken by the tables' o
 
 **The geometry is shared; the colour deliberately is not.** The screen passes its Tailwind tone
 through `className`, the sheets pass `tone` from `RANK_PRINT` — one box, two palettes, which is what
-`rankTone` returning a NAME buys. Measured after the fix: results 48×22 for all six, standings 34×22
+`rankTone` returning a NAME buys.
+
+**`undefined` and `null` mean different things on that `tone` prop, and collapsing them into one
+truthiness check broke every badge on screen.** The console passes a className and NO tone, so the
+"no tone" branch set `background: transparent` as an INLINE style — which beats a Tailwind class.
+Every fill vanished, and gold and silver are the only two tones carrying `text-black`, so first and
+second place turned black text on a dark row. Absent means *say nothing, the className owns the
+colours*; `null` means *an explicitly empty box the size of a medal*, which is what keeps the
+standings column one shape. A mutant folding them back together turns a test red. Measured after the fix: results 48×22 for all six, standings 34×22
 for all five, screen 44×18 for all six, one distinct width each.
 
 **The standings table ON SCREEN is deliberately untouched.** Its rank cell is `w-6` — 24px — carrying

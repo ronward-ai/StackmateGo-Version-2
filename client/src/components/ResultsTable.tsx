@@ -106,7 +106,7 @@ export default function ResultsTable<T extends ResultPlayerLike>({
                   label={row.rankLabel}
                   className={RANK_TONES[row.rankTone]}
                   minWidth={44}
-                  height={18}
+                  padY={3}
                 />
               </TableCell>
               <TableCell
