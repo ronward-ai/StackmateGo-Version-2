@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import RankBadge from '@/components/RankBadge';
 import type { RankTone, ResultRow, ResultPlayerLike } from '@/lib/resultRows';
 import { visibleResultColumns, type ColumnContext } from '@/lib/resultColumns';
 import { currencyOf } from '@/lib/currency';
@@ -74,7 +75,7 @@ export default function ResultsTable<T extends ResultPlayerLike>({
       <Table wrapperClassName="max-h-[460px]" className="w-full">
         <TableHeader className="bg-muted sticky top-0 z-10">
           <TableRow>
-            <TableHead className={cn(head, 'w-12 text-center px-1 text-white')}>#</TableHead>
+            <TableHead className={cn(head, 'w-14 text-center px-1 text-white')}>#</TableHead>
             <TableHead className={cn(head, 'px-2 text-left text-white')}>Player</TableHead>
             {actions && <TableHead className={cn(head, 'px-1 w-px')} />}
             {columns.map(col => (
@@ -97,15 +98,16 @@ export default function ResultsTable<T extends ResultPlayerLike>({
                 'transition-colors',
               )}
             >
-              <TableCell className={cn(cell, 'w-12 text-center px-1')}>
-                <span
-                  className={cn(
-                    'inline-block px-1.5 py-0.5 rounded font-mono font-semibold',
-                    RANK_TONES[row.rankTone],
-                  )}
-                >
-                  {row.rankLabel}
-                </span>
+              <TableCell className={cn(cell, 'w-14 text-center px-1')}>
+                {/* The same box the exported sheet draws, in the screen's own
+                    colours — sized by a MINIMUM rather than by its text, so
+                    `1st` and `21st` are the same width down the column. */}
+                <RankBadge
+                  label={row.rankLabel}
+                  className={RANK_TONES[row.rankTone]}
+                  minWidth={44}
+                  height={18}
+                />
               </TableCell>
               <TableCell
                 className={cn(cell, 'px-2 font-medium text-white max-w-[9rem] truncate')}

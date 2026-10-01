@@ -1,5 +1,6 @@
 import type { ResultPlayerLike, ResultRow } from '@/lib/resultRows';
 import { visibleResultColumns, type ColumnContext } from '@/lib/resultColumns';
+import RankBadge from '@/components/RankBadge';
 import ExportSheet from './ExportSheet';
 import { RANK_PRINT, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
 
@@ -90,19 +91,7 @@ export default function ResultsSheet({
             return (
               <tr key={String(row.player.id)}>
                 <td style={{ ...cell, textAlign: 'center' }}>
-                  <span
-                    className="font-mono"
-                    style={{
-                      background: rank.bg,
-                      color: rank.fg,
-                      padding: '3px 8px',
-                      borderRadius: 4,
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {row.rankLabel}
-                  </span>
+                  <RankBadge label={row.rankLabel} tone={rank} />
                 </td>
                 <td
                   style={{

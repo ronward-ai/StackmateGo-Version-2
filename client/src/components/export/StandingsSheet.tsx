@@ -1,3 +1,4 @@
+import RankBadge from '@/components/RankBadge';
 import ExportSheet from './ExportSheet';
 import { RANK_PRINT, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
 
@@ -125,20 +126,13 @@ export default function StandingsSheet({ title, subtitle, columns, rows }: Stand
             return (
               <tr key={row.key}>
                 <td style={{ ...cell, textAlign: 'center' }}>
-                  <span
-                    className="font-mono"
-                    style={tone
-                      ? {
-                          background: tone.bg,
-                          color: tone.fg,
-                          padding: '2px 7px',
-                          borderRadius: 4,
-                          fontWeight: 700,
-                        }
-                      : { color: SHEET.inkDim, fontWeight: 600 }}
-                  >
-                    {row.rank}
-                  </span>
+                  {/* EVERY rank gets a box, medalled or not. Only the top three
+                      were badged before, so the column changed shape halfway
+                      down — the "every row has the same shape" argument that
+                      made these tables worth building at all. A null tone is a
+                      transparent box of the same size, so the geometry is
+                      uniform without inventing a medal for ninth place. */}
+                  <RankBadge label={row.rank} tone={tone} mutedColor={SHEET.inkDim} minWidth={34} />
                 </td>
                 {anyMovement && (
                   <td style={{ ...cell, textAlign: 'center', color: move?.color }}>

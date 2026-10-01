@@ -1343,6 +1343,34 @@ alone passes against the exact bug that shipped — it was always given the righ
 restores canonical rendering turns six red. Verified by driving the real picker too: one press, one
 visible move, and the hidden `bounties` key still in the stored array afterwards.
 
+**A rank sits in a box from `components/RankBadge.tsx`, and it is one box.** Reported as the
+position badges looking janky in both exported images, which was two faults with one symptom. The
+badge had horizontal padding and **no width**, so it was sized by its own text — `1st` narrow, `11th`
+wider, `21st` wider again, six different widths down the one column a reader runs their eye along.
+And it was an **inline** element with vertical padding, which does not grow the line box (the spec,
+not a quirk), so the background spilled past the line and the label sat wherever the font metrics
+left it. `inline-block` with an explicit height and a line-height equal to it is what actually
+centres it.
+
+**`minWidth`, not `width`, and the reason is `Active`** — a game exported while it is still being
+played labels its live players that, and it is longer than any ordinal. A fixed width sized for it
+would make `1st` enormous. The default clears FOUR characters rather than three: 46px fitted `1st`
+but `21st` spilled to 47.3 and the column still stepped by a pixel, which was **measured in a real
+browser rather than reasoned about** — a 1.3px step gets noticed no other way.
+
+**The standings badge EVERY rank now**, medals filled and the rest a transparent box of the same
+size. Only the top three were badged before, so that column changed shape halfway down — the "every
+row has the same shape" argument these tables exist for, broken by the tables' own rank column.
+
+**The geometry is shared; the colour deliberately is not.** The screen passes its Tailwind tone
+through `className`, the sheets pass `tone` from `RANK_PRINT` — one box, two palettes, which is what
+`rankTone` returning a NAME buys. Measured after the fix: results 48×22 for all six, standings 34×22
+for all five, screen 44×18 for all six, one distinct width each.
+
+**The standings table ON SCREEN is deliberately untouched.** Its rank cell is `w-6` — 24px — carrying
+the number and the movement arrow in a flex row, and it has no badge today, so this fault never
+reached it; adding one would force a deliberately narrow column wider and shove the arrow about.
+
 **An asymmetry this made visible, pinned rather than quietly fixed.** With no `rebuyAmount` stored,
 `lib/prizePool.ts` adds nothing to the pool for that rebuy while `lib/resultStats.ts`'s `investedIn`
 charges it at the buy-in — its own comment calls that "much closer than charging nothing" for a
