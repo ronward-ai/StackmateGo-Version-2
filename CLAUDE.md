@@ -1161,6 +1161,27 @@ participant's phone has ever had to show. Deriving only would have silently empt
 on every older game. Narrow by construction: the fallback can only ADD a figure where the derivation
 found none, so it can never disagree with the Payouts panel.
 
+**And the stored figure is a TOTAL, not a payout — which cost exactly what mixing the two always
+costs.** `eliminatePlayer` folds the bounty money into `prizeMoney` at the bust-out
+(`prizeMoney += knockouts * bountyAmount`), so the fallback was reading bounty money as a prize and
+then adding the bounty on top: the same money twice. Reported from a real game — a £3 bounty showing
+**£6** in the Won column — and it bit **every row outside the places**, which is most of any field,
+because that is exactly where there is no derived payout to prefer.
+
+The fix is to take the bounty back out of the stored total (`prize = max(0, stored - bounty)`) and
+leave `won = prize + bounty` as **one expression for both paths**. That is what keeps Prize, Bounty
+and Won consistent by construction: on the fallback they add back up to the stored figure, and a
+stored figure SMALLER than the derived bounty — a document that never recorded the bounty money —
+floors the prize at zero and still shows the bounty. A second expression for `won` is precisely
+where the three could disagree; a mutant writing one survives every other test, which is how that
+version was caught before it shipped.
+
+**Still open, and worth knowing before it is reported:** the LEAGUE's Bounties column reads
+`bountyWinnings`, which `useTournament` only ever writes for **progressive** bounties — an ordinary
+bounty game records the money inside `prizeMoney` and nothing else. So the night's own table shows
+the bounty and the season's standings show £0 for the same game. The Cash column is right either
+way, since it reads that same total.
+
 `calculatePoints` arrives as a **callback** rather than an import, because it lives on
 `useLeagueSettings` and importing a hook would end the React-free property that lets the export sheet
 render from the identical list.

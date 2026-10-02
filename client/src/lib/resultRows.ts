@@ -250,7 +250,16 @@ export function resultRowsFor<T extends ResultPlayerLike>(
         prize = payoutAmount(prizePool, payout.percentage);
       }
     }
-    if (prize <= 0 && pos > 0) prize = Math.max(0, Number(player.prizeMoney) || 0);
+    //
+    // AND THE STORED FIGURE IS A TOTAL, NOT A PAYOUT. `eliminatePlayer` folds
+    // the bounty money into it at the bust-out — `prizeMoney += knockouts *
+    // bountyAmount` — so reading it as the payout and then adding `bounty`
+    // below counted the same money twice. Reported from a real game: a £3
+    // bounty showing £6 in the Won column on every busted row, which is every
+    // row outside the places. Subtracting the bounty back out is what makes one
+    // stored total split correctly into the two columns it feeds.
+    const storedTotal = pos > 0 ? Math.max(0, Number(player.prizeMoney) || 0) : 0;
+    if (prize <= 0 && storedTotal > 0) prize = Math.max(0, storedTotal - bounty);
 
     const eliminatedByName = player.isActive === false && player.eliminatedBy
       ? roster.find(p => String(p.id) === String(player.eliminatedBy))?.name ?? null
@@ -278,6 +287,13 @@ export function resultRowsFor<T extends ResultPlayerLike>(
     // ONE total, added here so two columns cannot disagree about what "won"
     // means — the same reason `badgesFor` adds the prize and the bounty into a
     // single money chip rather than printing two for the reader to add up.
+    //
+    // ONE expression for both paths, which is what keeps the three money
+    // columns consistent by construction: taking the bounty back out of the
+    // stored total above and adding it again here returns exactly that total,
+    // while a stored figure SMALLER than the derived bounty — a document that
+    // never recorded the bounty money — floors the prize at zero and still
+    // shows the bounty. A second expression here is where they could disagree.
     const won = prize + bounty;
 
     return {

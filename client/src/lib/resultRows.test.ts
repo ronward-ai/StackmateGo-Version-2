@@ -140,6 +140,51 @@ describe('resultRowsFor', () => {
     expect(rows[0].stats.won).toBe(20);
   });
 
+  /**
+   * REPORTED FROM A REAL GAME: a £3 bounty, and every busted player's Won column
+   * reading £6 — exactly double.
+   *
+   * `eliminatePlayer` folds the bounty money INTO `prizeMoney` at the bust-out
+   * (`prizeMoney += knockouts * bountyAmount`), so the stored figure is already
+   * a TOTAL. The fallback read it as the payout and then added the bounty on
+   * top, which is the same money twice. It only bit a row with no payout —
+   * which is every row outside the places, the majority of any field.
+   */
+  it('does not pay the bounty twice when it falls back to the stored figure', () => {
+    const busted = [
+      player({ id: '1', name: 'Dan', position: 1, knockouts: 1 }),
+      player({ id: '2', name: 'Amy', position: 2 }),
+      // Out of the money, one knockout, and the £3 that bought — exactly what
+      // the console writes onto a player at the moment they bust.
+      player({ id: '3', name: 'Cass', position: 21, knockouts: 1, prizeMoney: 3 }),
+    ];
+    const rows = resultRowsFor(busted, {
+      prizeStructure: {
+        buyIn: 10, enableBounties: true, bountyAmount: 3,
+        manualPayouts: [{ position: 1, percentage: 100 }],
+      },
+    });
+    const cass = rows.find(r => r.player.id === '3')!;
+    expect(cass.stats.bountyMoney).toBe(3);
+    expect(cass.stats.won).toBe(3);
+    // And the stored total is not a PRIZE either: she finished 21st and was
+    // paid nothing. The £3 is bounty money, which has its own column.
+    expect(cass.stats.prize).toBe(0);
+  });
+
+  // The other side of the same fallback, and why it cannot simply be deleted: a
+  // document written with no prize structure carries `prizeMoney` and nothing
+  // else, and that is all a participant's phone has ever had to show.
+  it('still shows a stored payout for a game that recorded no structure', () => {
+    const rows = resultRowsFor([
+      player({ id: '1', name: 'Dan', position: 1, prizeMoney: 50 }),
+      player({ id: '2', name: 'Amy', position: 21, prizeMoney: 0 }),
+    ]);
+    expect(rows[0].stats.prize).toBe(50);
+    expect(rows[0].stats.won).toBe(50);
+    expect(rows[1].stats.won).toBe(0);
+  });
+
   // THE DIVERGENCE NOBODY COULD SEE. The screen passed `buyInOf(...)`, which
   // falls back to 10 for a game that never recorded a price; the export passed a
   // raw `buyIn || 0`. So a formula weighted on what a player spent scored one
