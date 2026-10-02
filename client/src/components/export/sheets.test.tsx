@@ -61,13 +61,13 @@ describe('ResultsSheet', () => {
   // the standings read better than the strip this replaced.
   it('prints the chosen columns as a header, once, with figures under them', () => {
     render(results({ title: 'Thursday Night', rows }));
-    expect(screen.getByText("KO's")).toBeTruthy();
+    expect(screen.getByText('Hits')).toBeTruthy();
     expect(screen.getByText('Rebuys')).toBeTruthy();
     expect(screen.getByText('Won')).toBeTruthy();
     expect(screen.getByText('£30')).toBeTruthy();
     // The header says KO once; it is not repeated against every player the way
     // a chip was.
-    expect(screen.getAllByText("KO's")).toHaveLength(1);
+    expect(screen.getAllByText('Hits')).toHaveLength(1);
   });
 
   it('draws no column for a feature this game switched off', () => {

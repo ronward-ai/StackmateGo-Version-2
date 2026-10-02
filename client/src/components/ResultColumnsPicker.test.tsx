@@ -57,7 +57,7 @@ describe('ResultColumnsPicker', () => {
   // catches it — `onChange` was always given the right array.
   it('MOVES THE ROW when the up arrow is pressed', () => {
     const { container } = render(<Harness initial={['won', 'knockouts', 'invested']} />);
-    fireEvent.click(up("KO's"));
+    fireEvent.click(up('Hits'));
     expect(renderedOrder(container).slice(0, 3)).toEqual(['knockouts', 'won', 'invested']);
   });
 
@@ -70,7 +70,7 @@ describe('ResultColumnsPicker', () => {
   it('still reports the new order to its caller', () => {
     const onChange = vi.fn();
     render(<Harness initial={['won', 'knockouts']} onChange={onChange} />);
-    fireEvent.click(up("KO's"));
+    fireEvent.click(up('Hits'));
     expect(onChange).toHaveBeenCalledWith(['knockouts', 'won']);
   });
 
@@ -83,8 +83,8 @@ describe('ResultColumnsPicker', () => {
     expect((down('Won') as HTMLButtonElement).disabled).toBe(false);
     expect((up('Invested') as HTMLButtonElement).disabled).toBe(false);
     expect((down('Invested') as HTMLButtonElement).disabled).toBe(true);
-    expect((up("KO's") as HTMLButtonElement).disabled).toBe(false);
-    expect((down("KO's") as HTMLButtonElement).disabled).toBe(false);
+    expect((up('Hits') as HTMLButtonElement).disabled).toBe(false);
+    expect((down('Hits') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('offers no arrows on a column that is not shown', () => {
@@ -116,7 +116,7 @@ describe('ResultColumnsPicker', () => {
     );
     // Bounties cannot be drawn in this game, so it is not even a row.
     expect(screen.queryByLabelText('Move Bounties up')).toBeNull();
-    fireEvent.click(down("KO's"));
+    fireEvent.click(down('Hits'));
     expect(onChange).toHaveBeenCalledWith(['bounties', 'rebuys', 'knockouts']);
   });
 

@@ -74,7 +74,11 @@ const cash = (n: number, sym: string) => (n > 0 ? money(n, sym) : DASH);
  */
 export const RESULT_COLUMNS: ResultColumn[] = [
   {
-    key: 'knockouts', label: "KO's", align: 'right', numeric: true,
+    // Headed as the standings head it. `STAT_LABELS.hits` is 'Hits' in
+    // types/leagueSettings.ts, and a director reading one night's table and the
+    // season's should not meet two names for one fact. The KEY stays
+    // `knockouts`, because that is what is persisted in `settings.resultColumns`.
+    key: 'knockouts', label: 'Hits', align: 'right', numeric: true,
     value: r => count(r.stats.knockouts),
   },
   {

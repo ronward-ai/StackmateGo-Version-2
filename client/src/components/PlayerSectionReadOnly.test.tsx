@@ -49,7 +49,7 @@ describe('PlayerSectionReadOnly', () => {
   // reads a figure and the word "KO", once, everywhere.
   it('speaks the one chip vocabulary, not a third one of its own', () => {
     render(<PlayerSectionReadOnly tournament={tournament(finished) as any} />);
-    expect(screen.getByText("KO's")).toBeTruthy();
+    expect(screen.getByText('Hits')).toBeTruthy();
     expect(screen.queryByText('3 KOs')).toBeNull();
   });
 
@@ -126,7 +126,7 @@ describe('PlayerSectionReadOnly', () => {
         } as any}
       />,
     );
-    expect(screen.getByText("KO's")).toBeTruthy();
+    expect(screen.getByText('Hits')).toBeTruthy();
     expect(screen.getByText('Invested')).toBeTruthy();
     expect(screen.queryByText('Won')).toBeNull();
   });
