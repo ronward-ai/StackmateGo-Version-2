@@ -41,6 +41,18 @@ export const SHEET = {
    *  into the backdrop — striping, inverted. One file owning both colours is
    *  what makes that impossible rather than unlikely. */
   row: '#1C1F24',
+  /** Every OTHER row, so a reader's eye can run along one. The screen stripes
+   *  with a 2% white lift; this goes the other way, DOWN, and the palette's own
+   *  geometry is why: `band` sits only ~8 steps above `row`, so a lighter stripe
+   *  strong enough to survive recompression starts reading as a second header.
+   *
+   *  **The floor is `page`, and that is the bug this file already carries.** The
+   *  old standings export set its canvas colour to the literal its even rows
+   *  were striped with, and every other row dissolved into the backdrop. This
+   *  sits four steps under `row` and eight clear steps over `page`, so the
+   *  table's edge stays an edge on a striped row — see `rowStyle` below, and the
+   *  ordering test that pins page < rowAlt < row < band. */
+  rowAlt: '#181B21',
   /** A row that wants to stand out — the header band of a table. */
   band: '#24282E',
   /** Hairlines. Opaque, because 9% white over a flat page is nearly nothing. */
@@ -128,6 +140,24 @@ export function headCellStyle(align: 'left' | 'right' | 'center' = 'left'): Reac
     letterSpacing: '0.08em',
     textAlign: align,
   };
+}
+
+/**
+ * A body row, striped — for both sheets.
+ *
+ * **Reported as the screen's alternating shades being "great for legibility"
+ * and missing from the images**, which they were: both sheets painted one
+ * `SHEET.row` behind the whole table and separated rows with a hairline alone.
+ *
+ * **ODD rows carry the stripe, so the FIRST row is the base colour.** The header
+ * band sits directly above it, and darkening the row immediately under a header
+ * reads as a gap rather than as striping.
+ *
+ * Shared rather than written twice for the same reason `headCellStyle` is: two
+ * images that exist to look like one product cannot define striping separately.
+ */
+export function rowStyle(index: number): React.CSSProperties {
+  return index % 2 === 1 ? { background: SHEET.rowAlt } : {};
 }
 
 /** How wide each sheet renders. A sheet is a fixed canvas, not a layout. */

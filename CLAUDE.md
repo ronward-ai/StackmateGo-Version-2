@@ -1282,6 +1282,27 @@ header stand out moves it toward the row colour and weakens exactly what it is f
 the impact. Five mutants are caught: the colour back to `inkDim`, the weight back to 600, the size
 back to 11, the tracking back to `0.04em`, and a SIXTH inline copy diverging in either sheet.
 
+**The rows stripe, and the stripe goes DOWN.** Reported as the console's alternating row shades
+being great for legibility and missing from the images — and they were missing: both sheets painted
+one `SHEET.row` behind the whole table with a hairline between rows. `SHEET.rowAlt` (`#181B21`) and
+`rowStyle(index)` fix it for both at once, beside `headCellStyle` and for the same reason.
+
+**Darker rather than lighter, because of the palette's own geometry.** `band` sits only ~8 steps
+above `row`, so a lighter stripe strong enough to survive recompression starts reading as a second
+header; going down moves away from the band instead of toward it. **The floor is `page`**, and that
+is this file's oldest export bug — the standings capture once set its canvas colour to the literal
+its even rows were striped with, and every other row dissolved into the backdrop.
+
+**So the contract is an ORDERING, not four hex values: `page < rowAlt < row < band`.** A test asserts
+it by luminance, which is what catches both ends at once. **Odd rows carry the stripe, so the FIRST
+row is the base colour** — the header band sits directly above it, and darkening the row under a
+header reads as a gap rather than as striping. Five mutants are caught: striping every row, striping
+none, striping the first row, `rowAlt` below the page, and `rowAlt` above the row.
+
+The expected colour in the test is **derived from the token** rather than written out, because jsdom
+resolves an inline hex to `rgb()` — a literal there would let a changed token pass by changing the
+test beside it.
+
 **The standings sheet is handed its columns already resolved**, from the same `enabledStats` +
 `getPlayerStat` pair the table renders with and the CSV writes from. A third column list is how the
 rake formula reached nine sites.

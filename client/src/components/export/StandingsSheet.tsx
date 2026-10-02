@@ -1,6 +1,6 @@
 import RankLabel from '@/components/RankLabel';
 import ExportSheet from './ExportSheet';
-import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH, headCellStyle } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH, headCellStyle, rowStyle } from './exportStyle';
 
 /**
  * The league standings, as a picture.
@@ -77,7 +77,7 @@ export default function StandingsSheet({ title, subtitle, columns, rows }: Stand
           </tr>
         </thead>
         <tbody>
-          {rows.map(row => {
+          {rows.map((row, i) => {
             // The top three wear the same medals as the results sheet, from the
             // same table — one picture of a night and one of a season should not
             // disagree about what first place looks like.
@@ -87,7 +87,7 @@ export default function StandingsSheet({ title, subtitle, columns, rows }: Stand
               : 'out';
             const move = row.movement ? MOVEMENT[row.movement] : null;
             return (
-              <tr key={row.key}>
+              <tr key={row.key} style={rowStyle(i)}>
                 <td style={{ ...cell, textAlign: 'right', width: 44 }}>
                   {/* Every rank is the same shape, because a tabular numeral
                       is — which is what the box used to be for. Only the top

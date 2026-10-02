@@ -2,7 +2,7 @@ import type { ResultPlayerLike, ResultRow } from '@/lib/resultRows';
 import { visibleResultColumns, type ColumnContext } from '@/lib/resultColumns';
 import RankLabel from '@/components/RankLabel';
 import ExportSheet from './ExportSheet';
-import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH, headCellStyle } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH, headCellStyle, rowStyle } from './exportStyle';
 
 /**
  * The finishing order, as a picture.
@@ -78,10 +78,10 @@ export default function ResultsSheet({
           </tr>
         </thead>
         <tbody>
-          {rows.map(row => {
+          {rows.map((row, i) => {
             const podium = row.rankTone === 'gold' || row.rankTone === 'silver' || row.rankTone === 'bronze';
             return (
-              <tr key={String(row.player.id)}>
+              <tr key={String(row.player.id)} style={rowStyle(i)}>
                 <td style={{ ...cell, textAlign: 'right', width: 56 }}>
                   <RankLabel
                     label={row.rankLabel}

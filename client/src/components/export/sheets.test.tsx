@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import ResultsSheet from './ResultsSheet';
 import StandingsSheet, { type StandingsSheetRow } from './StandingsSheet';
 import { resultRowsFor, type ResultPlayerLike } from '@/lib/resultRows';
-import { RANK_INK, SHEET, SHEET_TYPE, headCellStyle } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, headCellStyle, rowStyle } from './exportStyle';
 
 /**
  * What the two exported images actually say.
@@ -256,12 +256,73 @@ describe('the column headers', () => {
     expect(colours.size).toBe(1);
   });
 
-  // The band is LIGHTER than the rows on purpose: that contrast is what
-  // separates the header strip from the first player, so "darkening it to make
-  // the header stand out" would weaken the one thing it does.
-  it('keeps the band lighter than the rows it sits above', () => {
+  /**
+   * THE ORDERING IS THE CONTRACT: page < rowAlt < row < band.
+   *
+   * Each end of it is a bug this codebase has already met. Below the page and
+   * the striped rows dissolve into the backdrop — the old standings export set
+   * its canvas colour to the literal its even rows were striped with, and that
+   * is exactly what happened. Above the row and the stripe starts reading as a
+   * second header band, which is why the stripe goes DOWN rather than up.
+   */
+  it('keeps the four surfaces in the one order that works', () => {
     const lum = (hex: string) => parseInt(hex.slice(1), 16);
-    expect(lum(SHEET.band)).toBeGreaterThan(lum(SHEET.row));
-    expect(lum(SHEET.row)).toBeGreaterThan(lum(SHEET.page));
+    expect(lum(SHEET.page)).toBeLessThan(lum(SHEET.rowAlt));
+    expect(lum(SHEET.rowAlt)).toBeLessThan(lum(SHEET.row));
+    expect(lum(SHEET.row)).toBeLessThan(lum(SHEET.band));
+  });
+});
+
+/**
+ * REPORTED: the console's tables alternate row shades — "great for legibility" —
+ * and the exported images did not. Both sheets painted one `SHEET.row` behind
+ * the whole table and separated rows with a hairline alone.
+ */
+describe('striped rows', () => {
+  const bodyRows = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('tbody tr')) as HTMLElement[];
+
+  /** jsdom resolves an inline hex to `rgb()`, so the expectation is DERIVED
+   *  from the token rather than written out — changing `rowAlt` must not be
+   *  able to pass by changing a literal in the test beside it. */
+  const asRgb = (hex: string) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+  };
+
+  const sixResults = rowsFor([
+    { id: '1', name: 'Dan', isActive: false, position: 1, knockouts: 3 },
+    { id: '2', name: 'Amy', isActive: false, position: 2 },
+    { id: '3', name: 'Cass', isActive: false, position: 3 },
+    { id: '4', name: 'Eve', isActive: false, position: 4 },
+  ]);
+  const sixStandings: StandingsSheetRow[] = [1, 2, 3, 4].map(n => ({
+    key: `k${n}`, rank: n, name: `P${n}`, cells: [`${n}`, '8', '£0'], movement: 'same' as const,
+  }));
+
+  // THE MUTANT: stripe every row, or none — either way the striping is gone.
+  it('stripes every other row in BOTH sheets', () => {
+    const resultsSheet = render(results({ title: 'Thursday Night', rows: sixResults })).container;
+    const standingsSheet = render(
+      <StandingsSheet title="Fish & Chips League" columns={['Points', 'Games', 'Cash']} rows={sixStandings} />,
+    ).container;
+
+    [resultsSheet, standingsSheet].forEach(container => {
+      const stripes = bodyRows(container).map(tr => tr.style.background);
+      expect(stripes).toHaveLength(4);
+      // THE MUTANT: stripe the FIRST row. The header band sits directly above
+      // it, so darkening the row under a header reads as a gap, not a stripe.
+      expect(stripes[0]).toBe('');
+      expect(stripes[1]).toBe(asRgb(SHEET.rowAlt));
+      expect(stripes[2]).toBe('');
+      expect(stripes[3]).toBe(asRgb(SHEET.rowAlt));
+    });
+  });
+
+  // One helper, not two copies — the argument `headCellStyle` was extracted on.
+  it('is the same stripe in both sheets, from one function', () => {
+    expect(rowStyle(0)).toEqual({});
+    expect(rowStyle(1)).toEqual({ background: SHEET.rowAlt });
+    expect(rowStyle(2)).toEqual({});
   });
 });
