@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import ResultsSheet from './ResultsSheet';
 import StandingsSheet, { type StandingsSheetRow } from './StandingsSheet';
 import { resultRowsFor, type ResultPlayerLike } from '@/lib/resultRows';
-import { RANK_PRINT, SHEET } from './exportStyle';
+import { RANK_INK, SHEET } from './exportStyle';
 
 /**
  * What the two exported images actually say.
@@ -44,13 +44,16 @@ describe('ResultsSheet', () => {
     expect(screen.queryByText('21th')).toBeNull();
   });
 
-  it('wears the print medals, which are not the screen medals', () => {
+  it('inks the print medals, which are not the screen medals', () => {
     const { container } = render(results({ title: 'Thursday Night', rows }));
     const first = screen.getByText('1st') as HTMLElement;
-    expect(first.style.background).toBeTruthy();
+    expect(first.style.color).toBe('rgb(232, 179, 60)');
+    // THE MUTANT THAT PUTS THE BOX BACK. A filled block was the only solid
+    // colour surface in either image, and the one thing reported about these.
+    expect(first.style.background).toBe('');
     // A lookup on a named tone, so an active player's position of 0 can never
     // fall in with the medals the way `position <= 2 ? black : white` let it.
-    expect(RANK_PRINT.active.fg).not.toBe(RANK_PRINT.gold.fg);
+    expect(RANK_INK.active).not.toBe(RANK_INK.gold);
     expect(container.textContent).toContain('Dan');
   });
 
@@ -140,13 +143,22 @@ describe('StandingsSheet', () => {
     expect(container.textContent).not.toContain('–');
   });
 
-  it('gives the top three the same medals the results sheet uses', () => {
-    render(<StandingsSheet title="Fish & Chips League" columns={columns} rows={rows} />);
-    const first = screen.getByText('1');
-    expect(first.getAttribute('style')).toContain('background');
-    // Fourth is not a medal, so it is plain.
-    const fourth = screen.getByText('4');
-    expect(fourth.getAttribute('style') || '').not.toContain(RANK_PRINT.gold.bg);
+  it('gives the top three the same medal ink the results sheet uses', () => {
+    const { container } = render(
+      <StandingsSheet title="Fish & Chips League" columns={columns} rows={rows} />,
+    );
+    const first = screen.getByText('1') as HTMLElement;
+    expect(first.style.color).toBe('rgb(232, 179, 60)');
+    expect(first.style.fontWeight).toBe('700');
+    // Fourth is not a medal, so it takes the dim ink and the ordinary weight —
+    // and the column keeps one shape regardless, because a tabular numeral does.
+    const fourth = screen.getByText('4') as HTMLElement;
+    expect(fourth.style.color).not.toBe(first.style.color);
+    expect(fourth.style.fontWeight).toBe('500');
+    // No rank cell carries a fill, in either sheet.
+    container.querySelectorAll('[data-rank-label]').forEach(el => {
+      expect((el as HTMLElement).style.background).toBe('');
+    });
   });
 });
 
@@ -171,10 +183,14 @@ describe('the print style', () => {
     });
   });
 
-  it('gives every rank tone a foreground, by lookup rather than arithmetic', () => {
+  it('gives every rank tone an ink, by lookup rather than arithmetic', () => {
     (['gold', 'silver', 'bronze', 'out', 'active'] as const).forEach(tone => {
-      expect(RANK_PRINT[tone].bg).toMatch(/^#[0-9A-Fa-f]{6}$/);
-      expect(RANK_PRINT[tone].fg).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(RANK_INK[tone]).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    });
+    // It is ink on a row now, so each one has to be distinguishable FROM the
+    // row rather than legible on top of its own fill.
+    Object.values(RANK_INK).forEach(ink => {
+      expect(ink.toLowerCase()).not.toBe(SHEET.row.toLowerCase());
     });
   });
 });

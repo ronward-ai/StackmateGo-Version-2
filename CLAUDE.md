@@ -1358,37 +1358,53 @@ centres.** A browser renders all six correctly, which is exactly why this is inv
 **Do not set a line-height on anything html2canvas will draw**, and do not reach for flex to centre
 inside it.
 
-**A rank sits in a box from `components/RankBadge.tsx`, and it is one box.** Reported as the
-position badges looking janky in both exported images, which was two faults with one symptom. The
-badge had horizontal padding and **no width**, so it was sized by its own text — `1st` narrow, `11th`
-wider, `21st` wider again, six different widths down the one column a reader runs their eye along.
-And it was an **inline** element with vertical padding, which does not grow the line box (the spec,
-not a quirk), so the background spilled past the line and the label sat wherever the font metrics
-left it. `inline-block` with an explicit height and a line-height equal to it is what actually
-centres it.
+**A rank is a numeral in the app's own voice, and the box it used to sit in is gone.**
+`components/RankLabel.tsx`. The badge was reported twice — first as looking janky in both exported
+images, then, once its geometry was right, as **not fitting the app**. The second report is the one
+that mattered, and it was structural rather than a matter of taste: `bg-yellow-500`, `bg-gray-300`,
+`bg-amber-600`, `bg-red-900` and `bg-green-600` were the **only solid colour blocks anywhere in this
+app**, in a vocabulary that is otherwise uniformly a 10% fill, a 30% border and bright text — `TONES`
+in `ui/player-badge.tsx`, `TournamentStatusChip`, the break marker in the blind levels, every section
+tint. The loudest thing on either table was attached to the least interesting fact in the row.
 
-**`minWidth`, not `width`, and the reason is `Active`** — a game exported while it is still being
-played labels its live players that, and it is longer than any ordinal. A fixed width sized for it
-would make `1st` enormous. The default clears FOUR characters rather than three: 46px fitted `1st`
-but `21st` spilled to 47.3 and the column still stepped by a pixel, which was **measured in a real
-browser rather than reasoned about** — a 1.3px step gets noticed no other way.
+**The app had already answered this question one card away.** The Payouts panel in
+`TournamentInfoCard` marks 1st/2nd/3rd with `text-yellow-400 / text-gray-300 / text-amber-600` and
+everything below in `text-muted-foreground`. The results table's medals were a second answer to that,
+so the screen palette is now literally the Payouts panel's own. Gold was triple-booked besides —
+`#FBBF24` already means tournament-finished on the timer face, and bounty — and `active`'s green
+fought money-green and Broadcasting green, so **`Active` takes the app's single accent**; it is the
+one label here that is a word rather than a place.
 
-**The standings badge EVERY rank now**, medals filled and the rest a transparent box of the same
-size. Only the top three were badged before, so that column changed shape halfway down — the "every
-row has the same shape" argument these tables exist for, broken by the tables' own rank column.
+**The box was solving a problem the typeface already solves.** It arrived to stop the column going
+ragged — `1st` narrow, `21st` wider — and a `minWidth` was the cure. But `.font-mono` carries
+`tabular-nums` app-wide, so a right-aligned mono numeral lines up down a column with nothing done to
+it, exactly as every stat column already does. `minWidth`, `padY`, the explicit height and the
+`undefined`/`null` tone distinction all went with the fill.
 
-**The geometry is shared; the colour deliberately is not.** The screen passes its Tailwind tone
-through `className`, the sheets pass `tone` from `RANK_PRINT` — one box, two palettes, which is what
-`rankTone` returning a NAME buys.
+**Marked twice over: hue and weight.** JetBrains Mono is loaded at 500 and 700 and nothing else, so
+`emphasis` on the podium is free, and it is what lets the colours be this quiet. A mutant dropping it
+turns a test red, as does one restoring a `bg-` class, a `background`, a `padding` or a
+`line-height`.
 
-**`undefined` and `null` mean different things on that `tone` prop, and collapsing them into one
-truthiness check broke every badge on screen.** The console passes a className and NO tone, so the
-"no tone" branch set `background: transparent` as an INLINE style — which beats a Tailwind class.
-Every fill vanished, and gold and silver are the only two tones carrying `text-black`, so first and
-second place turned black text on a dark row. Absent means *say nothing, the className owns the
-colours*; `null` means *an explicitly empty box the size of a medal*, which is what keeps the
-standings column one shape. A mutant folding them back together turns a test red. Measured after the fix: results 48×22 for all six, standings 34×22
-for all five, screen 44×18 for all six, one distinct width each.
+**Two things carried over from the round before and must stay.** The colour is a **LOOKUP on a named
+tone, never arithmetic on the position** — `position <= 2 ? black : white` once drew black on green
+because an active player's position is 0. And **no line-height, no height, no padding, no flex**: any
+explicit line-height, and both `inline-flex` centrings, draw a label out of place in html2canvas while
+a browser renders all six correctly. That rule outlives the badge it was found on, because it applies
+to any text in a sheet.
+
+**`RANK_PRINT` became `RANK_INK`** — one colour per tone rather than a `{bg, fg}` pair, deeper than
+the screen's so it holds up as text on `SHEET.row` after recompression. The screen passes `className`,
+the sheets pass `color`; two palettes, one component, which is what `rankTone` returning a NAME buys.
+
+**The rank column in both sheets is given a width now.** Left to size itself it absorbed the table's
+spare space and the places drifted a long way from the names they belong to — invisible while a badge
+anchored them. 56px in the results sheet, 44px in the standings.
+
+**Measured and then LOOKED AT, in that order.** Captured through the real html2canvas rather than
+screenshotting the DOM, per the lesson directly above: podium rows 700 weight and 19.9px on screen /
+23.5px in print, the rest 500, no `background` on any of them, and at 360px the table's own wrapper
+does not scroll, the page does not scroll, and `21st` is not clipped in a 43px cell.
 
 **The standings table ON SCREEN is deliberately untouched.** Its rank cell is `w-6` — 24px — carrying
 the number and the movement arrow in a flex row, and it has no badge today, so this fault never

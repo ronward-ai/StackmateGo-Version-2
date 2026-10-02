@@ -1,6 +1,6 @@
-import RankBadge from '@/components/RankBadge';
+import RankLabel from '@/components/RankLabel';
 import ExportSheet from './ExportSheet';
-import { RANK_PRINT, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
 
 /**
  * The league standings, as a picture.
@@ -73,7 +73,8 @@ export default function StandingsSheet({ title, subtitle, columns, rows }: Stand
                 ...cell,
                 fontSize: SHEET_TYPE.head,
                 color: SHEET.inkDim,
-                textAlign: 'center',
+                textAlign: 'right',
+                width: 44,
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.04em',
@@ -118,21 +119,19 @@ export default function StandingsSheet({ title, subtitle, columns, rows }: Stand
             // The top three wear the same medals as the results sheet, from the
             // same table — one picture of a night and one of a season should not
             // disagree about what first place looks like.
-            const tone = row.rank === 1 ? RANK_PRINT.gold
-              : row.rank === 2 ? RANK_PRINT.silver
-              : row.rank === 3 ? RANK_PRINT.bronze
-              : null;
+            const tone = row.rank === 1 ? 'gold'
+              : row.rank === 2 ? 'silver'
+              : row.rank === 3 ? 'bronze'
+              : 'out';
             const move = row.movement ? MOVEMENT[row.movement] : null;
             return (
               <tr key={row.key}>
-                <td style={{ ...cell, textAlign: 'center' }}>
-                  {/* EVERY rank gets a box, medalled or not. Only the top three
-                      were badged before, so the column changed shape halfway
-                      down — the "every row has the same shape" argument that
-                      made these tables worth building at all. A null tone is a
-                      transparent box of the same size, so the geometry is
-                      uniform without inventing a medal for ninth place. */}
-                  <RankBadge label={row.rank} tone={tone} mutedColor={SHEET.inkDim} minWidth={34} />
+                <td style={{ ...cell, textAlign: 'right', width: 44 }}>
+                  {/* Every rank is the same shape, because a tabular numeral
+                      is — which is what the box used to be for. Only the top
+                      three are coloured, and that no longer changes the column's
+                      geometry halfway down the way a badge on three rows did. */}
+                  <RankLabel label={row.rank} color={RANK_INK[tone]} emphasis={tone !== 'out'} />
                 </td>
                 {anyMovement && (
                   <td style={{ ...cell, textAlign: 'center', color: move?.color }}>

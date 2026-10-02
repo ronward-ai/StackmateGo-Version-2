@@ -28,7 +28,7 @@ import type { RankTone } from '@/lib/resultRows';
  * this whole change exists to end.
  *
  * What a sheet owns is therefore the FRAME, the type, the page and row colours,
- * the rank badges and the density — everything that makes the two images look
+ * the rank ink and the density — everything that makes the two images look
  * like one product, which is the thing neither of them had.
  */
 
@@ -51,24 +51,31 @@ export const SHEET = {
 } as const;
 
 /**
- * The medals, in print.
+ * The medals, in print — as INK, not as a fill.
  *
- * Free to differ from the screen's, and they do — these are a shade deeper so
- * white and black text hold up after recompression. That freedom is exactly
- * what `rankTone` being a NAME buys: the two media agree on which places are
- * special without having to agree on a hex value.
+ * The badge these replace was a filled block, which was the only solid colour
+ * surface either image had; `components/RankLabel.tsx` records why that did not
+ * fit. What survives is the part that was right: the print palette is free to
+ * differ from the screen's, and does, because a picture gets recompressed and
+ * looked at in daylight. These are deeper than the screen's `text-yellow-400`
+ * and friends so they hold up as text on `SHEET.row` rather than as a block.
  *
- * And the foreground is a LOOKUP, never arithmetic. The builder this replaces
- * computed `position <= 2 ? black : white`, and an active player's position is
- * 0 — which is `<= 2` — so the picture drew black text on the green badge where
- * the screen drew white. There is nowhere for that to live now.
+ * That freedom is exactly what `rankTone` being a NAME buys: the two media agree
+ * on which places are special without having to agree on a hex value.
+ *
+ * And it is a LOOKUP, never arithmetic. The builder this replaces computed
+ * `position <= 2 ? black : white`, and an active player's position is 0 — which
+ * is `<= 2` — so the picture drew black where the screen drew white. There is
+ * nowhere for that to live now.
  */
-export const RANK_PRINT: Record<RankTone, { bg: string; fg: string }> = {
-  gold:   { bg: '#E0A106', fg: '#11130F' },
-  silver: { bg: '#C3CAD3', fg: '#11130F' },
-  bronze: { bg: '#B4762A', fg: '#FFFFFF' },
-  out:    { bg: '#3A2226', fg: '#E5B4B4' },
-  active: { bg: '#14683C', fg: '#FFFFFF' },
+export const RANK_INK: Record<RankTone, string> = {
+  gold:   '#E8B33C',
+  silver: '#C3CAD3',
+  bronze: '#C98A3F',
+  /** Everybody else who busted: the same dim ink the rest of the sheet uses. */
+  out:    '#A3ADBA',
+  /** Still in, and the one label that is a word. The app's single accent. */
+  active: '#F97316',
 };
 
 /** Type, in px, because a sheet is measured rather than responsive. */

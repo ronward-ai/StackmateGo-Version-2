@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import RankBadge from '@/components/RankBadge';
+import RankLabel from '@/components/RankLabel';
 import type { RankTone, ResultRow, ResultPlayerLike } from '@/lib/resultRows';
 import { visibleResultColumns, type ColumnContext } from '@/lib/resultColumns';
 import { currencyOf } from '@/lib/currency';
@@ -33,17 +33,28 @@ import { currencyOf } from '@/lib/currency';
  */
 
 /**
- * Tone to colour, on screen — the console's existing medal colours, kept exactly.
+ * Tone to colour, on screen — **the Payouts panel's own colours**, so the two
+ * cannot disagree about what first place looks like. `TournamentInfoCard` has
+ * marked 1st/2nd/3rd this way all along; the filled medals this replaces were a
+ * second answer to a question already answered one card up the page.
+ *
+ * `active` takes the app's single accent rather than a sixth green —
+ * `bg-green-600` fought money-green and Broadcasting green, and `Active` is the
+ * one label here that is a word rather than a place.
+ *
  * The exported image has its own palette in `components/export/exportStyle.ts`,
  * which is what `rankTone` being a NAME rather than a colour buys.
  */
-const RANK_TONES: Record<RankTone, string> = {
-  gold:   'bg-yellow-500 text-black',
-  silver: 'bg-gray-300 text-black',
-  bronze: 'bg-amber-600 text-white',
-  out:    'bg-red-900 text-white',
-  active: 'bg-green-600 text-white',
+const RANK_INK: Record<RankTone, string> = {
+  gold:   'text-yellow-400',
+  silver: 'text-gray-300',
+  bronze: 'text-amber-600',
+  out:    'text-muted-foreground',
+  active: 'text-primary',
 };
+
+/** The podium is marked by weight as well as hue. */
+const PODIUM: RankTone[] = ['gold', 'silver', 'bronze'];
 
 interface ResultsTableProps<T extends ResultPlayerLike> {
   rows: ResultRow<T>[];
@@ -75,7 +86,7 @@ export default function ResultsTable<T extends ResultPlayerLike>({
       <Table wrapperClassName="max-h-[460px]" className="w-full">
         <TableHeader className="bg-muted sticky top-0 z-10">
           <TableRow>
-            <TableHead className={cn(head, 'w-14 text-center px-1 text-white')}>#</TableHead>
+            <TableHead className={cn(head, 'w-10 text-right px-2 text-white')}>#</TableHead>
             <TableHead className={cn(head, 'px-2 text-left text-white')}>Player</TableHead>
             {actions && <TableHead className={cn(head, 'px-1 w-px')} />}
             {columns.map(col => (
@@ -98,15 +109,14 @@ export default function ResultsTable<T extends ResultPlayerLike>({
                 'transition-colors',
               )}
             >
-              <TableCell className={cn(cell, 'w-14 text-center px-1')}>
-                {/* The same box the exported sheet draws, in the screen's own
-                    colours — sized by a MINIMUM rather than by its text, so
-                    `1st` and `21st` are the same width down the column. */}
-                <RankBadge
+              <TableCell className={cn(cell, 'w-10 text-right px-2')}>
+                {/* A numeral, not a box. `.font-mono` carries `tabular-nums`
+                    app-wide, so the column stays straight on its own — which is
+                    all the box was ever for. */}
+                <RankLabel
                   label={row.rankLabel}
-                  className={RANK_TONES[row.rankTone]}
-                  minWidth={44}
-                  padY={3}
+                  className={RANK_INK[row.rankTone]}
+                  emphasis={PODIUM.includes(row.rankTone)}
                 />
               </TableCell>
               <TableCell

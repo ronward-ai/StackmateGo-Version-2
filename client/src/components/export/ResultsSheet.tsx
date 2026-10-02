@@ -1,8 +1,8 @@
 import type { ResultPlayerLike, ResultRow } from '@/lib/resultRows';
 import { visibleResultColumns, type ColumnContext } from '@/lib/resultColumns';
-import RankBadge from '@/components/RankBadge';
+import RankLabel from '@/components/RankLabel';
 import ExportSheet from './ExportSheet';
-import { RANK_PRINT, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
 
 /**
  * The finishing order, as a picture.
@@ -73,7 +73,10 @@ export default function ResultsSheet({
       >
         <thead>
           <tr style={{ background: SHEET.band }}>
-            <th style={{ ...headCell, textAlign: 'center' }}>#</th>
+            {/* The rank column takes only what a four-character ordinal needs.
+                Left to size itself it absorbed the table's spare width and the
+                places drifted a long way from the names they belong to. */}
+            <th style={{ ...headCell, textAlign: 'right', width: 56 }}>#</th>
             <th style={{ ...headCell, textAlign: 'left' }}>Player</th>
             {columns.map(col => (
               <th
@@ -87,11 +90,15 @@ export default function ResultsSheet({
         </thead>
         <tbody>
           {rows.map(row => {
-            const rank = RANK_PRINT[row.rankTone];
+            const podium = row.rankTone === 'gold' || row.rankTone === 'silver' || row.rankTone === 'bronze';
             return (
               <tr key={String(row.player.id)}>
-                <td style={{ ...cell, textAlign: 'center' }}>
-                  <RankBadge label={row.rankLabel} tone={rank} />
+                <td style={{ ...cell, textAlign: 'right', width: 56 }}>
+                  <RankLabel
+                    label={row.rankLabel}
+                    color={RANK_INK[row.rankTone]}
+                    emphasis={podium}
+                  />
                 </td>
                 <td
                   style={{
