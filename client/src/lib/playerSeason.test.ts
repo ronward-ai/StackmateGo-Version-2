@@ -46,9 +46,22 @@ describe('seasonGames', () => {
     expect(rows).toHaveLength(2);
   });
 
-  it('counts a bounty as cash the player took home', () => {
+  /**
+   * THIS ASSERTION USED TO READ 45, AND THE CHANGE IS THE POINT.
+   *
+   * It was written on the reading that the two fields are separate pots. They
+   * are not: `eliminatePlayer` folds the bounty money INTO `prizeMoney` at the
+   * bust-out, so the recorded figure is the TOTAL and `bountyWinnings` says how
+   * much of that total was bounty — a breakdown, never an addend.
+   *
+   * Adding them is exactly the fault reported in the Won column, where a £3
+   * bounty showed £6. It fired here for progressive games, the only ones that
+   * ever populated both fields, and would have fired for EVERY game the moment
+   * ordinary bounties started being recorded.
+   */
+  it('does not add the bounty to a cash figure that already contains it', () => {
     const [row] = seasonGames([game({ cashWon: 30, bountyWinnings: 15 })]);
-    expect(row.cash).toBe(45);
+    expect(row.cash).toBe(30);
   });
 
   it('nets a game off against what it cost to play it', () => {

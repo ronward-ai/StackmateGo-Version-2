@@ -52,6 +52,7 @@ import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
 import { markRosterWritten, rosterPayload } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
 import { getDeviceId } from '@/lib/deviceId';
+import { recordedStatsFor } from '@/lib/resultStats';
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
   const tournamentId = params?.tournamentId;
@@ -1133,19 +1134,20 @@ function PokerTimerInner({
               // lags that deletion — it would skip the write and leave the player
               // with no result at all.
               corrected.has(player.id),
-              // What the player put in again. These have always been on the
-              // player object right here and were simply dropped, which is why
-              // the league table's Rebuys, Re-entries, Add-ons and Bounty
-              // columns read 0 for every player in every league — and why
-              // Invested undercounted anyone who rebought.
-              {
-                rebuys: player.rebuys || 0,
-                reEntries: player.reEntries || 0,
-                addons: player.addons || 0,
-                bountyWinnings: player.bountyWinnings || 0,
-                rebuyAmount: tournament.state.prizeStructure?.rebuyAmount || 0,
-                addonAmount: tournament.state.prizeStructure?.addonAmount || 0,
-              },
+              // What the player put in again, and what their bounties were
+              // worth. These have always been on the player object right here
+              // and were simply dropped, which is why the league table's
+              // Rebuys, Re-entries, Add-ons and Bounty columns read 0 for every
+              // player in every league.
+              //
+              // The Bounty column stayed at 0 after that fix, for a second
+              // reason: `player.bountyWinnings` is only ever written in the
+              // PROGRESSIVE branch, so an ordinary bounty game recorded nothing
+              // while showing the money on the night. `recordedStatsFor` derives
+              // it through the same `bountyTakeFor` the results table and both
+              // Payouts panels read — and lives in lib/ because a call site
+              // inside this effect has no test by construction.
+              recordedStatsFor(player, tournament.state.prizeStructure),
             );
           } catch (playerError) {
             console.error('Error recording individual player to league:', player.name, playerError);

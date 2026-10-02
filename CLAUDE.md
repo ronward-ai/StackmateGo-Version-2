@@ -1176,11 +1176,40 @@ floors the prize at zero and still shows the bounty. A second expression for `wo
 where the three could disagree; a mutant writing one survives every other test, which is how that
 version was caught before it shipped.
 
-**Still open, and worth knowing before it is reported:** the LEAGUE's Bounties column reads
-`bountyWinnings`, which `useTournament` only ever writes for **progressive** bounties — an ordinary
-bounty game records the money inside `prizeMoney` and nothing else. So the night's own table shows
-the bounty and the season's standings show £0 for the same game. The Cash column is right either
-way, since it reads that same total.
+**The LEAGUE's Bounties column read £0 for the same game, and that was the other half of it.**
+`useTournament` writes `bountyWinnings` only in the **progressive** branch — an ordinary bounty game
+folds the money into `prizeMoney` and writes nothing else — while `PokerTimer`'s recorder passed that
+field straight through. So the night's own table showed the bounty and the season's standings showed
+nothing, in every league using plain bounties: the fault *"A league result is written once, from a
+whitelist"* opens with, arriving for the fifth time.
+
+**`lib/resultStats.ts`'s `bountyTakeFor(player, prizeStructure)` is the one derivation**, returning
+the count and the money together — there were FOUR answers to this and one of them was the database.
+`lib/resultRows.ts` had it inline, both Payouts panels (`TournamentInfoCard`,
+`ParticipantTournamentInfoCard`) had an identical copy each, and the recorder had none. All four read
+it now. **Progressive prefers the STORED figure** (the `payoutsOf()` trade): a bounty that grows
+cannot be rebuilt from a head count and a starting price, so the accumulated `bountyWinnings` plus
+the winner's own current bounty is the only honest number, which is what the panels already did.
+
+**`recordedStatsFor(player, prizeStructure)` builds the whole recorded payload**, and it is a
+function because the defect was in a call site inside a 1,900-line page effect, which has no test by
+construction — the argument `lib/tableBalance.ts` and `lib/seating.ts` were extracted on, and the
+trap the results-column arrows fell into.
+
+**THE CONTRACT THIS SETTLES, and it is the thing to remember: `prizeMoney` is everything the player
+collected; `bountyWinnings` says how much of that was bounty.** A breakdown, never an addend. So
+`lib/playerSeason.ts` stopped adding them — `cash = cashIn(game) + bountyWinningsIn(game)` was the Won
+column's double-count with a different name, already live for progressive games (the only ones
+populating both fields) and primed to fire for every game the moment ordinary bounties started being
+recorded. The test that asserted `30 + 15 = 45` now asserts 30, and says why: an assertion that
+changes its mind needs its reason beside it.
+
+The league's **Cash** and **Profit** columns are untouched and were always right — they read the
+total. Four mutants are caught: recording nothing for an ordinary bounty (the bug), dropping the
+winner's `+1`, deriving for progressive, and adding the breakdown back in the drill-down.
+
+**Results recorded before this carry `bountyWinnings: 0` and are not migrated**, so an old league's
+Bounties column stays blank. Nothing that reads correctly today changes.
 
 `calculatePoints` arrives as a **callback** rather than an import, because it lives on
 `useLeagueSettings` and importing a hook would end the React-free property that lets the export sheet

@@ -1,7 +1,7 @@
 import { ordinal } from '@/lib/ordinal';
 import { gameIsOver } from '@/lib/gameOver';
 import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
-import { buyInOf, investedIn } from '@/lib/resultStats';
+import { buyInOf, investedIn, bountyTakeFor } from '@/lib/resultStats';
 
 /**
  * The finishing order of the game being run: who is where, what their place is
@@ -224,13 +224,10 @@ export function resultRowsFor<T extends ResultPlayerLike>(
 
     // The winner takes their own bounty back at the end — that is the +1, and
     // it is why the count and the money have to be worked out together.
-    let bountiesCollected = 0;
-    let bounty = 0;
-    if (ps?.enableBounties && ps?.bountyAmount) {
-      const kos = Number(player.knockouts) || 0;
-      bountiesCollected = pos === 1 ? kos + 1 : kos;
-      bounty = bountiesCollected * ps.bountyAmount;
-    }
+    // `bountyTakeFor` is the one derivation: the Payouts panels and the league
+    // recorder read it too, and the recorder having its own answer (none) is
+    // what made the season's Bounties column read £0 for every ordinary game.
+    const { count: bountiesCollected, money: bounty } = bountyTakeFor(player as any, ps as any);
 
     // DERIVED FIRST, STORED AS A FALLBACK, and the order is deliberate.
     // `manualPayouts` is the one source of every money figure in this app

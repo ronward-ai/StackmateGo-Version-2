@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   buyInOf,
   investedIn,
+  bountyTakeFor,
+  recordedStatsFor,
   bountyWinningsIn,
   totalsAcross,
   type ResultCosts,
@@ -116,5 +118,75 @@ describe('totalsAcross', () => {
     const results: ResultCosts[] = [{ buyIn: 10, rebuys: 1 }];
     totalsAcross(results);
     expect(results).toEqual([{ buyIn: 10, rebuys: 1 }]);
+  });
+});
+
+/**
+ * REPORTED FROM A REAL GAME, as the second half of the £3-bounty-showing-£6
+ * round: the season standings' Bounties column read £0 for a night whose own
+ * results table showed the bounty. `useTournament` writes `bountyWinnings` only
+ * in the PROGRESSIVE branch, and the recorder passed that field straight
+ * through — so an ordinary bounty game recorded nothing at all.
+ */
+describe('bountyTakeFor', () => {
+  const standard = { enableBounties: true, bountyAmount: 3 };
+
+  // THE MUTANT: return 0 for an ordinary bounty game, which is the bug.
+  it('values an ordinary bounty at the head count times the price', () => {
+    expect(bountyTakeFor({ knockouts: 2, position: 7 }, standard)).toEqual({ count: 2, money: 6 });
+  });
+
+  // THE MUTANT: drop the +1. The winner takes their own bounty back at the end,
+  // which is why five bounties beside four knockouts is right for a champion —
+  // and why the count and the money have to be worked out together.
+  it('gives the winner their own bounty back', () => {
+    expect(bountyTakeFor({ knockouts: 1, position: 1 }, standard)).toEqual({ count: 2, money: 6 });
+  });
+
+  // THE MUTANT: derive for progressive too. A bounty that GROWS cannot be
+  // rebuilt from a head count and a starting price, so the accumulated figure is
+  // the only honest one — plus the winner's own current bounty, which is what
+  // both Payouts panels already did.
+  it('prefers the stored figure for a progressive bounty', () => {
+    const pko = { enableBounties: true, bountyAmount: 5, bountyType: 'progressive' as const };
+    expect(bountyTakeFor({ knockouts: 3, position: 4, bountyWinnings: 12 }, pko))
+      .toEqual({ count: 3, money: 12 });
+    expect(bountyTakeFor({ knockouts: 2, position: 1, bountyWinnings: 8, currentBounty: 9 }, pko))
+      .toEqual({ count: 3, money: 17 });
+  });
+
+  // A feature switched off for the whole tournament renders nothing — the rule
+  // the Busted strip and the result columns already follow.
+  it('is nothing at all when the game has no bounties', () => {
+    expect(bountyTakeFor({ knockouts: 4, position: 1 }, { enableBounties: false, bountyAmount: 5 }))
+      .toEqual({ count: 0, money: 0 });
+    expect(bountyTakeFor({ knockouts: 4, position: 1 }, { enableBounties: true }))
+      .toEqual({ count: 0, money: 0 });
+    expect(bountyTakeFor(null, standard)).toEqual({ count: 0, money: 0 });
+  });
+});
+
+describe('recordedStatsFor', () => {
+  // The whole reason this is a function: the defect was in a call site inside
+  // PokerTimer's recording effect, which has no test by construction.
+  it('records the bounty money a league column can actually read', () => {
+    const stats = recordedStatsFor(
+      { knockouts: 2, position: 5, rebuys: 1, reEntries: 0, addons: 1 },
+      { enableBounties: true, bountyAmount: 3, rebuyAmount: 10, addonAmount: 5 },
+    );
+    expect(stats).toEqual({
+      rebuys: 1, reEntries: 0, addons: 1,
+      bountyWinnings: 6, rebuyAmount: 10, addonAmount: 5,
+    });
+  });
+
+  // `sanitizeForFirestore` turns undefined into NULL rather than stripping it,
+  // which OVERWRITES whatever Firestore held — so every count is coerced.
+  it('coerces every absent count rather than letting undefined through', () => {
+    expect(recordedStatsFor({}, {})).toEqual({
+      rebuys: 0, reEntries: 0, addons: 0,
+      bountyWinnings: 0, rebuyAmount: 0, addonAmount: 0,
+    });
+    Object.values(recordedStatsFor(null, null)).forEach(v => expect(v).toBe(0));
   });
 });

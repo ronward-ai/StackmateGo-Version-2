@@ -1,4 +1,4 @@
-import { buyInOf, bountyWinningsIn, investedIn, totalsAcross, type ResultCosts } from './resultStats';
+import { buyInOf, investedIn, totalsAcross, type ResultCosts } from './resultStats';
 
 /**
  * One player's season, game by game.
@@ -87,7 +87,14 @@ export function seasonGames(results: SeasonGame[] | null | undefined): SeasonGam
   return (results ?? [])
     .map((game, index) => {
       const invested = investedIn(game);
-      const cash = cashIn(game) + bountyWinningsIn(game);
+      // NOT `+ bountyWinningsIn(game)`. The recorded `prizeMoney` is the TOTAL
+      // the player collected — `eliminatePlayer` folds the bounty money into it
+      // at the bust-out — and `bountyWinnings` says how much of that total was
+      // bounty. Adding them is the double-count the Won column was reported for,
+      // with a £3 bounty showing £6; it fired here for progressive games, where
+      // both fields were populated, and would have fired for every game the
+      // moment ordinary bounties started being recorded.
+      const cash = cashIn(game);
       return {
         id: game.id ?? String(index),
         position: game.position ?? null,

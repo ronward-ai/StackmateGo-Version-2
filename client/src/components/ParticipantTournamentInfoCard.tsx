@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { isUnlimited } from '@/lib/entryLimits';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
+import { bountyTakeFor } from '@/lib/resultStats';
 
 const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 
@@ -123,13 +124,11 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                     const amount = payoutAmount(pool, po.percentage);
                     const finisher = players.find((pl: any) => pl.position === i + 1);
                     const bountyBonus = (() => {
-                      if (!finisher || !p.enableBounties || !p.bountyAmount) return 0;
-                      if (p.bountyType === 'progressive') {
-                        const winnings = finisher.bountyWinnings || 0;
-                        const ownBounty = i === 0 ? (finisher.currentBounty || p.bountyAmount) : 0;
-                        return winnings + ownBounty;
-                      }
-                      return ((finisher.knockouts || 0) + (i === 0 ? 1 : 0)) * p.bountyAmount;
+                      // One derivation, shared with the results table and the
+                      // league recorder — see lib/resultStats.ts. This panel and
+                      // the row beside it disagreeing about one night is the
+                      // fault that file exists to end.
+                      return bountyTakeFor(finisher, p).money;
                     })();
                     const total = amount + bountyBonus;
                     return (
