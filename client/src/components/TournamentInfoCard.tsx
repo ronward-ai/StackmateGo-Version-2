@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { payoutsOf } from '@/lib/payoutTemplates';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
-import { gameNumberFor } from "@/lib/seasonProgress";
+import { gameNumberFor, seasonLine } from "@/lib/seasonProgress";
 import ChipChopCalculator from './ChipChopCalculator';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -227,7 +227,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
           home: "League" and "Spring 2026 · Game 4 of 13" read as one statement. */}
       {isLeagueMode && gameNumber !== null && (
         <span className="text-label font-medium text-primary truncate min-w-0">
-          {displaySeason?.name && `${displaySeason.name} · `}Game {gameNumber} of {totalGames}
+          {seasonLine({ seasonName: displaySeason?.name, gameNumber, numberOfGames: totalGames })}
         </span>
       )}
     </div>

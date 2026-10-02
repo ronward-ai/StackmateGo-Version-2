@@ -6,6 +6,8 @@ import {
   isRealSeasonId,
   isSeasonComplete,
   clampedGameNumber,
+  gameProgressLabel,
+  seasonLine,
   nextSeasonDates,
   suggestNextName,
   seasonSubtitle,
@@ -409,5 +411,74 @@ describe('gamesInRange', () => {
     // A date-only string parsed as local time can land on the previous day west
     // of Greenwich; both ends are read as UTC midnight.
     expect(gamesInRange('2026-01-07T00:00:00Z', '2026-01-07T23:59:59Z', { weekdays: [WED] })).toBe(1);
+  });
+});
+
+/**
+ * `Game 4 of 13` was spelled in three components and they disagreed: only the
+ * League panel clamped, so a fourteenth game of a thirteen-game season read
+ * `Game 14 of 13` on both info cards and `Game 13 of 13` in the panel.
+ */
+describe('gameProgressLabel', () => {
+  it('states the game and the schedule', () => {
+    expect(gameProgressLabel(4, 13)).toBe('Game 4 of 13');
+  });
+
+  // THE MUTANT: drop the clamp. This is the one the two cards shipped with.
+  it('never runs past the schedule', () => {
+    expect(gameProgressLabel(14, 13)).toBe('Game 13 of 13');
+  });
+
+  // A season with no game count is ordinary — it runs until the director says
+  // so — and "Game 4 of 0" is not a sentence.
+  it('says the game alone when the season has no length', () => {
+    expect(gameProgressLabel(4, 0)).toBe('Game 4');
+    expect(gameProgressLabel(4, null)).toBe('Game 4');
+    expect(gameProgressLabel(4, undefined)).toBe('Game 4');
+  });
+
+  it('says nothing at all without a game number', () => {
+    expect(gameProgressLabel(null, 13)).toBe('');
+    expect(gameProgressLabel(undefined, 13)).toBe('');
+    expect(gameProgressLabel(0, 13)).toBe('');
+  });
+});
+
+describe('seasonLine', () => {
+  it('names the season and the game in it', () => {
+    expect(seasonLine({ seasonName: 'Spring 2026', gameNumber: 4, numberOfGames: 13 }))
+      .toBe('Spring 2026 · Game 4 of 13');
+  });
+
+  /**
+   * THE MUTANT: join unconditionally. That is exactly what `seasonSubtitle`
+   * above was written to fix — a dateless season read `· 12 games`, leading
+   * separator and all — and the results export joins this with its own player
+   * count, so a stranded dot would land in a picture people post.
+   */
+  it('leaves no separator stranded when a part is missing', () => {
+    expect(seasonLine({ gameNumber: 4, numberOfGames: 13 })).toBe('Game 4 of 13');
+    expect(seasonLine({ seasonName: 'Spring 2026' })).toBe('Spring 2026');
+    expect(seasonLine({ seasonName: '  ', gameNumber: 4, numberOfGames: 13 })).toBe('Game 4 of 13');
+    [
+      seasonLine({ gameNumber: 4, numberOfGames: 13 }),
+      seasonLine({ seasonName: 'Spring 2026' }),
+    ].forEach(line => {
+      expect(line.startsWith('·')).toBe(false);
+      expect(line.endsWith('·')).toBe(false);
+      expect(line).not.toContain('··');
+    });
+  });
+
+  // A STANDALONE tournament carries no season block, and its exported picture
+  // must read `9 players` rather than `· 9 players`.
+  it('is empty for a game with no season at all', () => {
+    expect(seasonLine({})).toBe('');
+    expect(seasonLine({ seasonName: null, gameNumber: null, numberOfGames: null })).toBe('');
+  });
+
+  it('clamps through the same rule the label does', () => {
+    expect(seasonLine({ seasonName: 'Spring 2026', gameNumber: 14, numberOfGames: 13 }))
+      .toBe('Spring 2026 · Game 13 of 13');
   });
 });

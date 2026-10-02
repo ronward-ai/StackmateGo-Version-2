@@ -6,7 +6,7 @@ import SeasonDashboard from '@/components/SeasonDashboard';
 import { LeagueSettingsDialog } from '@/components/LeagueSettingsDialog';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { gameNumberFor, clampedGameNumber, isSeasonComplete, countGamesPlayed } from '@/lib/seasonProgress';
+import { gameNumberFor, gameProgressLabel, isSeasonComplete, countGamesPlayed } from '@/lib/seasonProgress';
 
 const LEAGUE_PANEL_KEY = 'leaguePanelExpanded';
 
@@ -74,11 +74,11 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame }
   const seasonSummary = useMemo(() => {
     if (!currentSeason) return 'No season yet';
     const parts: string[] = [];
-    if (currentSeason.numberOfGames) {
-      // Clamped: an extra game beyond the schedule would otherwise read
-      // "Game 14 of 13".
-      parts.push(`Game ${clampedGameNumber(gameNumber, currentSeason)} of ${currentSeason.numberOfGames}`);
-    }
+    // Clamped, and clamped in ONE place now: an extra game beyond the schedule
+    // would otherwise read "Game 14 of 13", which the two info cards did while
+    // this panel did not — about the same night. See lib/seasonProgress.ts.
+    const progress = gameProgressLabel(gameNumber, currentSeason.numberOfGames);
+    if (progress && currentSeason.numberOfGames) parts.push(progress);
     const range = formatSeasonDateRange(currentSeason);
     if (range) parts.push(range);
     if ((currentSeason as any).status === 'completed') parts.push('Ended');

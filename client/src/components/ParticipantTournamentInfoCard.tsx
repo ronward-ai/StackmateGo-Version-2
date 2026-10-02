@@ -8,6 +8,7 @@ import { isUnlimited } from '@/lib/entryLimits';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { bountyTakeFor } from '@/lib/resultStats';
+import { seasonLine } from '@/lib/seasonProgress';
 
 const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 
@@ -72,7 +73,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
         </div>
         {isLeagueMode && gameNumber != null && (
           <span className="text-xs font-medium text-orange-400 mt-1 block">
-            {seasonName ? `${seasonName} · ` : ''}Game {gameNumber} of {totalGames}
+            {seasonLine({ seasonName, gameNumber, numberOfGames: totalGames })}
           </span>
         )}
 

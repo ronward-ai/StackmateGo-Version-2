@@ -190,6 +190,47 @@ export function clampedGameNumber(
 }
 
 /**
+ * `Game 4 of 13`, clamped — the one spelling of a season's progress.
+ *
+ * It was spelled THREE times: `TournamentInfoCard`, the identical line copied
+ * onto `ParticipantTournamentInfoCard`, and `LeagueSection` — and they already
+ * disagreed, because only the League panel clamped. A fourteenth game of a
+ * thirteen-game season read `Game 14 of 13` on the two cards and
+ * `Game 13 of 13` in the panel, about the same night.
+ *
+ * Clamped here, so a site cannot opt out of it by forgetting.
+ */
+export function gameProgressLabel(
+  gameNumber: number | null | undefined,
+  numberOfGames: number | null | undefined,
+): string {
+  const n = Number(gameNumber);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const total = Number(numberOfGames) || 0;
+  return total > 0 ? `Game ${Math.min(n, total)} of ${total}` : `Game ${n}`;
+}
+
+/**
+ * The season and the game in it, as one line: `Spring 2026 · Game 4 of 13`.
+ *
+ * **Every part is optional and the separator is never left stranded**, which is
+ * the fault `seasonSubtitle` above exists for — concatenating directly left a
+ * dateless season reading `· 12 games`, leading separator and all. A standalone
+ * tournament has no season block at all and gets `''`, so a caller joining this
+ * with its own parts adds nothing rather than a bare dot.
+ */
+export function seasonLine(input: {
+  seasonName?: string | null;
+  gameNumber?: number | null;
+  numberOfGames?: number | null;
+}): string {
+  return [
+    (input.seasonName || '').trim(),
+    gameProgressLabel(input.gameNumber, input.numberOfGames),
+  ].filter(Boolean).join(' · ');
+}
+
+/**
  * How many games a date range holds, given when the league plays.
  *
  * A director setting up a quarterly season should not have to count Wednesdays

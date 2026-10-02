@@ -24,6 +24,7 @@ import { ordinal } from '@/lib/ordinal';
 import { Player } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
+import { seasonLine } from '@/lib/seasonProgress';
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
@@ -123,12 +124,18 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
    *  whole tournament draws nothing, the rule the Busted strip already follows. */
   const columnContext = { prizeStructure: state.prizeStructure, isLeagueMode };
 
-  /** Dates and sizes the picture, so it still means something in a group chat
-   *  weeks later. */
+  /** Names and sizes the picture, so it still means something in a group chat
+   *  weeks later: `Spring 2026 · Game 4 of 13 · 9 players`.
+   *
+   *  The season block is read off `settings`, where `PokerTimer`'s one guarded
+   *  writer puts it in league mode — the same place the participant's own card
+   *  reads it. A standalone game has none, so `seasonLine` returns '' and the
+   *  subtitle is the player count alone, with no stranded separator.
+   *
+   *  The count stays beside the season because it is the one fact a picture
+   *  loses once the night is over; the standings sheet carries it too. */
   const subtitleForExport = [
-    isLeagueMode && (state.settings as any)?.gameNumber
-      ? `Game ${(state.settings as any).gameNumber}`
-      : null,
+    isLeagueMode ? seasonLine(state.settings as any) : '',
     `${state.players.length} player${state.players.length === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ');
 

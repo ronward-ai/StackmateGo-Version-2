@@ -1469,6 +1469,37 @@ Prize are adjacent columns and the same rebuy is counted in one and not the othe
 `prizePool` is a real money change and does not belong in a display commit; `resultColumns.test.ts`
 asserts the current behaviour so the next person meets the fact rather than rediscovering it.
 
+### The exported results name the season, and `Game 4 of 13` had three spellings
+
+Requested: the results PNG for a league game read `Game 4 · 9 players` under the league name, and
+should name the season. It reads **`Spring 2026 · Game 4 of 13 · 9 players`** now. The player count
+stays, deliberately — it is the one fact a picture loses once the night is over, and the standings
+sheet already carries `Season · N players`.
+
+**The format existed three times before this, and they already disagreed.** `TournamentInfoCard`,
+the identical line copied onto `ParticipantTournamentInfoCard`, and `LeagueSection` — and only the
+League panel ran it through `clampedGameNumber`, so **a fourteenth game of a thirteen-game season
+read `Game 14 of 13` on both info cards and `Game 13 of 13` in the panel**, about the same night.
+Writing a fourth inline in `PlayerSection` is the fault this file opens with, so
+`lib/seasonProgress.ts` owns it: `gameProgressLabel(gameNumber, numberOfGames)` (clamped, inside, so
+a call site cannot opt out by forgetting) and `seasonLine({ seasonName, gameNumber, numberOfGames })`.
+All four read them.
+
+**No new field, no new prop, no rule to publish.** `PokerTimer`'s one guarded season-block writer
+already puts `seasonName`, `numberOfGames` and `gameNumber` on `settings` in league mode, which is
+where the participant's card has always read them and where `PlayerSection` already read
+`gameNumber` — and `settings` is synced wholesale, so the picture a director exports and the line on
+a player's phone cannot disagree.
+
+**Every part is optional and the separator is never stranded**, which is the fault `seasonSubtitle()`
+in that same module exists for — a dateless season once read `· 12 games`, leading dot and all. A
+STANDALONE game has no season block, so `seasonLine` returns `''` and the exported subtitle is
+`9 players` alone. Two mutants are caught: dropping the clamp, and joining unconditionally.
+
+Verified by capturing the real PNG rather than screenshotting the DOM, per the lesson above — the
+league sheet reading `Spring 2026 · Game 4 of 13 · 9 players`, a game past the schedule clamping to
+`Game 13 of 13`, and a standalone sheet reading `9 players` with no stray dot.
+
 ### A player's chips are written once, in `lib/playerBadges.ts`
 
 The director's row, the exported PNG and the participant's phone all render the chips beside a
