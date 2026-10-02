@@ -1263,6 +1263,25 @@ stem is never empty, so its own fallback was unreachable and a nameless sheet do
 `2026-10-01.png`. It also strips path separators, because a season called `Winter 25/26` is ordinary
 and a slash is how a download quietly fails to save.
 
+**A column header is one style, in `exportStyle.ts`, and it used to be five.** Reported as the text
+at the top of the columns having no impact — and it had none: **11px at weight 600 in `inkDim`**,
+smaller AND dimmer than the 13px figures beneath it, so the row that tells a reader what they are
+looking at was the quietest thing in a picture people post to a group chat. It is **12px, weight 700,
+in `SHEET.inkHead`** (a near-white, deliberately not the pure white the player names use — a header
+is a label, not a value), with the tracking opened from `0.04em` to `0.08em`, which is most of what
+makes uppercase at this size read as a header rather than as shouting.
+
+`headCellStyle(align)` is a function because the style was spelled **five times**: once in
+`ResultsSheet` and FOUR separate inline copies in `StandingsSheet` — rank, movement, Player and each
+stat column. Two images that exist to look like one product cannot have a change to one header be
+four edits in the other.
+
+**The band stays LIGHTER than the rows**, and that is the one thing not to "fix". `SHEET.band` above
+`SHEET.row` is what separates the header strip from the first player, so darkening it to make the
+header stand out moves it toward the row colour and weakens exactly what it is for. The ink carries
+the impact. Five mutants are caught: the colour back to `inkDim`, the weight back to 600, the size
+back to 11, the tracking back to `0.04em`, and a SIXTH inline copy diverging in either sheet.
+
 **The standings sheet is handed its columns already resolved**, from the same `enabledStats` +
 `getPlayerStat` pair the table renders with and the CSV writes from. A third column list is how the
 rake formula reached nine sites.

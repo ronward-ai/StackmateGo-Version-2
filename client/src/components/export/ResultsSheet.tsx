@@ -2,7 +2,7 @@ import type { ResultPlayerLike, ResultRow } from '@/lib/resultRows';
 import { visibleResultColumns, type ColumnContext } from '@/lib/resultColumns';
 import RankLabel from '@/components/RankLabel';
 import ExportSheet from './ExportSheet';
-import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH, headCellStyle } from './exportStyle';
 
 /**
  * The finishing order, as a picture.
@@ -51,14 +51,6 @@ export default function ResultsSheet({
     borderBottom: `1px solid ${SHEET.rule}`,
     whiteSpace: 'nowrap',
   };
-  const headCell: React.CSSProperties = {
-    ...cell,
-    fontSize: SHEET_TYPE.head,
-    color: SHEET.inkDim,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  };
 
   return (
     <ExportSheet title={title} subtitle={subtitle} width={width}>
@@ -76,13 +68,10 @@ export default function ResultsSheet({
             {/* The rank column takes only what a four-character ordinal needs.
                 Left to size itself it absorbed the table's spare width and the
                 places drifted a long way from the names they belong to. */}
-            <th style={{ ...headCell, textAlign: 'right', width: 56 }}>#</th>
-            <th style={{ ...headCell, textAlign: 'left' }}>Player</th>
+            <th style={{ ...headCellStyle('right'), width: 56 }}>#</th>
+            <th style={headCellStyle('left')}>Player</th>
             {columns.map(col => (
-              <th
-                key={col.key}
-                style={{ ...headCell, textAlign: col.align }}
-              >
+              <th key={col.key} style={headCellStyle(col.align)}>
                 {col.label}
               </th>
             ))}

@@ -1,6 +1,6 @@
 import RankLabel from '@/components/RankLabel';
 import ExportSheet from './ExportSheet';
-import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH, headCellStyle } from './exportStyle';
 
 /**
  * The league standings, as a picture.
@@ -68,49 +68,11 @@ export default function StandingsSheet({ title, subtitle, columns, rows }: Stand
       >
         <thead>
           <tr style={{ background: SHEET.band }}>
-            <th
-              style={{
-                ...cell,
-                fontSize: SHEET_TYPE.head,
-                color: SHEET.inkDim,
-                textAlign: 'right',
-                width: 44,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              #
-            </th>
-            {anyMovement && <th style={{ ...cell, fontSize: SHEET_TYPE.head, width: 24 }} />}
-            <th
-              style={{
-                ...cell,
-                fontSize: SHEET_TYPE.head,
-                color: SHEET.inkDim,
-                textAlign: 'left',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              Player
-            </th>
+            <th style={{ ...headCellStyle('right'), width: 44 }}>#</th>
+            {anyMovement && <th style={{ ...headCellStyle(), width: 24 }} />}
+            <th style={headCellStyle('left')}>Player</th>
             {columns.map(label => (
-              <th
-                key={label}
-                style={{
-                  ...cell,
-                  fontSize: SHEET_TYPE.head,
-                  color: SHEET.inkDim,
-                  textAlign: 'right',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                {label}
-              </th>
+              <th key={label} style={headCellStyle('right')}>{label}</th>
             ))}
           </tr>
         </thead>

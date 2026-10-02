@@ -47,6 +47,9 @@ export const SHEET = {
   rule: '#30353C',
   ink: '#FFFFFF',
   inkDim: '#A3ADBA',
+  /** Column headers. Bright enough to lead the table, and deliberately NOT the
+   *  pure white the player names use — a header is a label, not a value. */
+  inkHead: '#E8ECF2',
   accent: '#F97316',
 } as const;
 
@@ -85,9 +88,47 @@ export const SHEET_TYPE = {
   rank: 13,
   name: 17,
   cell: 13,
-  head: 11,
+  /** Headers are LARGER than they were and only one step under the figures, so
+   *  the row naming the columns is not the quietest thing in the picture. */
+  head: 12,
   foot: 11,
 } as const;
+
+/**
+ * A column header, for both sheets.
+ *
+ * **Reported as the text at the top of the columns having no impact**, and it
+ * did not: 11px and weight 600 in `inkDim`, SMALLER and DIMMER than the 13px
+ * figures beneath it, so the row that tells a reader what they are looking at
+ * was the quietest thing in the image. It is 12px, weight 700, in `inkHead`,
+ * with the tracking opened from 0.04em to 0.08em — uppercase at this size needs
+ * the air, and that is most of what makes a row read as a header rather than as
+ * shouting.
+ *
+ * **It is a function because the style was spelled FIVE times**: once in
+ * `ResultsSheet` and FOUR separate inline copies in `StandingsSheet` (rank,
+ * movement, Player, and each stat column). The two sheets exist to look like one
+ * product, and a change to one header being four edits in the other is how that
+ * stops being true.
+ *
+ * **The band it sits on is deliberately LIGHTER than the rows** (`SHEET.band`
+ * against `SHEET.row`) and stays that way. Darkening it to "separate" the header
+ * moves it toward the row colour and weakens the one thing it does; the ink is
+ * what carries the impact.
+ */
+export function headCellStyle(align: 'left' | 'right' | 'center' = 'left'): React.CSSProperties {
+  return {
+    padding: '8px 10px',
+    borderBottom: `1px solid ${SHEET.rule}`,
+    whiteSpace: 'nowrap',
+    fontSize: SHEET_TYPE.head,
+    color: SHEET.inkHead,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    textAlign: align,
+  };
+}
 
 /** How wide each sheet renders. A sheet is a fixed canvas, not a layout. */
 export const SHEET_WIDTH = {

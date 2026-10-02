@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import ResultsSheet from './ResultsSheet';
 import StandingsSheet, { type StandingsSheetRow } from './StandingsSheet';
 import { resultRowsFor, type ResultPlayerLike } from '@/lib/resultRows';
-import { RANK_INK, SHEET } from './exportStyle';
+import { RANK_INK, SHEET, SHEET_TYPE, headCellStyle } from './exportStyle';
 
 /**
  * What the two exported images actually say.
@@ -192,5 +192,76 @@ describe('the print style', () => {
     Object.values(RANK_INK).forEach(ink => {
       expect(ink.toLowerCase()).not.toBe(SHEET.row.toLowerCase());
     });
+  });
+});
+
+/**
+ * REPORTED: the text at the top of the columns had no impact — and it did not.
+ * 11px at weight 600 in `inkDim`, SMALLER and DIMMER than the 13px figures
+ * underneath, so the row naming the columns was the quietest thing in a picture
+ * people post to a group chat.
+ */
+describe('the column headers', () => {
+  const headsIn = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('th')) as HTMLElement[];
+
+  const resultsRows = rowsFor([
+    { id: '1', name: 'Dan', isActive: false, position: 1, knockouts: 3 },
+    { id: '2', name: 'Amy', isActive: false, position: 2 },
+  ]);
+  const standingsRows: StandingsSheetRow[] = [
+    { key: 'a', rank: 1, name: 'Dan', cells: ['120', '8', '£240'], movement: 'up' },
+  ];
+
+  // THE MUTANTS: put the size or the weight back under the figures.
+  it('leads the table rather than hiding under it', () => {
+    expect(SHEET_TYPE.head).toBeGreaterThan(11);
+    expect(SHEET_TYPE.head).toBeLessThan(SHEET_TYPE.cell + 1);
+    expect(headCellStyle().fontWeight).toBe(700);
+    // THE MUTANT: back to inkDim, which is what made it recede.
+    expect(headCellStyle().color).toBe(SHEET.inkHead);
+    expect(headCellStyle().color).not.toBe(SHEET.inkDim);
+    // Uppercase at this size needs the air, and it is most of what makes the
+    // row read as a header rather than as shouting.
+    expect(headCellStyle().letterSpacing).toBe('0.08em');
+  });
+
+  it('aligns where it is told and nowhere else by default', () => {
+    expect(headCellStyle('right').textAlign).toBe('right');
+    expect(headCellStyle().textAlign).toBe('left');
+  });
+
+  /**
+   * THE MUTANT THIS EXISTS FOR: a sixth inline copy. The style was spelled FIVE
+   * times — once in ResultsSheet and FOUR times inline in StandingsSheet — so a
+   * change to one header was four edits in the other, in two images that exist
+   * to look like one product.
+   */
+  it('is the SAME header in both sheets, down to the pixel', () => {
+    const resultsSheet = render(results({ title: 'Thursday Night', rows: resultsRows })).container;
+    const standingsSheet = render(
+      <StandingsSheet title="Fish & Chips League" columns={['Points', 'Games']} rows={standingsRows} />,
+    ).container;
+
+    const all = [...headsIn(resultsSheet), ...headsIn(standingsSheet)];
+    expect(all.length).toBeGreaterThan(6);
+    all.forEach(th => {
+      expect(th.style.fontSize).toBe(`${SHEET_TYPE.head}px`);
+      expect(th.style.fontWeight).toBe('700');
+      expect(th.style.letterSpacing).toBe('0.08em');
+      expect(th.style.textTransform).toBe('uppercase');
+    });
+    // The colour too, read back as the rgb() the browser resolves it to.
+    const colours = new Set(all.map(th => th.style.color));
+    expect(colours.size).toBe(1);
+  });
+
+  // The band is LIGHTER than the rows on purpose: that contrast is what
+  // separates the header strip from the first player, so "darkening it to make
+  // the header stand out" would weaken the one thing it does.
+  it('keeps the band lighter than the rows it sits above', () => {
+    const lum = (hex: string) => parseInt(hex.slice(1), 16);
+    expect(lum(SHEET.band)).toBeGreaterThan(lum(SHEET.row));
+    expect(lum(SHEET.row)).toBeGreaterThan(lum(SHEET.page));
   });
 });
