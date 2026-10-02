@@ -74,7 +74,7 @@ const cash = (n: number, sym: string) => (n > 0 ? money(n, sym) : DASH);
  */
 export const RESULT_COLUMNS: ResultColumn[] = [
   {
-    key: 'knockouts', label: 'KO', align: 'right', numeric: true,
+    key: 'knockouts', label: "KO's", align: 'right', numeric: true,
     value: r => count(r.stats.knockouts),
   },
   {
