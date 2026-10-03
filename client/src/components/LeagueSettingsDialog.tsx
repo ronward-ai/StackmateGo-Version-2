@@ -20,12 +20,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown, CalendarDays, Check, X } from 'lucide-react';
+import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown, CalendarDays, Check, X, Users } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useLeague } from '@/hooks/useLeague';
 import LeagueSeasonsTab from '@/components/LeagueSeasonsTab';
 import LeagueScopeBar from '@/components/LeagueScopeBar';
 import LeagueDangerZone from '@/components/LeagueDangerZone';
+import LeaguePlayersTab from '@/components/LeaguePlayersTab';
 import { POINTS_SYSTEMS, STAT_LABELS, DEFAULT_LEAGUE_SETTINGS } from '@/types/leagueSettings';
 
 // Define the structure for a saved formula template
@@ -319,10 +320,14 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
         <LeagueScopeBar />
 
         <Tabs defaultValue="seasons" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="seasons" className="h-full">
               <CalendarDays className="h-4 w-4" />
               Seasons
+            </TabsTrigger>
+            <TabsTrigger value="players" className="h-full">
+              <Users className="h-4 w-4" />
+              Players
             </TabsTrigger>
             <TabsTrigger value="points" className="h-full">
               <Calculator className="h-4 w-4" />
@@ -343,6 +348,15 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                 or nudge a multiplier. It lives with the seasons instead, which
                 is where the rest of league administration already is. */}
             <LeagueDangerZone />
+          </TabsContent>
+
+          {/* The roster: correct a misspelt name, or take one out. It is here
+              rather than on the League Roster chips because those are pressed to
+              add a player mid-game, and a destructive Firestore delete must not
+              sit one tap from the name a director is reaching for — the argument
+              that moved the Danger Zone into the Seasons tab. */}
+          <TabsContent value="players" className="mt-4">
+            <LeaguePlayersTab />
           </TabsContent>
 
           {/* Points System Tab */}

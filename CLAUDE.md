@@ -1942,6 +1942,69 @@ Historical results carry none of these fields and stay at 0. `completedTournamen
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
 
+### A misspelt name is RENAMED, and only the roster can be removed from
+
+Reported as tedious rather than broken: a name typed wrong once sat in the pickers for good, and
+there was no way to remove or rename a league player at all. The history is worth knowing —
+`useLeague.ts`'s own comment records a `removePlayer: () => {}` no-op being deleted from this hook
+for being *"a real-looking name that silently does nothing and looks like it worked"*. This is that
+feature, actually built.
+
+**TWO lists carry the name and they are different stores**, which is why one fix would not have done:
+
+| Picker | Source | Cost of removing |
+|---|---|---|
+| **Recent Players** | `recentPlayers` in localStorage, per account per device, capped at 20 | none — retyping the name puts it back |
+| **League Roster** chips | `leaguePlayers` in Firestore | real: a player exists there ONLY because a result was recorded for them |
+
+**RENAME is the headline and remove is the escape hatch, because a result carries no name.**
+`addResultMutation` writes `leaguePlayerId` and nothing else identifying, so correcting the player
+document fixes every past night in the standings AND the drill-down at once, and future games match
+the new spelling. Nothing is lost and nothing is migrated. Removal is the opposite trade: a player
+reaches `leaguePlayers` only through `recordResultByName`, which creates one on their first result, so
+**"remove" always means "and their results"** — and a guard refusing to delete a player who has any
+would be disabled on every name in the league, including the one being removed. So it confirms and
+**names the count** instead.
+
+**`lib/leagueRoster.ts`'s `rosterNameConflict` is the whole safety of the rename.**
+`recordResultByName` matches by NAME, so two players in one league sharing one would send future
+nights to whichever `find` reaches first — and the roster picker **de-dupes by name**, so the
+duplicate would be *invisible* while quietly splitting the league's history. `exceptId` is not
+defence: without it a player could never be renamed to their own name, so fixing `dave` to `Dave` —
+a capitalisation fix, the commonest kind — would be refused by the very feature meant to allow it. A
+mutant dropping it turns a test red, and one making the comparison case-sensitive turns three.
+
+**Merging two players is deliberately NOT offered.** A merge has to guess which results belong to
+whom, and guessing wrong is how a league loses its standings. The refusal says what to do instead:
+rename the one that has the history, remove the phantom.
+
+**The admin list does NOT de-dupe by name, and the picker does.** That asymmetry is the point rather
+than an inconsistency — the picker's own comment says *"Firestore may have stale duplicate docs"*, and
+**a duplicate you cannot see is a duplicate you cannot remove.** This is the screen for removing it,
+so it shows every document.
+
+**It is a fourth Manage League tab (`components/LeaguePlayersTab.tsx`), not a control on the roster
+chips.** Same argument that moved the league Danger Zone into the Seasons tab: a destructive,
+irreversible Firestore delete must not sit one tap from the name a director is reaching for in the
+middle of a game. Fixing the roster there still fixes the picker, because the chips read
+`leaguePlayers`. A read-only console needs no new gate — `PokerTimer` already withholds Manage League.
+
+**`lib/recentPlayers.ts` is the local list, lifted out of `PlayerSection` unchanged** — newest first,
+case-insensitive de-dupe, capped at 20, all of which were inline and had no test by construction.
+Each expanded row gains an ×, with **no confirmation**, because the worst outcome is retyping a name.
+Both writers go through one `persistRecent`, so `lib/scopedStorage.ts`'s storage-health banner still
+covers a failed write.
+
+**No Firestore rule to publish by hand**, which is the trap this file opens with: `leaguePlayers`
+already allows the owner `update` (with `staysInLeague()`) and `delete`, and `deleteLeague` already
+performs exactly these two deletes in this order.
+
+Verified by driving the Recent Players × in the devstub — four rows, remove one, three left, and the
+list genuinely survives a reload (the first harness re-seeded storage on every load, so "it
+persisted" proved nothing until the seed was made conditional). **The Manage League tab's writes
+cannot be driven there** — the devstub's Firestore is offline — so that half rests on the unit and
+component tests, which is worth saying rather than implying.
+
 ### Late entry is a stated window that WARNS, and that is the whole feature
 
 There is no late-entry mechanism, and there does not need to be one: a director adds players, and
@@ -3567,6 +3630,8 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tableBreak.ts` | When the field fits fewer tables, which one breaks, and where its players sit. **Only the broken table moves**; the rest renumber, because the model stores a table COUNT, not a set. |
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
+| `leagueRoster.ts` | Whether a league player may be given a name — the one rule a rename needs, since `recordResultByName` matches by NAME and the picker de-dupes by it. |
+| `recentPlayers.ts` | The names Add Player offers: newest first, one entry per person, twenty kept. Per device, never the roster. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
 | `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and every figure one night knows about a player. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |
 | `resultColumns.ts` | Which columns a results table can show, what each cell says, and which ones this game can offer at all. **A column whose feature is switched off is not drawn.** |

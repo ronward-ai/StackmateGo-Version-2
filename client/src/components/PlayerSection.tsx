@@ -25,16 +25,12 @@ import { Player } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { seasonLine } from '@/lib/seasonProgress';
+import { addRecent, removeRecent, type RecentPlayer } from '@/lib/recentPlayers';
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
-
-interface RecentPlayer {
-  name: string;
-  lastUsed: number;
-}
 
 interface PlayerSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -195,24 +191,24 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     }
   };
 
-  // Save recent players to localStorage
-  const saveRecentPlayer = (name: string) => {
+  /** One writer for the stored list, so the cap and the de-dupe cannot drift
+   *  between adding a name and removing one. See `lib/recentPlayers.ts`. */
+  const persistRecent = (updated: RecentPlayer[]) => {
     try {
-      const trimmedName = name.trim();
-      if (!trimmedName) return;
-
-      const existing = recentPlayers.filter(p => p.name.toLowerCase() !== trimmedName.toLowerCase());
-      const updated = [
-        { name: trimmedName, lastUsed: Date.now() },
-        ...existing
-      ].slice(0, 20); // Keep only 20 most recent
-
       setRecentPlayers(updated);
       writeScoped('recentPlayers', JSON.stringify(updated), recentPlayersUid());
     } catch (error) {
-      console.error('Failed to save recent player:', error);
+      console.error('Failed to save recent players:', error);
     }
   };
+
+  const saveRecentPlayer = (name: string) => persistRecent(addRecent(recentPlayers, name));
+
+  /** Reported as names typed wrong once being in the picker for good. No
+   *  confirmation, deliberately: this list is local to this device and typing
+   *  the name again puts it straight back. The league roster is the one that
+   *  carries results, and it is removed from in Manage League. */
+  const removeRecentPlayer = (name: string) => persistRecent(removeRecent(recentPlayers, name));
 
   // Get filtered recent players based on search term
   const getFilteredRecentPlayers = () => {
@@ -720,10 +716,24 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                     {getFilteredRecentPlayers().map((player) => (
                       <div
                         key={player.name}
-                        className="flex items-center p-2 hover:bg-white/5 rounded cursor-pointer"
-                        onClick={() => handleSelectName(player.name)}
+                        className="flex items-center justify-between gap-2 p-2 hover:bg-white/5 rounded"
                       >
-                        <span className="text-body text-foreground">{player.name}</span>
+                        <button
+                          type="button"
+                          className="flex-1 text-left text-body text-foreground"
+                          onClick={() => handleSelectName(player.name)}
+                        >
+                          {player.name}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${player.name} from recent players`}
+                          title="Remove from this list"
+                          className="text-muted-foreground hover:text-destructive p-1 rounded"
+                          onClick={() => removeRecentPlayer(player.name)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     ))}
                     {getFilteredRecentPlayers().length === 0 && recentSearchTerm && (

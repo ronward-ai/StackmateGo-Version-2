@@ -598,6 +598,64 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     }
   }, [currentLeagueId, queryClient, leaguePlayers]);
 
+  /**
+   * Correct a misspelt name, keeping every night they have played.
+   *
+   * The cheap fix and the right one: results carry `leaguePlayerId` and NO
+   * player name, so the standings, the drill-down and every future game follow
+   * the corrected spelling from this one write. The caller checks
+   * `rosterNameConflict` first — two players sharing a name would send future
+   * results to whichever `recordResultByName`'s `find` reaches first.
+   */
+  const renameLeaguePlayer = useCallback(async (playerId: string, name: string) => {
+    const trimmed = (name || '').trim();
+    if (!playerId || !trimmed) return;
+    try {
+      await updateDoc(doc(db, 'leaguePlayers', String(playerId)), {
+        name: trimmed,
+        updatedAt: serverTimestamp(),
+      });
+      if (currentLeagueId) {
+        queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
+      }
+    } catch (error) {
+      console.error('Error renaming league player:', error);
+      throw error;
+    }
+  }, [currentLeagueId, queryClient]);
+
+  /**
+   * Remove a player from the league, and the results that are why they exist.
+   *
+   * A player reaches this collection ONLY through `recordResultByName`, which
+   * creates one on their first result — so there is no such thing as removing a
+   * player without touching history, and a guard refusing one who has any would
+   * be disabled on every name including the one being removed. The caller says
+   * how many nights go with them and asks first.
+   *
+   * Results FIRST, then the player, which is the shape `deleteLeague` below
+   * already uses: both are deleted under `ownsLeague(leagueId)`, so the league
+   * document has to outlive them — see `lib/accountWipe.ts` for the order this
+   * is the small version of.
+   */
+  const removeLeaguePlayer = useCallback(async (playerId: string) => {
+    if (!playerId || !currentLeagueId) return;
+    try {
+      const pid = String(playerId);
+      const resultsSnap = await getDocs(query(
+        collections.tournamentResults,
+        where('leagueId', '==', String(currentLeagueId)),
+        where('leaguePlayerId', '==', pid),
+      ));
+      await Promise.all(resultsSnap.docs.map(d => deleteDoc(doc(db, 'tournamentResults', d.id))));
+      await deleteDoc(doc(db, 'leaguePlayers', pid));
+      queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
+    } catch (error) {
+      console.error('Error removing league player:', error);
+      throw error;
+    }
+  }, [currentLeagueId, queryClient]);
+
   // Delete the currently active league and all its associated data
   const deleteLeague = useCallback(async (leagueId: string) => {
     if (!user?.id) return;
@@ -670,6 +728,8 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     renameLeague,
     deleteLeague,
     leaguePlayers,
+    renameLeaguePlayer,
+    removeLeaguePlayer,
     recordResultByName,
     removeTournamentResultForPlayer,
     calculatePoints: calculatePointsFromSettings,
