@@ -70,7 +70,9 @@ describe('resetDevice', () => {
 
     expect(localStorage.getItem('tournamentSettings::alice')).toBeNull();
     expect(h.updateDoc).toHaveBeenCalledTimes(1);
-    expect(h.updateDoc.mock.calls[0][1]).toEqual({ setup: '__deleted__' });
+    // Recent Players follows the account now too, so it is cleared on the same
+    // terms — or the next sign-in pulls every name straight back.
+    expect(h.updateDoc.mock.calls[0][1]).toEqual({ setup: '__deleted__', recentPlayers: '__deleted__' });
   });
 
   it('still clears this device when the cloud write fails', async () => {
@@ -137,6 +139,18 @@ describe('deleteEverything', () => {
       expect(at).toBeGreaterThan(-1);
       expect(at).toBeLessThan(leaguesAt);
     }
+  });
+
+  // These are real people's names, and they now live on the account. Delete has
+  // to mean the account's copy as well as this device's.
+  it('clears the account recent names as well as its setup', async () => {
+    stubData({ leagues: ['L1'] });
+    const { result } = renderHook(() => useAccountReset());
+
+    await act(async () => { await result.current.deleteEverything(); });
+
+    expect(h.updateDoc.mock.calls.some(([, fields]) =>
+      fields?.recentPlayers === '__deleted__' && fields?.setup === '__deleted__')).toBe(true);
   });
 
   it('never deletes from users, which holds the subscription', async () => {

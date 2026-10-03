@@ -1942,15 +1942,51 @@ Historical results carry none of these fields and stay at 0. `completedTournamen
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
 
-### Recent Players is the one list of names, and a league roster admin was built twice and removed
+### Recent Players is the one list of names, it follows the account, and a roster admin was removed
 
 Reported as tedious rather than broken: a name typed wrong once sat in the pickers for good.
 
 **What answers it is the × on each row of Recent Players**, which shipped in the first round and was
 not spotted — the expanded list is searchable and every name has its own remove control.
-`lib/recentPlayers.ts` owns the list: newest first, one entry per person (case-insensitive), twenty
-kept. It is **per account per device** in localStorage, so removing a name costs nothing — typing it
-again puts it back — and needs no confirmation.
+`lib/recentPlayers.ts` owns the list: newest first, one entry per person (case-insensitive), **fifty**
+kept. Removing a name costs nothing — typing it again puts it back — and needs no confirmation.
+
+**It follows the ACCOUNT**, asked for once it became the only list of names: a new tablet started
+empty. `hooks/useRecentPlayers.ts` keeps it on `userSettings/{uid}.recentPlayers` — the owner-only
+document the setup sync already uses, whose rule has no field whitelist, so **no rules deploy**.
+Every other writer of that document merges or touches only its own field, so nothing clobbers it.
+The cap went from twenty to fifty with it: twenty was right for one device, and a list that follows
+the account has to hold a league.
+
+Four things are load-bearing:
+
+- **The cloud copy wins outright; an absent one adopts this device's list, once; NEVER a union.**
+  `resolveRecent` decides it. A union would resurrect every name removed with × on another device
+  whenever an older device signed in, so × would only ever work where it was pressed. An EMPTY cloud
+  list is still a list — a director who removed everything has said so. Mutants for union, local
+  winning, and empty-as-absent are each caught.
+- **Writes happen in `add` and `remove` and nowhere else** — never in an effect reacting to the list,
+  which would write on every snapshot including its own echo. The adopt push is the one exception,
+  once per uid behind a ref. A hook test asserts a run of snapshots writes nothing, and the mutant
+  writing on every snapshot turns five red.
+- **A live listener**, so the tablet sees the laptop's names without a reload. Two devices pressing
+  Add in the same second is last-writer-wins on the array, and one name gets retyped — a transaction
+  would be machinery out of proportion to that.
+- **Signed out or anonymous never touches Firestore** (`!user || isAnonymous`, and not before auth
+  settles); localStorage is the whole store there and the offline cache everywhere else. A failed
+  cloud write logs and keeps the local list: a blocked browser already wears the "Not syncing" chip.
+
+**Reset and Delete clear it with the setup.** Both used to clear only `setup` on that document, and a
+field left behind is pulled straight back by the next sign-in — the trap the setup sync section
+records. Delete especially: these are real people's names. `userSettings` had **no rules coverage at
+all** until this; three tests now assert the owner can write and read it beside the setup, and that a
+stranger, an anonymous session and a signed-out client can do neither. Both denials go red under a
+rule opened to any signed-in user.
+
+Driven against the devstub's offline Firestore, which exercises the real signed-in path: the
+listener answers with no document, the device's four names are ADOPTED rather than wiped, × on one
+leaves three in the screen and the cache, and an added name lands at the head of the stored list. The
+cross-device half is the hook test plus the rules tests, since nothing offline can be a second device.
 
 **Two more things were built, and both were removed on request:**
 
@@ -2338,6 +2374,10 @@ Four things are load-bearing:
 
 `tournamentLocalProgress` is deliberately **not** synced. It is the offline safety net for when
 Firestore is unreachable, so it cannot depend on Firestore.
+
+The same document carries **Recent Players** (`hooks/useRecentPlayers.ts`) beside the setup, on a
+different shape on purpose: a live listener rather than a read at sign-in, and writes only from the
+two actions. See "Recent Players is the one list of names".
 
 **Cost is not the reason to hesitate here.** One document per account: one read at sign-in, one
 debounced write per change. Firestore's free allowance is 50k reads and 20k writes a day. The
@@ -3626,7 +3666,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tableBreak.ts` | When the field fits fewer tables, which one breaks, and where its players sit. **Only the broken table moves**; the rest renumber, because the model stores a table COUNT, not a set. |
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
-| `recentPlayers.ts` | The names Add Player offers, and the ONLY list of them: newest first, one entry per person, twenty kept, each with an ×. Per device. |
+| `recentPlayers.ts` | The names Add Player offers, and the ONLY list of them: newest first, one entry per person, fifty kept, each with an ×. Which copy wins when the account's and the device's differ — **never a union**. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
 | `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and every figure one night knows about a player. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |
 | `resultColumns.ts` | Which columns a results table can show, what each cell says, and which ones this game can offer at all. **A column whose feature is switched off is not drawn.** |
@@ -3708,10 +3748,6 @@ season, so the screen and the database cannot disagree.
   "Recent Players is the one list of names". The data can be corrected by hand in the Firebase
   console: rename the `leaguePlayers` document, and never delete it, for the roster-outer reason
   recorded in that section.
-
-- **Recent Players is per device and holds twenty names**, so a new device starts with an empty
-  list and a league larger than twenty does not fit on one. The League Roster list, which followed
-  the league across devices, was removed on request as doing the same job twice.
 
 ---
 

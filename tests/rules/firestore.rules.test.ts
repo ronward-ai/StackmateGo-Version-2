@@ -642,3 +642,35 @@ describe('league privacy', () => {
     await assertFails(updateDoc(doc(anonAuth(), 'leagueSettings', 'settings-1'), { isDefault: false }));
   });
 });
+
+/**
+ * `userSettings/{uid}` holds the synced setup and, since Recent Players followed
+ * the account, a list of real people's names. It had no rules coverage at all.
+ * The rule is `isOwner(userId)` with no field whitelist — which is why the new
+ * `recentPlayers` field needed no deploy, and why owner-only is the whole of the
+ * protection: nobody else may read the names, let alone write them.
+ */
+describe('a director’s own settings document', () => {
+  const NAMES = { recentPlayers: [{ name: 'Amy Fletcher', lastUsed: 1 }] };
+
+  it('lets the owner write and read their recent players, merged beside the setup', async () => {
+    await assertSucceeds(setDoc(doc(director(), 'userSettings', DIRECTOR), { setup: { a: 1 } }, { merge: true }));
+    await assertSucceeds(setDoc(doc(director(), 'userSettings', DIRECTOR), NAMES, { merge: true }));
+    const snap = await getDoc(doc(director(), 'userSettings', DIRECTOR));
+    expect(snap.data()?.setup).toEqual({ a: 1 });
+    expect(snap.data()?.recentPlayers).toEqual(NAMES.recentPlayers);
+  });
+
+  it('stops anybody else reading them', async () => {
+    await assertSucceeds(setDoc(doc(director(), 'userSettings', DIRECTOR), NAMES, { merge: true }));
+    await assertFails(getDoc(doc(stranger(), 'userSettings', DIRECTOR)));
+    await assertFails(getDoc(doc(anonAuth(), 'userSettings', DIRECTOR)));
+    await assertFails(getDoc(doc(anon(), 'userSettings', DIRECTOR)));
+  });
+
+  it('stops anybody else writing them', async () => {
+    await assertFails(setDoc(doc(stranger(), 'userSettings', DIRECTOR), NAMES, { merge: true }));
+    await assertFails(setDoc(doc(anonAuth(), 'userSettings', DIRECTOR), NAMES, { merge: true }));
+    await assertFails(setDoc(doc(anon(), 'userSettings', DIRECTOR), NAMES, { merge: true }));
+  });
+});

@@ -22,10 +22,9 @@ import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
-import { useAuth } from '@/hooks/useAuth';
-import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { seasonLine } from '@/lib/seasonProgress';
-import { addRecent, removeRecent, type RecentPlayer } from '@/lib/recentPlayers';
+import { type RecentPlayer } from '@/lib/recentPlayers';
+import { useRecentPlayers } from '@/hooks/useRecentPlayers';
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useToast } from '@/hooks/use-toast';
@@ -40,13 +39,6 @@ interface PlayerSectionProps {
 export default function PlayerSection({ tournament, failsafeFor = null }: PlayerSectionProps) {
   const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
   const { toast } = useToast();
-  const { user, isAnonymous } = useAuth();
-
-  // Resolved at call time rather than captured: loadRecentPlayers and
-  // saveRecentPlayer are plain functions re-created each render, but the effect
-  // that calls the first one has an empty dependency array, so reading through
-  // a function keeps both honest about who is signed in NOW.
-  const recentPlayersUid = () => (isAnonymous ? null : (user?.id ?? lastSignedInUid()));
 
   /**
    * Put a player back in, and offer one tap to take it back.
@@ -142,7 +134,8 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
   const [hitmanId, setHitmanId] = useState<string | null>(null);
 
-  const [recentPlayers, setRecentPlayers] = useState<RecentPlayer[]>([]);
+  // Follows the account — see hooks/useRecentPlayers.ts.
+  const { recentPlayers, add: saveRecentPlayer, remove: removeRecentPlayer } = useRecentPlayers();
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
   const [showAllRecent, setShowAllRecent] = useState(false);
@@ -166,45 +159,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   // Nothing here needs opting out of: the autocomplete fires only when what you
   // type matches a stored name, and the list below appears only when there are
   // names to offer.
-  useEffect(() => {
-    loadRecentPlayers();
-  }, []);
-
-  // Load recent players from localStorage
   //
-  // Per account — see lib/scopedStorage.ts. These are the real names of real
-  // people at someone's game, and they were offered as autocomplete to whoever
-  // signed in next on the same browser.
-  const loadRecentPlayers = () => {
-    try {
-      const stored = readScoped('recentPlayers', recentPlayersUid());
-      if (stored) {
-        const parsed = JSON.parse(stored) as RecentPlayer[];
-        setRecentPlayers(parsed);
-      }
-    } catch (error) {
-      console.error('Failed to load recent players:', error);
-    }
-  };
-
-  /** One writer for the stored list, so the cap and the de-dupe cannot drift
-   *  between adding a name and removing one. See `lib/recentPlayers.ts`. */
-  const persistRecent = (updated: RecentPlayer[]) => {
-    try {
-      setRecentPlayers(updated);
-      writeScoped('recentPlayers', JSON.stringify(updated), recentPlayersUid());
-    } catch (error) {
-      console.error('Failed to save recent players:', error);
-    }
-  };
-
-  const saveRecentPlayer = (name: string) => persistRecent(addRecent(recentPlayers, name));
-
-  /** Reported as names typed wrong once being in the picker for good. No
-   *  confirmation, deliberately: this list is local to this device and typing
-   *  the name again puts it straight back. The league roster is the one that
-   *  carries results, and it is removed from in Manage League. */
-  const removeRecentPlayer = (name: string) => persistRecent(removeRecent(recentPlayers, name));
+  // The × on each row needs no confirmation, deliberately: typing the name again
+  // puts it straight back.
 
   // Get filtered recent players based on search term
   const getFilteredRecentPlayers = () => {

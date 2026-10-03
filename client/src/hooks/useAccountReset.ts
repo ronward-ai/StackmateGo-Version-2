@@ -80,9 +80,14 @@ export function useAccountReset() {
         try {
           const { doc, updateDoc, deleteField } = await import('firebase/firestore');
           const { db } = await import('@/lib/firebase');
-          // Only the setup field. lastSeenAt is the ad-blocker preflight's and
-          // has nothing to do with a director's settings.
-          await updateDoc(doc(db, 'userSettings', uid), { setup: deleteField() });
+          // The setup and the recent names, and nothing else. lastSeenAt is
+          // the ad-blocker preflight's and has nothing to do with either. Both
+          // follow the account, so clearing only the device would have the
+          // next sign-in pull back exactly what was just cleared.
+          await updateDoc(doc(db, 'userSettings', uid), {
+            setup: deleteField(),
+            recentPlayers: deleteField(),
+          });
         } catch (err) {
           // No document yet, or offline. The local clear below is the part the
           // user asked for and must still happen.
@@ -153,11 +158,15 @@ export function useAccountReset() {
         }
       }
 
-      // The account's own setup goes last, and only its fields — the document
-      // may legitimately survive holding lastSeenAt.
+      // The account's own setup and recent names go last, and only those
+      // fields — the document may legitimately survive holding lastSeenAt. The
+      // names especially: they are real people's, and Delete means delete.
       try {
         const { deleteField, updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(collection(db, 'userSettings'), uid), { setup: deleteField() });
+        await updateDoc(doc(collection(db, 'userSettings'), uid), {
+          setup: deleteField(),
+          recentPlayers: deleteField(),
+        });
       } catch {}
 
       clearScopedStorage(uid);
