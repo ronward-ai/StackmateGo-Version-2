@@ -1942,68 +1942,132 @@ Historical results carry none of these fields and stay at 0. `completedTournamen
 record written by `useCompletedTournaments` — does hold per-player rebuys and add-ons, so a backfill
 is possible if it is ever worth doing.
 
-### A misspelt name is RENAMED, and only the roster can be removed from
+### A misspelt name is RENAMED, a retired one is HIDDEN, and neither touches a result
 
 Reported as tedious rather than broken: a name typed wrong once sat in the pickers for good, and
 there was no way to remove or rename a league player at all. The history is worth knowing —
 `useLeague.ts`'s own comment records a `removePlayer: () => {}` no-op being deleted from this hook
-for being *"a real-looking name that silently does nothing and looks like it worked"*. This is that
-feature, actually built.
+for being *"a real-looking name that silently does nothing and looks like it worked"*.
 
-**TWO lists carry the name and they are different stores**, which is why one fix would not have done:
+**The first version of this shipped a Remove that deleted the player AND their results, and it was
+reported straight back: a director tidying the roster must not lose the league's history to do it.**
+That is the section this one replaces, and it was wrong in a way worth keeping, because **the obvious
+alternative is worse.**
+
+**The results join is ROSTER-OUTER.** `useLeague.ts` builds every row by walking players and pulling
+results in — `cloudResults.filter(r => r.leaguePlayerId === player.id)` — and **nothing in the app
+ever iterates `tournamentResults` as the outer loop**: not the standings, not the CSV, not the PNG,
+not `seasonProgress.ts`'s counters. So:
+
+| | what it costs |
+|---|---|
+| delete the player AND their results | real history, gone |
+| delete the player, KEEP their results | **invisible orphans** — absent from the standings, from `countGamesPlayed` and therefore from `nextGameNumber`, which goes BACKWARDS, while the rows are still stored |
+
+The second is the `lib/accountWipe.ts` `DELETION_ORDER` hazard in miniature. **There is no safe
+deletion for a player who has played**, so the action a director reaching for "this name won't play
+again" actually wants is a **HIDE**.
+
+**TWO lists carry a name and they are different stores**, which is why one fix would not have done:
 
 | Picker | Source | Cost of removing |
 |---|---|---|
 | **Recent Players** | `recentPlayers` in localStorage, per account per device, capped at 20 | none — retyping the name puts it back |
-| **League Roster** chips | `leaguePlayers` in Firestore | real: a player exists there ONLY because a result was recorded for them |
+| **League Roster** chips | `leaguePlayers` in Firestore | the above |
 
-**RENAME is the headline and remove is the escape hatch, because a result carries no name.**
-`addResultMutation` writes `leaguePlayerId` and nothing else identifying, so correcting the player
-document fixes every past night in the standings AND the drill-down at once, and future games match
-the new spelling. Nothing is lost and nothing is migrated. Removal is the opposite trade: a player
-reaches `leaguePlayers` only through `recordResultByName`, which creates one on their first result, so
-**"remove" always means "and their results"** — and a guard refusing to delete a player who has any
-would be disabled on every name in the league, including the one being removed. So it confirms and
-**names the count** instead.
+So three actions, and `lib/leagueRoster.ts` owns all three rules:
 
-**`lib/leagueRoster.ts`'s `rosterNameConflict` is the whole safety of the rename.**
-`recordResultByName` matches by NAME, so two players in one league sharing one would send future
-nights to whichever `find` reaches first — and the roster picker **de-dupes by name**, so the
-duplicate would be *invisible* while quietly splitting the league's history. `exceptId` is not
-defence: without it a player could never be renamed to their own name, so fixing `dave` to `Dave` —
-a capitalisation fix, the commonest kind — would be refused by the very feature meant to allow it. A
-mutant dropping it turns a test red, and one making the comparison case-sensitive turns three.
+- **Rename** is the fix for a misspelling and costs nothing. `addResultMutation` writes
+  `leaguePlayerId` and **no player name**, so correcting the document fixes every past night in the
+  standings AND the drill-down at once, and future games match the new spelling.
+- **Hide** (`archived: true`) is what "remove from the roster" means. No confirmation — nothing is
+  lost and Show is on the same row.
+- **Delete** is for a phantom with **no results at all**, and renders **disabled carrying its
+  reason** otherwise, naming the two things that do work. The `lib/entryLimits.ts` →
+  `PlayerEntryActions` pattern: the wording lives with the rule, because a greyed button with no
+  reason is the dead control that produced `rebuyUnavailableReason`. A phantom is genuinely
+  reachable — `removeTournamentResultForPlayer` takes a result back when a rebuy undoes a bust-out.
+
+**The hide is honoured in exactly TWO places, and the exclusions are the design.**
+
+- **`offerableRoster`** — the Add Player lists. It also absorbed the de-dupe (*"Firestore may have
+  stale duplicate docs"*) and the already-seated exclusion, which were inline in `PlayerSection`: the
+  `seatablePlayers()` argument, and the shape every defect in that file has had.
+- **`rosterForStandings`** — no row for a hidden player in a season they **did not play**. One call
+  feeds `playersWithStats`, the movement arrows, `displayPlayers`, the CSV and `StandingsSheet`, so
+  five consumers cannot disagree about who is in the table.
+
+**Everything else goes on counting them exactly as before**, and `seasonProgress.ts` is the one that
+matters: excluding a hidden player from `countGamesPlayed`/`gameNumberFor`/`nextGameNumber` **would
+move the league's game number**. That is a fact about the league, not a preference about a list.
+
+Four things are load-bearing:
+
+- **A hidden player who DID play a season is still listed in it.** Their results are real and the
+  season has to add up; hiding is about not being offered, never about being erased. A mutant that
+  drops them outright turns a test red — it is the reported bug with a flag on it.
+- **A player who is NOT hidden keeps their row of zeros**, which is today's behaviour and is left
+  alone. Only the hidden ones go.
+- **The standings drop only applies once `seasonId` is RESOLVED.** The unresolved branch hands
+  everybody an empty result list, so filtering there would drop every hidden player for a frame and
+  then bring back the ones who played — a flicker. Before the season is known, "no games this season"
+  is not an answer, it is "not loaded": the `missing` vs `error` distinction `pinIsDead()` draws.
+- **A HIDDEN player still blocks a rename.** `recordResultByName` matches by name over every document
+  regardless of the flag, so a hidden namesake would still capture future nights — invisibly, because
+  they are hidden. Hiding takes a name out of the pickers; it does not release the name.
+
+**Recording a result for a hidden player clears the flag.** Having played is a fact about the night
+and hiding is a preference about a list, so the fact wins — the `payoutsOf()` instinct. Leaving it on
+would put somebody in tonight's game who is missing from the roster picker, which is the state this
+feature exists to prevent rather than create. Best effort: a failure to clear it must never fail the
+result.
+
+**Hiding reaches Recent Players too**, and that is deliberate even though they are different stores:
+the complaint named both lists, and hiding Dave in Manage League while Dave stayed in Recent Players
+would half-answer it. It filters what is OFFERED and never what is stored, so the per-row × still
+works — that × is the only control for a name with **no** league player behind it.
+
+**`leaguePlayerDocs` is the un-merged roster, and it corrects a claim this section used to make.**
+The hook merges duplicate-named documents into one row (`useLeague.ts:265-283`) before any consumer
+sees them, so the old note's *"the admin list does NOT de-dupe… this is the screen for removing it"*
+was **simply untrue** — the tab was handed the merged list and never saw a duplicate. It reads
+documents now, which makes it true, and `archived` belongs to a document anyway. The **merged** row
+is hidden only when EVERY document of that name is hidden: hiding one of two namesakes must not take
+the active one's history off the table.
 
 **Merging two players is deliberately NOT offered.** A merge has to guess which results belong to
-whom, and guessing wrong is how a league loses its standings. The refusal says what to do instead:
-rename the one that has the history, remove the phantom.
+whom, and guessing wrong is how a league loses its standings. Rename the one that has the history,
+hide or delete the other.
 
-**The admin list does NOT de-dupe by name, and the picker does.** That asymmetry is the point rather
-than an inconsistency — the picker's own comment says *"Firestore may have stale duplicate docs"*, and
-**a duplicate you cannot see is a duplicate you cannot remove.** This is the screen for removing it,
-so it shows every document.
+**No Firestore rule to publish by hand** — the trap this file opens with. `leaguePlayers` update is
+`ownsLeague(resource.data.leagueId) && staysInLeague()` with no `affectedKeys().hasOnly([...])` and
+no field typing, so the owner may add a key that was never on the document. Two rules tests now
+assert that rather than a reading of the file, because neither was covered: **adding a
+previously-absent field**, and **deleting a league player** — the nearest existing test only mutated
+a field already there, and `deleteDoc` on this collection was asserted nowhere. Both go red under a
+mutant that adds a whitelist. And it must be **`updateDoc`, never `setDoc`**: `staysInLeague()`
+compares `request.resource.data.leagueId` to the stored one, so a full overwrite that dropped
+`leagueId` would be denied — the one way to trip that rule while "just adding a field". A test pins
+that too.
 
-**It is a fourth Manage League tab (`components/LeaguePlayersTab.tsx`), not a control on the roster
-chips.** Same argument that moved the league Danger Zone into the Seasons tab: a destructive,
-irreversible Firestore delete must not sit one tap from the name a director is reaching for in the
-middle of a game. Fixing the roster there still fixes the picker, because the chips read
-`leaguePlayers`. A read-only console needs no new gate — `PokerTimer` already withholds Manage League.
+Ten mutants are caught across `lib/leagueRoster.ts`, including `isHidden` reading truthiness rather
+than `=== true` — every player written before this carries no flag, so that one would empty the Add
+Player picker for every existing league.
 
-**`lib/recentPlayers.ts` is the local list, lifted out of `PlayerSection` unchanged** — newest first,
-case-insensitive de-dupe, capped at 20, all of which were inline and had no test by construction.
-Each expanded row gains an ×, with **no confirmation**, because the worst outcome is retyping a name.
-Both writers go through one `persistRecent`, so `lib/scopedStorage.ts`'s storage-health banner still
-covers a failed write.
+**Driven, because the lib being right is not the question.** With a stubbed roster behind the real
+`PlayerSection` (the devstub's Firestore is offline, so `leaguePlayers` is empty there and the chips
+never render): a hidden Dave is absent from `League Roster (3 available)` and from
+`Recent Players (3)`, **Show** puts him back in both at 4, hiding Amy — who has two results — takes
+her out of both immediately with no dialog, and Delete is enabled on precisely one row, the player
+with 0 games. `Walk In`, a recent name with no league player behind it, keeps its ×. Probe behind a
+`ROSTER_PROBE_REMOVE_ME` marker, removed and verified by grepping file **content** — and worth
+recording: the first `rm` never ran, because the `pkill` ahead of it in the chain exited non-zero.
+That is the whole argument for grep over memory.
 
-**No Firestore rule to publish by hand**, which is the trap this file opens with: `leaguePlayers`
-already allows the owner `update` (with `staysInLeague()`) and `delete`, and `deleteLeague` already
-performs exactly these two deletes in this order.
-
-Verified by driving the Recent Players × in the devstub — four rows, remove one, three left, and the
-list genuinely survives a reload (the first harness re-seeded storage on every load, so "it
-persisted" proved nothing until the seed was made conditional). **The Manage League tab's writes
-cannot be driven there** — the devstub's Firestore is offline — so that half rests on the unit and
-component tests, which is worth saying rather than implying.
+**The standings row-drop cannot be driven**, and is stated rather than implied: the devstub has no
+roster to render a table from, and `RealTimeLeagueTable` has no test because it needs three hooks and
+real Firestore. That is *why* the derivation was extracted — the call site is now a single function
+call with nothing left to get wrong, and the rules live where they can be tested.
 
 ### Late entry is a stated window that WARNS, and that is the whole feature
 
@@ -3630,7 +3694,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tableBreak.ts` | When the field fits fewer tables, which one breaks, and where its players sit. **Only the broken table moves**; the rest renumber, because the model stores a table COUNT, not a set. |
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
 | `playerSeason.ts` | One player's season game by game, and its totals. |
-| `leagueRoster.ts` | Whether a league player may be given a name — the one rule a rename needs, since `recordResultByName` matches by NAME and the picker de-dupes by it. |
+| `leagueRoster.ts` | Who the roster offers, who the standings list, what a player may be called and when one may be deleted. **There is no safe deletion for a player who has played** — the results join is roster-outer — so removing one is a HIDE. |
 | `recentPlayers.ts` | The names Add Player offers: newest first, one entry per person, twenty kept. Per device, never the roster. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
 | `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and every figure one night knows about a player. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |

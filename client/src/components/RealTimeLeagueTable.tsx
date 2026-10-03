@@ -16,6 +16,7 @@ import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { isLeagueTournament } from '@/lib/tournamentMode';
 import { currencyOf, money } from '@/lib/currency';
+import { rosterForStandings } from '@/lib/leagueRoster';
 import { countGamesPlayed } from '@/lib/seasonProgress';
 import EmptyState from '@/components/ui/empty-state';
 import { totalsAcross } from '@/lib/resultStats';
@@ -114,19 +115,19 @@ function RealTimeLeagueTable({
   const rawSeasonId = currentSeason?.id ? String(currentSeason.id) : null;
   const baseSeasonId = rawSeasonId === 'default-season' ? null : rawSeasonId;
   const seasonId = seasonIdOverride ? String(seasonIdOverride) : baseSeasonId;
-  const seasonFilteredPlayers = useMemo(() => {
-    if (!Array.isArray(leaguePlayers)) return [];
-    if (!seasonId) {
-      // Season not yet confirmed from Firestore — show players with no results
-      return leaguePlayers.map(player => ({ ...player, tournamentResults: [] }));
-    }
-    return leaguePlayers.map(player => ({
-      ...player,
-      tournamentResults: (player.tournamentResults || []).filter(
-        (r: any) => r.seasonId === seasonId
-      )
-    }));
-  }, [leaguePlayers, seasonId]);
+  /**
+   * The rows this season has, from `lib/leagueRoster.ts`.
+   *
+   * One call, because everything below derives from it — `playersWithStats`,
+   * the movement arrows, `displayPlayers`, the CSV and `StandingsSheet` — so
+   * five consumers cannot disagree about who is in the table. It also carries
+   * the Hide rule: a hidden player gets no row in a season they did not play,
+   * and is listed exactly as before in one they did.
+   */
+  const seasonFilteredPlayers = useMemo(
+    () => rosterForStandings(leaguePlayers as any[], seasonId),
+    [leaguePlayers, seasonId],
+  );
 
   // Derive "previous rankings" from data: rankings before the most recent tournament.
   // This is always accurate regardless of component lifecycle / remounts.

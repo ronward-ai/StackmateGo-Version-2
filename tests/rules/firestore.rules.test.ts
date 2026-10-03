@@ -475,6 +475,39 @@ describe('moving documents between leagues', () => {
     await assertSucceeds(updateDoc(doc(director(), 'seasons', 'season-1'), { name: 'Spring' }));
   });
 
+  /**
+   * Hide writes a field that is on NO existing document.
+   *
+   * The rule is `ownsLeague(...) && staysInLeague()` with no
+   * `affectedKeys().hasOnly([...])` and no field typing, so this passes and the
+   * feature needs no hand-deployed rules change — which is the trap CLAUDE.md
+   * opens with, and worth an assertion rather than a reading of the file. The
+   * nearest existing test only mutates a field that is already there.
+   */
+  it('lets an owner add a field that was never on the document', async () => {
+    await assertSucceeds(updateDoc(doc(director(), 'leaguePlayers', 'player-1'), { archived: true }));
+    await assertSucceeds(updateDoc(doc(director(), 'leaguePlayers', 'player-1'), { archived: false }));
+  });
+
+  // `updateDoc` merges, so the untouched leagueId carries through and
+  // staysInLeague() is satisfied. A full overwrite that DROPPED leagueId is the
+  // one way to trip that rule while "just adding a field", so it is pinned.
+  it('stops a write that drops leagueId while adding a field', async () => {
+    await assertFails(setDoc(doc(director(), 'leaguePlayers', 'player-1'), {
+      name: 'Alicia', archived: true,
+    }));
+  });
+
+  /**
+   * Deleting a league player was asserted NOWHERE, for either party. It is
+   * reachable from the roster admin for a player with no results, so both ends
+   * of it belong in the suite.
+   */
+  it('lets an owner delete a league player, and nobody else', async () => {
+    await assertFails(deleteDoc(doc(stranger(), 'leaguePlayers', 'player-1')));
+    await assertSucceeds(deleteDoc(doc(director(), 'leaguePlayers', 'player-1')));
+  });
+
   // Restating leagueId unchanged must still work: the app writes whole objects
   // in places, so a pin that only tolerated absence would break real writes.
   it('allows a write that restates the same leagueId', async () => {

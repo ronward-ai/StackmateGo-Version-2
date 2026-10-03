@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { seasonLine } from '@/lib/seasonProgress';
 import { addRecent, removeRecent, type RecentPlayer } from '@/lib/recentPlayers';
+import { offerableRoster, isHidden } from '@/lib/leagueRoster';
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
@@ -210,9 +211,33 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
    *  carries results, and it is removed from in Manage League. */
   const removeRecentPlayer = (name: string) => persistRecent(removeRecent(recentPlayers, name));
 
+  /**
+   * Hiding a league player takes their name out of BOTH lists.
+   *
+   * The two stores are separate — Recent Players is per-device localStorage and
+   * the roster is Firestore — but the complaint that produced all of this named
+   * them together, and hiding Dave in Manage League while Dave stays in Recent
+   * Players would only half-answer it.
+   *
+   * It filters what is OFFERED and never what is stored, so the per-row × below
+   * still works on the real list: that × is the only control for a name with no
+   * league player behind it.
+   */
+  const hiddenRosterNames = useMemo(
+    () => new Set(
+      (leaguePlayers as any[]).filter(isHidden).map((p: any) => (p.name || '').trim().toLowerCase()),
+    ),
+    [leaguePlayers],
+  );
+
+  const offerableRecent = useMemo(
+    () => recentPlayers.filter(p => !hiddenRosterNames.has((p.name || '').trim().toLowerCase())),
+    [recentPlayers, hiddenRosterNames],
+  );
+
   // Get filtered recent players based on search term
   const getFilteredRecentPlayers = () => {
-    const availablePlayers = recentPlayers.filter(player => 
+    const availablePlayers = offerableRecent.filter(player => 
       !state.players.some(p => p.name.toLowerCase() === player.name.toLowerCase())
     );
 
@@ -238,9 +263,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
   // Filter names based on input
   useEffect(() => {
-    if (playerName.trim() && recentPlayers.length > 0) {
+    if (playerName.trim() && offerableRecent.length > 0) {
       const searchTerm = playerName.toLowerCase();
-      const filtered = recentPlayers
+      const filtered = offerableRecent
         .filter(p => 
           p.name.toLowerCase().includes(searchTerm) &&
           !state.players.some(player => player.name.toLowerCase() === p.name.toLowerCase())
@@ -259,7 +284,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
       setFilteredNames([]);
       setShowAutocomplete(false);
     }
-  }, [playerName, recentPlayers, state.players]);
+  }, [playerName, offerableRecent, state.players]);
 
   // Handle clicks/touches outside autocomplete (touch-safe for mobile/iPad)
   const handleClickOutside = (event: MouseEvent | TouchEvent) => {
@@ -625,16 +650,12 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
           {/* League Roster Quick-Add - shown in league mode, behind toggle */}
           {isLeagueMode && leaguePlayers.length > 0 && (() => {
-            // Deduplicate by name (Firestore may have stale duplicate docs)
-            const seen = new Set<string>();
-            const available = leaguePlayers
-              .filter((lp: any) => {
-                const key = (lp.name || '').toLowerCase();
-                if (!key || state.players.some(p => p.name.toLowerCase() === key) || seen.has(key)) return false;
-                seen.add(key);
-                return true;
-              })
-              .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+            /* The de-dupe (Firestore may have stale duplicate docs), the
+               already-seated exclusion and the Hide flag all live in
+               `lib/leagueRoster.ts` now. This filter was inline, which is the
+               shape every defect in this file has had: correct in isolation,
+               wrong in a few lines of component with no test by construction. */
+            const available = offerableRoster(leaguePlayers as any[], state.players.map(p => p.name));
             return (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -679,7 +700,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
           })()}
 
           {/* Quick Add Recent Players - Compact View */}
-          {recentPlayers.length > 0 && (
+          {offerableRecent.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Button
@@ -688,7 +709,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                   onClick={() => setShowAllRecent(!showAllRecent)}
                   className="text-label text-muted-foreground hover:text-foreground h-6 px-0 font-medium"
                 >
-                  Recent Players ({recentPlayers.length})
+                  Recent Players ({offerableRecent.length})
                 </Button>
                 {showAllRecent && (
                   <Button

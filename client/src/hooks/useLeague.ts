@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { buyInOf, investedIn } from '@/lib/resultStats';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
@@ -49,6 +49,30 @@ export interface LeaguePlayer {
   totalPoints: number;
   tournamentResults: TournamentResult[];
   seasonId?: number | string;
+  /**
+   * Set by Hide, and honoured in exactly TWO places — the Add Player lists
+   * (`offerableRoster`) and an empty standings row (`rosterForStandings`).
+   * Deliberately NOT honoured by `seasonProgress.ts`'s counters: excluding a
+   * hidden player there would move the league's game number, which is a fact
+   * about the league rather than a preference about a list.
+   */
+  archived?: boolean;
+}
+
+/**
+ * One `leaguePlayers` DOCUMENT, before the name merge below folds duplicates
+ * together — the shape the Manage League roster admin needs.
+ *
+ * The merge is right for every display: it means a stale duplicate document
+ * shows as one row rather than two. But it also means no consumer has ever been
+ * able to SEE a duplicate, let alone remove one, and `archived` is per document
+ * anyway. A duplicate you cannot see is a duplicate you cannot remove.
+ */
+export interface LeaguePlayerDoc {
+  id: string;
+  name: string;
+  archived: boolean;
+  resultCount: number;
 }
 
 // Default league setup - ensures users always have a league to work with
@@ -263,7 +287,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   // Duplicate player docs can arise from concurrent recording — merge them so the
   // table always shows one row per player, with results deduplicated by tournamentId.
   const leaguePlayers: LeaguePlayer[] = (() => {
-    const byName = new Map<string, { primaryPlayer: any; mergedResults: any[] }>();
+    const byName = new Map<string, { primaryPlayer: any; mergedResults: any[]; allArchived: boolean }>();
 
     cloudPlayers.forEach((player: any) => {
       const key = (player.name || '').toLowerCase().trim();
@@ -271,6 +295,9 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
 
       if (byName.has(key)) {
         const entry = byName.get(key)!;
+        // Hidden only when EVERY document of this name is hidden. Hiding one of
+        // two namesakes must not take the active one's history off the table.
+        entry.allArchived = entry.allArchived && player.archived === true;
         playerResults.forEach(r => {
           const alreadyPresent = r.tournamentId
             ? entry.mergedResults.some(existing => existing.tournamentId === r.tournamentId)
@@ -278,15 +305,20 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
           if (!alreadyPresent) entry.mergedResults.push(r);
         });
       } else {
-        byName.set(key, { primaryPlayer: player, mergedResults: [...playerResults] });
+        byName.set(key, {
+          primaryPlayer: player,
+          mergedResults: [...playerResults],
+          allArchived: player.archived === true,
+        });
       }
     });
 
-    return Array.from(byName.values()).map(({ primaryPlayer, mergedResults }) => {
+    return Array.from(byName.values()).map(({ primaryPlayer, mergedResults, allArchived }) => {
       const totalPoints = mergedResults.reduce((sum, r) => sum + (r.points || 0), 0);
       return {
         id: primaryPlayer.id.toString(),
         name: primaryPlayer.name,
+        archived: allArchived,
         totalPoints,
         tournamentResults: mergedResults.map((result: any) => ({
           id: result.id.toString(),
@@ -314,6 +346,25 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       };
     });
   })();
+
+  /**
+   * The roster as DOCUMENTS, un-merged, each with its own result count.
+   *
+   * Everything that displays the roster wants the merged list above. The Manage
+   * League roster admin wants this one: it is the screen for correcting and
+   * tidying the data, so it has to be able to see a stale duplicate document
+   * that the merge hides, and `archived` belongs to a document rather than to a
+   * name.
+   */
+  const leaguePlayerDocs: LeaguePlayerDoc[] = useMemo(
+    () => (cloudPlayers ?? []).map((player: any) => ({
+      id: String(player.id),
+      name: player.name || '',
+      archived: player.archived === true,
+      resultCount: (cloudResults ?? []).filter((r: any) => r.leaguePlayerId === player.id).length,
+    })),
+    [cloudPlayers, cloudResults],
+  );
 
   const isLoading = leaguesLoading || playersLoading || resultsLoading || createLeagueMutation.isPending;
   const error = playersError || createLeagueMutation.error;
@@ -500,6 +551,27 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         }
       }
 
+      /**
+       * A hidden player who turns up and plays is evidently playing again.
+       *
+       * Hiding is a preference about a list; having played is a fact about the
+       * night, and the fact wins — the `payoutsOf()` instinct. Leaving the flag
+       * on would put somebody in tonight's game who is missing from the roster
+       * picker, which is the state this feature exists to avoid rather than to
+       * create. Note the match above is by NAME over every document regardless
+       * of the flag, so a hidden player is found here exactly as before.
+       *
+       * Best effort: a result that is recorded but could not clear the flag is
+       * far better than a result that failed because of a tidying preference.
+       */
+      if (targetPlayer?.archived === true) {
+        try {
+          await updateDoc(doc(db, 'leaguePlayers', String(targetPlayer.id)), { archived: false });
+        } catch (error) {
+          console.error('Could not un-hide a league player who has played:', error);
+        }
+      }
+
       // Deduplicate: skip if a result already exists for this player+tournament.
       // Use ref to always read the latest results — cloudResults in closure may be stale.
       //
@@ -625,13 +697,52 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   }, [currentLeagueId, queryClient]);
 
   /**
-   * Remove a player from the league, and the results that are why they exist.
+   * Stop offering a player without touching a thing they have done.
    *
-   * A player reaches this collection ONLY through `recordResultByName`, which
-   * creates one on their first result — so there is no such thing as removing a
-   * player without touching history, and a guard refusing one who has any would
-   * be disabled on every name including the one being removed. The caller says
-   * how many nights go with them and asks first.
+   * **This is what "remove from the roster" actually means**, and the reason it
+   * is not a delete is in `lib/leagueRoster.ts`'s header: the results join is
+   * roster-outer, so deleting the player either takes real history with them or
+   * leaves rows nothing can ever reach again.
+   *
+   * `updateDoc`, never `setDoc`. `firestore.rules`'s `staysInLeague()` compares
+   * `request.resource.data.leagueId` against the stored one, and a full
+   * overwrite that omitted `leagueId` would be denied — the one way to trip that
+   * rule while "just adding a field". A merge write carries it through.
+   *
+   * No rules deploy is needed for the field itself: `leaguePlayers` update is
+   * `ownsLeague(...) && staysInLeague()` with no `affectedKeys().hasOnly([...])`
+   * and no field typing, so the owner may add a key that was never there.
+   */
+  const setLeaguePlayerHidden = useCallback(async (playerId: string, hidden: boolean) => {
+    if (!playerId) return;
+    try {
+      await updateDoc(doc(db, 'leaguePlayers', String(playerId)), {
+        archived: hidden === true,
+        updatedAt: serverTimestamp(),
+      });
+      if (currentLeagueId) {
+        queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
+      }
+    } catch (error) {
+      console.error('Error hiding league player:', error);
+      throw error;
+    }
+  }, [currentLeagueId, queryClient]);
+
+  /**
+   * Delete a player document outright — reachable ONLY for one with no results.
+   *
+   * `lib/leagueRoster.ts`'s `deleteBlockedReason` is the gate, and its header
+   * says why there is no safe deletion for a player with history. A phantom is
+   * real though: `removeTournamentResultForPlayer` above takes a result back
+   * when a rebuy undoes a bust-out, so a document whose only night was reverted
+   * has nothing behind it.
+   *
+   * **The result cascade stays even so, and it is a race guard rather than dead
+   * code.** A result landing between the render that enabled the button and the
+   * press would otherwise be orphaned — invisible to the roster-outer join, and
+   * the exact fault this whole change exists to avoid. Deleting zero rows costs
+   * nothing; leaving one costs the league's game count.
    *
    * Results FIRST, then the player, which is the shape `deleteLeague` below
    * already uses: both are deleted under `ownsLeague(leagueId)`, so the league
@@ -729,7 +840,9 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     deleteLeague,
     leaguePlayers,
     renameLeaguePlayer,
+    setLeaguePlayerHidden,
     removeLeaguePlayer,
+    leaguePlayerDocs,
     recordResultByName,
     removeTournamentResultForPlayer,
     calculatePoints: calculatePointsFromSettings,
