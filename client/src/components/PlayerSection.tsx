@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -26,9 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { seasonLine } from '@/lib/seasonProgress';
 import { addRecent, removeRecent, type RecentPlayer } from '@/lib/recentPlayers';
-import { offerableRoster, isHidden } from '@/lib/leagueRoster';
 import PlayerEntryActions from '@/components/PlayerEntryActions';
-import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
@@ -87,7 +85,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
       ),
     });
   };
-  const { leaguePlayers } = useLeague();
   const tournamentLeagueId = (state.settings as any)?.leagueId
     ?? (state.details as any)?.leagueId
     ?? null;
@@ -149,7 +146,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
   const [showAllRecent, setShowAllRecent] = useState(false);
-  const [showLeagueRoster, setShowLeagueRoster] = useState(false);
   const [recentSearchTerm, setRecentSearchTerm] = useState('');
   const [playerToRemove, setPlayerToRemove] = useState<Player | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -169,8 +165,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   //
   // Nothing here needs opting out of: the autocomplete fires only when what you
   // type matches a stored name, and the list below appears only when there are
-  // names to offer. That is exactly how League Roster quick-add behaves a few
-  // lines down, and it has never had a switch either.
+  // names to offer.
   useEffect(() => {
     loadRecentPlayers();
   }, []);
@@ -211,33 +206,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
    *  carries results, and it is removed from in Manage League. */
   const removeRecentPlayer = (name: string) => persistRecent(removeRecent(recentPlayers, name));
 
-  /**
-   * Hiding a league player takes their name out of BOTH lists.
-   *
-   * The two stores are separate — Recent Players is per-device localStorage and
-   * the roster is Firestore — but the complaint that produced all of this named
-   * them together, and hiding Dave in Manage League while Dave stays in Recent
-   * Players would only half-answer it.
-   *
-   * It filters what is OFFERED and never what is stored, so the per-row × below
-   * still works on the real list: that × is the only control for a name with no
-   * league player behind it.
-   */
-  const hiddenRosterNames = useMemo(
-    () => new Set(
-      (leaguePlayers as any[]).filter(isHidden).map((p: any) => (p.name || '').trim().toLowerCase()),
-    ),
-    [leaguePlayers],
-  );
-
-  const offerableRecent = useMemo(
-    () => recentPlayers.filter(p => !hiddenRosterNames.has((p.name || '').trim().toLowerCase())),
-    [recentPlayers, hiddenRosterNames],
-  );
-
   // Get filtered recent players based on search term
   const getFilteredRecentPlayers = () => {
-    const availablePlayers = offerableRecent.filter(player => 
+    const availablePlayers = recentPlayers.filter(player => 
       !state.players.some(p => p.name.toLowerCase() === player.name.toLowerCase())
     );
 
@@ -263,9 +234,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
   // Filter names based on input
   useEffect(() => {
-    if (playerName.trim() && offerableRecent.length > 0) {
+    if (playerName.trim() && recentPlayers.length > 0) {
       const searchTerm = playerName.toLowerCase();
-      const filtered = offerableRecent
+      const filtered = recentPlayers
         .filter(p => 
           p.name.toLowerCase().includes(searchTerm) &&
           !state.players.some(player => player.name.toLowerCase() === p.name.toLowerCase())
@@ -284,7 +255,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
       setFilteredNames([]);
       setShowAutocomplete(false);
     }
-  }, [playerName, offerableRecent, state.players]);
+  }, [playerName, recentPlayers, state.players]);
 
   // Handle clicks/touches outside autocomplete (touch-safe for mobile/iPad)
   const handleClickOutside = (event: MouseEvent | TouchEvent) => {
@@ -648,59 +619,8 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
             </Button>
           </div>
 
-          {/* League Roster Quick-Add - shown in league mode, behind toggle */}
-          {isLeagueMode && leaguePlayers.length > 0 && (() => {
-            /* The de-dupe (Firestore may have stale duplicate docs), the
-               already-seated exclusion and the Hide flag all live in
-               `lib/leagueRoster.ts` now. This filter was inline, which is the
-               shape every defect in this file has had: correct in isolation,
-               wrong in a few lines of component with no test by construction. */
-            const available = offerableRoster(leaguePlayers as any[], state.players.map(p => p.name));
-            return (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowLeagueRoster(v => !v)}
-                    className="text-label text-muted-foreground hover:text-foreground h-6 px-0 font-medium"
-                  >
-                    <Users className="h-3 w-3 mr-1" />
-                    League Roster ({available.length} available)
-                  </Button>
-                  {showLeagueRoster && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowLeagueRoster(false)}
-                      className="text-label text-muted-foreground hover:text-foreground h-6 px-2"
-                    >
-                      Show Less
-                    </Button>
-                  )}
-                </div>
-                {showLeagueRoster && available.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {available.map((lp: any) => (
-                      <button
-                        key={lp.id}
-                        onClick={() => handleSelectName(lp.name)}
-                        className="inline-flex items-center px-2.5 py-1 rounded-full text-caption font-medium bg-white/5 border border-white/10 text-foreground/80 hover:bg-white/10 hover:text-foreground transition-colors"
-                      >
-                        {lp.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {showLeagueRoster && available.length === 0 && (
-                  <p className="text-xs text-muted-foreground">All league players already added.</p>
-                )}
-              </div>
-            );
-          })()}
-
           {/* Quick Add Recent Players - Compact View */}
-          {offerableRecent.length > 0 && (
+          {recentPlayers.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Button
@@ -709,7 +629,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                   onClick={() => setShowAllRecent(!showAllRecent)}
                   className="text-label text-muted-foreground hover:text-foreground h-6 px-0 font-medium"
                 >
-                  Recent Players ({offerableRecent.length})
+                  Recent Players ({recentPlayers.length})
                 </Button>
                 {showAllRecent && (
                   <Button

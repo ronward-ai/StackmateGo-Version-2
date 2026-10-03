@@ -476,17 +476,18 @@ describe('moving documents between leagues', () => {
   });
 
   /**
-   * Hide writes a field that is on NO existing document.
+   * A field that is on NO existing document.
    *
    * The rule is `ownsLeague(...) && staysInLeague()` with no
-   * `affectedKeys().hasOnly([...])` and no field typing, so this passes and the
-   * feature needs no hand-deployed rules change — which is the trap CLAUDE.md
-   * opens with, and worth an assertion rather than a reading of the file. The
-   * nearest existing test only mutates a field that is already there.
+   * `affectedKeys().hasOnly([...])` and no field typing, so an owner may add a
+   * key that was never there. Whether a new field needs a hand-deployed rules
+   * change is the trap CLAUDE.md opens with, so it is answered by an assertion
+   * rather than by a reading of the file. The test above only mutates a field
+   * that already exists.
    */
   it('lets an owner add a field that was never on the document', async () => {
-    await assertSucceeds(updateDoc(doc(director(), 'leaguePlayers', 'player-1'), { archived: true }));
-    await assertSucceeds(updateDoc(doc(director(), 'leaguePlayers', 'player-1'), { archived: false }));
+    await assertSucceeds(updateDoc(doc(director(), 'leaguePlayers', 'player-1'), { note: 'regular' }));
+    await assertSucceeds(updateDoc(doc(director(), 'leaguePlayers', 'player-1'), { note: '' }));
   });
 
   // `updateDoc` merges, so the untouched leagueId carries through and
@@ -494,14 +495,13 @@ describe('moving documents between leagues', () => {
   // one way to trip that rule while "just adding a field", so it is pinned.
   it('stops a write that drops leagueId while adding a field', async () => {
     await assertFails(setDoc(doc(director(), 'leaguePlayers', 'player-1'), {
-      name: 'Alicia', archived: true,
+      name: 'Alicia', note: 'regular',
     }));
   });
 
   /**
-   * Deleting a league player was asserted NOWHERE, for either party. It is
-   * reachable from the roster admin for a player with no results, so both ends
-   * of it belong in the suite.
+   * Deleting a league player was asserted NOWHERE, for either party, while the
+   * rule allows it for the owner. Both ends belong in the suite.
    */
   it('lets an owner delete a league player, and nobody else', async () => {
     await assertFails(deleteDoc(doc(stranger(), 'leaguePlayers', 'player-1')));
