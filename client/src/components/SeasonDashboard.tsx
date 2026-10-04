@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
 import { useSeasonRollover } from '@/hooks/useSeasonRollover';
+import NewSeasonDialog from '@/components/NewSeasonDialog';
 import { currencyOf, money } from '@/lib/currency';
 
 // Note: a local StandingsTable, a STAT_DEFS label/format map and a computeStats
@@ -48,6 +49,8 @@ export default function SeasonDashboard({
   const leaguePlayers = leaguePlayersProp ?? leaguePlayersFromHook;
 
   const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
+  // Start Next Season leads to set-up rather than creating a copy of this one.
+  const [showNewSeason, setShowNewSeason] = useState(false);
   const {
     endCurrentSeason, startNextSeason, busy: rolloverBusy, error: rolloverError,
   } = useSeasonRollover(currentSeason);
@@ -178,7 +181,7 @@ export default function SeasonDashboard({
             </p>
             {rolloverError && <p className="text-xs text-destructive mt-1">{rolloverError}</p>}
           </div>
-          <Button size="sm" disabled={rolloverBusy} onClick={() => { void startNextSeason(); }} className="flex-shrink-0">
+          <Button size="sm" disabled={rolloverBusy} onClick={() => setShowNewSeason(true)} className="flex-shrink-0">
             {rolloverBusy ? 'Working\u2026' : 'Start Next Season'}
           </Button>
         </div>
@@ -204,7 +207,7 @@ export default function SeasonDashboard({
             <Button size="sm" variant="outline" disabled={rolloverBusy} onClick={endCurrentSeason}>
               End Season
             </Button>
-            <Button size="sm" disabled={rolloverBusy} onClick={() => { void startNextSeason(); }}>
+            <Button size="sm" disabled={rolloverBusy} onClick={() => setShowNewSeason(true)}>
               {rolloverBusy ? 'Working\u2026' : 'Start Next Season'}
             </Button>
           </div>
@@ -255,6 +258,14 @@ export default function SeasonDashboard({
         seasonIdOverride={selectedPastSeasonId}
       />
 
+      <NewSeasonDialog
+        open={showNewSeason}
+        onOpenChange={setShowNewSeason}
+        previousSeason={currentSeason}
+        onCreate={startNextSeason}
+        busy={rolloverBusy}
+        error={rolloverError}
+      />
     </div>
   );
 }

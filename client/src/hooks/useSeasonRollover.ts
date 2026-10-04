@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useLeague } from './useLeague';
 import { useSeasons } from './useSeasons';
-import { nextSeasonDates, suggestNextName } from '@/lib/seasonProgress';
+import { seasonDraftProblem, seasonFromDraft, type SeasonDraft } from '@/lib/seasonProgress';
 
 /**
  * Ending a season and starting the next one.
@@ -33,36 +33,24 @@ export function useSeasonRollover(currentSeason: any) {
   }, [currentSeason?.id, updateSeason]);
 
   /**
-   * End this season and create the one after it, prefilled from this one:
-   * the following calendar period and the same number of games. The new season
-   * becomes current, so the next game counts toward it.
+   * End this season and create the one after it, FROM THE DIRECTOR'S ANSWERS.
+   *
+   * This used to invent the next season — the following period and the same
+   * number of games — and create it on the press of a button, which is wrong for
+   * a league whose seasons follow the calendar. The draft now comes from
+   * `NewSeasonDialog`, prefilled by `nextSeasonDraft` and confirmed by the
+   * director. The new season becomes current, so the next game counts toward it.
    *
    * Resolves to the new season's id, or null when nothing was created — Next
    * Game uses it to move its dialog straight onto the season it just made.
    */
-  const startNextSeason = useCallback(async (): Promise<string | null> => {
+  const startNextSeason = useCallback(async (draft: SeasonDraft): Promise<string | null> => {
     if (!currentSeason?.id) return null;
+    const problem = seasonDraftProblem(draft);
+    if (problem) { setError(problem); return null; }
     setBusy(true); setError(null);
     try {
-      // A season without dates rolls over perfectly well: the next one is the
-      // same length, starting whenever the first game is played. Refusing here
-      // was a dead end for a league that never had dates in the first place.
-      const hasDates = !!currentSeason.startDate && !!currentSeason.endDate;
-      const dates = nextSeasonDates(currentSeason);
-
-      if (hasDates && !dates) {
-        // Dates that exist but do not parse — the case this message was written
-        // for. Prefilling would be guesswork.
-        setError('This season\u2019s dates could not be read, so the next one cannot be prefilled. Create it from Manage League → Seasons.');
-        return null;
-      }
-
-      const created = await addSeason({
-        name: suggestNextName(currentSeason.name, dates?.startDate),
-        ...(dates ? { startDate: dates.startDate, endDate: dates.endDate } : {}),
-        numberOfGames: currentSeason.numberOfGames || 12,
-        status: 'active',
-      });
+      const created = await addSeason({ ...seasonFromDraft(draft), status: 'active' });
 
       if (!created?.id || created.id === 'default-season') {
         setError('The next season could not be created.');

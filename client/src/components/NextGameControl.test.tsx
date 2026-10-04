@@ -80,8 +80,16 @@ describe('NextGameControl', () => {
     expect(screen.queryByText(/Game 13/)).toBeNull();
     expect(screen.queryByText(/extra game/i)).toBeNull();
 
+    // It leads to set-up — how the season runs — rather than copying this one.
     fireEvent.click(screen.getByText('Start next season'));
+    expect(screen.getByText('Set up the next season')).toBeTruthy();
+    expect(h.startNextSeason).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Season Name'), { target: { value: 'Summer 2026' } });
+    fireEvent.change(screen.getByLabelText('Number of Games'), { target: { value: '10' } });
+    fireEvent.click(screen.getByText('Create season'));
     await waitFor(() => expect(h.startNextSeason).toHaveBeenCalledTimes(1));
+    expect(h.startNextSeason.mock.calls[0][0]).toMatchObject({ name: 'Summer 2026', numberOfGames: 10 });
     expect(h.startNewGame).not.toHaveBeenCalled();
   });
 

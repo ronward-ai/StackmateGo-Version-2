@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { countGamesPlayed, nextGameNumber, nextGameLabel, nextGameState } from '@/lib/seasonProgress';
+import { countGamesPlayed, nextGameNumber, nextGameLabel, nextGameState, type SeasonDraft } from '@/lib/seasonProgress';
+import NewSeasonDialog from '@/components/NewSeasonDialog';
 import { useSeasonRollover } from '@/hooks/useSeasonRollover';
 import { useNewGame } from '@/hooks/useNewGame';
 import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
@@ -162,10 +163,16 @@ export default function NextGameControl({
 
   const { startNextSeason, busy: rolloverBusy, error: rolloverError } = useSeasonRollover(targetSeason);
 
-  /** Create the next season and move the dialog straight onto its Game 1. */
-  const handleStartNextSeason = async () => {
-    const created = await startNextSeason();
+  // Start next season leads to set-up — how the season runs, its name, its
+  // dates or count — rather than creating a copy of the one that ended.
+  const [showNewSeason, setShowNewSeason] = useState(false);
+
+  /** Create the season the director set up, and move the dialog straight onto
+   *  its Game 1. */
+  const handleStartNextSeason = async (draft: SeasonDraft) => {
+    const created = await startNextSeason(draft);
     if (created) setDialogSeasonId(created);
+    return created;
   };
 
   return (
@@ -309,10 +316,9 @@ export default function NextGameControl({
                     ? `${targetSeason?.name ?? 'This season'} has ended.`
                     : `All ${targetSeason?.numberOfGames} games of ${targetSeason?.name ?? 'this season'} have been played.`}
                 </p>
-                <Button className="w-full" disabled={rolloverBusy} onClick={handleStartNextSeason}>
+                <Button className="w-full" disabled={rolloverBusy} onClick={() => setShowNewSeason(true)}>
                   {rolloverBusy ? 'Starting\u2026' : 'Start next season'}
                 </Button>
-                {rolloverError && <p className="text-caption text-destructive text-center">{rolloverError}</p>}
                 {seasonState === 'full' && dialogGameNumber != null && (
                   <button
                     onClick={() => handleLeagueNewGame(targetSeason?.id ?? dialogSeasonId)}
@@ -332,6 +338,15 @@ export default function NextGameControl({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewSeasonDialog
+        open={showNewSeason}
+        onOpenChange={setShowNewSeason}
+        previousSeason={targetSeason}
+        onCreate={handleStartNextSeason}
+        busy={rolloverBusy}
+        error={rolloverError}
+      />
     </>
   );
 }

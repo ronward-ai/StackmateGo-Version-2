@@ -420,3 +420,92 @@ export function nextGameLabel(
   if (total <= 0) return `Game ${n}`;
   return n <= total ? `Game ${n} of ${total}` : `Game ${n} — beyond the ${total} scheduled`;
 }
+
+/**
+ * The next season, as a DRAFT the director answers rather than a season the app
+ * invents.
+ *
+ * Start Next Season used to create the next season silently — the next period's
+ * dates and the SAME number of games. Right for a league with a fixed count and
+ * wrong for a calendar one: January to March and April to June hold different
+ * numbers of nights. So every Start Next Season opens the set-up form first,
+ * asking which kind of season this is, prefilled from the one that ended.
+ *
+ * - **`games`** — a set number of games, played whenever they fall. No dates.
+ * - **`calendar`** — between two dates; the game count follows the calendar.
+ *
+ * **The count is stored for BOTH kinds.** Eight call sites read
+ * `numberOfGames || 12`, so a calendar season without one would silently read
+ * as twelve everywhere. In calendar mode the form works it out from the dates
+ * and the play nights (`gamesInRange`), and it stays editable. A season that
+ * turns out to have one more night than counted still plays it: a full season
+ * only warns.
+ */
+export type SeasonKind = 'games' | 'calendar';
+
+export interface SeasonDraft {
+  kind: SeasonKind;
+  name: string;
+  numberOfGames: number | '';
+  /** ISO dates, `YYYY-MM-DD`. Only a `calendar` season keeps them. */
+  startDate?: string;
+  endDate?: string;
+}
+
+export const EMPTY_SEASON_DRAFT: SeasonDraft = { kind: 'games', name: '', numberOfGames: 12 };
+
+/**
+ * The season after `season`, prefilled. A season that ran between dates
+ * suggests the next period; one without suggests the same count and a bumped
+ * name. Dates that exist but do not parse leave a calendar draft with no dates
+ * — the director types them, rather than meeting the old dead end that sent
+ * them to Manage League.
+ */
+export function nextSeasonDraft(
+  season: (SeasonLike & { name?: string | null; startDate?: string | null }) | null | undefined,
+): SeasonDraft {
+  const numberOfGames = Number(season?.numberOfGames) || 12;
+  const hadDates = !!season?.startDate || !!season?.endDate;
+  const dates = season ? nextSeasonDates(season) : null;
+  const name = suggestNextName(season?.name ?? undefined, dates?.startDate);
+  if (!hadDates) return { kind: 'games', name, numberOfGames };
+  return {
+    kind: 'calendar',
+    name,
+    numberOfGames,
+    ...(dates ? { startDate: dates.startDate, endDate: dates.endDate } : {}),
+  };
+}
+
+/** Why a draft cannot be created yet, in a sentence — or null when it can. */
+export function seasonDraftProblem(draft: SeasonDraft): string | null {
+  if (!draft.name.trim()) return 'Give the season a name.';
+  const n = Number(draft.numberOfGames);
+  if (!Number.isFinite(n) || n < 1) return 'A season needs at least one game.';
+  if (draft.kind === 'calendar') {
+    if (!draft.startDate || !draft.endDate) return 'Pick the dates the season runs between.';
+    if (String(draft.endDate) < String(draft.startDate)) return 'The season has to end after it starts.';
+  }
+  return null;
+}
+
+/**
+ * What is actually stored. A `games` season stores NO dates, even if some were
+ * typed before the kind was switched — half-remembered dates would make
+ * `isSeasonComplete` end it by the calendar the director just said it does not
+ * follow.
+ */
+export function seasonFromDraft(draft: SeasonDraft): {
+  name: string;
+  numberOfGames: number;
+  startDate?: string;
+  endDate?: string;
+} {
+  return {
+    name: draft.name.trim(),
+    numberOfGames: Number(draft.numberOfGames),
+    ...(draft.kind === 'calendar' && draft.startDate && draft.endDate
+      ? { startDate: draft.startDate, endDate: draft.endDate }
+      : {}),
+  };
+}
