@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { nextGameNumber } from '@/lib/seasonProgress';
+import { countGamesPlayed, nextGameNumber, nextGameLabel, nextGameState } from '@/lib/seasonProgress';
+import { useSeasonRollover } from '@/hooks/useSeasonRollover';
 import { useNewGame } from '@/hooks/useNewGame';
 import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
 
@@ -76,13 +77,26 @@ export default function NextGameControl({
     state.settings?.isSeasonTournament === true;
 
   const storedSeasonId = state.settings?.seasonId;
-  const displaySeason = storedSeasonId
+  const storedSeason = storedSeasonId
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
+  /**
+   * The season a next game defaults to. The game on screen carries the season it
+   * was played in — and once that season has been ENDED, defaulting to it is how
+   * "Game 13 of 12" was offered. If the league has since moved on, its current
+   * season is the honest default.
+   */
+  const displaySeason = (storedSeason as any)?.status === 'completed'
+    && currentSeason && (currentSeason as any).status !== 'completed'
+    ? currentSeason
+    : storedSeason;
 
   const handleLeagueNewGame = (seasonId: string | number | null) => {
     const sourceSeasons = dialogSeasonsList.length > 0 ? dialogSeasonsList : (seasons as any[]);
     const chosenSeason = (sourceSeasons as any[]).find(s => String(s.id) === String(seasonId));
+    // An ENDED season takes no next game. The dialog offers no button for it;
+    // this is the rule at the action, so a future caller cannot walk round it.
+    if (chosenSeason && nextGameState(chosenSeason, 0) === 'ended') return;
     setShowLeagueNewDialog(false);
     // Passed as the continuation rather than written after the call: if the
     // guard defers the start, this must defer with it. Writing the league and
@@ -126,6 +140,33 @@ export default function NextGameControl({
       || (seasons as any[]).find(s => String(s.id) === String(dialogSeasonId));
     return dialogSeason?.numberOfGames || totalGames;
   }, [dialogSeasonId, dialogSeasonsList, seasons, totalGames]);
+
+  const sameLeague = !dialogLeagueId || String(dialogLeagueId) === String(league?.id);
+
+  /** The season the dialog is about to start a game in. */
+  const targetSeason: any = useMemo(() => {
+    const id = dialogSeasonId ?? displaySeason?.id;
+    return (dialogSeasonsList as any[]).find(s => String(s.id) === String(id))
+      || (seasons as any[]).find(s => String(s.id) === String(id))
+      || (String(displaySeason?.id) === String(id) ? displaySeason : null);
+  }, [dialogSeasonId, dialogSeasonsList, seasons, displaySeason]);
+
+  /**
+   * Ended, full or open — `lib/seasonProgress.ts` decides. Only for the CURRENT
+   * league: `leaguePlayers` cannot count another league's games, which is why the
+   * game number already reads "Game — of —" there.
+   */
+  const seasonState = sameLeague && targetSeason
+    ? nextGameState(targetSeason, countGamesPlayed(targetSeason.id, leaguePlayers))
+    : 'open';
+
+  const { startNextSeason, busy: rolloverBusy, error: rolloverError } = useSeasonRollover(targetSeason);
+
+  /** Create the next season and move the dialog straight onto its Game 1. */
+  const handleStartNextSeason = async () => {
+    const created = await startNextSeason();
+    if (created) setDialogSeasonId(created);
+  };
 
   return (
     <>
@@ -205,10 +246,15 @@ export default function NextGameControl({
             <div className="space-y-1.5">
               <label htmlFor="dialog-season" className="text-sm font-medium text-foreground">Season</label>
               {(() => {
-                const displaySeasons = (dialogSeasonsList as any[]).length > 0
+                const allSeasons = (dialogSeasonsList as any[]).length > 0
                   ? (dialogSeasonsList as any[])
                   : (seasons as any[]);
-                return displaySeasons.length > 1 ? (
+                // An ENDED season cannot take a next game, so it is not offered
+                // as somewhere to put one.
+                const displaySeasons = allSeasons.filter(s => nextGameState(s, 0) !== 'ended');
+                const choice = displaySeasons.length > 1
+                  || (displaySeasons.length === 1 && seasonState === 'ended');
+                return choice ? (
                   <Select
                     value={String(dialogSeasonId ?? '')}
                     onValueChange={v => setDialogSeasonId(v)}
@@ -224,7 +270,7 @@ export default function NextGameControl({
                   </Select>
                 ) : (
                   <p className="text-sm text-muted-foreground px-1">
-                    {displaySeasons[0]?.name ?? displaySeason?.name ?? '—'}
+                    {targetSeason?.name ?? displaySeasons[0]?.name ?? displaySeason?.name ?? '—'}
                   </p>
                 );
               })()}
@@ -233,22 +279,50 @@ export default function NextGameControl({
               <label htmlFor="dialog-game" className="text-sm font-medium text-foreground">Game</label>
               <div id="dialog-game" className="flex items-center gap-2">
                 <span className="text-sm font-mono font-bold text-orange-400 px-1">
-                  {dialogGameNumber != null
-                    ? `Game ${dialogGameNumber} of ${dialogTotalGames}`
-                    : 'Game — of —'}
+                  {seasonState === 'ended'
+                    ? '—'
+                    : dialogGameNumber != null
+                      ? nextGameLabel(dialogGameNumber, dialogTotalGames)
+                      : 'Game — of —'}
                 </span>
                 <span className="text-xs text-muted-foreground">· auto-calculated</span>
               </div>
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button
-              className="w-full"
-              disabled={dialogSeasonsLoading || (dialogLeagueId !== null && String(dialogLeagueId) !== String(league?.id) && dialogSeasonsList.length === 0)}
-              onClick={() => handleLeagueNewGame(dialogSeasonId)}
-            >
-              {dialogGameNumber != null ? `Start Game ${dialogGameNumber}` : 'Start Next Game'}
-            </Button>
+            {seasonState === 'open' ? (
+              <Button
+                className="w-full"
+                disabled={dialogSeasonsLoading || (dialogLeagueId !== null && String(dialogLeagueId) !== String(league?.id) && dialogSeasonsList.length === 0)}
+                onClick={() => handleLeagueNewGame(targetSeason?.id ?? dialogSeasonId)}
+              >
+                {dialogGameNumber != null ? `Start Game ${dialogGameNumber}` : 'Start Next Game'}
+              </Button>
+            ) : (
+              /* Ended: the only way forward. Full: the obvious one, with the extra
+                 game below it. Either way the next season is created, the old one
+                 closed and the league moved onto it, and the dialog lands on the
+                 new season's Game 1. */
+              <>
+                <p className="text-label text-muted-foreground text-center">
+                  {seasonState === 'ended'
+                    ? `${targetSeason?.name ?? 'This season'} has ended.`
+                    : `All ${targetSeason?.numberOfGames} games of ${targetSeason?.name ?? 'this season'} have been played.`}
+                </p>
+                <Button className="w-full" disabled={rolloverBusy} onClick={handleStartNextSeason}>
+                  {rolloverBusy ? 'Starting\u2026' : 'Start next season'}
+                </Button>
+                {rolloverError && <p className="text-caption text-destructive text-center">{rolloverError}</p>}
+                {seasonState === 'full' && dialogGameNumber != null && (
+                  <button
+                    onClick={() => handleLeagueNewGame(targetSeason?.id ?? dialogSeasonId)}
+                    className="text-xs text-muted-foreground hover:text-foreground text-center py-1"
+                  >
+                    Play an extra game in {targetSeason?.name ?? 'this season'} · {nextGameLabel(dialogGameNumber, dialogTotalGames)}
+                  </button>
+                )}
+              </>
+            )}
             <button
               onClick={() => { setShowLeagueNewDialog(false); startNewGame({ keepStructure: false }); }}
               className="text-xs text-destructive hover:text-destructive/80 text-center py-1"

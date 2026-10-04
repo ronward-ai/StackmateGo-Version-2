@@ -2870,6 +2870,56 @@ thing into a league. Starting the next game is what clears the roster and releas
 second control that also ends a game is the "two ways to create a tournament" trap with the sign
 flipped.
 
+### An ended season takes no next game, and ending one must leave the way forward on screen
+
+Reported: after the last game of a season the director pressed **End Season**, then **Next Game**
+offered — and started — **"Game 13 of 12"**, recording a night into the season they had just closed.
+Three faults lined up, and each one alone looked harmless:
+
+1. **Ending a season does not move `activeSeasonId`.** `endCurrentSeason` sets `status: 'completed'`
+   and nothing else, so the ended season stays the current one every new game is attributed to.
+   That is deliberate — ending and starting the next are separate decisions — and it is why
+   everything downstream has to ask about status rather than assume.
+2. **Ending removed the way forward.** `SeasonDashboard`'s "looks finished" banner carried both End
+   Season and Start Next Season, gated `!isCompleted`, so pressing End Season took Start Next Season
+   off the screen with it. Next Game was the only thing left to press.
+3. **Next Game never asked.** It listed ended seasons in its picker, offered `nextGameNumber` (games
+   played + 1) for whichever season was current, and printed its own inline `Game ${n} of ${total}`.
+
+`lib/seasonProgress.ts`'s **`nextGameState(season, gamesPlayed)`** is the one answer —
+`'ended' | 'full' | 'open'` — and the dialog acts on it:
+
+- **`ended`** — no button starts a game in it. The dialog says so and offers **Start next season**
+  (`useSeasonRollover.startNextSeason`, which now returns the new season's id so the dialog lands on
+  its Game 1). `handleLeagueNewGame` refuses an ended season too, so no future caller walks round the
+  button. Ended seasons are dropped from the picker. **Ended outranks full.**
+- **`full`** — every scheduled game played, not yet ended. Start next season is the main action and
+  an extra game is still offered underneath — **warned, never refused**, the `lateEntryClosedReason`
+  call: a rescheduled night is real and the director is the one standing there.
+- **`open`** — as before.
+
+**Full is by GAME COUNT only, never the end date.** `isSeasonComplete` reads the end date too, which
+is right for its advisory banner; a past end date with games still owed is a cancelled week, and
+steering a director away from them would be wrong. A mutant reading the end date turns a test red.
+
+**`nextGameLabel` deliberately does not clamp**, unlike `gameProgressLabel`. Clamping is the kinder
+lie on the header of a game already being played; in a dialog about to START a 13th game it would
+print "Game 12 of 12" over it. Past the schedule it reads **`Game 13 — beyond the 12 scheduled`**.
+
+**The default season moves on with the league.** The finished game on screen still carries the season
+it was played in; once that has ended and the league has a current season that has not, Next Game
+defaults to the current one.
+
+`SeasonDashboard` now shows **"{season} has ended"** with Start Next Season once the current season is
+ended — the way forward survives the act of ending. `NextGameControl` and `SeasonDashboard` had no
+tests; both do now, mocking their hooks, and seven mutants across the rule, the label, the default
+and the two screens are caught. Seasons come from Firestore, offline in the devstub, so the dialog
+could not be driven with real seasons there — the component tests are the cover, stated not implied.
+
+**A game already started into an ended season is not cleaned up.** Results are written at each
+bust-out, so one nobody has busted from yet has recorded nothing; one that has needs the stray rows
+removed by hand in the Firebase console, since there is no in-app result admin.
+
 ### A dismissal flag must never be its own effect's dependency
 
 "Ignore for now" on the uneven-tables prompt could not work, and the reason is worth keeping.
@@ -3677,7 +3727,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | Module | Owns |
 |---|---|
 | `prizePool.ts` | Prize pool, rake and what one entry costs. **Rake is charged ON TOP of the buy-in**, so `net === gross` is deliberate, not a bug. Every money figure on screen comes from here. |
-| `seasonProgress.ts` | Game numbering, games played, season completion, next-season dates. |
+| `seasonProgress.ts` | Game numbering, games played, season completion, next-season dates — and whether a season can take a next game at all (`nextGameState`: **ended refuses, full only warns**). |
 | `tournamentMode.ts` | Whether a tournament is a league game, and whether that can still be changed — **per direction**, since a finished game may stop being a league game but never become one. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |

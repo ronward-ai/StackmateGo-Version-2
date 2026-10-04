@@ -164,6 +164,26 @@ export default function SeasonDashboard({
         </div>
       </div>
 
+      {/* Season ENDED. This banner's sibling below hides once a season is ended,
+          and it carried the only Start Next Season on screen — so pressing End
+          Season left nothing to press but Next Game, which went on to offer
+          "Game 13 of 12" in the season just closed. The way forward has to
+          survive the act of ending. */}
+      {isCompleted && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-border bg-muted/30">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">{currentSeason.name} has ended</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Start the next season to keep playing. These standings stay exactly as they are.
+            </p>
+            {rolloverError && <p className="text-xs text-destructive mt-1">{rolloverError}</p>}
+          </div>
+          <Button size="sm" disabled={rolloverBusy} onClick={() => { void startNextSeason(); }} className="flex-shrink-0">
+            {rolloverBusy ? 'Working\u2026' : 'Start Next Season'}
+          </Button>
+        </div>
+      )}
+
       {/* Season complete. Advisory only — nothing ends a season automatically,
           because a cancelled week means "past the end date" is not the same as
           "finished". The director decides. */}
@@ -184,7 +204,7 @@ export default function SeasonDashboard({
             <Button size="sm" variant="outline" disabled={rolloverBusy} onClick={endCurrentSeason}>
               End Season
             </Button>
-            <Button size="sm" disabled={rolloverBusy} onClick={startNextSeason}>
+            <Button size="sm" disabled={rolloverBusy} onClick={() => { void startNextSeason(); }}>
               {rolloverBusy ? 'Working\u2026' : 'Start Next Season'}
             </Button>
           </div>

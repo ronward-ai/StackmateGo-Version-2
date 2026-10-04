@@ -14,6 +14,8 @@ import {
   gamesInRange,
   SYNTHETIC_SEASON_ID,
   type PlayerLike,
+  nextGameState,
+  nextGameLabel,
 } from './seasonProgress';
 
 /** Two players who both played tournaments t1 and t2 in season s1. */
@@ -480,5 +482,69 @@ describe('seasonLine', () => {
   it('clamps through the same rule the label does', () => {
     expect(seasonLine({ seasonName: 'Spring 2026', gameNumber: 14, numberOfGames: 13 }))
       .toBe('Spring 2026 · Game 13 of 13');
+  });
+});
+
+describe('nextGameState', () => {
+  const season = (over: any = {}) => ({ numberOfGames: 12, endDate: null, status: 'active', ...over });
+
+  it('is open while games remain', () => {
+    expect(nextGameState(season(), 4)).toBe('open');
+  });
+
+  // THE REPORT: End Season, then Next Game offered Game 13 of 12.
+  it('is ended once the director has ended the season', () => {
+    expect(nextGameState(season({ status: 'completed' }), 12)).toBe('ended');
+  });
+
+  // THE MUTANT: let full outrank ended. An ended season with every game played
+  // is still ENDED — that one refuses, full only warns.
+  it('says ended before full', () => {
+    expect(nextGameState(season({ status: 'completed' }), 12)).toBe('ended');
+    expect(nextGameState(season({ status: 'completed' }), 3)).toBe('ended');
+  });
+
+  it('is full at exactly the scheduled count and beyond it', () => {
+    expect(nextGameState(season(), 12)).toBe('full');
+    expect(nextGameState(season(), 13)).toBe('full');
+  });
+
+  /**
+   * THE MUTANT: count the end date too, as `isSeasonComplete` does. A past end
+   * date with games still to play is a cancelled week, and steering a director
+   * away from games they still owe would be wrong.
+   */
+  it('stays open past the end date while games remain', () => {
+    expect(nextGameState(season({ endDate: '2020-01-01' }), 4)).toBe('open');
+  });
+
+  it('is never full without a scheduled count', () => {
+    expect(nextGameState(season({ numberOfGames: 0 }), 40)).toBe('open');
+    expect(nextGameState(season({ numberOfGames: null }), 40)).toBe('open');
+  });
+
+  it('copes with no season', () => {
+    expect(nextGameState(null, 3)).toBe('open');
+  });
+});
+
+describe('nextGameLabel', () => {
+  it('names a game inside the schedule', () => {
+    expect(nextGameLabel(5, 12)).toBe('Game 5 of 12');
+    expect(nextGameLabel(12, 12)).toBe('Game 12 of 12');
+  });
+
+  /**
+   * THE MUTANT: clamp, as `gameProgressLabel` does. That would print "Game 12 of
+   * 12" over a 13th game — the dialog has to say plainly that it is past the
+   * schedule, or the director cannot tell.
+   */
+  it('says plainly when a game is beyond the schedule, and never clamps', () => {
+    expect(nextGameLabel(13, 12)).toBe('Game 13 — beyond the 12 scheduled');
+  });
+
+  it('copes with no schedule and no number', () => {
+    expect(nextGameLabel(4, 0)).toBe('Game 4');
+    expect(nextGameLabel(null, 12)).toBe('');
   });
 });

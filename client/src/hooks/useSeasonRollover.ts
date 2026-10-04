@@ -36,9 +36,12 @@ export function useSeasonRollover(currentSeason: any) {
    * End this season and create the one after it, prefilled from this one:
    * the following calendar period and the same number of games. The new season
    * becomes current, so the next game counts toward it.
+   *
+   * Resolves to the new season's id, or null when nothing was created — Next
+   * Game uses it to move its dialog straight onto the season it just made.
    */
-  const startNextSeason = useCallback(async () => {
-    if (!currentSeason?.id) return;
+  const startNextSeason = useCallback(async (): Promise<string | null> => {
+    if (!currentSeason?.id) return null;
     setBusy(true); setError(null);
     try {
       // A season without dates rolls over perfectly well: the next one is the
@@ -51,7 +54,7 @@ export function useSeasonRollover(currentSeason: any) {
         // Dates that exist but do not parse — the case this message was written
         // for. Prefilling would be guesswork.
         setError('This season\u2019s dates could not be read, so the next one cannot be prefilled. Create it from Manage League → Seasons.');
-        return;
+        return null;
       }
 
       const created = await addSeason({
@@ -63,15 +66,17 @@ export function useSeasonRollover(currentSeason: any) {
 
       if (!created?.id || created.id === 'default-season') {
         setError('The next season could not be created.');
-        return;
+        return null;
       }
 
       // Close the old one only after the new one exists, so a failure never
       // leaves the league with no running season.
       await updateSeason(currentSeason.id, { status: 'completed' } as any);
       await setActiveSeason(String(created.id));
+      return String(created.id);
     } catch (err: any) {
       setError(err?.message || 'Could not start the next season.');
+      return null;
     } finally {
       setBusy(false);
     }

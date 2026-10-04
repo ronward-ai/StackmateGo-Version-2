@@ -367,3 +367,56 @@ export function suggestNextName(currentName: string | undefined, nextStartDate?:
 
   return `Q${quarter} ${year}`;
 }
+
+/**
+ * Where the NEXT game of a season stands, before it is started.
+ *
+ * Reported: after the last game the director pressed End Season, and Next Game
+ * then offered — and started — "Game 13 of 12", recording a night into a season
+ * the director had closed. Ending a season leaves `activeSeasonId` pointing at it,
+ * so nothing downstream knew.
+ *
+ * - **`ended`** — the director closed it. No game may be started in it; Next
+ *   Game sends them to Start Next Season. Outranks `full`.
+ * - **`full`** — every scheduled game has been played but nobody has ended it.
+ *   The next season is the obvious step, and an extra game is still allowed
+ *   with a warning — a rescheduled or bonus night is real, and the director is
+ *   the one standing there (the `lateEntryClosedReason` call).
+ * - **`open`** — anything else.
+ *
+ * **Full is by GAME COUNT only, never the end date.** `isSeasonComplete` also
+ * reads the end date, and that is right for its advisory banner; but a past end
+ * date with games still to play is a cancelled week, not a finished season, and
+ * steering a director away from the games they still owe would be wrong.
+ */
+export type NextGameState = 'ended' | 'full' | 'open';
+
+export function nextGameState(
+  season: (SeasonLike & { status?: string | null }) | null | undefined,
+  gamesPlayed: number,
+): NextGameState {
+  if (!season) return 'open';
+  if (season.status === 'completed') return 'ended';
+  const total = Number(season.numberOfGames) || 0;
+  if (total > 0 && gamesPlayed >= total) return 'full';
+  return 'open';
+}
+
+/**
+ * How the game about to be STARTED is named.
+ *
+ * Deliberately not `gameProgressLabel`, which clamps — right for the header of a
+ * game already being played, where a 14th game of 13 reading "Game 13 of 13" is
+ * the kinder lie, and wrong here: a dialog about to start a 13th game must not
+ * print "Game 12 of 12" over it. Past the schedule it says so in words.
+ */
+export function nextGameLabel(
+  gameNumber: number | null | undefined,
+  numberOfGames: number | null | undefined,
+): string {
+  const n = Number(gameNumber);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const total = Number(numberOfGames) || 0;
+  if (total <= 0) return `Game ${n}`;
+  return n <= total ? `Game ${n} of ${total}` : `Game ${n} — beyond the ${total} scheduled`;
+}
