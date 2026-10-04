@@ -28,6 +28,7 @@ import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/
 import { secondsLeftFrom } from '@/lib/tournamentClock';
 import type { RemoteLoad } from '@/lib/liveTournament';
 import { canRebuy, canReEnter } from '@/lib/entryLimits';
+import { gameIsOver } from '@/lib/gameOver';
 import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
 import { seatToReclaim } from '@/lib/seating';
@@ -1005,6 +1006,13 @@ export function useTournament(tournamentId?: string) {
     if (name.trim() === '') return;
 
     setState(prev => {
+      // A finished game takes no new entries — see lib/gameOver.ts's
+      // `finishedGameNote`. One added player made the game read as unfinished
+      // again on every screen after History was already written. Enforced HERE,
+      // where every caller passes, rather than at each button; the screen also
+      // stops offering it, so this is the rule and not the only defence.
+      if (gameIsOver(prev.players)) return prev;
+
       const newPlayer = {
         id: uuidv4(),
         name: name.trim(),
@@ -1302,6 +1310,11 @@ export function useTournament(tournamentId?: string) {
       if (!player || player.isActive !== false) {
         return prev;
       }
+      // A finished game takes no re-entry. Re-entering the runner-up runs
+      // positionsAfterReEntry, which moves the winner from 1st to 2nd and leaves
+      // nobody holding the title. Undo bust-out is the way back from a wrong
+      // ending, and is deliberately NOT gated.
+      if (gameIsOver(prev.players)) return prev;
 
       // maxReEntries and reEntryPeriodLevels were enforced NOWHERE before — only
       // the table view's button hid, so any other route in reached no limit.
@@ -1378,6 +1391,9 @@ export function useTournament(tournamentId?: string) {
       if (!player || player.isActive !== false) {
         return prev;
       }
+      // The offer and the failsafe already ask `gameIsOver` (lib/rebuyOffer.ts);
+      // the action now does too, so no future caller can walk round them.
+      if (gameIsOver(prev.players)) return prev;
 
       // The cap and the rebuy window, both from lib/entryLimits.ts. This used to
       // read `maxRebuys || 3`, so a cap of 0 — which is how the Buy-in tab

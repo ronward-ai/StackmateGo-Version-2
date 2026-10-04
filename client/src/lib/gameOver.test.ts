@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameIsOver, winnerOf } from './gameOver';
+import { gameIsOver, winnerOf, finishedGameNote } from './gameOver';
 
 describe('gameIsOver', () => {
   /**
@@ -72,5 +72,31 @@ describe('winnerOf', () => {
       { name: 'Sam', position: 3 },
       { name: 'Dave', position: 1 },
     ])?.name).toBe('Dave');
+  });
+});
+
+describe('finishedGameNote', () => {
+  const finished = [
+    { isActive: false, position: 1 },
+    { isActive: false, position: 2 },
+    { isActive: false, position: 3 },
+  ];
+
+  it('says nothing while the game is still being played', () => {
+    expect(finishedGameNote([{ isActive: true }, { isActive: false, position: 3 }])).toBeNull();
+    expect(finishedGameNote([])).toBeNull();
+    expect(finishedGameNote(null)).toBeNull();
+  });
+
+  /**
+   * Both ways forward, or the line is just a "no". A wrong ending is put right
+   * with Undo bust-out — deliberately left open — and anything else is the next
+   * game.
+   */
+  it('names Undo and the next game once it is over', () => {
+    const note = finishedGameNote(finished)!;
+    expect(note).toMatch(/over/i);
+    expect(note).toMatch(/undo/i);
+    expect(note).toMatch(/next game/i);
   });
 });

@@ -60,11 +60,25 @@ interface PlayerEntryActionsProps {
   onReEntry: (playerId: string) => void;
   /** `compact` is the single-letter treatment that fits inside a seat. */
   variant?: 'compact' | 'labelled';
+  /**
+   * The game has finished (`gameIsOver`). Passed in because this component sees
+   * one player, and "is the game over" is a fact about the whole roster.
+   */
+  gameOver?: boolean;
 }
 
 export default function PlayerEntryActions({
   player, failsafeFor, prizeStructure, settings, currentLevel, onRebuy, onReEntry, variant = 'labelled',
+  gameOver = false,
 }: PlayerEntryActionsProps) {
+  // A finished game takes no new entries — not a re-entry and not a rebuy.
+  // Re-entering the runner-up would move the winner from 1st to 2nd. Renders
+  // NOTHING rather than a disabled button against every name: it is a fact
+  // about the whole game, like a feature switched off for the night, and
+  // PlayerSection says it once where Add Player used to be. The actions in
+  // useTournament refuse it too; this is so the screen does not offer it.
+  if (gameOver) return null;
+
   // The WINNER is offered no way back in, and this is the one place that has to
   // say so. All three call sites gate on `isActive === false`, which the
   // champion satisfies — `eliminatePlayer` awards them `position: 1` and that

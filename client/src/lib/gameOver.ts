@@ -72,3 +72,24 @@ export function winnerOf<T extends GameOverPlayerLike>(
   if (!players) return null;
   return players.find(p => Number(p?.position) === 1) ?? null;
 }
+
+/**
+ * What a finished game says where the ways in used to be, or null while it is
+ * still being played.
+ *
+ * **A finished game takes no new entries** — no added player, no re-entry, no
+ * rebuy. Adding one makes the game read as unfinished again on every screen
+ * after History was already written, and re-entering the runner-up runs
+ * `positionsAfterReEntry`, which moves the winner from 1st to 2nd. Late entry
+ * only WARNS, because somebody arriving at the door is a fact about the world;
+ * after the final hand there is no game left to arrive at.
+ *
+ * It names both ways forward, because a line that only says "no" is what
+ * `rebuyUnavailableReason` was written to replace: a wrong ending is put right
+ * with Undo bust-out, which is deliberately left open, and anything else is the
+ * next game.
+ */
+export function finishedGameNote(players?: readonly GameOverPlayerLike[] | null): string | null {
+  if (!gameIsOver(players)) return null;
+  return 'This game is over. To correct the result, undo the last bust-out — otherwise start the next game.';
+}

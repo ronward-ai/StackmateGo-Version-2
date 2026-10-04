@@ -11,7 +11,7 @@ import { buyInOf, investedIn } from '@/lib/resultStats';
 import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import { resultRowsFor } from '@/lib/resultRows';
-import { gameIsOver } from '@/lib/gameOver';
+import { gameIsOver, finishedGameNote } from '@/lib/gameOver';
 import ResultsTable from '@/components/ResultsTable';
 import ResultsSheet from '@/components/export/ResultsSheet';
 import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
@@ -495,6 +495,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   // records, since `eliminatePlayer` awards position 1 and `isActive: false` in
   // the same update, so a finished game has ZERO active players, never one.
   const tournamentFinished = gameIsOver(state.players);
+  const finishedNote = finishedGameNote(state.players);
 
   
 
@@ -538,7 +539,17 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
       </div>
 
       <div className="pt-4 space-y-4">
-        {/* Add Player Section - Mobile Optimized */}
+        {/* Add Player Section - Mobile Optimized.
+
+            NOT MOUNTED once the game is over — a finished game takes no new
+            entries (lib/gameOver.ts's finishedGameNote). Recent Players goes with
+            it, because every name in that list is an add button. One line of
+            text says what is true and names both ways forward; a greyed input
+            would read as the app being broken. The action in useTournament
+            refuses it too, so this is the screen agreeing with the rule. */}
+        {finishedNote ? (
+          <p className="text-label text-muted-foreground">{finishedNote}</p>
+        ) : (
         <div className="space-y-3">
           <div className="flex gap-2">
             <div className="flex-1 relative" ref={autocompleteRef}>
@@ -645,6 +656,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
             </div>
           )}
         </div>
+        )}
 
         {/* Seat Players — centred above player list, visible while unseated players exist */}
         {activePlayers.length > 0 && (
@@ -766,6 +778,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                           settings={state.settings}
                           currentLevel={state.currentLevel}
                           onReEntry={id => returnPlayerToTable('reentry', id)}
+                          gameOver={tournamentFinished}
                         />
                       )}
 

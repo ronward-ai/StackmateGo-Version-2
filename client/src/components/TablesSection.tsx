@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { bustedPlayers } from '@/lib/eliminationOrder';
+import { gameIsOver } from '@/lib/gameOver';
 import { seatablePlayers, allSeated, planSeating, assignSeats, tablesNeededFor, tableNamesFor} from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
@@ -126,6 +127,9 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   //
   // `bustedPlayers` returns a fresh array, so sorting it in place cannot touch
   // state.players.
+  // A finished game takes no re-entry or rebuy; PlayerEntryActions renders
+  // nothing when this is set. Worked out once, from the roster, for both sites.
+  const tournamentOver = gameIsOver(state.players);
   const busted = bustedPlayers(state.players)
     .sort((a, b) => (a.position || 0) - (b.position || 0));
 
@@ -652,6 +656,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                                     currentLevel={state.currentLevel}
                                     onReEntry={processReEntry}
                                     variant="compact"
+                                    gameOver={tournamentOver}
                                   />
                                   {/* The way out of a seat for someone already
                                       out of the tournament. Seating them is now
@@ -763,6 +768,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                         settings={state.settings}
                         currentLevel={state.currentLevel}
                         onReEntry={processReEntry}
+                        gameOver={tournamentOver}
                       />
                     </div>
                   </div>

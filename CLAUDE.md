@@ -2748,9 +2748,9 @@ spelling now, and all five read it.
 than a shortcut.** Gating it on the roster looks tighter and hands the champion straight back,
 because a roster really can hold a winner at position 1 with somebody active:
 
-- **Add a player to a finished game.** `addPlayer` is unconditional and writes `isActive: true`, and
-  a finished game stays on screen until the next one starts — there is deliberately no End Game
-  button.
+- **Add a player to a finished game.** `addPlayer` WAS unconditional and wrote `isActive: true`. It
+  is refused now (see "A finished game takes no new entries" below), but this bullet is why the
+  exclusion was made flat, and the case below still needs it.
 - **Undo the RUNNER-UP's bust-out.** `undoBustOut` clears a false winner only when two or more
   players are active afterwards, and restoring 2nd place makes exactly one. The champion is left
   stranded, inactive at position 1.
@@ -2789,6 +2789,52 @@ it the only implementation of re-entering someone: one gate, not one per call si
 why 900 passing tests said nothing. Driving it is what confirmed the fix: a real 3-player game to the
 final hand shows no dialog, no entry control anywhere, `Dave 2nd / Amy 3rd` in the Busted strip with
 the champion absent, and the Tournament Winner card up.
+
+### A finished game takes no new entries
+
+Reported: a player was added to a tournament after it had finished. Nothing stopped it, and a second
+door with a worse version of the same fault had been open all along.
+
+**Adding a player un-finishes the game.** `gameIsOver` reads "nobody still in, somebody holding 1st",
+and `addPlayer` writes `isActive: true` — so one added player took away the Tournament Winner card
+and the gold timer face on the console and every participant's phone, after `status: 'completed'`
+and History had already been written. Bust them out and they are the last one standing, a second
+claim on 1st, with a league result for a night they never played.
+
+**Re-entering the runner-up demoted the champion.** `PlayerEntryActions` refused the WINNER but
+`reEntryUnavailableReason` never asked whether the game was over, so 2nd place could still be
+re-entered — which runs `positionsAfterReEntry` and moved the winner from 1st to 2nd. Driven with the
+gate taken out and re-entries allowed: `Amy:out#2 Dave:in`. The rebuy offer and failsafe were already
+gated by `lib/rebuyOffer.ts` for exactly this reason; the re-entry had been missed, and neither
+action was gated at all.
+
+**Why this REFUSES when late entry only warns.** Late entry warns because someone arriving at the
+door is a fact about the world and the director is standing there. After the final hand there is no
+game left to arrive at — what a director actually wants is the next game, or a corrected ending.
+
+Two layers, and both are wanted:
+
+- **The rule is at the actions.** `addPlayer`, `processReEntry` and `processRebuy` in
+  `useTournament` return `prev` when `gameIsOver(prev.players)`, inside the updater — enforced where
+  every caller passes. **`undoBustOut` and `removePlayer` are deliberately NOT gated**: they are the
+  way back from a wrong ending and the way to take back a mistaken add.
+- **The screen does not offer what the action refuses** — not mounted, the `DirectorOnly` rule.
+  `PlayerSection` replaces Add Player, its autocomplete and Recent Players (every name there is an add
+  button) with one line; `PlayerEntryActions` takes a `gameOver` prop and renders nothing, game-wide
+  like a feature switched off, rather than a disabled button against every name.
+
+`lib/gameOver.ts`'s `finishedGameNote` owns the sentence — *"This game is over. To correct the
+result, undo the last bust-out — otherwise start the next game."* — because a line that only says no
+is what `rebuyUnavailableReason` was written to replace.
+
+**The action gates have no unit test**, because `useTournament` imports Firebase and has no test file.
+They were proved by driving the REAL hook in the devstub: three players to the final hand, then add,
+re-entry and rebuy each refused with Amy holding 1st, Undo bust-out reopening the game and the add box
+coming back. Each gate was then taken out by hand and the drive re-run, and the fault reappeared —
+`Late Arrival:in` on a finished game, and the champion demoted. **Clear storage between such runs**:
+the first mutant run read the previous run's roster back out of the local mirror and proved nothing.
+`PlayerEntryActions` had no test at all; it has one now, and dropping the `gameOver` check turns it
+red.
 
 ### Starting the next game is league business, and the number it offers is a different question
 
