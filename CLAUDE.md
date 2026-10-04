@@ -2860,7 +2860,9 @@ it belongs on the mode slider, and that is where it lives (see the section above
 here reading "One-off game, not in a league" was built and removed the same day: a director whose
 league night has ended reaches for the slider, not for a dialog headed *Start next league game*.
 `standaloneSettings()` in `lib/tournamentMode.ts` is the one answer to "make this game standalone",
-shared by the slider's two paths.
+shared by the slider's two paths. A red **"Full reset (clears structure & switches to standalone)"** link
+at the foot of the same dialog went later for the same reason — reported as making no sense there. The
+standalone game's own **New** dialog keeps its Keep structure / Full reset choice, where it does.
 
 **There is deliberately no "End Game" button.** A finished game already marks itself — `PokerTimer`'s
 completion effect writes `status: 'completed'` and a `completedTournaments` record — and the mode lock

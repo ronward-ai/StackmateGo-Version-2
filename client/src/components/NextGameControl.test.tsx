@@ -59,6 +59,18 @@ beforeEach(() => {
 });
 
 describe('NextGameControl', () => {
+  /** Going standalone is the mode slider's job. A full reset in a dialog about
+   *  the next LEAGUE game makes no sense there, whatever state the season is in. */
+  it.each([
+    ['open', () => { h.seasons = [spring()]; open(spring(), 4); }],
+    ['full', () => { h.seasons = [spring()]; open(spring(), 12); }],
+    ['ended', () => { h.seasons = [spring({ status: 'completed' })]; open(spring({ status: 'completed' }), 12); }],
+  ])('offers no full reset in the league dialog (%s season)', (_state, setup) => {
+    setup();
+    expect(screen.getByText('Start next league game')).toBeTruthy();
+    expect(screen.queryByText(/Full reset/)).toBeNull();
+  });
+
   it('starts the next game of a season with games left', () => {
     h.seasons = [spring()];
     open(spring(), 4);

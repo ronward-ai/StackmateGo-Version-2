@@ -325,12 +325,10 @@ export default function NextGameControl({
                 )}
               </>
             )}
-            <button
-              onClick={() => { setShowLeagueNewDialog(false); startNewGame({ keepStructure: false }); }}
-              className="text-xs text-destructive hover:text-destructive/80 text-center py-1"
-            >
-              Full reset (clears structure &amp; switches to standalone)
-            </button>
+            {/* No "Full reset" here. Going standalone is a change of the game's
+                type and lives on the mode slider; a dialog about the next LEAGUE
+                game is the wrong place for it — the same reason a "One-off game"
+                button was removed from it. */}
           </DialogFooter>
         </DialogContent>
       </Dialog>
