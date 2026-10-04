@@ -46,12 +46,15 @@ interface LeagueSettingsDialogProps {
   children?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Open on the Seasons tab with the New Season form showing — where Start
+   *  Next Season leads. */
+  startNewSeason?: boolean;
 }
 
 
 
 
-export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenChange }: LeagueSettingsDialogProps) {
+export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenChange, startNewSeason = false }: LeagueSettingsDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   // A controlled dialog already has an external trigger (the cog in LeagueSection),
   // so rendering the built-in fallback trigger as well put TWO League Settings
@@ -335,7 +338,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
           </TabsList>
 
           <TabsContent value="seasons" className="mt-4">
-            <LeagueSeasonsTab />
+            <LeagueSeasonsTab startNew={startNewSeason} />
             {/* Deleting a league acts on the league rather than on this tab, so
                 it sat OUTSIDE the tabs and rendered under all three. That put a
                 permanent, irreversible action beneath the Points and Stats

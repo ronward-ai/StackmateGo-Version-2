@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 /**
  * The decision lives in `lib/seasonProgress.ts` (`nextGameState`,
@@ -9,7 +9,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
  */
 const h = vi.hoisted(() => ({
   startNewGame: vi.fn(),
-  startNextSeason: vi.fn(),
+  openSetup: vi.fn(),
   seasons: [] as any[],
 }));
 
@@ -19,12 +19,10 @@ vi.mock('@/hooks/useNewGame', () => ({
 vi.mock('@/hooks/useSeasons', () => ({
   useSeasons: () => ({ seasons: h.seasons, isLoading: false }),
 }));
-vi.mock('@/hooks/useSeasonRollover', () => ({
-  useSeasonRollover: () => ({ startNextSeason: h.startNextSeason, busy: false, error: null }),
-}));
 vi.mock('@/hooks/useLeague', () => ({ useLeague: () => ({}) }));
 
 import NextGameControl from './NextGameControl';
+import { SeasonSetupContext } from '@/hooks/useSeasonSetup';
 
 const spring = (over: any = {}) => ({ id: 's1', name: 'Spring 2026', numberOfGames: 12, status: 'active', ...over });
 const summer = { id: 's2', name: 'Summer 2026', numberOfGames: 12, status: 'active' };
@@ -37,6 +35,7 @@ const playedIn = (seasonId: string, n: number) => [{
 
 function open(currentSeason: any, gamesPlayed: number, storedSeasonId = 's1') {
   render(
+    <SeasonSetupContext.Provider value={h.openSetup}>
     <NextGameControl
       tournament={{
         state: { details: { type: 'season' }, settings: { isSeasonTournament: true, seasonId: storedSeasonId } },
@@ -48,14 +47,15 @@ function open(currentSeason: any, gamesPlayed: number, storedSeasonId = 's1') {
       switchLeague={vi.fn() as any}
       currentSeason={currentSeason}
       seasons={h.seasons as any}
-    />,
+    />
+    </SeasonSetupContext.Provider>,
   );
   fireEvent.click(screen.getByText('Next Game'));
 }
 
 beforeEach(() => {
   h.startNewGame.mockReset();
-  h.startNextSeason.mockReset().mockResolvedValue('s2');
+  h.openSetup.mockReset();
 });
 
 describe('NextGameControl', () => {
@@ -71,7 +71,7 @@ describe('NextGameControl', () => {
    * 12. An ended season takes no next game: there must be no button that starts
    * one, and the way forward is the next season.
    */
-  it('offers no game in an ENDED season, only the next season', async () => {
+  it('offers no game in an ENDED season, only the next season', () => {
     h.seasons = [spring({ status: 'completed' })];
     open(spring({ status: 'completed' }), 12);
 
@@ -80,16 +80,10 @@ describe('NextGameControl', () => {
     expect(screen.queryByText(/Game 13/)).toBeNull();
     expect(screen.queryByText(/extra game/i)).toBeNull();
 
-    // It leads to set-up — how the season runs — rather than copying this one.
+    // It leads to the season set-up in Manage League, and closes this dialog.
     fireEvent.click(screen.getByText('Start next season'));
-    expect(screen.getByText('Set up the next season')).toBeTruthy();
-    expect(h.startNextSeason).not.toHaveBeenCalled();
-
-    fireEvent.change(screen.getByLabelText('Season Name'), { target: { value: 'Summer 2026' } });
-    fireEvent.change(screen.getByLabelText('Number of Games'), { target: { value: '10' } });
-    fireEvent.click(screen.getByText('Create season'));
-    await waitFor(() => expect(h.startNextSeason).toHaveBeenCalledTimes(1));
-    expect(h.startNextSeason.mock.calls[0][0]).toMatchObject({ name: 'Summer 2026', numberOfGames: 10 });
+    expect(h.openSetup).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Start next league game')).toBeNull();
     expect(h.startNewGame).not.toHaveBeenCalled();
   });
 

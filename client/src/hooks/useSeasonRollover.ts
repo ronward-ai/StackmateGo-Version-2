@@ -1,10 +1,9 @@
 import { useCallback, useState } from 'react';
 import { useLeague } from './useLeague';
 import { useSeasons } from './useSeasons';
-import { seasonDraftProblem, seasonFromDraft, type SeasonDraft } from '@/lib/seasonProgress';
 
 /**
- * Ending a season and starting the next one.
+ * Ending a season.
  *
  * Quarterly leagues roll over four times a year, and before this the director
  * had to remember to do it: nothing reacted to the last game being played or
@@ -14,8 +13,8 @@ import { seasonDraftProblem, seasonFromDraft, type SeasonDraft } from '@/lib/sea
  * date" is not the same as "finished", so the director decides.
  */
 export function useSeasonRollover(currentSeason: any) {
-  const { league, setActiveSeason } = useLeague();
-  const { addSeason, updateSeason } = useSeasons({ leagueId: league?.id });
+  const { league } = useLeague();
+  const { updateSeason } = useSeasons({ leagueId: league?.id });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,43 +31,10 @@ export function useSeasonRollover(currentSeason: any) {
     }
   }, [currentSeason?.id, updateSeason]);
 
-  /**
-   * End this season and create the one after it, FROM THE DIRECTOR'S ANSWERS.
-   *
-   * This used to invent the next season — the following period and the same
-   * number of games — and create it on the press of a button, which is wrong for
-   * a league whose seasons follow the calendar. The draft now comes from
-   * `NewSeasonDialog`, prefilled by `nextSeasonDraft` and confirmed by the
-   * director. The new season becomes current, so the next game counts toward it.
-   *
-   * Resolves to the new season's id, or null when nothing was created — Next
-   * Game uses it to move its dialog straight onto the season it just made.
-   */
-  const startNextSeason = useCallback(async (draft: SeasonDraft): Promise<string | null> => {
-    if (!currentSeason?.id) return null;
-    const problem = seasonDraftProblem(draft);
-    if (problem) { setError(problem); return null; }
-    setBusy(true); setError(null);
-    try {
-      const created = await addSeason({ ...seasonFromDraft(draft), status: 'active' });
+  // There used to be a startNextSeason here that created the next season
+  // silently — the following dates and the SAME number of games. Wrong for a
+  // league whose seasons follow the calendar. Start Next Season now opens the
+  // season set-up in Manage League instead (hooks/useSeasonSetup.ts).
 
-      if (!created?.id || created.id === 'default-season') {
-        setError('The next season could not be created.');
-        return null;
-      }
-
-      // Close the old one only after the new one exists, so a failure never
-      // leaves the league with no running season.
-      await updateSeason(currentSeason.id, { status: 'completed' } as any);
-      await setActiveSeason(String(created.id));
-      return String(created.id);
-    } catch (err: any) {
-      setError(err?.message || 'Could not start the next season.');
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }, [currentSeason, addSeason, updateSeason, setActiveSeason]);
-
-  return { endCurrentSeason, startNextSeason, busy, error };
+  return { endCurrentSeason, busy, error };
 }

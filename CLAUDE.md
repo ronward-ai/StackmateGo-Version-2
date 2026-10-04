@@ -2889,9 +2889,8 @@ Three faults lined up, and each one alone looked harmless:
 `lib/seasonProgress.ts`'s **`nextGameState(season, gamesPlayed)`** is the one answer —
 `'ended' | 'full' | 'open'` — and the dialog acts on it:
 
-- **`ended`** — no button starts a game in it. The dialog says so and offers **Start next season**,
-  which opens the season set-up (see "Start Next Season asks how the season runs") and then lands on
-  the new season's Game 1. `handleLeagueNewGame` refuses an ended season too, so no future caller walks round the
+- **`ended`** — no button starts a game in it. The dialog says so and offers **Start next season**
+  (see below — it leads to the season set-up). `handleLeagueNewGame` refuses an ended season too, so no future caller walks round the
   button. Ended seasons are dropped from the picker. **Ended outranks full.**
 - **`full`** — every scheduled game played, not yet ended. Start next season is the main action and
   an extra game is still offered underneath — **warned, never refused**, the `lateEntryClosedReason`
@@ -3482,43 +3481,35 @@ read an end date with no beginning.
 `seasonSubtitle()` joins the range and the length, dropping whichever is missing — concatenating them
 directly left a dateless season reading `· 12 games`, leading separator and all.
 
-### Start Next Season asks how the season runs, and there is one season form
+### Start Next Season leads to the season set-up, and there is ONE
 
 Every **Start Next Season** — both `SeasonDashboard` banners and the ended/full footer of Next Game —
-used to create the next season **on the press**: the next period's dates and the SAME number of games,
-never shown to anyone. Right for a league with a fixed count; wrong for a calendar one, because January
-to March and April to June hold different numbers of nights. Reported, and fairly.
+opens **Manage League on the Seasons tab with the New Season form already open**. That form already
+handles both kinds of league: a set number of games, and a date range with the games counted from it.
 
-Each now opens `components/NewSeasonDialog.tsx`, which asks first — **"A set number of games"** or
-**"Between two dates"** — and nothing is created until the director presses Create.
-`lib/seasonProgress.ts` owns the rules:
+It used to create the next season **silently**: the next period's dates and the SAME number of games,
+never shown to anyone. Right for a fixed-count league, wrong for a calendar one — January to March and
+April to June hold different numbers of nights. `useSeasonRollover.startNextSeason` is deleted.
 
-- **`nextSeasonDraft(season)`** prefills from the season that ended: a dated season suggests the next
-  period as a calendar season, a dateless one the same count and a bumped name (`suggestNextName`).
-  Dates that exist but do not parse give a calendar draft with **no** dates for the director to type —
-  this used to be a dead end telling them to go to Manage League.
-- **`seasonDraftProblem`** — name, at least one game, and for a calendar season BOTH dates, in order.
-  Half a range is worse than none.
-- **`seasonFromDraft`** is what is stored, and **a games season stores no dates even if some were typed
-  before the kind was switched** — otherwise `isSeasonComplete` would end it by a calendar the director
-  just said it does not follow. A mutant storing them turns a test red.
+**A second season form was built for this and removed the same day**, at the director's request: a
+popup asking "set number of games or between two dates", sharing an extracted form that changed the
+Seasons tab too. The Seasons tab was already right, and two places to set up a season is the drift this
+file keeps recording. Do not rebuild it — send people to the one that exists.
 
-**The count is stored for BOTH kinds.** Eight call sites read `numberOfGames || 12`, so a calendar
-season with no count would silently read as twelve everywhere. In calendar mode the form works it out
-from the dates and the play nights (`gamesInRange`), filling it as nights are picked and leaving it
-editable. A calendar season with one more night than counted still plays it, because a FULL season
-only warns.
+How it is wired: `LeagueSection` owns the Manage League dialog and provides `hooks/useSeasonSetup.ts`'s
+context; the season panel and Next Game both render inside it. `LeagueSettingsDialog` takes
+`startNewSeason` and passes `startNew` to `LeagueSeasonsTab`, which opens its form **only when the
+account may create seasons** — the same Pro gate as its New Season button. A read-only console gets no
+context, so no Start Next Season. Next Game closes its own dialog first, so two dialogs are never
+stacked.
 
-**`components/SeasonForm.tsx` is the one season form**, and Manage League → Seasons renders it too —
-it was inline there, and a second form for the rollover is how the two would have drifted.
-`useSeasonRollover.startNextSeason(draft)` keeps its order: create, then close the old season, then
-move `activeSeasonId`, so a failure never leaves a league with no running season. Next Game still lands
-on the new season's Game 1.
+Creating a season there makes it current but does **not** end the old one, exactly as the form always
+has. The old season's End button is beside it in the list, and the dashboard still offers End Season.
 
-Six mutants are caught — either button creating directly again, stored stray dates, no auto-count,
-always-games drafts and half a date range. Driven in Chromium through the devstub with the real dialog:
-Q1 2026 prefilled as `Q2 2026`, 1 April to 30 June, and picking Wednesday counted **13**. Creating a
-season needs Firestore, which is offline there; the component tests cover that half.
+Verified in Chromium through the devstub: opened with `startNewSeason`, Manage League lands on Seasons
+with Season Name, Number of Games and Date Range showing; opened normally it shows the list. The
+devstub's account is not Pro (no payments server), so that run forced Pro behind a grep marker —
+without it the form correctly stays shut, as the New Season button does.
 
 `isSeasonActive` was deleted with this: it derived "is this season current" from dates, which the
 `activeSeasonId` pointer replaced, and nothing called it. A dates-only notion of "current" left lying
@@ -3761,7 +3752,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | Module | Owns |
 |---|---|
 | `prizePool.ts` | Prize pool, rake and what one entry costs. **Rake is charged ON TOP of the buy-in**, so `net === gross` is deliberate, not a bug. Every money figure on screen comes from here. |
-| `seasonProgress.ts` | Game numbering, games played, season completion, next-season dates — whether a season can take a next game at all (`nextGameState`: **ended refuses, full only warns**), and the draft a new season is set up from (`nextSeasonDraft`, `seasonFromDraft`). |
+| `seasonProgress.ts` | Game numbering, games played, season completion, next-season dates — and whether a season can take a next game at all (`nextGameState`: **ended refuses, full only warns**). |
 | `tournamentMode.ts` | Whether a tournament is a league game, and whether that can still be changed — **per direction**, since a finished game may stop being a league game but never become one. An explicit flag wins either way; `leagueId` is consulted only when no flag exists. |
 | `eventName.ts` | The display name, per above. |
 | `sharedSnapshot.ts` | Refcounted Firestore listener sharing. |

@@ -13,9 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
-import { countGamesPlayed, nextGameNumber, nextGameLabel, nextGameState, type SeasonDraft } from '@/lib/seasonProgress';
-import NewSeasonDialog from '@/components/NewSeasonDialog';
-import { useSeasonRollover } from '@/hooks/useSeasonRollover';
+import { countGamesPlayed, nextGameNumber, nextGameLabel, nextGameState } from '@/lib/seasonProgress';
+import { useSeasonSetup } from '@/hooks/useSeasonSetup';
 import { useNewGame } from '@/hooks/useNewGame';
 import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
 
@@ -161,19 +160,11 @@ export default function NextGameControl({
     ? nextGameState(targetSeason, countGamesPlayed(targetSeason.id, leaguePlayers))
     : 'open';
 
-  const { startNextSeason, busy: rolloverBusy, error: rolloverError } = useSeasonRollover(targetSeason);
-
-  // Start next season leads to set-up — how the season runs, its name, its
-  // dates or count — rather than creating a copy of the one that ended.
-  const [showNewSeason, setShowNewSeason] = useState(false);
-
-  /** Create the season the director set up, and move the dialog straight onto
-   *  its Game 1. */
-  const handleStartNextSeason = async (draft: SeasonDraft) => {
-    const created = await startNextSeason(draft);
-    if (created) setDialogSeasonId(created);
-    return created;
-  };
+  // Start next season leads to the season set-up — Manage League → Seasons →
+  // New Season — where the director says how the new season runs. Present
+  // whenever this renders inside the league panel, which is the only place an
+  // ended or full season can reach this dialog.
+  const openSeasonSetup = useSeasonSetup();
 
   return (
     <>
@@ -307,18 +298,23 @@ export default function NextGameControl({
               </Button>
             ) : (
               /* Ended: the only way forward. Full: the obvious one, with the extra
-                 game below it. Either way the next season is created, the old one
-                 closed and the league moved onto it, and the dialog lands on the
-                 new season's Game 1. */
+                 game below it. Either way it opens the season set-up in Manage
+                 League, where the new season is made and becomes current; Next
+                 Game then offers its Game 1. */
               <>
                 <p className="text-label text-muted-foreground text-center">
                   {seasonState === 'ended'
                     ? `${targetSeason?.name ?? 'This season'} has ended.`
                     : `All ${targetSeason?.numberOfGames} games of ${targetSeason?.name ?? 'this season'} have been played.`}
                 </p>
-                <Button className="w-full" disabled={rolloverBusy} onClick={() => setShowNewSeason(true)}>
-                  {rolloverBusy ? 'Starting\u2026' : 'Start next season'}
-                </Button>
+                {openSeasonSetup && (
+                  <Button
+                    className="w-full"
+                    onClick={() => { setShowLeagueNewDialog(false); openSeasonSetup(); }}
+                  >
+                    Start next season
+                  </Button>
+                )}
                 {seasonState === 'full' && dialogGameNumber != null && (
                   <button
                     onClick={() => handleLeagueNewGame(targetSeason?.id ?? dialogSeasonId)}
@@ -338,15 +334,6 @@ export default function NextGameControl({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <NewSeasonDialog
-        open={showNewSeason}
-        onOpenChange={setShowNewSeason}
-        previousSeason={targetSeason}
-        onCreate={handleStartNextSeason}
-        busy={rolloverBusy}
-        error={rolloverError}
-      />
     </>
   );
 }

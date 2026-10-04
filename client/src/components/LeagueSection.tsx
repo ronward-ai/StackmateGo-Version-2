@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trophy, ChevronDown, ChevronUp, Settings } from 'lucide-react';
@@ -6,6 +6,7 @@ import SeasonDashboard from '@/components/SeasonDashboard';
 import { LeagueSettingsDialog } from '@/components/LeagueSettingsDialog';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
+import { SeasonSetupContext } from '@/hooks/useSeasonSetup';
 import { gameNumberFor, gameProgressLabel, isSeasonComplete, countGamesPlayed } from '@/lib/seasonProgress';
 
 const LEAGUE_PANEL_KEY = 'leaguePanelExpanded';
@@ -61,6 +62,13 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame }
     });
   };
   const [showLeagueSettings, setShowLeagueSettings] = useState(false);
+  // Opened from Start Next Season: Manage League, on the Seasons tab, with the
+  // New Season form already open. See hooks/useSeasonSetup.ts.
+  const [setUpNewSeason, setSetUpNewSeason] = useState(false);
+  const openSeasonSetup = useCallback(() => {
+    setSetUpNewSeason(true);
+    setShowLeagueSettings(true);
+  }, []);
 
   const { league, leaguePlayers } = useLeague();
   const { currentSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
@@ -95,8 +103,12 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame }
   // tournament and is now the single writer.
 
   return (
-    <>
-      <LeagueSettingsDialog open={showLeagueSettings} onOpenChange={setShowLeagueSettings} />
+    <SeasonSetupContext.Provider value={readOnly ? null : openSeasonSetup}>
+      <LeagueSettingsDialog
+        open={showLeagueSettings}
+        onOpenChange={o => { setShowLeagueSettings(o); if (!o) setSetUpNewSeason(false); }}
+        startNewSeason={setUpNewSeason}
+      />
 
       <Card className="card-glass rounded-xl">
         <CardContent className="p-5">
@@ -168,6 +180,6 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame }
           )}
         </CardContent>
       </Card>
-    </>
+    </SeasonSetupContext.Provider>
   );
 }

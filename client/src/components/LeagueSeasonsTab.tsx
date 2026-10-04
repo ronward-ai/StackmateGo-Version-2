@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -9,10 +12,8 @@ import { Plus, Archive, Trash2, Check } from 'lucide-react';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useSubscription } from '@/hooks/useSubscription';
-import {
-  EMPTY_SEASON_DRAFT, seasonDraftProblem, seasonFromDraft, seasonSubtitle, type SeasonDraft,
-} from '@/lib/seasonProgress';
-import SeasonForm from '@/components/SeasonForm';
+import { gamesInRange, seasonSubtitle } from '@/lib/seasonProgress';
+import { cn } from '@/lib/utils';
 
 /**
  * Season management, gathered in one place.
@@ -27,7 +28,25 @@ import SeasonForm from '@/components/SeasonForm';
  * one-tap control beside the title: it changes which season new games count
  * toward, and it changes what every participant sees.
  */
-export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: boolean }) {
+/** Monday first, as a week of poker nights reads. */
+const PLAY_NIGHTS = [
+  { value: 1, short: 'M', name: 'Monday' },
+  { value: 2, short: 'T', name: 'Tuesday' },
+  { value: 3, short: 'W', name: 'Wednesday' },
+  { value: 4, short: 'T', name: 'Thursday' },
+  { value: 5, short: 'F', name: 'Friday' },
+  { value: 6, short: 'S', name: 'Saturday' },
+  { value: 0, short: 'S', name: 'Sunday' },
+];
+
+export default function LeagueSeasonsTab({
+  readOnly = false,
+  startNew = false,
+}: {
+  readOnly?: boolean;
+  /** Open with the New Season form showing — where Start Next Season leads. */
+  startNew?: boolean;
+}) {
   const { league, setActiveSeason } = useLeague();
   const {
     seasons, currentSeason, addSeason, updateSeason, deleteSeason, formatSeasonDateRange,
@@ -35,29 +54,56 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
   const { isPro } = useSubscription();
 
   const [showNew, setShowNew] = useState(false);
-  // The ONE season form, shared with Start Next Season (`SeasonForm`).
-  const [draft, setDraft] = useState<SeasonDraft>(EMPTY_SEASON_DRAFT);
+  // Gated exactly as the New Season button is, once the subscription is known.
+  useEffect(() => {
+    if (startNew && isPro) setShowNew(true);
+  }, [startNew, isPro]);
+  const [name, setName] = useState('');
+  const [games, setGames] = useState<number | ''>(12);
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined } | undefined>();
+
+  // Which nights the league plays, for working the game count out of the dates.
+  // Nothing is stored: this only fills the number, which stays editable.
+  const [playNights, setPlayNights] = useState<number[]>([]);
+  const [everyNWeeks, setEveryNWeeks] = useState(1);
 
   const [endTarget, setEndTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const suggestedGames = useMemo(
+    () => gamesInRange(
+      dateRange?.from?.toISOString().split('T')[0],
+      dateRange?.to?.toISOString().split('T')[0],
+      { weekdays: playNights, everyNWeeks },
+    ),
+    [dateRange?.from, dateRange?.to, playNights, everyNWeeks],
+  );
+
   const seasonName = (id: string | null) =>
     seasons.find(s => String(s.id) === String(id))?.name ?? 'this season';
 
   const handleCreate = async () => {
-    // seasonDraftProblem decides, and the button is disabled by the same answer.
-    // Dates used to be compulsory here while the button was not disabled, so
-    // pressing Create did nothing and said nothing — indistinguishable from a
-    // broken app. Dates are needed now only by a season that says it follows
-    // the calendar.
-    if (seasonDraftProblem(draft)) return;
+    // A name is all that is required. Dates used to be compulsory here, and the
+    // button was not disabled, so pressing Create with none did nothing at all
+    // and said nothing — indistinguishable from a broken app.
+    if (!name.trim()) return;
     setBusy(true); setError(null);
     try {
-      // A games season stores no dates even if some were typed before the kind
-      // was switched — seasonFromDraft owns that.
-      const created = await addSeason({ ...seasonFromDraft(draft), status: 'active' });
+      // BOTH dates or neither. Half a range is worse than none: isSeasonComplete
+      // would read an end date with no beginning.
+      const hasRange = !!dateRange?.from && !!dateRange?.to;
+
+      const created = await addSeason({
+        name: name.trim(),
+        ...(hasRange ? {
+          startDate: dateRange!.from!.toISOString().split('T')[0],
+          endDate: dateRange!.to!.toISOString().split('T')[0],
+        } : {}),
+        numberOfGames: typeof games === 'number' ? games : 12,
+        status: 'active',
+      });
       // A failed create used to close this dialog and reset the form anyway, so
       // the director walked away believing they had a season. addSeason returns
       // null now rather than a synthetic one, and nothing is cleared until it
@@ -67,7 +113,8 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
         return;
       }
       await setActiveSeason(String(created.id));
-      setShowNew(false); setDraft(EMPTY_SEASON_DRAFT);
+      setShowNew(false); setName(''); setGames(12); setDateRange(undefined);
+      setPlayNights([]); setEveryNWeeks(1);
     } catch (err: any) {
       setError(err?.message || 'Could not create the season.');
     } finally { setBusy(false); }
@@ -187,9 +234,111 @@ export default function LeagueSeasonsTab({ readOnly = false }: { readOnly?: bool
         </Button>
       ) : (
         <Card className="p-4 space-y-3">
-          <SeasonForm draft={draft} onChange={setDraft} />
+          <div>
+            <Label className="text-xs text-muted-foreground">Season Name</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Jan – Mar 2026" className="mt-1 h-8 text-sm" />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Number of Games</Label>
+            <Input
+              type="text" inputMode="numeric" value={games}
+              onChange={e => {
+                const raw = e.target.value.replace(/[^0-9]/g, '');
+                setGames(raw === '' ? '' : Number(raw));
+              }}
+              onFocus={e => e.target.select()}
+              className="mt-1 h-8 text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Date Range <span className="opacity-60">(optional)</span></Label>
+            <DateRangePicker value={dateRange} onSelect={setDateRange} />
+            {/* Not every league runs on a calendar: a quarterly season is a date
+                range with a schedule inside it, while a 12-game season runs
+                until the twelfth game is played, whenever that falls. */}
+            <p className="text-caption text-muted-foreground mt-1">
+              Leave blank for a season that simply runs until its games are played.
+            </p>
+          </div>
+
+          {/* Counting Wednesdays on a calendar is arithmetic, and it is the kind
+              people get wrong: 1 Jan to 31 Mar is thirteen WEEKS but twelve
+              Wednesdays. The answer fills the games field and can be typed over
+              — a cancelled week or a Christmas break is normal and unknowable
+              from a pattern. */}
+          {dateRange?.from && dateRange?.to && (
+            <div className="card-glass rounded-lg p-3 space-y-2.5">
+              <Label className="text-caption uppercase tracking-wide text-muted-foreground">
+                Count the games for me
+              </Label>
+
+              <div className="flex gap-1">
+                {PLAY_NIGHTS.map(night => {
+                  const on = playNights.includes(night.value);
+                  return (
+                    <button
+                      key={night.value}
+                      type="button"
+                      onClick={() => setPlayNights(prev =>
+                        prev.includes(night.value)
+                          ? prev.filter(d => d !== night.value)
+                          : [...prev, night.value]
+                      )}
+                      className={cn(
+                        'h-7 w-7 rounded-md border text-caption font-semibold transition-colors',
+                        on
+                          ? 'bg-primary/10 text-primary border-primary/30'
+                          : 'border-border text-muted-foreground hover:text-foreground'
+                      )}
+                      title={night.name}
+                      aria-pressed={on}
+                    >
+                      {night.short}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* A number, not a set of buttons. "Every week" and "Every 2 weeks"
+                  could not justify the pair: if fortnightly earns a button then
+                  so does every three weeks, or monthly. gamesInRange always
+                  accepted any N — only this control stopped at two. */}
+              <div className="flex items-center gap-2">
+                <span className="text-label text-muted-foreground">Every</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={everyNWeeks}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                    // Empty reads as weekly rather than blocking: gamesInRange
+                    // clamps below 1 anyway, so the count never vanishes while
+                    // the field is being retyped.
+                    setEveryNWeeks(raw === '' ? 1 : Number(raw));
+                  }}
+                  onFocus={e => e.target.select()}
+                  className="h-7 w-12 text-center text-label px-1"
+                />
+                <span className="text-label text-muted-foreground">
+                  {everyNWeeks === 1 ? 'week' : 'weeks'}
+                </span>
+              </div>
+
+              {suggestedGames > 0 && (
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <span className="text-label text-muted-foreground">
+                    <span className="font-mono font-bold text-foreground">{suggestedGames}</span>
+                    {' '}games in that range
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7 text-caption" onClick={() => setGames(suggestedGames)}>
+                    Use {suggestedGames}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1" disabled={busy || !!seasonDraftProblem(draft)} onClick={handleCreate}>Create Season</Button>
+            <Button size="sm" className="flex-1" disabled={busy || !name.trim()} onClick={handleCreate}>Create Season</Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setShowNew(false)}>Cancel</Button>
           </div>
         </Card>

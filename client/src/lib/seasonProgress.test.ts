@@ -16,9 +16,6 @@ import {
   type PlayerLike,
   nextGameState,
   nextGameLabel,
-  nextSeasonDraft,
-  seasonDraftProblem,
-  seasonFromDraft,
 } from './seasonProgress';
 
 /** Two players who both played tournaments t1 and t2 in season s1. */
@@ -549,72 +546,5 @@ describe('nextGameLabel', () => {
   it('copes with no schedule and no number', () => {
     expect(nextGameLabel(4, 0)).toBe('Game 4');
     expect(nextGameLabel(null, 12)).toBe('');
-  });
-});
-
-/**
- * Start Next Season used to create the next season silently, with the same
- * game count — wrong for a league whose seasons follow the calendar. It now opens
- * a set-up form, and these decide what that form starts from and accepts.
- */
-describe('nextSeasonDraft', () => {
-  it('suggests the next quarter for a season that ran between dates', () => {
-    const d = nextSeasonDraft({ name: 'Q1 2026', startDate: '2026-01-01', endDate: '2026-03-31', numberOfGames: 12 });
-    expect(d.kind).toBe('calendar');
-    expect(d.startDate).toBe('2026-04-01');
-    expect(d.endDate).toBe('2026-06-30');
-    expect(d.name).toBe('Q2 2026');
-  });
-
-  it('suggests the same count and the next name for a season without dates', () => {
-    const d = nextSeasonDraft({ name: 'Season 3', numberOfGames: 10 });
-    expect(d).toEqual({ kind: 'games', name: 'Season 4', numberOfGames: 10 });
-  });
-
-  // The old rollover refused here and sent the director to Manage League.
-  it('asks for dates rather than refusing when the old ones do not parse', () => {
-    const d = nextSeasonDraft({ name: 'Odd', startDate: 'not a date', endDate: '2026-03-31', numberOfGames: 8 });
-    expect(d.kind).toBe('calendar');
-    expect(d.startDate).toBeUndefined();
-    expect(seasonDraftProblem(d)).toMatch(/dates/);
-  });
-});
-
-describe('seasonDraftProblem', () => {
-  const ok = { kind: 'calendar' as const, name: 'Q2', numberOfGames: 13, startDate: '2026-04-01', endDate: '2026-06-30' };
-
-  it('accepts a complete draft of either kind', () => {
-    expect(seasonDraftProblem(ok)).toBeNull();
-    expect(seasonDraftProblem({ kind: 'games', name: 'Season 4', numberOfGames: 12 })).toBeNull();
-  });
-
-  it('needs a name and at least one game', () => {
-    expect(seasonDraftProblem({ ...ok, name: '  ' })).not.toBeNull();
-    expect(seasonDraftProblem({ ...ok, numberOfGames: 0 })).not.toBeNull();
-    expect(seasonDraftProblem({ ...ok, numberOfGames: '' })).not.toBeNull();
-  });
-
-  // Half a range is worse than none.
-  it('needs BOTH dates, in order, for a calendar season — and none for a games one', () => {
-    expect(seasonDraftProblem({ ...ok, endDate: undefined })).not.toBeNull();
-    expect(seasonDraftProblem({ ...ok, startDate: '2026-07-01' })).not.toBeNull();
-    expect(seasonDraftProblem({ kind: 'games', name: 'S', numberOfGames: 12, startDate: '2026-04-01' })).toBeNull();
-  });
-});
-
-describe('seasonFromDraft', () => {
-  /** THE MUTANT: store whatever dates the draft carries. A director who typed
-   *  dates and then said "a set number of games" must not get a season the
-   *  calendar ends behind their back. */
-  it('stores no dates for a set-number-of-games season, even if some were typed', () => {
-    expect(seasonFromDraft({
-      kind: 'games', name: ' Season 4 ', numberOfGames: 12, startDate: '2026-04-01', endDate: '2026-06-30',
-    })).toEqual({ name: 'Season 4', numberOfGames: 12 });
-  });
-
-  it('stores the dates and the count for a calendar season', () => {
-    expect(seasonFromDraft({
-      kind: 'calendar', name: 'Q2', numberOfGames: 13, startDate: '2026-04-01', endDate: '2026-06-30',
-    })).toEqual({ name: 'Q2', numberOfGames: 13, startDate: '2026-04-01', endDate: '2026-06-30' });
   });
 });
