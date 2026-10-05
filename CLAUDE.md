@@ -3766,6 +3766,22 @@ the participant view's first read is a REST GET that must fail as a 503, not a n
 never attaches the listener. Capture at the device-pixel size and encode WebP in Chrome; each file is
 under 50KB.
 
+**The hero shows the QR code, and that needed a SAVED, PUBLISHED game.** `TimerCard` draws it only
+for `details.id && isPublished !== false`, so the hero seeds a published `activeTournaments` document
+owned by the stub director and opens it at `/tournament/{id}/director` — offline, that is enough for
+the QR and the Broadcasting chip. The code encodes a `localhost` URL; nobody can tell from a picture.
+
+**Below the standings, ONE row of three set-up shots** (`seating.webp`, `season-dates.webp`,
+`stats.webp`, 4:3 each) under a single "Set up once" eyebrow, stacked on a phone. A row of three is
+the ceiling for this page — a fourth is a pillar's worth of attention and should replace one. Traps
+from taking them: the season form is Pro-gated, so route `/api/payments-status` to
+`{"enabled":false}` (every registered user is Pro then); a date box shows US order unless the
+**process** runs with `LANG=en_GB.UTF-8` — Playwright's `locale` does not reach it; the context needs
+`colorScheme: 'dark'` or the native calendar renders light; and once that calendar is open,
+Playwright's `page.screenshot` hangs, so capture through CDP's `Page.captureScreenshot` with the scale
+set by `--force-device-scale-factor` rather than the context's `deviceScaleFactor`, which CDP
+ignores.
+
 **The trust line leads with credibility, never with failure.** A draft was headed *"Built by people
 who have lost a tournament"* — which reads to someone arriving cold as *lost tournament data*, the
 one thing this category of software must never do. It says "made by people who know poker, and know

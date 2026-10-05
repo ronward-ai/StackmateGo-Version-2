@@ -229,7 +229,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
             eager
             src="/shots/console.webp"
             aspect="16 / 9"
-            alt="The director’s console four levels in: the clock running, the ring around it showing how much of the level is gone, blinds and ante"
+            alt="The director’s console four levels in: the clock running inside a ring that fills as the level goes, blinds and ante, and the QR code players scan to follow the game"
             caption="The console, four levels in."
           />
         </header>
@@ -257,6 +257,32 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
             alt="A player’s phone during a league game: their table and seat, the live clock, and the night’s payouts"
             caption="What the code opens — and it keeps moving."
           />
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <p className="font-mono text-caption uppercase tracking-[0.08em] text-muted-foreground">
+            Set up once
+          </p>
+          <div className="grid gap-6 sm:grid-cols-3">
+            <Shot
+              src="/shots/seating.webp"
+              aspect="4 / 3"
+              alt="The Seating tab: two tables of eight, every player in a numbered seat with a KO button"
+              caption="Seat everyone in one press, and move them by hand."
+            />
+            <Shot
+              src="/shots/season-dates.webp"
+              aspect="4 / 3"
+              alt="Setting up a new season: a date range with the calendar open, Thursdays ticked, and the twelve games in that range counted"
+              caption="Seasons by game count or by dates — the games are counted for you."
+            />
+            <Shot
+              src="/shots/stats.webp"
+              aspect="4 / 3"
+              alt="The league’s Stats settings: the standings columns ticked on and off, each with arrows to reorder it"
+              caption="Pick the columns your league cares about."
+            />
+          </div>
         </section>
 
         <footer className="border-t border-border/40 pt-8 flex flex-wrap gap-x-6 gap-y-2 items-baseline">
