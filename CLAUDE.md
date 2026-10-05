@@ -3543,6 +3543,15 @@ weeks.
 The chosen nights are not stored on the season. Nothing needs them after the count, and a stored
 schedule that reality diverges from is a second source of truth.
 
+**The date boxes are the browser's own, and on desktop Chrome they showed no calendar at all.**
+Reported from Chrome on Windows while an iPad worked. Desktop Chrome opens its calendar only from a
+small icon inside the box, and nothing in this dark-only app set `color-scheme: dark`, so that icon
+was drawn dark on a near-black field — invisible — while a click on the text only selected a segment
+to type over. `ui/date-range-picker.tsx` now sets `color-scheme: dark` (a light icon, a dark popup)
+and calls `showPicker()` on a click anywhere in the box, in a `try` so a browser that refuses it
+still takes typing. Verified in real Chromium: one click on the TEXT opened a dark calendar. Any
+future `<input type="date">` needs the same two things.
+
 ### The Points tab is chosen by looking, not by reading
 
 The schemes were labelled **Logarithmic, Square Root and Linear** — curve families, which is how the
