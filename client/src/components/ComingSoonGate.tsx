@@ -182,7 +182,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
                   page opened on a logo and a line of voice, so someone arriving
                   cold had to reach the pillars before finding out this was
                   anything to do with poker. */}
-              <p className="font-mono text-label uppercase tracking-[0.1em] text-muted-foreground mb-4">
+              <p className="font-mono text-label uppercase tracking-[0.1em] text-primary mb-4">
                 Poker tournament timer &amp; league manager
               </p>
               <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.08] text-balance">
