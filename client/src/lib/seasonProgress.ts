@@ -31,6 +31,26 @@ export interface PlayerLike {
  */
 export const SYNTHETIC_SEASON_ID = 'default-season';
 
+/**
+ * The league id `useLeague` hands out while the director's leagues are still
+ * loading. It names no document. It used to be a bare `'pending'` in two files,
+ * and `useSeasons` took it for a real league: it queried seasons for it, read
+ * `leagues/pending`, and — finding no season — tried to CREATE one,
+ * `seasons/pending-season-1`, on every load. The rules refuse that write, so
+ * nothing reached the database, but it was a wasted, failing write each time.
+ */
+export const PLACEHOLDER_LEAGUE_ID = 'pending';
+
+/** True when a league id names a real league, rather than nothing or the loading placeholder. */
+export function isRealLeagueId(leagueId: unknown): leagueId is string | number {
+  return (
+    leagueId !== null &&
+    leagueId !== undefined &&
+    leagueId !== '' &&
+    String(leagueId) !== PLACEHOLDER_LEAGUE_ID
+  );
+}
+
 /** True when a season id is safe to record results against. */
 export function isRealSeasonId(seasonId: unknown): seasonId is string | number {
   return (

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { db, collections } from '@/lib/firebase';
 import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { PLACEHOLDER_LEAGUE_ID } from '@/lib/seasonProgress';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
 
@@ -643,7 +644,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     totalWeeks: 52,
     isActive: true
   } : {
-    id: 'pending',
+    id: PLACEHOLDER_LEAGUE_ID,
     name: '',
     currentWeek: 1,
     totalWeeks: 52,

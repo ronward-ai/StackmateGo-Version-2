@@ -16,7 +16,7 @@ import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { isLeagueTournament } from '@/lib/tournamentMode';
 import { currencyOf, money } from '@/lib/currency';
-import { countGamesPlayed } from '@/lib/seasonProgress';
+import { countGamesPlayed, isRealLeagueId } from '@/lib/seasonProgress';
 import EmptyState from '@/components/ui/empty-state';
 import { totalsAcross } from '@/lib/resultStats';
 import { useAuth } from '@/hooks/useAuth';
@@ -61,7 +61,7 @@ function RealTimeLeagueTable({
   const leagueData = useLeague(tournament?.ownerId, directLeagueId);
   // 'pending' is a placeholder returned while loading — fall through to the stored leagueId in that case
   const _rawLeagueId = (leagueData as any)?.league?.id;
-  const leagueId = (_rawLeagueId && _rawLeagueId !== 'pending')
+  const leagueId = isRealLeagueId(_rawLeagueId)
     ? _rawLeagueId
     : directLeagueId;
   const settingsData = useLeagueSettings(tournament?.ownerId, leagueId ? String(leagueId) : null);

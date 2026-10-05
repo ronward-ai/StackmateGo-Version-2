@@ -16,6 +16,8 @@ import {
   type PlayerLike,
   nextGameState,
   nextGameLabel,
+  isRealLeagueId,
+  PLACEHOLDER_LEAGUE_ID,
 } from './seasonProgress';
 
 /** Two players who both played tournaments t1 and t2 in season s1. */
@@ -546,5 +548,17 @@ describe('nextGameLabel', () => {
   it('copes with no schedule and no number', () => {
     expect(nextGameLabel(4, 0)).toBe('Game 4');
     expect(nextGameLabel(null, 12)).toBe('');
+  });
+});
+
+describe('isRealLeagueId', () => {
+  it('accepts a real league id', () => {
+    expect(isRealLeagueId('abc123')).toBe(true);
+    expect(isRealLeagueId(7)).toBe(true);
+  });
+
+  // The placeholder useLeague hands out while leagues load names no document.
+  it('rejects nothing, and the loading placeholder', () => {
+    for (const v of [undefined, null, '', PLACEHOLDER_LEAGUE_ID]) expect(isRealLeagueId(v)).toBe(false);
   });
 });

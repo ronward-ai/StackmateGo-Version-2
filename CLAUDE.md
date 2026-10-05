@@ -3699,6 +3699,16 @@ data. It was **worse than the one above**, because `'default-season'` at least h
 section warning about it; an unguarded synthetic id is invisible until it costs somebody a
 standings table.
 
+**`'pending'` is the third, and the league one.** `useLeague` hands out a placeholder league whose
+id is `'pending'` while the director's leagues load, and `useSeasons` took it for a real league:
+it listened for seasons of `'pending'`, read `leagues/pending`, found no season, and tried to
+CREATE `seasons/pending-season-1` on every load. The rules refused it, so nothing landed — but it
+was a failing write each time, found while taking the landing-page screenshots. It is
+`PLACEHOLDER_LEAGUE_ID` in `lib/seasonProgress.ts` now, beside `isRealLeagueId()`, which
+`useSeasons` applies at its entry and `RealTimeLeagueTable` uses instead of its own inline
+`!== 'pending'`. A hook test asserts the placeholder neither reads nor writes, and that a real
+league with no seasons still gets its first one.
+
 **A settings object is not an entity and does not need an id.** The leagueSettings DOCUMENT has a
 real one, which is what `savedSettings` rows carry and what `loadSettings` matches on. The interface
 says so where the field used to be, next to the same note about `name`.

@@ -7,6 +7,7 @@ import { reportWriteFailure } from '@/lib/syncReporter';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
+import { isRealLeagueId } from '@/lib/seasonProgress';
 
 /** Stable empty references — required by useSharedSnapshot. */
 const EMPTY_SEASONS: Season[] = [];
@@ -56,7 +57,9 @@ interface UseSeasonsOptions {
 
 
 export function useSeasons(options: UseSeasonsOptions = {}) {
-  const { leagueId } = options;
+  // The loading placeholder is no league at all. Treating it as one queried
+  // seasons for it and then tried to create `seasons/pending-season-1`.
+  const leagueId = isRealLeagueId(options.leagueId) ? options.leagueId : undefined;
   const { settings } = useLeagueSettings(undefined, leagueId ? String(leagueId) : null);
   const { isAuthenticated: isUserAuthenticated } = useAuth();
   const queryClient = useQueryClient();
