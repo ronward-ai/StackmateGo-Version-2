@@ -227,8 +227,9 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
 
           <Shot
             eager
+            src="/shots/console.webp"
             aspect="16 / 9"
-            alt="The director’s console mid-level: clock running, blinds and ante, the players and their chips"
+            alt="The director’s console four levels in: the clock running, the ring around it showing how much of the level is gone, blinds and ante"
             caption="The console, four levels in."
           />
         </header>
@@ -245,13 +246,15 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
 
         <section className="grid gap-6 md:grid-cols-[1fr_260px] md:gap-10 md:items-end">
           <Shot
+            src="/shots/standings.webp"
             aspect="4 / 3"
             alt="The league standings, with the stat columns this league cares about — and one player’s season opened behind a name"
             caption="Standings, all season, adding themselves up. Tap a name for the detail."
           />
           <Shot
+            src="/shots/phone.webp"
             phone
-            alt="A player’s phone during a league game: live clock, their table and seat, and the standings below it"
+            alt="A player’s phone during a league game: their table and seat, the live clock, and the night’s payouts"
             caption="What the code opens — and it keeps moving."
           />
         </section>

@@ -3742,6 +3742,20 @@ picture. `Shot` also draws a labelled placeholder at the exact aspect ratio the 
 cropped to, so the layout does not move when one lands. Images live in `client/public/shots/`; bound
 them before committing (this is the first thing anyone loads), and everything below the hero is lazy.
 
+**The three screenshots are the app's own screens with invented data**, captured through the devstub
+in October 2026: `console.webp` (16:9), `standings.webp` (4:3, Marcus's season opened over the
+table) and `phone.webp` (the participant view of a live league game). No real league, venue or
+person appears. They were made with a throwaway build config that (a) wrapped Firestore's write
+calls to report success immediately, so the offline devstub stops raising "Not syncing", and (b)
+seeded a demo league, season, results and live tournament straight into the offline cache, so every
+screen read them through its normal code — no hooks were faked. Three traps worth knowing if they
+are ever retaken: the devstub stubs `@/hooks/useAuth` but several hooks import `./useAuth`, which
+then sees nobody signed in; headless Chromium does not trust this environment's proxy CA, so Google
+Fonts must be fetched with `curl` and served to the page, or every shot is in a fallback face; and
+the participant view's first read is a REST GET that must fail as a 503, not a network error, or it
+never attaches the listener. Capture at the device-pixel size and encode WebP in Chrome; each file is
+under 50KB.
+
 **The trust line leads with credibility, never with failure.** A draft was headed *"Built by people
 who have lost a tournament"* — which reads to someone arriving cold as *lost tournament data*, the
 one thing this category of software must never do. It says "made by people who know poker, and know
