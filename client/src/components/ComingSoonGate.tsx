@@ -163,7 +163,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
     },
     {
       icon: Download,
-      title: 'Out to the group chat',
+      title: 'Easy admin, easy sharing',
       body: 'Standings download as a PNG for WhatsApp and socials, or a CSV for anyone who loves a ' +
         'spreadsheet.',
     },
