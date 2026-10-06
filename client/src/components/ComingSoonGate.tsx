@@ -146,7 +146,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
     {
       icon: QrCode,
       title: 'More poker, less hassle',
-      body: 'Players scan the code on the screen and get the tournament live on their own phone \u2014 ' +
+      body: 'Players scan the QR code on the screen and get the tournament live on their own phone \u2014 ' +
         'clock, blinds, prize pool, payouts, and their own table and seat number.',
     },
     {
