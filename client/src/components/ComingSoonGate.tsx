@@ -113,14 +113,18 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
   };
 
   /*
-   * FOUR PILLARS, AND THE ORDER IS THE ARGUMENT: the night, the table, the
-   * player, the export.
+   * FOUR PILLARS, AND THE ORDER IS THE ARGUMENT: the night, the standings,
+   * the player, the export.
    *
    * Two of these were missing entirely, and they are the two a director reacts
    * to. Both are built. The standings table is mounted in the participant view
    * for every league game and fed by live listeners, and results are written at
    * each bust-out rather than at the end of the night — so the table on a
-   * player’s phone genuinely moves while the game runs. The drill-down behind
+   * player’s phone genuinely moves while the game runs.
+   *
+   * NEVER CALL IT “THE TABLE” IN COPY. To anyone who plays poker a table is
+   * the one they sit at, so “the table moves while you play” read as the
+   * seating rather than the league. The pillar says “standings” for that reason. The drill-down behind
    * a name (PlayerSeasonDialog, lib/playerSeason.ts) has no participant gate, so
    * a phone can open any player’s season night by night.
    *
@@ -147,9 +151,9 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
     },
     {
       icon: Trophy,
-      title: 'The table moves while you play',
-      body: 'In a league game the standings sit on that same phone, and they move as players hit the ' +
-        'rail \u2014 not next week, once somebody has added it up. Your points system, or one of ours.',
+      title: 'Live league standings',
+      body: 'In a league game the standings are on every player\u2019s phone, and they update the moment ' +
+        'someone busts out \u2014 not next week. Your points system, or one of ours.',
     },
     {
       icon: BarChart3,
