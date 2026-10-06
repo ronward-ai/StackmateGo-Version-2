@@ -145,7 +145,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
   const pillars = [
     {
       icon: QrCode,
-      title: 'Everyone sees the same night',
+      title: 'More poker, less hassle',
       body: 'Players scan the code on the screen and get the tournament live on their own phone \u2014 ' +
         'clock, blinds, prize pool, payouts, and their own table and seat number.',
     },
