@@ -4,13 +4,15 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { X, Download, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-react';
+import { X, Download, Users, Trophy, Plus, PlusCircle, Check, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { currencyOf } from '@/lib/currency';
 import { buyInOf, investedIn } from '@/lib/resultStats';
 import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import { resultRowsFor } from '@/lib/resultRows';
+import { resultsCsvTable } from '@/lib/resultColumns';
+import { toCsv, csvFilename, downloadCsv } from '@/lib/csv';
 import { gameIsOver, finishedGameNote } from '@/lib/gameOver';
 import ResultsTable from '@/components/ResultsTable';
 import ResultsSheet from '@/components/export/ResultsSheet';
@@ -477,6 +479,26 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     }
   };
 
+  /**
+   * The results, as a spreadsheet — the same rows and columns the table and the
+   * image draw, through `resultsCsvTable`, so a figure cannot read one way on
+   * screen and another in the file. Escaping and formula defusing are
+   * `lib/csv.ts`'s, as for the standings: player names are typed in.
+   */
+  const handleExportCsv = () => {
+    const { headers, rows } = resultsCsvTable(
+      resultRows, state.settings.resultColumns, columnContext, currencyOf(state.settings),
+    );
+    const name = csvFilename([eventNameOf(state.settings) || 'tournament', 'results']);
+    if (!downloadCsv(name, toCsv(headers, rows))) {
+      toast({
+        title: 'Could not save the file',
+        description: 'The download was blocked. Try again, or use a different browser.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // `isActive !== false`, not truthy: an ABSENT flag means active everywhere in
   // this app, and a player restored from a Firestore round-trip may carry none.
   const activePlayers = state.players.filter(p => p.isActive !== false);
@@ -519,6 +541,21 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
               Labelled rather than icon-only: a bare download arrow appearing in
               the header gave no clue what it did, and read as detached from the
               results it saves. */}
+          {tournamentFinished && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleExportCsv();
+              }}
+              title="Download the results as a spreadsheet"
+              className="h-8 px-3 gap-1.5"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="text-xs">CSV</span>
+            </Button>
+          )}
           {tournamentFinished && (
             <Button
               variant="success"

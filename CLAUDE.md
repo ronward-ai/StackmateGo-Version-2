@@ -1885,6 +1885,13 @@ typed in by whoever is running the game and reach the file unmodified, so a name
 `=HYPERLINK(...)` would run on the machine of whoever opened the export. A leading apostrophe, which
 spreadsheets strip on display, is the standard fix.
 
+**The game results export as a CSV too**, beside the image, for the same reason and the same way:
+`lib/resultColumns.ts`'s `resultsCsvTable` writes the columns, labels and cells `ResultsTable` and
+`ResultsSheet` draw, from `visibleResultColumns`, so a column whose feature is off is absent from the
+file exactly as it is from the screen. **One rule is the file's own: the screen's `–` becomes an empty
+cell**, because a dash is text and a column with text in it will not sum. The landing page promises
+both exports in both formats, which is why it exists — do not remove one without changing that copy.
+
 The download writes a **UTF-8 BOM**: without it Excel reads the file as its local codepage and mangles
 any non-ASCII player name. `downloadCsv` returns false rather than throwing so the caller can say a
 download was blocked, instead of a button that silently does nothing.
@@ -3841,7 +3848,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `recentPlayers.ts` | The names Add Player offers, and the ONLY list of them: newest first, one entry per person, fifty kept, each with an ×. Which copy wins when the account's and the device's differ — **never a union**. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
 | `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and every figure one night knows about a player. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |
-| `resultColumns.ts` | Which columns a results table can show, what each cell says, and which ones this game can offer at all. **A column whose feature is switched off is not drawn.** |
+| `resultColumns.ts` | Which columns a results table can show, what each cell says, and which ones this game can offer at all — and the same columns as a CSV. **A column whose feature is switched off is not drawn.** |
 | `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out — and who holds the failsafe after. |
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `pendingRoster.ts` | Whether a roster change is still waiting on Firestore, so its own echo cannot revert it. |

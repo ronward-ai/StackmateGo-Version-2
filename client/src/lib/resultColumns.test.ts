@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   RESULT_COLUMNS, DEFAULT_RESULT_COLUMNS, visibleResultColumns, offerableResultColumns,
-  moveColumn, toggleColumn, type ResultColumnKey,
+  moveColumn, toggleColumn, resultsCsvTable, type ResultColumnKey,
 } from './resultColumns';
 import { resultRowsFor, type ResultPlayerLike } from './resultRows';
 
@@ -226,5 +226,62 @@ describe('the picker', () => {
     // profit comes after knockouts and before points.
     expect(toggleColumn(['knockouts', 'points'], 'profit', true))
       .toEqual(['knockouts', 'profit', 'points']);
+  });
+});
+
+describe('resultsCsvTable — the results as a spreadsheet', () => {
+  const rows = resultRowsFor(
+    [
+      { id: '1', name: 'Dan', isActive: false, position: 1, knockouts: 3, rebuys: 1 },
+      { id: '2', name: 'Amy', isActive: false, position: 2 },
+    ],
+    {
+      prizeStructure: {
+        buyIn: 20, rebuyAmount: 20, allowRebuys: true,
+        manualPayouts: [{ position: 1, percentage: 100 }],
+      },
+    },
+  );
+  const ctx = { prizeStructure: { allowRebuys: true } };
+
+  it('uses the director\'s columns, in their order, behind Rank and Player', () => {
+    const t = resultsCsvTable(rows, ['won', 'knockouts', 'rebuys'], ctx, '£');
+    expect(t.headers.slice(0, 2)).toEqual(['Rank', 'Player']);
+    expect(t.headers.slice(2)).toEqual(
+      visibleResultColumns(['won', 'knockouts', 'rebuys'], ctx).map(c => c.label),
+    );
+  });
+
+  it('drops a column whose feature is off, exactly as the table does', () => {
+    // Bounties are not enabled in this game, so the column is absent even
+    // though the director has it switched on.
+    const t = resultsCsvTable(rows, ['bounties', 'knockouts'], ctx, '£');
+    expect(t.headers).toHaveLength(3);
+    expect(t.headers).not.toContain(RESULT_COLUMNS.find(c => c.key === 'bounties')!.label);
+  });
+
+  it('writes the same figure the screen shows, and a blank where it shows a dash', () => {
+    const t = resultsCsvTable(rows, ['knockouts', 'rebuys'], ctx, '£');
+    expect(t.rows[0]).toEqual(['1st', 'Dan', '3', '1']);
+    // Amy has no knockouts and no rebuys: a dash on screen, which a spreadsheet
+    // would read as text and refuse to sum.
+    expect(t.rows[1]).toEqual(['2nd', 'Amy', '', '']);
+  });
+
+  it('keeps the currency on money, in the game currency', () => {
+    // Two buy-ins of 20 plus a priced rebuy of 20 = 60, all to first.
+    const t = resultsCsvTable(rows, ['won'], ctx, '$');
+    expect(t.rows[0][2]).toBe('$60');
+  });
+
+  it('spells the place as an ordinal past tenth', () => {
+    const many = resultRowsFor(
+      Array.from({ length: 21 }, (_, i) => ({
+        id: String(i + 1), name: `P${i + 1}`, isActive: false, position: i + 1,
+      })),
+      { prizeStructure: { buyIn: 10 } },
+    );
+    const t = resultsCsvTable(many, ['knockouts'], {}, '£');
+    expect(t.rows.map(r => r[0])).toContain('21st');
   });
 });

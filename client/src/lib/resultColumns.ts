@@ -206,6 +206,39 @@ export function visibleResultColumns(
 }
 
 /**
+ * The results as a spreadsheet: the SAME columns, labels and cells the table and
+ * the exported image draw, so the three cannot disagree about a figure — the
+ * trade `RealTimeLeagueTable`'s standings CSV already makes with `getPlayerStat`.
+ *
+ * **One rule is the spreadsheet's own: the dash becomes an empty cell.** On
+ * screen `–` says "nothing here" and keeps the real figures legible; in a
+ * spreadsheet it is text, and a column with text in it will not SUM. A blank
+ * does both jobs. Every other cell is exactly what the screen shows, money
+ * symbol included — Excel and Sheets parse a leading symbol.
+ *
+ * Escaping and formula defusing are `lib/csv.ts`'s job, not this one's.
+ */
+export function resultsCsvTable(
+  rows: readonly ResultRow<ResultPlayerLike>[],
+  chosen: readonly string[] | null | undefined,
+  ctx: ColumnContext | undefined,
+  symbol: string,
+): { headers: string[]; rows: string[][] } {
+  const columns = visibleResultColumns(chosen, ctx);
+  return {
+    headers: ['Rank', 'Player', ...columns.map(c => c.label)],
+    rows: rows.map(row => [
+      row.rankLabel,
+      row.player.name,
+      ...columns.map(c => {
+        const v = c.value(row, symbol);
+        return v === DASH ? '' : v;
+      }),
+    ]),
+  };
+}
+
+/**
  * Every column the picker should offer for THIS game, so a director is not shown
  * a switch for a feature they have turned off.
  */

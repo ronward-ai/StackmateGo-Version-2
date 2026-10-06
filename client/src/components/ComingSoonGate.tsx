@@ -164,8 +164,8 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
     {
       icon: Download,
       title: 'Easy admin, easy sharing',
-      body: 'Standings download as a PNG for WhatsApp and socials, or a CSV for anyone who loves a ' +
-        'spreadsheet.',
+      body: 'Export your game results and league standings as a PNG for easy sharing to socials, ' +
+        'or as a CSV for those that love a spreadsheet.',
     },
   ];
 
