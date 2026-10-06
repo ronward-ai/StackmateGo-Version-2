@@ -153,7 +153,7 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
       icon: Trophy,
       title: 'Live league standings',
       body: 'In a league game the standings are on every player\u2019s phone, and they update the moment ' +
-        'someone busts out \u2014 not next week. Your points system, or one of ours.',
+        'someone busts out \u2014 not next week. Fully customisable points system, or use a popular template.',
     },
     {
       icon: BarChart3,
