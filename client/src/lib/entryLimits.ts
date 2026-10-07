@@ -76,7 +76,30 @@ function underCap(used: number | null | undefined, max: number | null | undefine
   return (used || 0) < (max as number);
 }
 
-/** The window is still open. `currentLevel` is the zero-indexed state value. */
+/**
+ * The zero-indexed BLIND level the clock is on — the number every window here
+ * is measured in, and the one the director reads on the clock.
+ *
+ * `state.currentLevel` indexes `levels`, and a break is an entry in it, while
+ * the clock and the Add Break picker number levels SKIPPING breaks. Handing the
+ * raw index to these checks counted every break as a level, so each break
+ * before the cutoff closed a rebuy, re-entry or late-entry window one level
+ * early, opened add-ons one early, and the late-entry dialog said "level 6"
+ * while the clock said 5 (October audit, M10). Every caller passes its index
+ * through here; the "+ 1" stays inside this module, as before. During a break
+ * this is the level just played, so a window "for the first 4 levels" is still
+ * open in the break after level 4.
+ */
+export function blindLevelIndex(
+  levels: ReadonlyArray<{ isBreak?: boolean }> | null | undefined,
+  currentLevel: number,
+): number {
+  if (!levels || levels.length === 0) return currentLevel;
+  const played = levels.slice(0, currentLevel + 1).filter(l => !l.isBreak).length;
+  return Math.max(0, played - 1);
+}
+
+/** The window is still open. `currentLevel` is the zero-indexed BLIND level — see blindLevelIndex. */
 function withinPeriod(currentLevel: number, periodLevels: number | null | undefined): boolean {
   if (isUnlimited(periodLevels)) return true;
   return currentLevel + 1 <= (periodLevels as number);

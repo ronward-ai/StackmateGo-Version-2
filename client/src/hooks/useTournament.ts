@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { blindLevelIndex } from '@/lib/entryLimits';
 import {
   BlindLevel,
   Player,
@@ -1347,7 +1348,7 @@ export function useTournament(tournamentId?: string) {
 
       // maxReEntries and reEntryPeriodLevels were enforced NOWHERE before — only
       // the table view's button hid, so any other route in reached no limit.
-      if (!canReEnter(prev.prizeStructure, player, prev.currentLevel)) {
+      if (!canReEnter(prev.prizeStructure, player, blindLevelIndex(prev.levels, prev.currentLevel))) {
         return prev;
       }
 
@@ -1429,7 +1430,7 @@ export function useTournament(tournamentId?: string) {
       // The cap and the rebuy window, both from lib/entryLimits.ts. This used to
       // read `maxRebuys || 3`, so a cap of 0 — which is how the Buy-in tab
       // stores "unlimited" — allowed exactly three.
-      if (!canRebuy(prev.prizeStructure, player, prev.currentLevel)) {
+      if (!canRebuy(prev.prizeStructure, player, blindLevelIndex(prev.levels, prev.currentLevel))) {
         return prev;
       }
 

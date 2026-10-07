@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { blindLevelIndex } from '@/lib/entryLimits';
 import { currencyOf, money } from '@/lib/currency';
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -653,7 +654,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                                     prizeStructure={state.prizeStructure}
                                     onRebuy={processRebuy}
                                     settings={state.settings}
-                                    currentLevel={state.currentLevel}
+                                    currentLevel={blindLevelIndex(state.levels, state.currentLevel)}
                                     onReEntry={processReEntry}
                                     variant="compact"
                                     gameOver={tournamentOver}
@@ -766,7 +767,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                         prizeStructure={state.prizeStructure}
                         onRebuy={processRebuy}
                         settings={state.settings}
-                        currentLevel={state.currentLevel}
+                        currentLevel={blindLevelIndex(state.levels, state.currentLevel)}
                         onReEntry={processReEntry}
                         gameOver={tournamentOver}
                       />

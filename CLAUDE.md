@@ -2199,9 +2199,12 @@ decision. `maxReEntries` was enforced nowhere at all: only the table view's butt
 So that enforcement could not close on a game whose director never chose a window,
 `DEFAULT_PRIZE_STRUCTURE` carries **no period**. A window only bites when it was deliberately set.
 
-**Levels are zero-indexed in state and one-indexed on screen.** Every function here takes the raw
-`state.currentLevel` and does the `+ 1` internally, because that off-by-one was previously spelled
-inline at the one site that worked and is exactly what gets copied wrong on the fourth.
+**Levels are zero-indexed in state and one-indexed on screen** — and **a break is in `levels` but is
+not a level on the clock**. Every function here takes a zero-indexed BLIND level and does the `+ 1`
+internally; callers pass `blindLevelIndex(state.levels, state.currentLevel)`, never the raw index
+(October audit M10). The raw index counted every break as a level, so each break before a cutoff
+closed a rebuy, re-entry or late-entry window one level early and the late-entry dialog named a level
+the clock was not on.
 
 ### A numeric field must accept what typing passes through
 

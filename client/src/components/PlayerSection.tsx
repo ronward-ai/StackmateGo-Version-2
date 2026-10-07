@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { blindLevelIndex } from '@/lib/entryLimits';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -246,7 +247,8 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
    * arriving at the door late is a fact about the world, and the director is
    * the one who gets to decide.
    */
-  const lateEntryClosed = lateEntryClosedReason(state.prizeStructure, state.currentLevel);
+  const blindLevel = blindLevelIndex(state.levels, state.currentLevel);
+  const lateEntryClosed = lateEntryClosedReason(state.prizeStructure, blindLevel);
 
   const commitAddPlayer = (name: string) => {
     const trimmed = name.trim();
@@ -813,7 +815,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                           prizeStructure={state.prizeStructure}
                           onRebuy={id => returnPlayerToTable('rebuy', id)}
                           settings={state.settings}
-                          currentLevel={state.currentLevel}
+                          currentLevel={blindLevel}
                           onReEntry={id => returnPlayerToTable('reentry', id)}
                           gameOver={tournamentFinished}
                         />
@@ -867,13 +869,13 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
             active players, who have no row button, and it already confirms. */}
 
         {/* Add-on Section - Compact - Only show when add-ons are enabled and level reached */}
-        {addOnsOpen(state.prizeStructure, state.currentLevel) &&
+        {addOnsOpen(state.prizeStructure, blindLevel) &&
           state.players.filter(p => p.isActive !== false).length > 0 && (
           <div className="mt-4 pt-3 border-t border-[#2a2a2a]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <PlusCircle className="h-4 w-4" />
-                <span>Add-ons (Level {state.currentLevel + 1}+)</span>
+                <span>Add-ons (Level {state.prizeStructure?.addonAvailableLevel || 1}+)</span>
               </h4>
               <span className="text-xs text-green-400">Available</span>
             </div>
@@ -1000,7 +1002,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
             <AlertDialogTitle>Late entry has closed</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
-                <p>{lateEntryClosed}. You are on level {state.currentLevel + 1}.</p>
+                <p>{lateEntryClosed}. You are on level {blindLevel + 1}.</p>
                 <p>
                   Add <span className="font-medium text-foreground">{pendingLateEntry}</span> anyway?
                 </p>

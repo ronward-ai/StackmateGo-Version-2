@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { blindLevelIndex } from '@/lib/entryLimits';
 import {
   rebuyToOffer, offerKey, bustedKeys, failsafeRebuyId,
   failsafeMemory, rememberedFailsafeKey, answeredKeys, type OfferablePlayer,
@@ -157,7 +158,7 @@ export function useRebuyOffer(
   const noAsk = answeredKeys(Array.from(answered), watchedRef.current);
 
   const player = seenRef.current
-    ? rebuyToOffer(state.players as OfferablePlayer[], state.prizeStructure, state.currentLevel, noAsk)
+    ? rebuyToOffer(state.players as OfferablePlayer[], state.prizeStructure, blindLevelIndex(state.levels, state.currentLevel), noAsk)
     : null;
 
   /**
@@ -202,7 +203,7 @@ export function useRebuyOffer(
   const failsafeFor = failsafeRebuyId(
     state.players as OfferablePlayer[],
     state.prizeStructure,
-    state.currentLevel,
+    blindLevelIndex(state.levels, state.currentLevel),
     latestKey,
   );
 

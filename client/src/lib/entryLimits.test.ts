@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isUnlimited, limitLabel, periodLabel, canRebuy, canReEnter, addOnsOpen,
   rebuyUnavailableReason, reEntryUnavailableReason,
-  lateEntryOpen, lateEntryClosedReason, rebuyRules,
-} from './entryLimits';
+  lateEntryOpen, lateEntryClosedReason, rebuyRules, blindLevelIndex } from './entryLimits';
 
 const rebuysOn = { allowRebuys: true };
 const reEntryOn = { allowReEntry: true };
@@ -314,5 +313,32 @@ describe('rebuyRules', () => {
   it('survives a missing structure and a missing player', () => {
     expect(rebuyRules(null, null)).toEqual([]);
     expect(rebuyRules(undefined, undefined)).toEqual([]);
+  });
+});
+
+// October audit, M10: a break is an entry in `levels` but not a level on the
+// clock, and the windows are stated in clock levels.
+describe('blindLevelIndex — windows count the levels the clock shows', () => {
+  const L = { isBreak: false }, B = { isBreak: true };
+  const levels = [L, L, L, L, B, L, L];   // the clock reads 1 2 3 4 [break] 5 6
+
+  it('skips breaks when numbering', () => {
+    expect(blindLevelIndex(levels, 5)).toBe(4);   // the clock's Level 5
+    expect(blindLevelIndex(levels, 3)).toBe(3);   // Level 4
+  });
+
+  it('is the level just played during a break', () => {
+    expect(blindLevelIndex(levels, 4)).toBe(3);
+  });
+
+  it('falls back to the raw index with no levels to read', () => {
+    expect(blindLevelIndex(undefined, 5)).toBe(5);
+  });
+
+  // THE regression: rebuys "for the first 5 levels", one break before the cutoff.
+  it('keeps the rebuy window open through the clock\'s Level 5', () => {
+    const structure = { allowRebuys: true, rebuyPeriodLevels: 5 };
+    expect(canRebuy(structure, { rebuys: 0 }, blindLevelIndex(levels, 5))).toBe(true);
+    expect(canRebuy(structure, { rebuys: 0 }, blindLevelIndex(levels, 6))).toBe(false);
   });
 });
