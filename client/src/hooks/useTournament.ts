@@ -37,7 +37,7 @@ import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress, restorableAtHome, peekLocalProgress, wouldClobberMirror } from '@/lib/localProgress';
-import { secondsLeftFrom } from '@/lib/tournamentClock';
+import { secondsLeftFrom, advanceClock } from '@/lib/tournamentClock';
 import type { RemoteLoad } from '@/lib/liveTournament';
 import { canRebuy, canReEnter } from '@/lib/entryLimits';
 import { gameIsOver } from '@/lib/gameOver';
@@ -838,29 +838,37 @@ export function useTournament(tournamentId?: string) {
 
             // If there are more levels
             if (nextLevelIndex < prevState.levels.length) {
-              const nextLevel = prevState.levels[nextLevelIndex];
+              // Caught up from the END TIME, through every level that elapsed —
+              // lib/tournamentClock.ts's advanceClock (October audit, M11). This
+              // used to start the next level at `Date.now() + duration`, one per
+              // tick, so a tablet that slept through the end of a level lost the
+              // time it was away and two elapsed levels collapsed into one.
+              // When a BREAK finishes it still holds at the start of the next
+              // level until the director presses play, if they asked for that;
+              // startTimer() recomputes targetEndTime from secondsLeft.
+              const advanced = advanceClock(
+                prevState.levels,
+                prevState.currentLevel,
+                prevState.targetEndTime,
+                Date.now(),
+                prevState.settings.pauseAfterBreak !== false,
+              );
 
-              // When a BREAK finishes, optionally hold at the start of the next
-              // level until the director presses play — players are typically
-              // still at the bar. startTimer() recomputes targetEndTime from
-              // secondsLeft, so clearing it here resumes on a full level.
-              const finishedLevel = prevState.levels[prevState.currentLevel];
-              const holdAfterBreak =
-                prevState.settings.pauseAfterBreak !== false && !!finishedLevel?.isBreak;
-
-              // Move to next level and reset seconds first
               const newState = {
                 ...prevState,
-                currentLevel: nextLevelIndex,
-                secondsLeft: nextLevel.duration,
-                targetEndTime: holdAfterBreak ? null : Date.now() + nextLevel.duration * 1000,
-                isRunning: !holdAfterBreak
+                currentLevel: advanced.currentLevel,
+                secondsLeft: advanced.secondsLeft,
+                targetEndTime: advanced.targetEndTime,
+                isRunning: advanced.isRunning,
               };
 
               // Schedule voice announcement - use immediate approach
-              if (prevState.settings.enableVoice) {
+              if (prevState.settings.enableVoice && advanced.finished) {
+                // Caught up past the LAST level while away.
+                speak('Tournament complete');
+              } else if (prevState.settings.enableVoice) {
                 // 2.5s lets the three level-complete chimes finish first.
-                speak(levelAnnouncement(prevState.levels, nextLevelIndex), {
+                speak(levelAnnouncement(prevState.levels, advanced.currentLevel), {
                   cancel: true,
                   delayMs: 2500,
                 });

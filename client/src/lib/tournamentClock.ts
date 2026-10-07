@@ -37,3 +37,67 @@ export function secondsLeftFrom(clock: ClockFields, now: number): number {
   }
   return 0;
 }
+
+export interface ClockLevel {
+  duration: number;
+  isBreak?: boolean;
+}
+
+export interface ClockAdvance {
+  /** The level the clock is on once caught up. */
+  currentLevel: number;
+  secondsLeft: number;
+  targetEndTime: number | null;
+  isRunning: boolean;
+  /** The structure ran out: the last level has ended. */
+  finished: boolean;
+}
+
+/**
+ * Move a running clock past the end of its level — CATCHING UP, from the end
+ * time, never restarting from now (October audit, M11).
+ *
+ * The tick that noticed a level had ended used to start the next one at
+ * `Date.now() + duration`, one level per tick. A tablet that slept, or a phone
+ * whose director switched apps (iOS suspends the page; Chrome throttles hidden
+ * timers to about once a minute), came back minutes after the level ended and
+ * started the next one at its FULL length — the schedule slipped by however long
+ * it had been away, two elapsed levels collapsed into one, and participants'
+ * phones, which derive from `targetEndTime`, sat on 00:00 meanwhile. Even
+ * awake, every level lost up to a second.
+ *
+ * So the next level ends `duration` after the PREVIOUS END, and the loop keeps
+ * going through every level that has fully elapsed. It stops where the tick
+ * always stopped: at a break-hold (the director presses play after a break) or
+ * at the end of the structure. "A running clock is an end time."
+ */
+export function advanceClock(
+  levels: readonly ClockLevel[],
+  currentLevel: number,
+  targetEndTime: number | null | undefined,
+  now: number,
+  pauseAfterBreak: boolean,
+): ClockAdvance {
+  let level = currentLevel;
+  let end = typeof targetEndTime === 'number' ? targetEndTime : now;
+  for (;;) {
+    const next = level + 1;
+    if (next >= levels.length) {
+      return { currentLevel: level, secondsLeft: 0, targetEndTime: end, isRunning: false, finished: true };
+    }
+    if (pauseAfterBreak && levels[level]?.isBreak) {
+      return { currentLevel: next, secondsLeft: levels[next].duration, targetEndTime: null, isRunning: false, finished: false };
+    }
+    end += levels[next].duration * 1000;
+    level = next;
+    if (end > now) {
+      return {
+        currentLevel: level,
+        secondsLeft: Math.max(0, Math.ceil((end - now) / 1000)),
+        targetEndTime: end,
+        isRunning: true,
+        finished: false,
+      };
+    }
+  }
+}

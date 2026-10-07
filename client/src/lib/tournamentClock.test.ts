@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { secondsLeftFrom } from './tournamentClock';
+import { secondsLeftFrom, advanceClock } from './tournamentClock';
 
 const now = 1_700_000_000_000;
 
@@ -32,5 +32,46 @@ describe('secondsLeftFrom', () => {
 
   it('rounds up, so a level shows 1 rather than 0 for its last part-second', () => {
     expect(secondsLeftFrom({ isRunning: true, targetEndTime: now + 200 }, now)).toBe(1);
+  });
+});
+
+// October audit, M11.
+
+describe('advanceClock — catch up from the end time', () => {
+  const MIN = 60_000;
+  const levels = [
+    { duration: 900 }, { duration: 900 }, { duration: 600, isBreak: true }, { duration: 900 },
+  ];
+
+  it('chains the next level from the previous end, not from now', () => {
+    // Level 1 ended 1.4s ago (a slow tick): level 2 ends exactly 15 min after it.
+    const end = 1_000_000;
+    const out = advanceClock(levels, 0, end, end + 1400, true);
+    expect(out.currentLevel).toBe(1);
+    expect(out.targetEndTime).toBe(end + 15 * MIN);
+  });
+
+  // THE regression: back after 6 minutes away, the schedule must not slip.
+  it('resumes the next level part-way through after time away', () => {
+    const end = 1_000_000;
+    const out = advanceClock(levels, 0, end, end + 6 * MIN, true);
+    expect(out.currentLevel).toBe(1);
+    expect(out.secondsLeft).toBe(9 * 60);
+  });
+
+  it('passes through every level that elapsed entirely', () => {
+    const end = 1_000_000;
+    const withoutHold = advanceClock(levels, 0, end, end + 20 * MIN, false);
+    expect(withoutHold.currentLevel).toBe(2);           // level 2 gone, into the break
+    expect(withoutHold.secondsLeft).toBe(5 * 60);
+  });
+
+  it('stops at a break-hold, as the tick always has', () => {
+    const out = advanceClock(levels, 2, 1_000_000, 1_000_000 + 1000, true);
+    expect(out).toMatchObject({ currentLevel: 3, isRunning: false, targetEndTime: null, secondsLeft: 900 });
+  });
+
+  it('finishes when the structure runs out', () => {
+    expect(advanceClock(levels, 3, 1_000_000, 1_000_500, true)).toMatchObject({ finished: true, isRunning: false, secondsLeft: 0 });
   });
 });

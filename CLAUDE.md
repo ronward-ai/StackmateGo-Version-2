@@ -1881,6 +1881,14 @@ count over the running clock and the next tick jumped it back down. Freeze, then
 The participant view had it right all along and the console did not, which is the whole argument for
 one derivation rather than two.
 
+**And a level change chains from the end time too** — `advanceClock` in the same module (October audit
+M11). The tick that noticed a level had ended started the next one at `Date.now() + duration`, one
+level per tick, so a tablet that slept or a phone whose director switched apps came back to a next
+level at its FULL length: the schedule slipped by however long it had been away, two elapsed levels
+collapsed into one, and phones sat on 00:00 meanwhile. The next level now ends `duration` after the
+previous END, through every level that fully elapsed, stopping at a break-hold or the end of the
+structure as before. `useTournament.clock.test.tsx` drives the real tick with fake timers.
+
 ### The piping round the clock is the level progress
 
 `TimerFace` renders inside `.timer-frame`, whose conic-gradient border fills clockwise from twelve
