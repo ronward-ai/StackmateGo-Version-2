@@ -205,7 +205,10 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
           });
           if (evaluation.ok === false) {
             console.error('Error evaluating custom formula:', evaluation.error, 'Formula:', formula.customFormula);
-            return 0;
+            // The bonuses still apply: a formula failing for one place is no
+            // reason to take away that player's knockout and turning-up points
+            // (October audit, Low). The settings tick names the failing place.
+            return withBonuses(0, knockouts, bonuses);
           }
           return withBonuses(evaluation.value, knockouts, bonuses);
         }

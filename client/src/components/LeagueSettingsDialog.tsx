@@ -3,7 +3,7 @@ import { POINTS_PRESETS, presetFor } from '@/lib/pointsPresets';
 import { ordinal } from '@/lib/ordinal';
 import { hasBonuses } from '@/lib/pointsBonuses';
 import { bandsOf, DEFAULT_POSITION_POINTS, type PointsBand } from '@/lib/pointsBands';
-import { evaluateFormula } from '@/lib/formulaEval';
+import { checkFormula } from '@/lib/formulaEval';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -833,17 +833,23 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
                           const field = typeof previewPoints.totalPlayers === 'number' && previewPoints.totalPlayers >= 2
                             ? Math.min(previewPoints.totalPlayers, 1000)
                             : 10;
-                          const evaluation = evaluateFormula(formula, {
-                            position: 1, totalPlayers: field,
-                            knockouts: 0, buyIn: previewBuyIn, totalCost: previewBuyIn,
-                            prizepool: previewBuyIn * field,
+                          // EVERY place, for small, typical and the previewed
+                          // field — it tested first place only, so a formula
+                          // dividing by (p - f) read valid and scored last
+                          // place 0 in every game (October audit, Low).
+                          const evaluation = checkFormula(formula, {
+                            fieldSizes: [2, 9, field], buyIn: previewBuyIn,
                           });
 
                           if (evaluation.ok === false) {
                             return (
                               <div className="flex items-center gap-1 text-red-600">
                                 <X className="h-4 w-4 text-red-500 flex-shrink-0" />
-                                <span>Formula error: {evaluation.error}</span>
+                                <span>
+                                  Formula error{evaluation.position
+                                    ? ` for ${ordinal(evaluation.position)} of ${evaluation.totalPlayers}`
+                                    : ''}: {evaluation.error}
+                                </span>
                               </div>
                             );
                           }

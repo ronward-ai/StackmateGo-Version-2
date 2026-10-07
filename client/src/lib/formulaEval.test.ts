@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluateFormula, type FormulaVariables } from './formulaEval';
+import { evaluateFormula, checkFormula, type FormulaVariables } from './formulaEval';
 
 const VARS: FormulaVariables = {
   position: 3, totalPlayers: 10, knockouts: 2, buyIn: 25, totalCost: 30, prizepool: 250,
@@ -262,5 +262,51 @@ describe('the Math whitelist is its own entries only (Oct Low)', () => {
   );
   it('still accepts a real member', () => {
     expect(value('Math.max(1, 4)')).toBe(4);
+  });
+});
+
+describe('what the old engine accepted (Oct Low)', () => {
+  it('reads exponent literals', () => {
+    expect(value('1e2')).toBe(100);
+    expect(value('2.5E-1 * 4')).toBe(1);
+    expect(value('.5 + 1e+1')).toBe(10.5);
+  });
+
+  it('raises with **, right-associative, tighter than multiplication', () => {
+    expect(value('2 ** 3')).toBe(8);
+    expect(value('2 ** 3 ** 2')).toBe(512);
+    expect(value('3 * 2 ** 2')).toBe(12);
+    expect(value('2 ** -1')).toBe(0.5);
+    expect(value('-2 ** 2')).toBe(-4);
+    expect(value('(p - f + 1) ** 2')).toBe(64); // p = 10, f = 3
+  });
+
+  it('refuses a malformed number rather than evaluating NaN', () => {
+    const r = evaluateFormula('1.2.3', VARS);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('checkFormula tries every place (Oct Low)', () => {
+  it('names the place a formula fails for, beyond first', () => {
+    const r = checkFormula('100 / (p - f)', { fieldSizes: [9], buyIn: 25 });
+    expect(r.ok).toBe(false);
+    if (r.ok === false) {
+      expect(r.position).toBe(9);
+      expect(r.totalPlayers).toBe(9);
+    }
+  });
+
+  it('passes a formula good for every place and field', () => {
+    expect(checkFormula('Math.round(10 * p / f)', { fieldSizes: [2, 9, 30], buyIn: 25 }).ok).toBe(true);
+  });
+
+  it('catches a failure that only shows with knockouts', () => {
+    expect(checkFormula('10 / (k - 1)', { fieldSizes: [2], buyIn: 25 }).ok).toBe(false);
+  });
+
+  it('reports a parse error with no place', () => {
+    const r = checkFormula('f +', { fieldSizes: [9], buyIn: 25 });
+    expect(r.ok === false && r.position === undefined).toBe(true);
   });
 });

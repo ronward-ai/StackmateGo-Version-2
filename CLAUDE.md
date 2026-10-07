@@ -4021,10 +4021,15 @@ answers, again. Both call sites now use `lib/resultStats.ts`'s `buyInOf` and `in
 helpers the league columns use, and the preview passes representative values rather than nothing —
 it claimed to show real scoring while feeding the engine zeroes.
 
-There is ONE evaluator now — the "Formula valid" tick calls `evaluateFormula` like everything else.
-What is left is that it tests **first place only**, so a formula that fails further down the field
-reads valid and scores 0 there, silently, and drops the bonuses (`useLeagueSettings`). The **Points
-Preview** below it evaluates every place and is the one to trust.
+There is ONE evaluator now — the "Formula valid" tick goes through `lib/formulaEval.ts` like
+everything else, and since October it checks **every place** (`checkFormula`): fields of 2, 9 and the
+previewed size, with no knockouts and with all of them, naming the first place that fails. It tested
+first place only, so `100 / (p - f)` read valid and scored last place 0 in every game. A formula that
+fails at scoring time still scores 0 for that place, but **keeps the bonuses** now.
+
+**The grammar accepts what the old `new Function` engine did** — `**` (right-associative, tighter than
+`*`, `-2 ** 2` read as `-(2 ** 2)`) and exponent literals like `1e2`. Both used to fail to parse and
+score 0 for the whole league; a saved formula may use either.
 
 ### `'default-season'`, and the `'default-league'` that went with it
 

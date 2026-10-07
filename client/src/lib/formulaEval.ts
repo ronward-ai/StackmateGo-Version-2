@@ -84,9 +84,18 @@ interface Token { type: TokenType; value: string }
 
 // Longest-match-first: '===' before '==' before '=', etc.
 const OPERATORS = [
-  '===', '!==', '==', '!=', '<=', '>=', '&&', '||',
+  '===', '!==', '==', '!=', '<=', '>=', '&&', '||', '**',
   '+', '-', '*', '/', '%', '<', '>', '!',
 ];
+
+/**
+ * A numeric literal: digits with at most one decimal point, and an optional
+ * exponent — `12`, `0.5`, `.5`, `1e2`, `2.5E-3`. The tokeniser used to stop at
+ * the `e`, so `1e2` became `1` followed by an unknown variable `e2` and the
+ * formula scored 0 for the whole league (October audit, Low). The old
+ * `new Function` engine accepted it, so a saved formula may use it.
+ */
+const NUMBER_LITERAL = /^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/;
 
 function tokenise(src: string): Token[] {
   const tokens: Token[] = [];
@@ -95,10 +104,11 @@ function tokenise(src: string): Token[] {
     const c = src[i];
     if (/\s/.test(c)) { i++; continue; }
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1] || ''))) {
-      let j = i + 1;
-      while (j < src.length && /[0-9.]/.test(src[j])) j++;
-      tokens.push({ type: 'number', value: src.slice(i, j) });
-      i = j;
+      const literal = NUMBER_LITERAL.exec(src.slice(i))![0];
+      // `1.2.3` used to tokenise as one number and evaluate to NaN.
+      if (/[0-9.]/.test(src[i + literal.length] || '')) throw new Error(`Malformed number '${src.slice(i, i + literal.length + 1)}'`);
+      tokens.push({ type: 'number', value: literal });
+      i += literal.length;
       continue;
     }
     if (/[a-zA-Z_]/.test(c)) {
@@ -141,7 +151,12 @@ const VARIABLE_NAMES = new Set([
 ]);
 
 /** Recursive descent. Precedence, low to high: ternary, ||, &&, equality,
- *  comparison, additive, multiplicative, unary, primary. */
+ *  comparison, additive, multiplicative, unary, exponent, primary.
+ *
+ *  `**` is right-associative and binds tighter than a unary minus on its left,
+ *  so `-2 ** 2` is `-(2 ** 2)` — the maths convention. (JavaScript refuses that
+ *  expression outright; refusing it here would score a league 0 for a formula
+ *  whose meaning is not in doubt.) */
 class Parser {
   private tokens: Token[];
   private pos = 0;
@@ -233,7 +248,19 @@ class Parser {
       const op = this.next().value;
       return { kind: 'unary', op, arg: this.unary() };
     }
-    return this.primary();
+    return this.exponent();
+  }
+
+  /** `a ** b`, right-associative: `2 ** 3 ** 2` is `2 ** 9`. The right side may
+   *  carry its own sign — `2 ** -1`. Missing until October: the old engine
+   *  accepted it, so this scored 0 for any league whose formula used it. */
+  private exponent(): Node {
+    const base = this.primary();
+    if (this.atOp('**')) {
+      this.next();
+      return { kind: 'binary', op: '**', left: base, right: this.unary() };
+    }
+    return base;
   }
 
   private primary(): Node {
@@ -308,6 +335,7 @@ function evaluate(node: Node, scope: Record<string, number>): number {
         case '*': return l * r;
         case '/': return l / r;
         case '%': return l % r;
+        case '**': return l ** r;
         case '==': case '===': return l === r ? 1 : 0;
         case '!=': case '!==': return l !== r ? 1 : 0;
         case '<': return l < r ? 1 : 0;
@@ -375,4 +403,40 @@ export function evaluateFormula(formula: string, vars: FormulaVariables): Formul
   } catch (err: any) {
     return { ok: false, error: err?.message || 'Could not evaluate formula' };
   }
+}
+
+export type FormulaCheck =
+  | { ok: true }
+  | { ok: false; error: string; position?: number; totalPlayers?: number };
+
+/**
+ * Does `formula` score EVERY place, in fields of every size it will meet?
+ * (October audit, Low.)
+ *
+ * The "Formula valid" tick evaluated first place only, so `100 / (p - f)` —
+ * fine for 1st, a division by zero for last — read valid, then scored 0 for
+ * whoever finished last in every game. This walks every place from 1 to the
+ * field, for each field size, with no knockouts and with all of them, and
+ * names the first place that fails so the director can see which.
+ */
+export function checkFormula(
+  formula: string,
+  { fieldSizes, buyIn }: { fieldSizes: number[]; buyIn: number },
+): FormulaCheck {
+  const parsed = parseCached(formula);
+  if ('error' in parsed) return { ok: false, error: parsed.error };
+  const sizes = Array.from(new Set(fieldSizes.map(n => Math.max(2, Math.floor(n) || 2))));
+  for (const totalPlayers of sizes) {
+    for (let position = 1; position <= totalPlayers; position++) {
+      for (const knockouts of [0, totalPlayers - 1]) {
+        for (const totalCost of [buyIn, buyIn * 3]) {
+          const r = evaluateFormula(formula, {
+            position, totalPlayers, knockouts, buyIn, totalCost, prizepool: buyIn * totalPlayers,
+          });
+          if (r.ok === false) return { ok: false, error: r.error, position, totalPlayers };
+        }
+      }
+    }
+  }
+  return { ok: true };
 }
