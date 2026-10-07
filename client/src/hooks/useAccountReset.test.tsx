@@ -26,9 +26,6 @@ vi.mock('@/hooks/useAuth', () => ({
 
 import { useAccountReset } from './useAccountReset';
 
-/** Which collection a query was against, from the mocked query object. */
-const collectionOf = (call: any) => call[0]?.c?.name;
-
 function stubData(byCollection: Record<string, string[]>) {
   h.getDocs.mockImplementation(async (q: any) => {
     const name = q?.c?.name as string;

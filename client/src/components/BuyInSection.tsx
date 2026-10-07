@@ -5,16 +5,14 @@ import { limitLabel, periodLabel } from '@/lib/entryLimits';
 import { ordinal } from '@/lib/ordinal';
 import { DEFAULT_PRIZE_STRUCTURE } from '@/lib/prizeStructure';
 import { topPercentPayouts } from '@/lib/payoutTemplates';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coins, Trophy, RefreshCw, Plus, Zap, ChevronDown, ChevronUp, CircleDollarSign, Check, AlertTriangle } from "lucide-react";
+import { Coins, Trophy, RefreshCw, Plus, Zap, CircleDollarSign, Check, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { writeLiveGame } from '@/lib/liveGameWrite';
-import { reportWriteFailure } from '@/lib/syncReporter';
 
 interface BuyInSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;

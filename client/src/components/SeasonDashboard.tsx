@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
 import EmptyState from '@/components/ui/empty-state';
-import { countGamesPlayed, isSeasonComplete, clampedGameNumber, nextSeasonDates, seasonSubtitle } from '@/lib/seasonProgress';
+import { countGamesPlayed, isSeasonComplete, clampedGameNumber, seasonSubtitle } from '@/lib/seasonProgress';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
 import { Calendar, History } from 'lucide-react';

@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo, Component, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -10,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trophy, RefreshCw, Download, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet } from "lucide-react";
+import { Trophy, RefreshCw, Download, Minus, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -43,7 +42,6 @@ function RealTimeLeagueTable({
   seasonIdOverride = null,
 }: RealTimeLeagueTableProps) {
   // ALWAYS call ALL hooks first - never conditionally
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
   /** Whose season is open, if any — the drill-down behind a player's name. */
@@ -83,7 +81,6 @@ function RealTimeLeagueTable({
 
   const {
     settings: leagueSettings = null,
-    calculatePoints = () => 0
   } = settingsData || {};
 
   // Arm the safety timeout after the component first renders in a loading state

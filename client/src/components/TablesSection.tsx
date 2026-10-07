@@ -6,17 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { entryCosts } from "@/lib/prizePool";
 import {
   Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Pencil, X, ArrowUpDown, LayoutGrid, Shuffle, RotateCcw, TableProperties, Check, Scale, MousePointerClick, UserMinus } from "lucide-react";
-import { TableConfig, Player } from "@/types";
+import { Player } from "@/types";
 import SeatPlayersDialog from "./SeatPlayersDialog";
 import BreakTableDialog from "./BreakTableDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -25,12 +21,10 @@ import { ordinal } from '@/lib/ordinal';
 import { bustedPlayers } from '@/lib/eliminationOrder';
 import { gameIsOver } from '@/lib/gameOver';
 import BustOutDialog from '@/components/BustOutDialog';
-import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor, strandedBy, reseatStranded, tablesOf, randomFreeSeat } from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tableNamesFor, strandedBy, reseatStranded, tablesOf, randomFreeSeat } from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceKey, shouldAskToBalance } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
-import { canRebuy } from '@/lib/entryLimits';
-import { writeLiveGame } from '@/lib/liveGameWrite';
 
 interface TablesSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -70,22 +64,14 @@ const feltClass = (key: string) => `table-felt-base ${FELT_COLORS.find(f => f.ke
 export default function TablesSection({ tournament, finalTablePromptOpen = false, failsafeFor = null }: TablesSectionProps) {
   const {
     state, updateSettings, updatePlayers,
-    addKnockout, eliminatePlayer, undoBustOut,
+    eliminatePlayer, undoBustOut,
     processRebuy, processReEntry,
-    shouldPromptForFinalTable, goToFinalTable, breakTable, tableBreakDue
+    shouldPromptForFinalTable, breakTable, tableBreakDue
   } = tournament;
 
   const tables = tablesOf(state.settings);
 
   const sym = currencyOf(state.settings);
-  const ps = state.prizeStructure;
-  const {
-    perEntryRake,
-    rebuyRake: rebuyRakeAmt,
-    reEntryRake: reEntryRakeAmt,
-    rebuyBounty: rebuyBountyAmt,
-    reEntryBounty: reEntryBountyAmt,
-  } = entryCosts(ps);
 
   const [numberOfTables, setNumberOfTables] = useState(tables.numberOfTables);
   // The DRAFT is what the field shows while it is being typed in, and it has to

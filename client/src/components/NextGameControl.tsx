@@ -66,7 +66,7 @@ export default function NextGameControl({
   seasons,
   otherLiveGame,
 }: NextGameControlProps) {
-  const { state, updateSettings } = tournament;
+  const { state } = tournament;
   const { startNewGame, newGameGuard } = useNewGame(tournament, otherLiveGame, league?.name);
   const [dialogLeagueId, setDialogLeagueId] = useState<string | null>(null);
   const { seasons: dialogSeasonsList, isLoading: dialogSeasonsLoading } = useSeasons({ leagueId: dialogLeagueId ?? undefined });

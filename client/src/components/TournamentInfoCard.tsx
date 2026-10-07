@@ -31,8 +31,6 @@ interface TournamentInfoCardProps {
   switchLeague?: ReturnType<typeof useLeague>['switchLeague'];
   currentSeason: ReturnType<typeof useSeasons>['currentSeason'];
   seasons: ReturnType<typeof useSeasons>['seasons'];
-  gameNumber?: number | null;
-  totalGames?: number;
   /** The account's live game when another device is running it — the guard. */
   otherLiveGame?: AccountLiveGame | null;
   /**
@@ -232,7 +230,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
   );
 }
 
-export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, gameNumber: gameNumberProp, totalGames: totalGamesProp, otherLiveGame, readOnly = false }: TournamentInfoCardProps) {
+export default function TournamentInfoCard({ tournament, league, leaguePlayers = [], currentSeason, seasons, otherLiveGame, readOnly = false }: TournamentInfoCardProps) {
   const { state } = tournament;
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
@@ -244,10 +242,6 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
     ? ((seasons as any[]).find(s => String(s.id) === String(storedSeasonId)) ?? currentSeason)
     : currentSeason;
 
-  // Prefer the value computed by the parent (PokerTimer) to guarantee consistency
-  // with TournamentModeToggle, which is also computed there from the same data.
-  const gameNumber = gameNumberProp !== undefined ? gameNumberProp : null;
-  const totalGames = totalGamesProp ?? (displaySeason?.numberOfGames || undefined);
 
   const lastLoadedSeasonId = useRef<string | number | null>(null);
   useEffect(() => {

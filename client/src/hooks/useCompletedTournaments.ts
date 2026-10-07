@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { currencyOf } from '@/lib/currency';
-import { query, where, orderBy, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { query, where, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, collections } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';

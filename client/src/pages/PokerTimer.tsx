@@ -309,9 +309,9 @@ function PokerTimerInner({
   const showSignedOutBar = !authLoading && (!user || isAnonymous) && !signedOutBarDismissed;
   const { toast } = useToast();
 
-  // The game number for the info card's header. The season line beside the
-  // mode toggle derives its own through the same `gameNumberFor`, so the two
-  // agree — but it is two derivations, not one.
+  // The game number for the season block this page writes onto settings. The
+  // info card derives its own through the same `gameNumberFor`; it was passed
+  // this one as props and ignored them, so the props went (October audit).
   const _isLeagueMode = isLeagueGame(tournament.state);
   const _storedSeasonId = tournament.state.settings?.seasonId;
   const _displaySeason = _storedSeasonId
@@ -324,9 +324,6 @@ function PokerTimerInner({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId, tournament.state.details?.id]);
   useEffect(() => { displaySeasonRef.current = _displaySeason; }, [_displaySeason]);
-  // No count means no count: `|| 12` printed "Game 4 of 12" for a season that
-  // never set one (October audit, M9). gameProgressLabel already handles none.
-  const totalGames: number | undefined = _displaySeason?.numberOfGames || undefined;
 
   // The on-screen event name. Falls back to the league's own name in league mode
   // when no event name is set, so renaming the league is visible here — these
@@ -1420,7 +1417,7 @@ function PokerTimerInner({
 
         {/* Tournament Info Card - Always Visible */}
         <div className="mb-6">
-          <TournamentInfoCard readOnly={readOnlyConsole} tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} gameNumber={gameNumber} totalGames={totalGames} otherLiveGame={accountLiveGame} />
+          <TournamentInfoCard readOnly={readOnlyConsole} tournament={tournament} league={league} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />
         </div>
 
         {/* Directly beneath the card that holds the mode slider, so flipping it

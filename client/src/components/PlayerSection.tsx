@@ -5,12 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, Download, Users, Trophy, Plus, PlusCircle, Check, FileSpreadsheet } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { currencyOf } from '@/lib/currency';
-import { buyInOf, investedIn } from '@/lib/resultStats';
-import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import EmptyState from '@/components/ui/empty-state';
 import { resultRowsFor } from '@/lib/resultRows';
 import { resultsCsvTable } from '@/lib/resultColumns';
@@ -23,7 +19,6 @@ import { eventNameOf } from '@/lib/eventName';
 import { addOnsOpen, lateEntryClosedReason } from '@/lib/entryLimits';
 import BustOutDialog from '@/components/BustOutDialog';
 import { planSeating, assignSeats, tablesNeededFor, tableNamesFor, tablesOf, randomFreeSeat, tablesEmptiestFirst } from '@/lib/seating';
-import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
@@ -42,7 +37,7 @@ interface PlayerSectionProps {
 }
 
 export default function PlayerSection({ tournament, failsafeFor = null }: PlayerSectionProps) {
-  const { state, addKnockout, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
+  const { state, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
   const { toast } = useToast();
 
   /**
@@ -142,7 +137,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentSearchTerm, setRecentSearchTerm] = useState('');
-  const [playerToRemove, setPlayerToRemove] = useState<Player | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
   const autocompleteRef = useRef<HTMLDivElement>(null);
