@@ -344,8 +344,8 @@ export default function LeagueSeasonsTab({
         </Card>
       )}
 
-      {/* Delete League used to sit here. It is a league-level action and now
-          lives on the League tab, beside renaming and switching. */}
+      {/* Delete League is not in this component: LeagueSettingsDialog renders
+          LeagueDangerZone at the foot of this same Seasons tab, beneath it. */}
 
       <AlertDialog open={!!endTarget} onOpenChange={o => !o && setEndTarget(null)}>
         <AlertDialogContent>

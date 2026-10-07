@@ -12,7 +12,7 @@ React + TypeScript + Vite, Firestore for data, deployed on Railway.
 ```
 npm run dev         # local dev server
 npm run check       # tsc — MUST stay clean
-npm test            # vitest, ~194 unit tests
+npm test            # vitest, ~1,330 unit tests
 npm run test:rules  # Firestore rules tests against the emulator (needs Java)
 npm run build       # production build
 ```
@@ -255,7 +255,10 @@ nothing. Only a failed write costs a director their game.
 
 `readLocalProgress` separates **`corrupt` from `absent`**. They both used to return null and read
 identically, so a mirror that existed but could not be parsed looked exactly like never having had
-one — the single case where a director would want to know.
+one — the single case where a director would want to know. **Nothing says so yet:** its one production
+caller folds `corrupt` back into null, and `recoverableProgress` parses for itself behind a bare catch,
+so a corrupt mirror still reaches nobody (October audit, doc drift). The distinction is ready for a
+screen that wants it.
 
 ### A claim is released after the work, never before
 
@@ -479,6 +482,11 @@ The effects win on every count, and the list is the argument for having one writ
 Nothing replaced it, because nothing needed to: every field it wrote has a guarded owner, and a
 level change moves `currentLevel`, `targetEndTime` and `isRunning`, each a dependency of the clock
 effect. Check that before adding any "broadcast" back.
+
+**`broadcastTournamentAction` survives, and writes nothing.** About a dozen actions still call it; what
+is left of it dispatches the CustomEvents listed below as heard by nothing. Its empty `database` branch
+and unused payload went with the October audit. It is a candidate for deletion with those events, not
+a place to put a write.
 
 ### A device must never write to a tournament it has not read
 
@@ -1057,8 +1065,9 @@ failure rather than swallowing it, because the callers genuinely differ in how t
 toast, `reportWriteFailure`, or a console line) and that judgement stays with them.
 
 Deliberately **not** routed through it: a participant's `claims` write (`PlayerClaimView` — that is a
-player's own phone, not the director driving the game, and it passes a `deleteField()` sentinel the
-door's `sanitizeForFirestore` would mangle), every account-scoped write (setup, templates, league and
+player's own phone, not the director driving the game — the reason, and the only one: an earlier note
+here said the door's `sanitizeForFirestore` would mangle its `deleteField()` sentinel, and it would not,
+since it preserves Firestore's sentinel objects), every account-scoped write (setup, templates, league and
 season admin, history — a director doing admin on a phone while a console runs is legitimate), and
 creation, which `lib/tournamentDocument.ts` already owns.
 
@@ -2354,9 +2363,10 @@ path — the two could and did disagree (the tick rejected `%`, which worked; te
 formula dividing by `f-1` was "valid" and scored 0 for the whole league; rejected the long variable
 names the real engine accepts).
 
-**The trust boundary that mattered:** `RealTimeLeagueTable.tsx` loads the DIRECTOR's league settings
-and scores with them in the PARTICIPANT's browser, by design — participants watch the director's own
-scheme live. So any signed-in director could put arbitrary JavaScript in a points formula and have it
+**The trust boundary that mattered:** the DIRECTOR's league settings are loaded and evaluated in the
+PARTICIPANT's browser — by `PlayerSectionReadOnly`'s Points column now (October audit, Low); the
+standings themselves do NOT score, they sum each result's stored `points`, which is why **changing the
+points scheme mid-season never rescores past results**. So any signed-in director could put arbitrary JavaScript in a points formula and have it
 run on this origin, in the browser of everyone who scans their QR code, with access to that visitor's
 Firebase session. A stranger could not poison someone else's settings (writes are `userId`-scoped), so
 this was director → participant, not attacker → anyone — but it was a real stored-code-execution path.
@@ -2906,7 +2916,7 @@ disappearing unannounced is not something to do to a screen somebody is looking 
 confirmation says where the night went (History, and the standings) rather than advertising that the
 blinds are kept, which templates make cheap anyway.
 
-`hooks/useNewGame.ts` is the one implementation of starting a fresh game, shared by that slider and
+`hooks/useNewGame.tsx` is the one implementation of starting a fresh game, shared by that slider and
 by `NextGameControl`. A one-off button inside the next-game dialog was tried first and removed: the
 slider is where "what kind of game is this" lives, and a dialog headed *Start next league game* is
 the wrong place to offer a game that is not one.
@@ -4011,11 +4021,10 @@ answers, again. Both call sites now use `lib/resultStats.ts`'s `buyInOf` and `in
 helpers the league columns use, and the preview passes representative values rather than nothing —
 it claimed to show real scoring while feeding the engine zeroes.
 
-Two evaluators exist for one formula, and they disagree. The dialog's "Formula valid" tick
-string-replaces `p`/`f`/`b`/`c`/`k`/`z` with fixed numbers, tests **first place only**, and rejects the
-long variable names (`position`, `totalPlayers`, …) that the real engine accepts. The **Points
-Preview** below it calls the real `calculatePoints` and is the one to trust. Collapsing the two is
-worth doing — same class as the rake formula and the duplicated timer.
+There is ONE evaluator now — the "Formula valid" tick calls `evaluateFormula` like everything else.
+What is left is that it tests **first place only**, so a formula that fails further down the field
+reads valid and scores 0 there, silently, and drops the bonuses (`useLeagueSettings`). The **Points
+Preview** below it evaluates every place and is the one to trust.
 
 ### `'default-season'`, and the `'default-league'` that went with it
 
@@ -4180,6 +4189,10 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `leagueRecorder.ts` | What the league recorder must remove, correct and record tonight — and what is ALREADY recorded, read from the league's results with this tab's memory first. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
 | `directorControl.ts` | Which device is driving the live game, whether this one may write to it, and what to say when it may not — **that a device has control, never that anyone is running the game**. |
+| `numberField.ts` | What a half-typed number field commits to when it is left — the fallback when empty, and clamped, never rejected. |
+| `statusChip.ts` | Which one status chip the app bar shows, and why a blocked browser outranks a live game. |
+| `standingsOrder.ts` | The order of a league's standings — points, fewer games, best finish — shared by the table and its movement arrows. |
+| `deadline.ts` | Stop waiting for a Firestore write that never settles (8s), for the actions that must not hang on a blocked browser. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the
 Stripe status → pro/free mapping, and whether an incoming webhook event is newer than the one already

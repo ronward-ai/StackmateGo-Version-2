@@ -174,8 +174,10 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
    * What each place scores, straight from the scoring engine.
    *
    * Not a second implementation: `calculatePoints` is the same function the
-   * league scores with, so the table cannot disagree with a real game — which
-   * is more than can be said for the "Formula valid" check above it.
+   * league scores with, so the table cannot disagree with a real game. The
+   * "Formula valid" check above it runs the same engine too, but for FIRST
+   * place only — a formula that fails further down the field reads valid
+   * there and shows its zeroes here.
    *
    * The first eight places, then the last, which is where the schemes differ:
    * a set-points scheme pays nothing past ninth while the others still score

@@ -86,10 +86,6 @@ app.use((req, res, next) => {
         });
       });
       
-      app.get("/api/auth/user", (req, res) => {
-        res.json({ id: 'dev-user-123', name: 'Development User' });
-      });
-
       // Catch-all for non-API routes in fallback mode
       app.get("*", (req, res) => {
         if (req.path.startsWith("/api/")) {

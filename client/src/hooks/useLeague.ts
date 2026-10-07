@@ -379,8 +379,8 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         leagueId: String(currentLeagueId),
         leaguePlayerId: String(resultData.leaguePlayerId),
         seasonId: resultData.seasonId || null, // ← persisted to Firestore
-        // Coerced, not spread through: sanitizeForFirestore strips undefined, so
-        // an unset count would omit the field entirely for every player who
+        // Coerced, not spread through: sanitizeForFirestore turns undefined into
+        // null, so an unset count would be written as null for every player who
         // never rebought — the same absent-field trap that had these columns
         // reading 0 in the first place. The amounts are what make Invested right;
         // without them the table charges a rebuy at the buy-in.

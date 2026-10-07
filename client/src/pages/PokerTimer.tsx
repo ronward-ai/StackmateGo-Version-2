@@ -304,7 +304,9 @@ function PokerTimerInner({
   const showSignedOutBar = !authLoading && (!user || isAnonymous) && !signedOutBarDismissed;
   const { toast } = useToast();
 
-  // Compute game number once here so the info card and the mode toggle inside it always show the same value.
+  // The game number for the info card's header. The season line beside the
+  // mode toggle derives its own through the same `gameNumberFor`, so the two
+  // agree — but it is two derivations, not one.
   const _isLeagueMode = tournament.state.details?.type === 'season' || tournament.state.settings?.isSeasonTournament === true;
   const _storedSeasonId = tournament.state.settings?.seasonId;
   const _displaySeason = _storedSeasonId
