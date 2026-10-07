@@ -6,7 +6,7 @@ import {
   assertFails,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
  * Rules tests for firestore.rules.
@@ -209,7 +209,7 @@ describe('only the director may change a live game', () => {
     // writes `claims` now, never `players` — see the 'player check-in'
     // describe block below for the full behaviour of that branch.
     await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      claims: { p1: 'device-abc' },
+      'claims.p1': 'device-abc', lastClaim: 'p1',
     }));
   });
 
@@ -289,7 +289,7 @@ describe('player check-in', () => {
 
   it('allows a signed-in-anonymously claim', async () => {
     await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      claims: { p1: 'device-abc' },
+      'claims.p1': 'device-abc', lastClaim: 'p1',
     }));
   });
 
@@ -306,7 +306,7 @@ describe('player check-in', () => {
       }, { merge: true });
     });
     await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), {
-      'claims.p1': 'device-abc',
+      'claims.p1': 'device-abc', lastClaim: 'p1',
     }));
     let data: any;
     await testEnv.withSecurityRulesDisabled(async ctx => {
@@ -576,7 +576,7 @@ describe('completed tournaments (history)', () => {
   it('lets the owner read, write and delete their own history', async () => {
     const db = director();
     await assertSucceeds(getDoc(doc(db, 'completedTournaments', 'history-1')));
-    await assertSucceeds(setDoc(doc(db, 'completedTournaments', 'history-2'), {
+    await assertSucceeds(setDoc(doc(db, 'completedTournaments', `${DIRECTOR}_game-2`), {
       ownerId: DIRECTOR, type: 'standalone', playerCount: 6, endTime: new Date().toISOString(),
     }));
     await assertSucceeds(deleteDoc(doc(db, 'completedTournaments', 'history-1')));
@@ -673,4 +673,106 @@ describe('a director’s own settings document', () => {
     await assertFails(setDoc(doc(anonAuth(), 'userSettings', DIRECTOR), NAMES, { merge: true }));
     await assertFails(setDoc(doc(anon(), 'userSettings', DIRECTOR), NAMES, { merge: true }));
   });
+});
+
+
+/**
+ * October audit, H1, M1 and the anonymous userSettings writer. Each of these
+ * SUCCEEDED against the rules before the fix — reproduced against this
+ * emulator — so each assertion is the regression test for one hole.
+ */
+describe('October audit: deterministic ids belong to the uid they name (H1)', () => {
+  it("stops a stranger squatting a director's current-settings id", async () => {
+    for (const id of [`${DIRECTOR}_${LEAGUE}`, `${DIRECTOR}_standalone`]) {
+      await assertFails(setDoc(doc(stranger(), 'leagueSettings', id), { userId: OTHER_DIRECTOR }));
+    }
+  });
+
+  it('still lets the director create their own, and anyone save a template under an auto-id', async () => {
+    await assertSucceeds(setDoc(doc(director(), 'leagueSettings', `${DIRECTOR}_${LEAGUE}`),
+      { userId: DIRECTOR, leagueId: LEAGUE, isDefault: true, settings: {} }));
+    await assertSucceeds(setDoc(doc(director(), 'leagueSettings', `${DIRECTOR}_standalone`),
+      { userId: DIRECTOR, leagueId: null, isDefault: true, settings: {} }));
+    await assertSucceeds(setDoc(doc(stranger(), 'leagueSettings', 'Ab12Cd34Ef56Gh78Ij90'),
+      { userId: OTHER_DIRECTOR, isDefault: false, settings: {} }));
+  });
+
+  it("stops a stranger squatting a director's history record id", async () => {
+    await assertFails(setDoc(doc(stranger(), 'completedTournaments', `${DIRECTOR}_game-9`), {
+      ownerId: OTHER_DIRECTOR, type: 'standalone', playerCount: 2,
+    }));
+    // Not even under their own ownerId, which is what the squat needed.
+    await assertSucceeds(setDoc(doc(stranger(), 'completedTournaments', `${OTHER_DIRECTOR}_game-9`), {
+      ownerId: OTHER_DIRECTOR, type: 'standalone', playerCount: 2,
+    }));
+  });
+});
+
+describe('October audit: a check-in touches one real seat, with a short value (M1)', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'activeTournaments', TOURNAMENT),
+        { playerIds: ['p1', 'p2'] }, { merge: true });
+    });
+  });
+  const checkIn = (fields: Record<string, unknown>) =>
+    updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), fields);
+
+  it('accepts the write PlayerClaimView sends, and its unclaim', async () => {
+    await assertSucceeds(checkIn({ 'claims.p1': 'd_1700000000000_abcdefgh', lastClaim: 'p1' }));
+    await assertSucceeds(checkIn({ 'claims.p1': deleteField(), lastClaim: 'p1' }));
+  });
+
+  it('refuses a value big enough to bloat the game document', async () => {
+    await assertFails(checkIn({ 'claims.p1': 'x'.repeat(100_000), lastClaim: 'p1' }));
+  });
+
+  it('refuses a nested map', async () => {
+    await assertFails(checkIn({ 'claims.p1': { a: { b: 1 } }, lastClaim: 'p1' }));
+  });
+
+  it('refuses a seat that is not in the game, so junk keys cannot lock check-in', async () => {
+    await assertFails(checkIn({ 'claims.junk1': 'd', lastClaim: 'junk1' }));
+  });
+
+  it('refuses touching more than the seat it names', async () => {
+    await assertFails(checkIn({ claims: { p1: 'd', p2: 'd' }, lastClaim: 'p1' }));
+    await assertFails(checkIn({ 'claims.p2': 'd', lastClaim: 'p1' }));
+  });
+
+  it('refuses a check-in that names no seat', async () => {
+    await assertFails(checkIn({ 'claims.p1': 'd' }));
+  });
+
+  it('still lets a seat be released after its player was removed', async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'activeTournaments', TOURNAMENT),
+        { claims: { gone: 'd' }, playerIds: ['p1', 'p2'] }, { merge: true });
+    });
+    await assertSucceeds(checkIn({ 'claims.gone': deleteField(), lastClaim: 'gone' }));
+  });
+});
+
+describe('October audit: userSettings is a registered account\'s only', () => {
+  it('stops an anonymous session storing anything under its own uid', async () => {
+    await assertFails(setDoc(doc(anonAuth(), 'userSettings', 'anon-uid'), { blob: 'x'.repeat(1000) }));
+  });
+});
+
+describe('October audit: rules coverage for fields added since September', () => {
+  // The rules were right by construction — every one of these rides the owner
+  // branch — but nothing would have gone red if the check-in branch widened.
+  for (const [field, value] of [
+    ['controllingDeviceId', 'd_attacker'],
+    ['rebuysAnswered', ['p1:0']],
+    ['isFinalTable', true],
+    ['isPublished', false],
+    ['status', 'completed'],
+    ['playerIds', ['p1', 'p2', 'x']],
+  ] as const) {
+    it(`stops a participant or stranger writing ${field}`, async () => {
+      await assertFails(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { [field]: value }));
+      await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { [field]: value }));
+    });
+  }
 });

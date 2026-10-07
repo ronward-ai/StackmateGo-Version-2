@@ -94,3 +94,18 @@ export function myPlayerId(
 export function claimFieldPath(playerId: string): string {
   return `claims.${playerId}`;
 }
+
+/**
+ * The seats a check-in may name — written beside the roster as `playerIds`
+ * (October audit, M1).
+ *
+ * The rule admitting a check-in cannot look inside the players array, so it had
+ * no way to tell a real seat from a junk key: it bounded only the claims map's
+ * key COUNT, and one visitor could fill that count with junk so that nobody else
+ * could ever check in. With this list on the document, a claim must name a seat
+ * in it. Written at creation and by every roster sync, from one place, so the
+ * two cannot disagree about what a seat is.
+ */
+export function playerIdsOf(players: ReadonlyArray<{ id: string | number }> | null | undefined): string[] {
+  return (players ?? []).map(p => String(p.id));
+}

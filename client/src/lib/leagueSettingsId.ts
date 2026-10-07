@@ -23,3 +23,29 @@
 export function defaultSettingsDocId(ownerId: string, leagueId: string | null | undefined): string {
   return `${ownerId}_${leagueId || 'standalone'}`;
 }
+
+/**
+ * The settings in a director's current-settings document — ONLY if the document
+ * really is that director's, and really is settings (October audit, H1).
+ *
+ * The id is computable by anyone, and until the rules bound a deterministic id
+ * to the uid it names, anyone could create it first. Whatever such a document
+ * held was adopted verbatim: with no `settings` field the hook's state became
+ * `undefined` and the next render threw — taking down the director's own
+ * Players tab and every participant's phone, behind the one app-level error
+ * boundary — and with well-formed settings the league was silently scored by a
+ * stranger's scheme. Documents created before the rule changed are still out
+ * there, so the reader checks too.
+ *
+ * The shape test is the one the local cache has always applied.
+ */
+export function currentSettingsFrom<T = any>(
+  doc: { userId?: unknown; settings?: any } | null | undefined,
+  ownerId: string | null | undefined,
+): T | null {
+  if (!doc || !ownerId || doc.userId !== ownerId) return null;
+  const s = doc.settings;
+  if (!s || typeof s !== 'object') return null;
+  if (!s.pointsSystem || !s.pointsSystem.formula || !s.statsToTrack || !s.displaySettings) return null;
+  return s as T;
+}

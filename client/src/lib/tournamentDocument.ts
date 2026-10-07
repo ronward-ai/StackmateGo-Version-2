@@ -1,4 +1,5 @@
 import { getAuth } from 'firebase/auth';
+import { playerIdsOf } from './seatClaims';
 import { currencyOf } from '@/lib/currency';
 import { projectId, databaseId } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
@@ -103,6 +104,8 @@ export function buildTournamentDocument(
     isRunning: state.isRunning,
     buyIn: state.prizeStructure?.buyIn || 10,
     players: state.players || [],
+    // The seats a check-in may claim — see lib/seatClaims.ts.
+    playerIds: playerIdsOf(state.players),
     tables: state.details?.tables || [],
     blindLevels: state.levels || [],
     settings: {

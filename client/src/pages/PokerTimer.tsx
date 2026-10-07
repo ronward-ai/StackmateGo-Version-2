@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { playerIdsOf } from '@/lib/seatClaims';
 import { gameIdOf } from '@/lib/localGameId';
 import { useToast } from '@/hooks/use-toast';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -873,6 +874,9 @@ function PokerTimerInner({
       try {
         const result = await writeLiveGame(activeTournamentId, {
           players: tournament.state.players,
+          // The seats a check-in may claim, derived from the roster in this one
+          // write so the two can never disagree — see lib/seatClaims.ts.
+          playerIds: playerIdsOf(tournament.state.players),
           // A FACT about the game, so it belongs in the record every device
           // reads — not just in the local state of whoever collapsed the table.
           // Without it a second device asks "Final table?" about a final table

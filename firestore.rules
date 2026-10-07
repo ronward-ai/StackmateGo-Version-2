@@ -60,9 +60,15 @@ service cloud.firestore {
       allow read: if isOwner(userId);
     }
 
-    // User Settings
+    // User Settings — a REGISTERED director's own document only.
+    //
+    // isOwner() admits anonymous sessions, and nothing genuine ever writes here
+    // anonymously: the preflight, the setup sync and Recent Players are all gated
+    // on a real account. So the only anonymous writer was anyone minting free
+    // anonymous uids and storing up to 1 MiB under each, billed to this project
+    // (October audit).
     match /userSettings/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isRegistered() && request.auth.uid == userId;
     }
 
     // Leagues
@@ -221,8 +227,22 @@ service cloud.firestore {
         // done it. `claims` carries no gameplay data at all, so there is
         // nothing left in this branch for a hostile write to reach.
         //
-        // `claims.size() <= players.size()` bounds it to at most one entry per
-        // seat in the game — there is no legitimate reason for more.
+        // ONE seat per write, named, and only a real one (October audit, M1).
+        // It used to constrain only the map's type and its key COUNT, so one
+        // anonymous visitor could write a 200 KB value (or nested maps) and push
+        // the document toward its 1 MiB limit — after which every director write
+        // that grew it failed mid-tournament — or fill the count with junk keys
+        // so that no genuine check-in was ever accepted again.
+        //
+        // A rule cannot look inside the players array, so the write names the
+        // seat it touches in `lastClaim`, and:
+        //   - the claims map may change at that key and no other;
+        //   - a claim's value is a short string (a device id) or absent (unclaim);
+        //   - the key must be a seat in the game, read from `playerIds`, which
+        //     the director's player sync writes alongside the roster. A document
+        //     written before that existed falls back to the old count bound until
+        //     its next roster write; an unclaim is always allowed, so a seat whose
+        //     player was removed can still be released.
         //
         // Still not airtight — anyone can obtain an anonymous session, so a
         // determined participant can claim or unclaim any seat, including one
@@ -233,9 +253,24 @@ service cloud.firestore {
         // needs a service account key; key creation is blocked by org policy on
         // this project. See the note in PlayerClaimView.
         isAuthenticated()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claims'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claims', 'lastClaim'])
         && request.resource.data.claims is map
-        && request.resource.data.claims.size() <= resource.data.players.size()
+        && request.resource.data.lastClaim is string
+        && request.resource.data.lastClaim.size() <= 64
+        && request.resource.data.claims.diff(resource.data.get('claims', {})).affectedKeys()
+             .hasOnly([request.resource.data.lastClaim])
+        && (
+          !(request.resource.data.lastClaim in request.resource.data.claims)
+          || (
+            request.resource.data.claims[request.resource.data.lastClaim] is string
+            && request.resource.data.claims[request.resource.data.lastClaim].size() <= 64
+            && (
+              resource.data.get('playerIds', null) == null
+                ? request.resource.data.claims.size() <= resource.data.players.size()
+                : request.resource.data.lastClaim in resource.data.playerIds
+            )
+          )
+        )
       );
       allow delete: if isRegistered() && isExistingDocOwner();
     }
@@ -267,7 +302,15 @@ service cloud.firestore {
     match /leagueSettings/{settingId} {
       allow get: if true;
       allow list: if isRegistered() && resource.data.userId == request.auth.uid;
-      allow create: if isRegistered() && isDocUser();
+      // A deterministic id (`<ownerId>_<leagueId|standalone>`, see
+      // lib/leagueSettingsId.ts) may be created only by the uid it names
+      // (October audit, H1). Both halves are public on every tournament, and the
+      // create rule only checked the document's OWN userId, so anyone could take
+      // a director's slot first — locking them out of saving, and, with no
+      // `settings` in it, crashing their console and every participant's phone.
+      // Saved templates use auto-ids, which never contain an underscore.
+      allow create: if isRegistered() && isDocUser()
+        && (!settingId.matches('.*_.*') || settingId.matches(request.auth.uid + '_.+'));
       allow update: if isRegistered() && isExistingDocUser()
         && request.resource.data.userId == resource.data.userId;
       allow delete: if isRegistered() && isExistingDocUser();
@@ -278,7 +321,12 @@ service cloud.firestore {
     // and participants have no reason to read them.
     match /completedTournaments/{recordId} {
       allow read: if isRegistered() && resource.data.ownerId == request.auth.uid;
-      allow create: if isRegistered() && isDocOwner();
+      // The id is `<ownerId>_<gameId>` (useCompletedTournaments), and a game id
+      // is public to every QR visitor — so it must be created by the uid it
+      // names, or a stranger could create it first and the director's history
+      // write would be refused (October audit, H1).
+      allow create: if isRegistered() && isDocOwner()
+        && recordId.matches(request.auth.uid + '_.+');
       allow update: if isRegistered() && isExistingDocOwner() && isDocOwner();
       allow delete: if isRegistered() && isExistingDocOwner();
     }

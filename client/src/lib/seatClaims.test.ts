@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { claimedByFor, isClaimed, myPlayerId, claimFieldPath } from './seatClaims';
+import { claimedByFor, isClaimed, myPlayerId, claimFieldPath, playerIdsOf } from './seatClaims';
 
 describe('claimedByFor', () => {
   it('reads the new claims map', () => {
@@ -89,5 +89,15 @@ describe('claimFieldPath', () => {
   it('carries a UUID player id through untouched', () => {
     const id = 'a1b2c3d4-e5f6-47a8-9b0c-1d2e3f4a5b6c';
     expect(claimFieldPath(id)).toBe(`claims.${id}`);
+  });
+});
+
+describe('playerIdsOf — the seats a check-in may claim (Oct M1)', () => {
+  it('lists every player id, as strings, in roster order', () => {
+    expect(playerIdsOf([{ id: 'p1' }, { id: 7 as any }])).toEqual(['p1', '7']);
+  });
+  it('is empty, not missing, for no roster', () => {
+    expect(playerIdsOf(undefined)).toEqual([]);
+    expect(playerIdsOf([])).toEqual([]);
   });
 });

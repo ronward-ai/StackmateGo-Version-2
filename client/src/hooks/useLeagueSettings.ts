@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { withBonuses } from '@/lib/pointsBonuses';
 import { bandsOf, pointsForBand } from '@/lib/pointsBands';
 import { evaluateFormula } from '@/lib/formulaEval';
-import { defaultSettingsDocId } from '@/lib/leagueSettingsId';
+import { defaultSettingsDocId, currentSettingsFrom } from '@/lib/leagueSettingsId';
 import {
   LeagueSettings,
   PointsSystem,
@@ -33,23 +33,28 @@ function loadFromStorage(storageKey: string, uid: string | null): LeagueSettings
     if (!parsed.pointsSystem || !parsed.statsToTrack || !parsed.displaySettings) return DEFAULT_LEAGUE_SETTINGS;
     if (!parsed.pointsSystem.formula) return DEFAULT_LEAGUE_SETTINGS;
 
-    return {
-      ...DEFAULT_LEAGUE_SETTINGS,
-      ...parsed,
-      statsToDisplay: {
-        ...DEFAULT_LEAGUE_SETTINGS.statsToDisplay,
-        ...parsed.statsToDisplay
-      },
-      pointsSystem: {
-        ...DEFAULT_LEAGUE_SETTINGS.pointsSystem,
-        ...parsed.pointsSystem,
-        formula: { ...parsed.pointsSystem.formula }
-      }
-    };
+    return withSettingsDefaults(parsed);
   } catch (error) {
     console.error('Failed to load league settings:', error);
     return DEFAULT_LEAGUE_SETTINGS;
   }
+}
+
+/** A stored or fetched settings object, filled out with every default. */
+function withSettingsDefaults(parsed: any): LeagueSettings {
+  return {
+    ...DEFAULT_LEAGUE_SETTINGS,
+    ...parsed,
+    statsToDisplay: {
+      ...DEFAULT_LEAGUE_SETTINGS.statsToDisplay,
+      ...parsed.statsToDisplay
+    },
+    pointsSystem: {
+      ...DEFAULT_LEAGUE_SETTINGS.pointsSystem,
+      ...parsed.pointsSystem,
+      formula: { ...parsed.pointsSystem.formula }
+    }
+  };
 }
 
 export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | null) {
@@ -93,8 +98,14 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     setSettings(loadFromStorage(storageKey, storageUid));
   }, [storageKey, storageUid]);
 
-  // Save settings to localStorage under the scoped key
+  // Save settings to localStorage under the scoped key.
+  //
+  // Never from a participant read: that is ANOTHER director's settings (or this
+  // director's, read for display), and caching it under this device's
+  // `leagueSettings:<league>` key let it be loaded back later as the device's
+  // own scheme.
   useEffect(() => {
+    if (isParticipantRead) return;
     try {
       if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && settings) {
         writeScoped(storageKey, JSON.stringify(settings), storageUid);
@@ -102,7 +113,7 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     } catch (error) {
       console.error('Failed to save league settings:', error);
     }
-  }, [settings, storageKey, storageUid]);
+  }, [settings, storageKey, storageUid, isParticipantRead]);
 
   // Listen for settings reload events
   useEffect(() => {
@@ -366,8 +377,14 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     // yet, and falls back to defaults — the SAME degradation this hook
     // already had for a settings read that failed outright. Nothing is
     // migrated; the next time the director saves, the doc appears here.
-    setSettings(remoteDefaultDoc ? remoteDefaultDoc.settings : DEFAULT_LEAGUE_SETTINGS);
-  }, [remoteDefaultDoc, isParticipantRead]);
+    //
+    // Only a document that really is this director's, and really is settings
+    // (lib/leagueSettingsId.ts): one anybody created first at the predictable id
+    // once crashed this hook's every consumer, or scored the league by a
+    // stranger's scheme (October audit, H1).
+    const remote = currentSettingsFrom<LeagueSettings>(remoteDefaultDoc, targetOwnerId);
+    setSettings(remote ? withSettingsDefaults(remote) : DEFAULT_LEAGUE_SETTINGS);
+  }, [remoteDefaultDoc, isParticipantRead, targetOwnerId]);
 
   const loadSavedSettings = useCallback(async () => {
     // no-op: settings are kept in sync by the real-time Firestore listener above

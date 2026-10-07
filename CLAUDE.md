@@ -2306,6 +2306,21 @@ read-modify-write on the full players array was flagged as a race (M9 in the aud
 live claim before writing and rejects stealing a seat a *different* device already holds, rather than
 silently overwriting it.
 
+**A check-in names its seat, and the seat must be real** (October audit, M1). The rule used to bound
+only the map's type and its key COUNT, so one anonymous visitor could write a 200 KB value — pushing
+the live document toward its 1 MiB limit, after which every director write that grew it failed — or
+fill the count with junk keys so nobody else could ever check in. Now a check-in writes `lastClaim`
+beside its one dotted path, and the rule allows a change to that key only, a string value of at most
+64 characters (or none, to unclaim), and only for a seat listed in `playerIds` — which the director's
+player sync writes from the roster through `lib/seatClaims.ts`'s `playerIdsOf`, since a rule cannot
+look inside the players array. A game written before `playerIds` existed keeps the old count bound
+until its next roster write; an unclaim is always allowed, so a removed player's seat can be released.
+Each clause has a rules test that goes red when the clause is removed.
+
+**`PlayerClaimView`'s `withRulesFallback` retries a refused check-in in the old shape.** The app ships
+on every push and the rules ship by hand, so one is always briefly ahead of the other; the fallback
+keeps check-in working in either order. **Remove it once the October rules are live.**
+
 **Normalised on read**, the same trade `payoutsOf()`/`bandsOf()` make: a tournament document written
 before this shipped may still carry `Player.claimedBy` from the old scheme, and no stored document is
 rewritten to keep it working. `claimedByFor()` prefers `claims`, falling back to the deprecated
@@ -2362,6 +2377,15 @@ error instead of a design choice. The fix is the SAME mechanism `lib/sharedSnaps
 calls in `useSeasons.ts` and `useLeague.ts` now pass `null` until `isAuthenticated` is true, and
 `useSyncExternalStore` re-subscribes automatically the moment it flips — no retry logic needed, because
 nothing ever failed in the first place.
+
+**A deterministic id must be created by the uid it names** (October audit, H1). Both halves of
+`<ownerId>_<leagueId>` are public, and the create rule checked only the document's own `userId`, so
+anyone could create a director's slot first — locking them out of saving it, and, with no `settings`
+in it, crashing their console and every participant's phone, since the hook adopted whatever it found.
+The rule now requires `settingId` to start with the writer's uid (auto-id templates carry no
+underscore), `completedTournaments/<ownerId>_<gameId>` takes the same bind, and the reader adopts a
+document only through `currentSettingsFrom` — the director's own, shaped like settings — so documents
+squatted before the rule changed are refused too. A participant read never writes the local cache.
 
 **leagueSettings' write side migrates on the next save, never in bulk.** `saveSettingsToDatabase`
 targets the deterministic id going forward; a league whose director saved before this shipped still

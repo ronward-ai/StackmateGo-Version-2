@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defaultSettingsDocId } from './leagueSettingsId';
+import { defaultSettingsDocId, currentSettingsFrom } from './leagueSettingsId';
 
 describe('defaultSettingsDocId', () => {
   it('combines the owner and league', () => {
@@ -32,5 +32,28 @@ describe('defaultSettingsDocId', () => {
   it('the same league for different directors gets different ids', () => {
     expect(defaultSettingsDocId('director-1', 'league-9'))
       .not.toBe(defaultSettingsDocId('director-2', 'league-9'));
+  });
+});
+
+describe('currentSettingsFrom — only the director\'s own, only real settings (Oct H1)', () => {
+  const real = { pointsSystem: { formula: { type: 'linear' } }, statsToTrack: {}, displaySettings: {} };
+
+  it('adopts the director\'s own document', () => {
+    expect(currentSettingsFrom({ userId: 'A', settings: real }, 'A')).toBe(real);
+  });
+
+  it('refuses a document somebody else created at the director\'s id', () => {
+    expect(currentSettingsFrom({ userId: 'B', settings: real }, 'A')).toBeNull();
+  });
+
+  it('refuses a document with no settings, or settings of the wrong shape', () => {
+    expect(currentSettingsFrom({ userId: 'A' }, 'A')).toBeNull();
+    expect(currentSettingsFrom({ userId: 'A', settings: 'x' }, 'A')).toBeNull();
+    expect(currentSettingsFrom({ userId: 'A', settings: { pointsSystem: {} } }, 'A')).toBeNull();
+  });
+
+  it('refuses when there is no document or no owner to check against', () => {
+    expect(currentSettingsFrom(null, 'A')).toBeNull();
+    expect(currentSettingsFrom({ userId: 'A', settings: real }, null)).toBeNull();
   });
 });
