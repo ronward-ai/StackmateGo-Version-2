@@ -385,7 +385,7 @@ describe('consolidationAfterReturn', () => {
   });
 
   it('still clears the flag when there is no snapshot to restore', () => {
-    // Matches undoFinalTable: the flag goes even when no seats can move.
+    // The flag goes even when no seats can move.
     const out = consolidationAfterReturn(collapsedPlusOne(), {
       isFinalTable: true, preConsolidation: undefined,
         numberOfTables: 1, seatsPerTable: 8,

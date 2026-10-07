@@ -45,7 +45,6 @@ import { defaultPrizeStructure } from '@/lib/prizeStructure';
 import { seatToReclaim } from '@/lib/seating';
 import {
   consolidationAfterReturn,
-  restoreSeating,
   shouldPromptForFinalTable as finalTableIsDue,
   snapshotSeating,
 } from '@/lib/finalTable';
@@ -2069,31 +2068,11 @@ export function useTournament(tournamentId?: string) {
     });
   }, []);
 
-  /**
-   * Put the tables back as they were before the last consolidation.
-   *
-   * Clears the snapshot on the way out, so it can never be applied twice or
-   * linger as a rival arrangement — the hazard the local mirror note warns
-   * about, in a smaller form.
-   *
-   * The table CONFIGURATION comes back with the chairs. Restoring seats alone
-   * would leave them pointing at tables the render loop no longer walks.
-   */
-  const undoFinalTable = useCallback(() => {
-    setState(prev => {
-      if (!prev.isFinalTable && !prev.preConsolidation) return prev;
-      const snap = prev.preConsolidation;
-      return {
-        ...prev,
-        players: restoreSeating(prev.players, snap?.seats),
-        isFinalTable: false,
-        preConsolidation: undefined,
-        settings: settingsAfterRestore(prev.settings, snap
-          ? { numberOfTables: snap.tables, names: snap.names, backgrounds: snap.backgrounds }
-          : null),
-      };
-    });
-  }, []);
+  // `undoFinalTable` was here: exported, called by nothing. Undoing a
+  // collapse happens through `consolidationAfterReturn` at all three doors
+  // a player comes back by (rebuy, re-entry, undo bust-out), which restores
+  // the seats, the flag and the table count from `preConsolidation` — the same
+  // snapshot this read (October audit, Delete).
 
   // Enhanced prize pool calculation with comprehensive analytics
   // NOTE: a second `calculatePrizePool` used to live here. It was exported but
@@ -2455,7 +2434,6 @@ export function useTournament(tournamentId?: string) {
     getRemainingTimeText,
     isBreak,
     undoBustOut,
-    undoFinalTable,
     undoPlayerReturn,
     processRebuy,
     processReEntry,

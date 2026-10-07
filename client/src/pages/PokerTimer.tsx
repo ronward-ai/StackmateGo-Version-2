@@ -929,8 +929,8 @@ function PokerTimerInner({
           // that is already under way, because the only thing suppressing that
           // question is a flag it was never told about.
           //
-          // It rides in THIS effect because goToFinalTable and undoFinalTable
-          // both rewrite the seats and the flag in one setState, so this is
+          // It rides in THIS effect because goToFinalTable and the return paths
+          // (consolidationAfterReturn) both rewrite the seats and the flag in one setState, so this is
           // already the write that carries the redraw. No new effect, no extra
           // traffic.
           isFinalTable: !!tournament.state.isFinalTable,

@@ -819,8 +819,8 @@ could be written, arrive, and be discarded by the very load path a device uses t
 reads `tournamentData.isFinalTable === true` now. The identical line in `resetTournament` is a NEW game
 and is correct; leave it.
 
-**The write rides in the players sync effect**, because `goToFinalTable` and `undoFinalTable` both
-rewrite the seats and the flag in one `setState` — that effect is already the write carrying the redraw.
+**The write rides in the players sync effect**, because `goToFinalTable` and the return paths
+(`consolidationAfterReturn`) both rewrite the seats and the flag in one `setState` — that effect is already the write carrying the redraw.
 No new effect and no extra traffic.
 
 **And the echo had to be guarded, or this would have been the rebuy revert with a new field name.**
@@ -2653,9 +2653,10 @@ Three separate things, all found by running a real 9-player game on 8-seat table
 correct — a final table draw should be random — but `goToFinalTable` overwrote every
 `tableAssignment` and stored nothing, so undoing the bust-out that caused the collapse restored only
 the busted player's own chair (`seatToReclaim`) and left everyone else on their new random seat with
-`isFinalTable` still true. `state.preFinalTableSeating` is snapshotted **before** the redraw, and
-`undoFinalTable()` puts it back. `undoBustOut` calls it when restoring the player leaves more of them
-than one table seats — which is exactly the case that caused the collapse.
+`isFinalTable` still true. The arrangement is snapshotted **before** the redraw (now
+`state.preConsolidation`), and `consolidationAfterReturn` puts it back at every door a player returns by
+when the field outgrows the table again — which is exactly the case that caused the collapse. (A
+standalone `undoFinalTable()` did the same and was called by nothing; it was deleted in October.)
 
 `lib/finalTable.ts`'s `restoreSeating` leaves a player the snapshot has never heard of **exactly as
 they are** rather than unseating them: they arrived after the collapse, by rebuy or re-entry, and
