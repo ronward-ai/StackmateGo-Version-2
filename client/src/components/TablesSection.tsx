@@ -24,9 +24,10 @@ import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { bustedPlayers } from '@/lib/eliminationOrder';
 import { gameIsOver } from '@/lib/gameOver';
+import BustOutDialog from '@/components/BustOutDialog';
 import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor} from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
-import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
+import { imbalance, imbalanceKey, shouldAskToBalance } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
 import { canRebuy } from '@/lib/entryLimits';
 import { writeLiveGame } from '@/lib/liveGameWrite';
@@ -71,7 +72,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     state, updateSettings, updatePlayers,
     addKnockout, eliminatePlayer, undoBustOut,
     processRebuy, processReEntry,
-    shouldPromptForFinalTable, goToFinalTable, breakTable
+    shouldPromptForFinalTable, goToFinalTable, breakTable, tableBreakDue
   } = tournament;
 
   const tables = state.settings.tables || { numberOfTables: 3, seatsPerTable: 6, tableNames: ['Table 1','Table 2','Table 3'] };
@@ -108,7 +109,6 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
 
   const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
   const [playerToBustOut, setPlayerToBustOut]     = useState<Player | null>(null);
-  const [hitmanId, setHitmanId]                   = useState<string | null>(null);
 
   const [undoBustOutDialogOpen, setUndoBustOutDialogOpen] = useState(false);
 
@@ -196,9 +196,14 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   }
 
   useEffect(() => {
-    if (finalTablePromptOpen || moveMode || shouldPromptForFinalTable()) return;
-    if (!currentImbalance) return;
-    if (imbalanceDismissed(balanceDismissedKey, currentImbalance)) return;
+    if (!currentImbalance || !shouldAskToBalance({
+      current: currentImbalance,
+      dismissedKey: balanceDismissedKey,
+      otherPromptOpen: finalTablePromptOpen,
+      moveMode,
+      finalTableDue: shouldPromptForFinalTable(),
+      breakDue: tableBreakDue() !== null,
+    })) return;
 
     const playersToMove = state.players.filter(
       p => p.seated && p.isActive !== false
@@ -210,7 +215,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
       playersToMove,
     });
     setTableBalanceDialogOpen(true);
-  }, [currentImbalance, balanceDismissedKey, finalTablePromptOpen, moveMode, shouldPromptForFinalTable, state.players]);
+  }, [currentImbalance, balanceDismissedKey, finalTablePromptOpen, moveMode, shouldPromptForFinalTable, tableBreakDue, state.players]);
 
   /** Grow or trim the per-table arrays to `n`, and RETURN the names.
    *
@@ -294,8 +299,11 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     updatePlayers(current.map(p => ids.has(p.id) ? (nowSeated.find(s => s.id === p.id) || p) : p));
   };
 
-  const handleBustOut = () => {
-    if (!playerToBustOut || !hitmanId) return;
+  // The hitman choice lives in BustOutDialog, shared with the Players tab. It
+  // used to offer only this player's table, so a lone player on a table could
+  // never be knocked out here (October audit, Low).
+  const handleBustOut = (hitmanId: string | undefined) => {
+    if (!playerToBustOut) return;
     const seatInfo = playerToBustOut.tableAssignment ? {
       tableIndex: playerToBustOut.tableAssignment.tableIndex,
       seatIndex: playerToBustOut.tableAssignment.seatIndex,
@@ -304,7 +312,6 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     eliminatePlayer(playerToBustOut.id, hitmanId, seatInfo);
     setBustOutDialogOpen(false);
     setPlayerToBustOut(null);
-    setHitmanId(null);
   };
 
   const balanceRandomly = () => {
@@ -687,7 +694,6 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setPlayerToBustOut(player);
-                                    setHitmanId(null);
                                     setBustOutDialogOpen(true);
                                   }}
                                   className="h-7 w-10 text-caption font-bold"
@@ -792,49 +798,14 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
         }}
       />
 
-      {/* Bust Out Dialog */}
-      <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Bust Out — {playerToBustOut?.name}</DialogTitle>
-            <DialogDescription>Who knocked them out?</DialogDescription>
-          </DialogHeader>
-          <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
-            {state.players
-              .filter(p =>
-                p.seated && p.isActive !== false &&
-                p.id !== playerToBustOut?.id &&
-                p.tableAssignment?.tableIndex === playerToBustOut?.tableAssignment?.tableIndex
-              )
-              .map(player => (
-                <div
-                  key={player.id}
-                  onClick={() => setHitmanId(player.id)}
-                  className={cn(
-                    "p-3 rounded-lg border cursor-pointer transition-colors flex items-center justify-between",
-                    hitmanId === player.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-muted/30"
-                  )}
-                >
-                  <span className="font-medium">{player.name}</span>
-                  <span className="text-xs text-muted-foreground">{player.knockouts || 0} KOs</span>
-                </div>
-              ))}
-            {state.players.filter(p =>
-              p.seated && p.isActive !== false &&
-              p.id !== playerToBustOut?.id &&
-              p.tableAssignment?.tableIndex === playerToBustOut?.tableAssignment?.tableIndex
-            ).length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">No other players at this table</p>
-            )}
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setBustOutDialogOpen(false)}>Cancel</Button>
-            <Button className="flex-1" disabled={!hitmanId} onClick={handleBustOut}>Confirm KO</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Bust Out Dialog — one implementation, shared with the Players tab. */}
+      <BustOutDialog
+        open={bustOutDialogOpen}
+        onOpenChange={setBustOutDialogOpen}
+        player={playerToBustOut}
+        players={state.players}
+        onConfirm={handleBustOut}
+      />
 
       {/* Undo Bust Out Dialog */}
       <Dialog open={undoBustOutDialogOpen} onOpenChange={setUndoBustOutDialogOpen}>

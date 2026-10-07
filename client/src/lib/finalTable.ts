@@ -415,7 +415,36 @@ export function consolidationAfterReturn<T extends SeatablePlayer>(
   // The consolidation stands, so the returning player joins the game where it is
   // actually being played rather than sitting alone at a table everyone was
   // moved off. A null falls back to unseated rather than inventing a chair.
-  return { ...unchanged, seatForReturner: seatForReturningPlayer(players, state) };
+  //
+  // But their OWN chair first, when it is still part of the game and still free
+  // (October audit, Low — reproduced). After a table BREAK only the broken table
+  // moved, so a player busted from a table still in play had a perfectly good
+  // chair waiting, and this sent them to the emptiest table instead: a rebuy is
+  // chips bought in the chair they never left.
+  return { ...unchanged, seatForReturner: ownChairIfStillGood(players, state) ?? seatForReturningPlayer(players, state) };
+}
+
+/**
+ * The returning player's own chair, if it is on a table still in play, exists,
+ * and nobody else is in it. At a final table it must be AT the final table —
+ * a pre-collapse chair elsewhere is the lone-player-on-table-2 fault.
+ */
+function ownChairIfStillGood<T extends SeatablePlayer>(
+  players: T[],
+  state: FinalTableState,
+): { tableIndex: number; seatIndex: number } | null {
+  const seat = state.reclaimSeat;
+  if (!seat) return null;
+  const tables = Math.max(1, Math.floor(state.numberOfTables) || 1);
+  if (seat.tableIndex < 0 || seat.tableIndex >= tables) return null;
+  if (seat.seatIndex < 0 || seat.seatIndex >= state.seatsPerTable) return null;
+  const others = players.filter(p => p.id !== state.returningId);
+  if (state.isFinalTable && oneTableIndex(others) !== seat.tableIndex) return null;
+  const taken = others.some(p =>
+    p.isActive !== false && p.seated &&
+    p.tableAssignment?.tableIndex === seat.tableIndex &&
+    p.tableAssignment?.seatIndex === seat.seatIndex);
+  return taken ? null : { tableIndex: seat.tableIndex, seatIndex: seat.seatIndex };
 }
 
 /**

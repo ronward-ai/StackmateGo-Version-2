@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   mostRecentlyBusted,
+  hitmanCandidates,
   isBustOut,
   bustedPlayers,
   nextEliminationPosition,
@@ -407,5 +408,25 @@ describe('positionsAfterRemove', () => {
     const roster = [p('a'), p('b'), p('c'), p('d'), p('e'), p('f'), p('g'), p('x', 9), p('y', 8)];
     const out = positionsAfterRemove(roster, 'a');
     expect(Math.max(...out.map(q => q.position || 0))).toBeLessThanOrEqual(out.length);
+  });
+});
+
+describe('hitmanCandidates (Oct Low)', () => {
+  const seat = (id: string, table: number, over: Record<string, unknown> = {}) =>
+    ({ id, isActive: true, tableAssignment: { tableIndex: table, seatIndex: 0 }, ...over });
+
+  it('offers a lone player at a table somebody from another table', () => {
+    const players = [seat('lone', 1), seat('a', 0), seat('b', 0)];
+    expect(hitmanCandidates(players, players[0]).map(p => p.id)).toEqual(['a', 'b']);
+  });
+
+  it('puts the busted player\'s own table first', () => {
+    const players = [seat('x', 0), seat('busted', 1), seat('y', 1), seat('z', 0)];
+    expect(hitmanCandidates(players, players[1]).map(p => p.id)).toEqual(['y', 'x', 'z']);
+  });
+
+  it('leaves out anybody already out, and is empty for the last one standing', () => {
+    const players = [seat('a', 0), seat('b', 0, { isActive: false, position: 3 })];
+    expect(hitmanCandidates(players, players[0])).toEqual([]);
   });
 });

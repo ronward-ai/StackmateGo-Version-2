@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  BALANCE_THRESHOLD, imbalance, imbalanceDismissed, imbalanceKey, type SeatedPlayer,
+  BALANCE_THRESHOLD, imbalance, imbalanceDismissed, imbalanceKey, shouldAskToBalance, type SeatedPlayer,
 } from './tableBalance';
 
 const at = (tableIndex: number, seatIndex = 0): SeatedPlayer =>
@@ -90,5 +90,30 @@ describe('imbalanceKey and imbalanceDismissed', () => {
   it('has no key for a balanced table', () => {
     expect(imbalanceKey(imbalance(spread([4, 4])))).toBeNull();
     expect(imbalanceDismissed(null, null)).toBe(false);
+  });
+});
+
+describe('shouldAskToBalance (Oct Low)', () => {
+  const current = { overloadedTable: 0, underloadedTable: 1, gap: 3 } as any;
+  const base = { current, dismissedKey: null, otherPromptOpen: false, moveMode: false, finalTableDue: false, breakDue: false };
+
+  it('asks about an undismissed imbalance with nothing else going on', () => {
+    expect(shouldAskToBalance(base)).toBe(true);
+  });
+
+  // The fault: the break prompt reports itself open through an effect, so in
+  // the commit after the bust-out this prompt could not see it and opened too.
+  it('stands down while a table break is due, before the break prompt reports', () => {
+    expect(shouldAskToBalance({ ...base, breakDue: true })).toBe(false);
+  });
+
+  it('still stands down for the final table, another prompt and move mode', () => {
+    expect(shouldAskToBalance({ ...base, finalTableDue: true })).toBe(false);
+    expect(shouldAskToBalance({ ...base, otherPromptOpen: true })).toBe(false);
+    expect(shouldAskToBalance({ ...base, moveMode: true })).toBe(false);
+  });
+
+  it('stays quiet once that imbalance was dismissed', () => {
+    expect(shouldAskToBalance({ ...base, dismissedKey: imbalanceKey(current) })).toBe(false);
   });
 });

@@ -503,3 +503,35 @@ describe('restoreSeating puts back only players still in, and never double-books
     expect(a.seated).toBe(false);
   });
 });
+
+describe('a rebuy after a table break keeps its own chair (Oct Low)', () => {
+  const at = (id: string, t: number, s: number, over: Record<string, unknown> = {}) =>
+    ({ id, name: id, isActive: true, seated: true, tableAssignment: { tableIndex: t, seatIndex: s }, ...over }) as any;
+
+  // Two tables of eight left after the break: table 1 has 7, table 2 has 5.
+  // Dave busted from table 1 seat 2 and his chair is still empty.
+  const players = () => [
+    ...[0, 1, 3, 4, 5, 6, 7].map(s => at(`a${s}`, 0, s)),
+    ...[0, 1, 2, 3, 4].map(s => at(`b${s}`, 1, s)),
+    { id: 'dave', name: 'dave', isActive: true, seated: false } as any,
+  ];
+  const state = {
+    isFinalTable: false, preConsolidation: { seats: [], tables: 3 } as any,
+    seatsPerTable: 8, numberOfTables: 2, returningId: 'dave',
+    reclaimSeat: { tableIndex: 0, seatIndex: 2 },
+  };
+
+  it('goes back to the chair he left, not to the emptier table', () => {
+    expect(consolidationAfterReturn(players(), state).seatForReturner).toEqual({ tableIndex: 0, seatIndex: 2 });
+  });
+
+  it('goes elsewhere when somebody has been moved into it', () => {
+    const roster = players().map((p: any) => p.id === 'b4' ? { ...p, tableAssignment: { tableIndex: 0, seatIndex: 2 } } : p);
+    expect(consolidationAfterReturn(roster, state).seatForReturner).not.toEqual({ tableIndex: 0, seatIndex: 2 });
+  });
+
+  it('does not reclaim a chair on the table that was broken', () => {
+    const out = consolidationAfterReturn(players(), { ...state, reclaimSeat: { tableIndex: 2, seatIndex: 0 } });
+    expect(out.seatForReturner?.tableIndex).not.toBe(2);
+  });
+});

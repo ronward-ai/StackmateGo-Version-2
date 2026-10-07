@@ -2730,6 +2730,13 @@ alone is walked around by the next caller. An **Unseat** button on a seated-but-
 the chair for games already in that state; it is deliberately not a bust-out, since they are already
 out and their finishing position and league result must not be touched.
 
+**There is ONE bust-out dialog, `components/BustOutDialog.tsx`, and there used to be two** (October
+audit, Low). The Players tab's offered everybody still in and closed out the tournament when nobody was;
+the Seating tab's offered only the busted player's own table and demanded a pick — so a lone player on a
+table, or heads-up across two, could never be knocked out from the Seating tab. The fix had reached one
+door of two. `hitmanCandidates` in `lib/eliminationOrder.ts` is the rule, own table first; each screen
+keeps only what the bust-out DOES, since the Seating tab passes the chair being left.
+
 ### The Seat Players dialog described a seating that was never going to happen
 
 The line under the player list — *"Will seat 8 players evenly on 2 tables"* — worked its own table
@@ -3220,6 +3227,12 @@ a one-player difference fires on a table nobody can fix.
 The dialog also offers to **rebuy whoever just busted**, same as `FinalTableDialog`: the bust-out is
 what created the gap, so buying them back in removes it rather than shuffling the tables around it.
 
+**It stands down for a table BREAK too** — `shouldAskToBalance` (October audit, Low). The break prompt
+lives in `FinalTablePrompt` and reports itself open through an effect, so for one commit after the
+bust-out that caused both, this prompt could not see it and opened on top. Asking the break predicate
+directly closes that window, the way `shouldPromptForFinalTable()` already did; a break also evens the
+tables that remain, so it is the question to answer.
+
 ### A rebuy keeps the chair; a re-entry does not
 
 `eliminatePlayer` records where a player was sitting as `seatInfo`, and `lib/seating.ts`'s
@@ -3590,6 +3603,17 @@ the prompt names **Table 3** (tied with table 1, tie to the highest) → 8+8 on 
 `numberOfTables: 2`, names trimmed to `['Table 1','The Kitchen']`, no duplicate chairs — then
 a rebuy back to seventeen restores 6/6/5, three tables and all three names. Nine down to
 eight then asks **Final table?** and collapses to one.
+
+**A rebuy after a BREAK keeps its own chair** (October audit, Low — reproduced). When the consolidation
+stands, `consolidationAfterReturn` used to send the returner to the emptiest table — right at a final
+table, wrong after a break, where only the broken table moved and their chair on a table still in play was
+sitting empty. `ownChairIfStillGood` asks first: on a table in play, inside the table, at THE table when it
+is a final table, and free.
+
+**The toast's Undo of a return puts the tables back too** (October audit, Low). A rebuy can unwind a
+consolidation — the flag, the snapshot and the table count — and the undo restored only the roster, leaving
+the players on one table under a two-table configuration with the collapse no longer undoable. The undo
+snapshot carries all three now.
 
 ### A chop splits only the money still to be won
 

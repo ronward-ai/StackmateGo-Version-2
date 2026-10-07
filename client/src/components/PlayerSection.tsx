@@ -20,6 +20,7 @@ import ResultsSheet from '@/components/export/ResultsSheet';
 import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
 import { eventNameOf } from '@/lib/eventName';
 import { addOnsOpen, lateEntryClosedReason } from '@/lib/entryLimits';
+import BustOutDialog from '@/components/BustOutDialog';
 import { planSeating, assignSeats, tablesNeededFor, tableNamesFor } from '@/lib/seating';
 import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
@@ -135,7 +136,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   const [seatOverflow, setSeatOverflow] = useState<number | null>(null);
   const [bustOutDialogOpen, setBustOutDialogOpen] = useState(false);
   const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
-  const [hitmanId, setHitmanId] = useState<string | null>(null);
 
   // Follows the account — see hooks/useRecentPlayers.ts.
   const { recentPlayers, add: saveRecentPlayer, remove: removeRecentPlayer } = useRecentPlayers();
@@ -286,31 +286,12 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     }
   };
 
-  /** Players who could have knocked this one out — everyone still in, minus them. */
-  const hitmanCandidates = state.players.filter(
-    p => p.isActive !== false && p.id !== playerToBustOut?.id
-  );
-
-  // Heads-up: there is only one person it could have been, so pick them. Making
-  // the director tap a single-item list before Confirm KO would enable reads as
-  // a dead button — which is exactly how it was misread mid-game.
-  useEffect(() => {
-    if (bustOutDialogOpen && !hitmanId && hitmanCandidates.length === 1) {
-      setHitmanId(hitmanCandidates[0].id);
-    }
-  }, [bustOutDialogOpen, hitmanId, hitmanCandidates]);
-
-  const handleBustOut = () => {
+  // The hitman choice lives in BustOutDialog, shared with the Seating tab.
+  const handleBustOut = (hitmanId: string | undefined) => {
     if (!playerToBustOut) return;
-    // A hitman is only required when there is someone who could have done it.
-    // Busting the last player standing has no attributable knockout, and
-    // previously the Confirm button stayed disabled here — leaving the director
-    // unable to close out the tournament at all.
-    if (hitmanCandidates.length > 0 && !hitmanId) return;
-    eliminatePlayer(playerToBustOut.id, hitmanId ?? undefined);
+    eliminatePlayer(playerToBustOut.id, hitmanId);
     setBustOutDialogOpen(false);
     setPlayerToBustOut(null);
-    setHitmanId(null);
   };
 
 
@@ -794,7 +775,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                           onClick={(e) => {
                             e.stopPropagation();
                             setPlayerToBustOut(player);
-                            setHitmanId(null);
                             setBustOutDialogOpen(true);
                           }}
                           className="h-7 w-10 bg-red-500/80 hover:bg-red-500 text-white rounded text-caption font-bold flex-shrink-0 transition-colors"
@@ -934,63 +914,14 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
         )}
       </div>
 
-      {/* Bust Out Dialog */}
-      <Dialog open={bustOutDialogOpen} onOpenChange={setBustOutDialogOpen}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>
-              {hitmanCandidates.length === 0
-                ? `Finish Tournament — ${playerToBustOut?.name}`
-                : `Bust Out — ${playerToBustOut?.name}`}
-            </DialogTitle>
-            <DialogDescription>
-              {hitmanCandidates.length === 0
-                ? 'No one left to attribute a knockout to — this closes out the tournament.'
-                : 'Who knocked them out?'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
-            {hitmanCandidates
-              .map(player => (
-                <div
-                  key={player.id}
-                  onClick={() => setHitmanId(player.id)}
-                  className={cn(
-                    "p-3 rounded-lg border cursor-pointer transition-colors flex items-center justify-between",
-                    hitmanId === player.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-muted/30"
-                  )}
-                >
-                  <span className="font-medium">{player.name}</span>
-                  <span className="text-xs text-muted-foreground">{player.knockouts || 0} KOs</span>
-                </div>
-              ))}
-            {hitmanCandidates.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">
-                Last player standing — no knockout to record.
-              </p>
-            )}
-          </div>
-          {/* Say why the button is unavailable. A silently disabled button reads
-              as broken, which is how this was misread during a live game. */}
-          {hitmanCandidates.length > 0 && !hitmanId && (
-            <p className="text-center text-xs text-amber-400/90">
-              Tap who knocked them out to continue
-            </p>
-          )}
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setBustOutDialogOpen(false)}>Cancel</Button>
-            <Button
-              className="flex-1"
-              disabled={hitmanCandidates.length > 0 && !hitmanId}
-              onClick={handleBustOut}
-            >
-              {hitmanCandidates.length === 0 ? 'Finish Tournament' : 'Confirm KO'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Bust Out Dialog — one implementation, shared with the Seating tab. */}
+      <BustOutDialog
+        open={bustOutDialogOpen}
+        onOpenChange={setBustOutDialogOpen}
+        player={playerToBustOut}
+        players={state.players}
+        onConfirm={handleBustOut}
+      />
 
       {/* Late entry closed — warn, do not refuse. See attemptAddPlayer. */}
       <AlertDialog

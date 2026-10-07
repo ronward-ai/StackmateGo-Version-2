@@ -254,3 +254,29 @@ export function rostersMatchForUndo(a: PositionedPlayer[], b: PositionedPlayer[]
       && (p.knockouts || 0) === (q.knockouts || 0);
   });
 }
+
+/**
+ * Who could have knocked `busted` out: everybody still in, minus them — with
+ * the players at their own table first, since that is nearly always the answer
+ * (October audit, Low).
+ *
+ * The Seating tab offered ONLY the busted player's table. A lone player on a
+ * table, or heads-up across two tables, could therefore never be knocked out
+ * from there: an empty list and a Confirm KO that could not be pressed. The
+ * Players tab had been fixed for exactly this and the fix never reached the
+ * second door — so both now read this, through one `BustOutDialog`.
+ *
+ * An empty answer is real: it is the last player standing, and the dialog
+ * closes the tournament without a knockout.
+ */
+export function hitmanCandidates<
+  T extends PositionedPlayer & { tableAssignment?: { tableIndex: number } },
+>(players: T[], busted: T | null | undefined): T[] {
+  if (!busted) return [];
+  const table = busted.tableAssignment?.tableIndex;
+  const stillIn = players.filter(p => p.isActive !== false && p.id !== busted.id);
+  if (table === undefined) return stillIn;
+  const here = stillIn.filter(p => p.tableAssignment?.tableIndex === table);
+  const elsewhere = stillIn.filter(p => p.tableAssignment?.tableIndex !== table);
+  return [...here, ...elsewhere];
+}

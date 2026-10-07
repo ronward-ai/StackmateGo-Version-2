@@ -84,3 +84,30 @@ export function imbalanceDismissed(
   const key = imbalanceKey(result);
   return key !== null && dismissedKey === key;
 }
+
+/**
+ * Whether to ask about uneven tables NOW, given what else is going on.
+ *
+ * It stands down for any question that outranks it — the rebuy offer and the
+ * final-table prompt, which it already did — and, since October's audit, for a
+ * TABLE BREAK that is due. The break prompt lives in `FinalTablePrompt`, which
+ * reports itself open through an effect, so for one commit after the bust-out
+ * that caused both, this prompt could not see it and opened on top: two dialogs
+ * about one bust-out. Asking the predicate rather than the report closes that
+ * window, the same way `finalTableDue` already did. Breaking a table also evens
+ * the rest, so the break is the question to answer.
+ */
+export function shouldAskToBalance({
+  current, dismissedKey, otherPromptOpen, moveMode, finalTableDue, breakDue,
+}: {
+  current: Imbalance | null;
+  dismissedKey: string | null;
+  otherPromptOpen: boolean;
+  moveMode: boolean;
+  finalTableDue: boolean;
+  breakDue: boolean;
+}): boolean {
+  if (otherPromptOpen || moveMode || finalTableDue || breakDue) return false;
+  if (!current) return false;
+  return !imbalanceDismissed(dismissedKey, current);
+}

@@ -1333,6 +1333,14 @@ export function useTournament(tournamentId?: string) {
     label: string;
     previous: Player[];
     resulting: Player[];
+    /**
+     * What the return did to the TABLES, put back with the players (October
+     * audit, Low). A return can unwind a consolidation — the flag, the
+     * snapshot and the table count — and undoing only the roster left the
+     * players back on one table under a two-table configuration with no way to
+     * undo the collapse again.
+     */
+    tables: { isFinalTable: boolean | undefined; preConsolidation: any; settingsTables: any };
   } | null>(null);
 
   // Mirrors the latest players array. undoPlayerReturn is handed to a toast
@@ -1417,6 +1425,7 @@ export function useTournament(tournamentId?: string) {
         label: `${player.name} — re-entry #${(player.reEntries || 0) + 1}`,
         previous: prev.players,
         resulting: ft.players,
+        tables: { isFinalTable: prev.isFinalTable, preConsolidation: prev.preConsolidation, settingsTables: prev.settings.tables },
       };
 
       // Broadcast re-entry
@@ -1500,6 +1509,7 @@ export function useTournament(tournamentId?: string) {
         label: `${player.name} — rebuy #${(player.rebuys || 0) + 1}`,
         previous: prev.players,
         resulting: seatedPlayers,
+        tables: { isFinalTable: prev.isFinalTable, preConsolidation: prev.preConsolidation, settingsTables: prev.settings.tables },
       };
 
       const newState = {
@@ -1541,7 +1551,15 @@ export function useTournament(tournamentId?: string) {
       // the updater running.
       if (!rostersMatchForUndo(prev.players, snapshot.resulting)) return prev;
 
-      const newState = { ...prev, players: snapshot.previous };
+      const newState = {
+        ...prev,
+        players: snapshot.previous,
+        isFinalTable: snapshot.tables.isFinalTable,
+        preConsolidation: snapshot.tables.preConsolidation,
+        settings: snapshot.tables.settingsTables === undefined
+          ? prev.settings
+          : { ...prev.settings, tables: snapshot.tables.settingsTables },
+      };
       broadcastTournamentAction('undo_player_return', newState);
       return newState;
     });
