@@ -68,7 +68,7 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
       </CardHeader>
       {isExpanded && <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {Array.from({ length: Math.min(6, tableSettings.numberOfTables) }).map((_, tableIndex) => {
+          {Array.from({ length: tableSettings.numberOfTables }).map((_, tableIndex) => {
             const tableName = tableSettings.tableNames?.[tableIndex] || `Table ${tableIndex + 1}`;
             const tablePlayers = seatedActive
               .filter(p => p.tableAssignment?.tableIndex === tableIndex)
@@ -125,11 +125,6 @@ export default function TablesSectionReadOnly({ tournament }: TablesSectionReadO
             );
           })}
 
-          {tableSettings.numberOfTables > 6 && (
-            <div className="table-felt-base rounded-2xl p-4 flex items-center justify-center text-white/50 text-sm">
-              +{tableSettings.numberOfTables - 6} more tables
-            </div>
-          )}
         </div>
       </CardContent>}
     </Card>

@@ -332,3 +332,59 @@ export function planSeating(
   }
   return { perTable, overflow };
 }
+
+type SeatHolder = {
+  id: string;
+  isActive?: boolean;
+  seated?: boolean;
+  tableAssignment?: { tableIndex: number; seatIndex: number };
+};
+
+/**
+ * Who would be left in a chair that no longer exists if the table
+ * configuration became `cfg` (October audit, Low).
+ *
+ * Lowering Tables or Seats/Table mid-game had no guard: a player on table 3
+ * of a game cut to two tables, or in seat 9 of tables cut to eight, stayed
+ * `seated: true` at a chair the grid never draws — the ghost `assignSeats`
+ * exists to free, made by the settings field instead.
+ */
+export function strandedBy<T extends SeatHolder>(
+  players: readonly T[],
+  { numberOfTables, seatsPerTable }: { numberOfTables: number; seatsPerTable: number },
+): T[] {
+  return players.filter(p =>
+    p.isActive !== false && p.seated && p.tableAssignment &&
+    (p.tableAssignment.tableIndex >= numberOfTables || p.tableAssignment.seatIndex >= seatsPerTable));
+}
+
+/**
+ * Move everyone `strandedBy` would strand into a free chair of the new
+ * configuration, nobody else moving; anyone there is no chair for is left
+ * UNSEATED rather than in a chair that does not exist. Returns the roster and
+ * how many could not be placed.
+ */
+export function reseatStranded<T extends SeatHolder>(
+  players: readonly T[],
+  cfg: { numberOfTables: number; seatsPerTable: number },
+): { players: T[]; unseated: number } {
+  const stranded = strandedBy(players, cfg);
+  if (stranded.length === 0) return { players: [...players], unseated: 0 };
+  const ids = new Set(stranded.map(p => p.id));
+  const occupied = occupiedChairs(players, ids, cfg.seatsPerTable);
+  // occupiedChairs bounds seats, not tables: drop chairs on tables that go.
+  for (const key of Array.from(occupied)) {
+    if (Number(key.split('-')[0]) >= cfg.numberOfTables) occupied.delete(key);
+  }
+  const plan = planSeating(stranded.length, cfg, occupied);
+  const seats = assignSeats(stranded.length, occupied, plan, cfg);
+  let i = 0;
+  const next = players.map(p => {
+    if (!ids.has(p.id)) return p;
+    const seat = seats[i++];
+    return seat
+      ? { ...p, seated: true, tableAssignment: seat }
+      : { ...p, seated: false, tableAssignment: undefined };
+  });
+  return { players: next, unseated: Math.max(0, stranded.length - seats.length) };
+}

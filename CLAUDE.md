@@ -2867,6 +2867,14 @@ Selected with table 1 full and ten selected across three eight-seat tables used 
 six. `occupiedChairs` is the one spelling of "held by somebody outside this selection", shared by the
 seater and the dialog, and the dialog counts its summary from the seats actually handed out.
 
+**Changing the tables mid-game asks first, and the grid draws every table** (October audit, Low). The
+Seating tab drew at most six while the Tables field allows twenty — table 7 onward was in the game and on
+no screen, behind a "+N more tables" card — and lowering Tables or Seats/Table saved at once, leaving
+whoever sat in a removed chair `seated` and drawn nowhere. `strandedBy` finds them and `reseatStranded`
+moves only them into free chairs of the new configuration, unseating anyone there is no chair for. It warns
+and never refuses. Radix's `AlertDialogAction` also fires `onOpenChange(false)`, and that close is what
+Cancel and Escape revert on — `confirmingConfigRef` is what stops a confirm reverting itself.
+
 ### What kind of game it is, is decided before the first hand
 
 The Standalone ↔ League slider was live for the whole game, and that was not cosmetic. League result

@@ -25,7 +25,7 @@ import { ordinal } from '@/lib/ordinal';
 import { bustedPlayers } from '@/lib/eliminationOrder';
 import { gameIsOver } from '@/lib/gameOver';
 import BustOutDialog from '@/components/BustOutDialog';
-import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor} from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor, strandedBy, reseatStranded } from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceKey, shouldAskToBalance } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
@@ -235,6 +235,49 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     return names;
   };
 
+  /**
+   * A table configuration that would leave somebody in a chair that no longer
+   * exists, waiting on the director (October audit, Low). Lowering Tables or
+   * Seats/Table mid-game used to save at once and strand them — `seated`, drawn
+   * nowhere, no KO button. It warns and never refuses, the call
+   * `lateEntryClosedReason` makes: the director may genuinely mean to shrink
+   * the room, and the confirm moves only the players who would be stranded.
+   */
+  const [pendingConfig, setPendingConfig] = useState<{
+    numberOfTables: number; seatsPerTable: number; names: string[]; stranded: number; unseated: number;
+  } | null>(null);
+
+  /** Save a configuration, or hold it for confirmation if it strands anybody. */
+  const proposeTableConfig = (nt: number, spt: number, names: string[]) => {
+    const cfg = { numberOfTables: nt, seatsPerTable: spt };
+    const stranded = strandedBy(state.players, cfg);
+    if (stranded.length === 0) { saveTableConfig(nt, spt, names); return; }
+    setPendingConfig({ ...cfg, names, stranded: stranded.length, unseated: reseatStranded(state.players, cfg).unseated });
+  };
+
+  /** Put the fields back to what is saved — the director said Cancel. */
+  const revertTableConfig = () => {
+    setNumberOfTables(tables.numberOfTables);
+    setSeatsPerTable(tables.seatsPerTable);
+    setTablesDraft(String(tables.numberOfTables));
+    setSeatsDraft(String(tables.seatsPerTable));
+    expandTableNames(tables.numberOfTables);
+    setPendingConfig(null);
+  };
+
+  // AlertDialogAction closes the dialog as well as running its onClick, and
+  // that close arrives through onOpenChange — which reverts. The ref tells the
+  // two apart, since state set in the click is not visible to the close.
+  const confirmingConfigRef = useRef(false);
+  const confirmTableConfig = () => {
+    if (!pendingConfig) return;
+    confirmingConfigRef.current = true;
+    const { numberOfTables: nt, seatsPerTable: spt, names } = pendingConfig;
+    updatePlayers(reseatStranded(state.players, { numberOfTables: nt, seatsPerTable: spt }).players);
+    saveTableConfig(nt, spt, names);
+    setPendingConfig(null);
+  };
+
   const saveTableConfig = (nt = numberOfTables, spt = seatsPerTable, tn = tableNames) => {
     updateSettings({ tables: { numberOfTables: nt, seatsPerTable: spt, tableNames: tn } });
   };
@@ -402,7 +445,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                   setTablesDraft(String(n));
                   setNumberOfTables(n);
                   // Explicit, not the defaults: those read render-time state.
-                  saveTableConfig(n, seatsPerTable, expandTableNames(n));
+                  proposeTableConfig(n, seatsPerTable, expandTableNames(n));
                 }}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
@@ -425,7 +468,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
                   const n = commitNumber(seatsDraft, { min: 2, max: 12, fallback: seatsPerTable });
                   setSeatsDraft(String(n));
                   setSeatsPerTable(n);
-                  saveTableConfig(numberOfTables, n, tableNames);
+                  proposeTableConfig(numberOfTables, n, tableNames);
                 }}
                 className="w-20 h-9 text-center"
                 inputMode="numeric"
@@ -494,7 +537,11 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
 
           {/* Tables grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {Array.from({ length: Math.min(6, numberOfTables) }).map((_, tableIndex) => {
+            {/* Every table. This drew at most six while the Tables field allows
+                twenty, so players seated at table 7 onwards were in the game and
+                on no screen — behind a "+N more tables" card that did nothing
+                (October audit, Low). */}
+            {Array.from({ length: numberOfTables }).map((_, tableIndex) => {
               const tablePlayers = state.players
                 .filter(p => p.seated && p.tableAssignment?.tableIndex === tableIndex)
                 .sort((a, b) => (a.tableAssignment?.seatIndex || 0) - (b.tableAssignment?.seatIndex || 0));
@@ -711,11 +758,6 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
               );
             })}
 
-            {numberOfTables > 6 && (
-              <div className="card-glass rounded-2xl p-4 flex items-center justify-center text-muted-foreground text-sm">
-                +{numberOfTables - 6} more tables
-              </div>
-            )}
           </div>
 
           {/* Busted players, and the way back in.
@@ -797,6 +839,34 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
           seatPlayersManually(selected, tables);
         }}
       />
+
+      {/* A table change that would strand somebody — see proposeTableConfig. */}
+      <AlertDialog
+        open={!!pendingConfig}
+        onOpenChange={o => {
+          if (o) return;
+          if (confirmingConfigRef.current) { confirmingConfigRef.current = false; return; }
+          revertTableConfig();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingConfig?.stranded === 1 ? '1 player is' : `${pendingConfig?.stranded} players are`} sitting where this removes a seat
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingConfig && `${pendingConfig.numberOfTables} ${pendingConfig.numberOfTables === 1 ? 'table' : 'tables'} of ${pendingConfig.seatsPerTable}. `}
+              They will move to free seats; nobody else moves.
+              {pendingConfig && pendingConfig.unseated > 0 &&
+                ` There is no free seat for ${pendingConfig.unseated}, who will be left unseated.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmTableConfig}>Change and move them</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Bust Out Dialog — one implementation, shared with the Players tab. */}
       <BustOutDialog

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor } from './seating';
+import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt, assignSeats, occupiedChairs, strandedBy, reseatStranded, tablesNeededFor, tableNamesFor } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -341,5 +341,38 @@ describe('Seat Selected around chairs already held (Oct Low)', () => {
       { id: 'g', seated: true, tableAssignment: { tableIndex: 0, seatIndex: 8 } },
     ];
     expect([...occupiedChairs(players, new Set(['b']), 8)]).toEqual(['0-0']);
+  });
+});
+
+describe('changing the tables mid-game (Oct Low)', () => {
+  const at = (id: string, t: number, s: number) =>
+    ({ id, isActive: true, seated: true, tableAssignment: { tableIndex: t, seatIndex: s } });
+
+  it('finds players on a table that goes, or in a seat that goes', () => {
+    const players = [at('a', 0, 0), at('b', 2, 1), at('c', 1, 7), { ...at('d', 2, 0), isActive: false }];
+    expect(strandedBy(players, { numberOfTables: 2, seatsPerTable: 8 }).map(p => p.id)).toEqual(['b']);
+    expect(strandedBy(players, { numberOfTables: 3, seatsPerTable: 6 }).map(p => p.id)).toEqual(['c']);
+  });
+
+  it('moves only the stranded, into free chairs that exist', () => {
+    const players = [at('a', 0, 0), at('b', 0, 1), at('c', 2, 0), at('d', 2, 1)];
+    const out = reseatStranded(players, { numberOfTables: 2, seatsPerTable: 4 });
+    expect(out.unseated).toBe(0);
+    const byId = Object.fromEntries(out.players.map(p => [p.id, p.tableAssignment]));
+    expect(byId.a).toEqual({ tableIndex: 0, seatIndex: 0 });
+    expect(byId.b).toEqual({ tableIndex: 0, seatIndex: 1 });
+    for (const id of ['c', 'd']) {
+      expect(byId[id]!.tableIndex).toBeLessThan(2);
+      expect(byId[id]!.seatIndex).toBeLessThan(4);
+    }
+    const keys = out.players.map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`);
+    expect(new Set(keys).size).toBe(4);
+  });
+
+  it('leaves unseated whoever there is no chair for', () => {
+    const players = [at('a', 0, 0), at('b', 0, 1), at('c', 1, 0)];
+    const out = reseatStranded(players, { numberOfTables: 1, seatsPerTable: 2 });
+    expect(out.unseated).toBe(1);
+    expect(out.players.find(p => p.id === 'c')!.seated).toBe(false);
   });
 });
