@@ -54,3 +54,24 @@ describe('a clock that slept through the end of a level', () => {
     expect(h.result.current.state.currentLevel).toBe(2);
   });
 });
+
+// October audit, M16: the tick asked "all but one eliminated" while the rest of
+// the app asks gameIsOver. Since the H7 fix an undo puts the champion back in
+// play, so the state where the two disagreed is no longer reached this way — this
+// guards the undo-and-resume path itself; the unification is what stops the
+// three spellings drifting again.
+describe('the clock and the end of the game agree', () => {
+  it('runs again once the final bust-out is undone', () => {
+    const h = renderHook(() => useTournament(undefined));
+    act(() => { for (const n of ['A', 'B', 'C']) h.result.current.addPlayer(n); });
+    const id = (n: string) => h.result.current.state.players.find(p => p.name === n)!.id;
+    act(() => { h.result.current.eliminatePlayer(id('C')); });
+    act(() => { h.result.current.eliminatePlayer(id('B')); });
+    act(() => { h.result.current.undoBustOut(id('B')); });
+
+    act(() => { h.result.current.startTimer(); });
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(h.result.current.state.isRunning).toBe(true);
+    expect(h.result.current.getCurrentBlinds()).not.toBe('Finished');
+  });
+});

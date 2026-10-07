@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { gameIsOver } from '@/lib/gameOver';
 import { currencyOf } from '@/lib/currency';
 import { payoutsOf } from '@/lib/payoutTemplates';
 import { useParams } from 'wouter';
@@ -426,11 +427,12 @@ function TournamentParticipantView() {
    * the string "false" into className whenever the game is not on a break.
    */
   const participantPlayers = tournament.players || [];
-  const eliminatedCount = participantPlayers.filter((p: any) => p.isActive === false || p.position).length;
-  const activeCount = participantPlayers.filter((p: any) => p.isActive === true || (p.isActive !== false && !p.position)).length;
-  const tournamentFinished = !!participantPlayers.find((p: any) => p.position === 1)
-    || (eliminatedCount >= participantPlayers.length - 1 && participantPlayers.length > 1)
-    || (activeCount === 1 && eliminatedCount > 0);
+  // lib/gameOver.ts, the one answer (October audit, M16). This had its own
+  // predicate — anybody at 1st, OR all but one out, OR exactly one active — which
+  // disagreed with the console in the documented state after undoing the
+  // runner-up: the console said the game was on while every phone said
+  // TOURNAMENT FINISHED.
+  const tournamentFinished = gameIsOver(participantPlayers);
 
   const headline = tournamentFinished
     ? 'TOURNAMENT FINISHED'

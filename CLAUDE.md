@@ -2900,6 +2900,12 @@ A test asserts the real end state (every player inactive, one with position 1) i
 **fails against any predicate rewritten as "exactly one active player"** — mutation-tested, since
 that is the shape that hid all three.
 
+**Three more spellings were left after that, and they are gone too** (October audit M16): the
+participant view's own "TOURNAMENT FINISHED" predicate, the timer tick's "all but one eliminated", and
+`getCurrentBlinds`'s "Finished" — while `TimerCard` beside them already asked `gameIsOver`. They could
+disagree after an undo of the final hand; since the undo now puts the champion back in play that state
+is not reachable by undo any more, but one question has one answer.
+
 `useTournament`'s exported `isComplete` went with this. Nothing consumed it, and it ORed "the blind
 structure ran out" into "the game is over", which are different questions. `PlayerSectionReadOnly`'s
 `isFinished` deliberately stays as it is: it decides whether a seat badge is worth drawing and is

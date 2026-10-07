@@ -792,12 +792,10 @@ export function useTournament(tournamentId?: string) {
         setState(prevState => {
           if (!prevState.isRunning) return prevState; // discard tick racing with cleanup
           // Check if tournament is complete before processing timer tick
-          // Only count players who have been explicitly eliminated (isActive === false)
-          const eliminatedPlayers = prevState.players.filter(p => p.isActive === false);
-          const totalPlayers = prevState.players.length;
-
-          // Tournament is finished when all but one player have been eliminated
-          if (eliminatedPlayers.length >= totalPlayers - 1 && totalPlayers > 1) {
+          // lib/gameOver.ts, the one answer (October audit, M16). "All but one
+          // eliminated" disagreed with it after undoing the runner-up: the console
+          // said the game was on and the clock refused to run.
+          if (gameIsOver(prevState.players)) {
             return {
               ...prevState,
               isRunning: false // Stop the timer when tournament finishes
@@ -2134,8 +2132,8 @@ export function useTournament(tournamentId?: string) {
 
   // Get current blinds with tournament status validation
   const getCurrentBlinds = useCallback(() => {
-    const eliminatedPlayers = state.players.filter(p => p.isActive === false);
-    if (eliminatedPlayers.length >= state.players.length - 1 && state.players.length > 1) {
+    // The same answer as the clock and TimerCard's own face (October audit, M16).
+    if (gameIsOver(state.players)) {
       return "Finished";
     }
 
