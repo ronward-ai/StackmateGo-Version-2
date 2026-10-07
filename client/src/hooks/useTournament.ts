@@ -290,10 +290,6 @@ export function useTournament(tournamentId?: string) {
   const storageUidRef = useRef(storageUid);
   storageUidRef.current = storageUid;
 
-  // Load saved settings and merge with defaults
-  const savedSettings = loadSavedSettings(storageUid);
-  const mergedSettings = { ...DEFAULT_SETTINGS, ...savedSettings };
-
   // Persist localGameId so it survives page refreshes — only generate a new one
   // when a game is explicitly reset (see resetTournament). This prevents the
   // recording effect from writing a duplicate result with a phantom new ID after
@@ -306,45 +302,62 @@ export function useTournament(tournamentId?: string) {
     return newId;
   };
 
-  // Create an initial state with saved preferences
-  const savedLevels = loadSavedBlindLevels(storageUid);
+  // EVERYTHING the console starts from, read ONCE (October audit, correctness
+  // debt). This sat in the hook body, so the settings (a logo of up to 150 KB
+  // among them), the levels, the prize structure and the roster mirror were
+  // read and parsed from localStorage on every render — once a second, because
+  // that is how the clock advances — and getOrCreateLocalGameId wrote storage
+  // during render. useState only ever used the first answer anyway; the
+  // initialiser makes that the only one computed. The getDoc transform below
+  // reads mergedSettings and savedLevels from here, exactly the first-render
+  // values its effect always captured.
+  const [boot] = useState(() => {
+    // Load saved settings and merge with defaults
+    const savedSettings = loadSavedSettings(storageUid);
+    const mergedSettings = { ...DEFAULT_SETTINGS, ...savedSettings };
 
-  // Restore a local game in progress. NEVER for a database tournament: its truth
-  // is Firestore, and seeding it from localStorage is the same hazard the
-  // hasLoadedRemoteState latch exists to prevent — a device writing its own idea
-  // of the roster over the real game.
-  //
-  // And never a mirror whose ids disagree: that is a LIVE game filed under some
-  // other local id, and restoring it made a new local game out of its roster,
-  // which the auto-save then saved as a duplicate document. See restorableAtHome.
-  const restored = tournamentId
-    ? null
-    : restorableAtHome(loadLocalProgress(getOrCreateLocalGameId(), storageUid));
+    // Create an initial state with saved preferences
+    const savedLevels = loadSavedBlindLevels(storageUid);
 
-  const initialState: TournamentState = {
-    levels: savedLevels,
-    players: restored?.players ?? [],
-    currentLevel: restored?.currentLevel ?? 0,
-    secondsLeft: restored?.secondsLeft ?? (savedLevels[0]?.duration || 900), // Default to 15 minutes if no levels
-    targetEndTime: restored?.targetEndTime,
-    // Never restore a running clock: the page was away for an unknown time, so
-    // resuming paused is honest and the director presses play.
-    isRunning: false,
-    settings: mergedSettings,
-    prizeStructure: loadSavedPrizeStructure(storageUid),
-    isFinalTable: restored?.isFinalTable ?? false,
-    // Through lib/localGameId.ts, because the standalone branch here used to
-    // omit the localGameId — and the document id IS the localGameId, so
-    // "a collision means JOIN" silently did not apply to standalone games.
-    details: initialDetails(
-      tournamentId,
-      (mergedSettings as any)?.isSeasonTournament === true,
-      getOrCreateLocalGameId,
-    ),
-  };
+    // Restore a local game in progress. NEVER for a database tournament: its truth
+    // is Firestore, and seeding it from localStorage is the same hazard the
+    // hasLoadedRemoteState latch exists to prevent — a device writing its own idea
+    // of the roster over the real game.
+    //
+    // And never a mirror whose ids disagree: that is a LIVE game filed under some
+    // other local id, and restoring it made a new local game out of its roster,
+    // which the auto-save then saved as a duplicate document. See restorableAtHome.
+    const restored = tournamentId
+      ? null
+      : restorableAtHome(loadLocalProgress(getOrCreateLocalGameId(), storageUid));
+
+    const initialState: TournamentState = {
+      levels: savedLevels,
+      players: restored?.players ?? [],
+      currentLevel: restored?.currentLevel ?? 0,
+      secondsLeft: restored?.secondsLeft ?? (savedLevels[0]?.duration || 900), // Default to 15 minutes if no levels
+      targetEndTime: restored?.targetEndTime,
+      // Never restore a running clock: the page was away for an unknown time, so
+      // resuming paused is honest and the director presses play.
+      isRunning: false,
+      settings: mergedSettings,
+      prizeStructure: loadSavedPrizeStructure(storageUid),
+      isFinalTable: restored?.isFinalTable ?? false,
+      // Through lib/localGameId.ts, because the standalone branch here used to
+      // omit the localGameId — and the document id IS the localGameId, so
+      // "a collision means JOIN" silently did not apply to standalone games.
+      details: initialDetails(
+        tournamentId,
+        (mergedSettings as any)?.isSeasonTournament === true,
+        getOrCreateLocalGameId,
+      ),
+    };
+    return { mergedSettings, savedLevels, initialState };
+  });
+  const { mergedSettings, savedLevels } = boot;
 
   // Tournament state
-  const [state, setState] = useState<TournamentState>(initialState);
+  const [state, setState] = useState<TournamentState>(boot.initialState);
 
   // Timer interval reference
   const timerIntervalRef = useRef<any>(null);
@@ -404,6 +417,9 @@ export function useTournament(tournamentId?: string) {
    */
   const lastControlRef = useRef<Control | null>(null);
 
+  /** Which game's snapshot has been applied — the load must not overwrite it. */
+  const snapshotAppliedForRef = useRef<string | null>(null);
+
   // Load tournament data from database if tournamentId is provided
   useEffect(() => {
     // A different tournament has not been resolved yet, whatever the last one
@@ -438,9 +454,19 @@ export function useTournament(tournamentId?: string) {
                 ...tournamentData.settings,
                 // Promote top-level league fields into settings so the handover
                 // restore effect in PokerTimer always finds leagueId/seasonId.
-                leagueId: tournamentData.leagueId || tournamentData.settings?.leagueId || mergedSettings.leagueId,
-                seasonId: tournamentData.seasonId || tournamentData.settings?.seasonId || mergedSettings.seasonId,
-                isSeasonTournament: tournamentData.isSeasonTournament ?? tournamentData.settings?.isSeasonTournament ?? mergedSettings.isSeasonTournament,
+                //
+                // From the GAME and nowhere else (October audit, correctness
+                // debt). These fell back to THIS DEVICE's own settings, so a game
+                // stored without a league picked up whichever league this device
+                // last used — and the settings sync then wrote it into the game.
+                // `undefined` beats the spread above, which carries the device's.
+                leagueId: tournamentData.leagueId || tournamentData.settings?.leagueId || undefined,
+                seasonId: tournamentData.seasonId || tournamentData.settings?.seasonId || undefined,
+                // An explicit flag wins; a game with none is a league game when it
+                // names a league — lib/tournamentMode.ts's rule, never the device's.
+                isSeasonTournament: tournamentData.isSeasonTournament
+                  ?? tournamentData.settings?.isSeasonTournament
+                  ?? !!(tournamentData.leagueId || tournamentData.settings?.leagueId),
                 tables: {
                   ...mergedSettings.tables,
                   ...tournamentData.settings?.tables
@@ -471,9 +497,19 @@ export function useTournament(tournamentId?: string) {
                 createdAt: tournamentData.createdAt,
                 createdBy: tournamentData.createdBy,
                 ownerId: tournamentData.ownerId,
+                // Read here as the snapshot reads it. It was dropped, so an
+                // unpublished game showed its QR until the first snapshot.
+                isPublished: tournamentData.isPublished !== false,
               }
             };
 
+            // A snapshot of this game has already been applied: it is newer
+            // than this read and may carry local changes made since, which a
+            // wholesale setState would throw away (October audit).
+            if (snapshotAppliedForRef.current === tournamentId) {
+              setRemoteLoad('loaded');
+              return;
+            }
             setState(transformedState);
             setRemoteLoad('loaded');
           } else {
@@ -592,6 +628,7 @@ export function useTournament(tournamentId?: string) {
           setIsConnected(true);
           setHasLoadedRemoteState(true);
           setRemoteLoad('loaded');
+          snapshotAppliedForRef.current = String(state.details?.id ?? '');
 
           // Who is driving. Set on EVERY snapshot, which is what makes a
           // takeover on the other device reach this one: the field changes,

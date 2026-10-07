@@ -286,15 +286,10 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     const updated = tableBackgrounds.map((b, i) => i === idx ? bg : b);
     setTableBackgrounds(updated);
     updateSettings({ tables: { ...tables, tableNames }, tableBackgrounds: updated });
-    if (state.details?.type === 'database' && state.details?.id) {
-      setTimeout(async () => {
-        try {
-          await writeLiveGame(state.details!.id, {
-            settings: { ...state.settings, tableBackgrounds: updated },
-          });
-        } catch (e) { console.error('Could not save the table layout:', e); }
-      }, 100);
-    }
+    // No write of its own (October audit, correctness debt): this sent the
+    // settings from a 100ms-old closure beside PokerTimer's settings sync, which
+    // already writes the whole settings object — guarded, deduped and keyed on
+    // the honest id. One writer per fact.
   };
 
   const saveTableName = () => {

@@ -242,20 +242,10 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
     updatePrizeStructure(newPrizeStructure);
     updateSettings({ currency: currencySymbol });
 
-    // Persist to Firestore — fire and forget so a slow/flaky network never
-    // freezes the UI. Local state is already updated synchronously above.
-    if (state.details?.type === 'database' && state.details?.id) {
-      writeLiveGame(state.details.id, {
-        settings: { ...state.settings, currency: currencySymbol },
-        prizeStructure: newPrizeStructure,
-      }).catch(err => {
-        // Fire and forget so a flaky network never freezes the UI — but not
-        // silent. On failure this console and every participant device stay on
-        // the OLD structure, so the money on screen disagrees with the money on
-        // the phones for the rest of the night.
-        reportWriteFailure('The buy-in and payouts', err);
-      });
-    }
+    // No write of its own (October audit, correctness debt). This wrote the
+    // settings and prize structure beside PokerTimer's settings sync, which
+    // already writes both whole once they change — guarded on the first read,
+    // deduped, and reporting through syncReporter. One writer per fact.
 
     setIsApplying(false);
     setJustApplied(true);

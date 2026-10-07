@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { readScoped, writeScoped } from '@/lib/scopedStorage';
 import {
@@ -179,11 +179,14 @@ export function useDirectorSetupSync(target: SetupTarget) {
   }, [uid]);
 
   // PUSH — debounced, and never before the account has been consulted.
-  const fingerprint = setupFingerprint({
+  // Memoised on the three objects, which keep their identity until they change.
+  // This stringified the whole setup — logo included — on every render, and the
+  // console renders once a second (October audit, correctness debt).
+  const fingerprint = useMemo(() => setupFingerprint({
     settings: target.settings,
     blindLevels: target.levels,
     prizeStructure: target.prizeStructure,
-  });
+  }), [target.settings, target.levels, target.prizeStructure]);
 
   useEffect(() => {
     if (!uid) return;
