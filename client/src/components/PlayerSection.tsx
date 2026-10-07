@@ -778,7 +778,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                 const player = row.player as Player;
                 return (
                   <>
-                      {player.isActive && !player.seated && (
+                      {player.isActive !== false && !player.seated && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -808,7 +808,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                           to draw the rebuy button DISABLED and silent while the
                           seating screen HID it, so a used-up cap looked like two
                           different bugs. Both now say why. */}
-                      {!player.isActive && (
+                      {player.isActive === false && (
                         <PlayerEntryActions
                           player={player}
                           failsafeFor={failsafeFor}
@@ -821,7 +821,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                         />
                       )}
 
-                      {player.isActive && (
+                      {player.isActive !== false && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button

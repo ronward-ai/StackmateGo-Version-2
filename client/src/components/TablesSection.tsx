@@ -24,7 +24,7 @@ import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { ordinal } from '@/lib/ordinal';
 import { bustedPlayers } from '@/lib/eliminationOrder';
 import { gameIsOver } from '@/lib/gameOver';
-import { seatablePlayers, allSeated, planSeating, assignSeats, tablesNeededFor, tableNamesFor} from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor} from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceDismissed, imbalanceKey } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
@@ -269,16 +269,9 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     const selectedPlayers = seatablePlayers(chosen);
     const current = [...state.players];
     const ids = new Set(selectedPlayers.map(p => p.id));
-    const occupied = new Set<string>();
-    current.forEach(p => {
-      if (p.seated && p.tableAssignment && !ids.has(p.id)) {
-        // A seat index beyond the table does not hold a chair — it is the ghost
-        // this fix ends, and ignoring it here is what frees one in a game that
-        // already has it. See assignSeats in lib/seating.ts.
-        if (p.tableAssignment.seatIndex >= seatsPerTable) return;
-        occupied.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
-      }
-    });
+    // A seat index beyond the table holds no chair — ignoring it is what frees
+    // a ghost in a game that already has one. See lib/seating.ts.
+    const occupied = occupiedChairs(current, ids, seatsPerTable);
 
     const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
 
@@ -287,7 +280,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     // the seating they then get cannot disagree. WHICH chairs is `assignSeats`,
     // also there, because it depends on the seats players outside this selection
     // are holding — and because the fault it fixes had no test while it sat here.
-    const plan = planSeating(shuffled.length, { numberOfTables: tableCount, seatsPerTable });
+    const plan = planSeating(shuffled.length, { numberOfTables: tableCount, seatsPerTable }, occupied);
     const seats = assignSeats(shuffled.length, occupied, plan, { numberOfTables: tableCount, seatsPerTable });
 
     const shuffledSeats = [...seats].sort(() => Math.random() - 0.5);

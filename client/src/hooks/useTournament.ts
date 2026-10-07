@@ -39,7 +39,7 @@ import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress, restorableAtHome, peekLocalProgress, wouldClobberMirror } from '@/lib/localProgress';
 import { secondsLeftFrom, advanceClock } from '@/lib/tournamentClock';
 import type { RemoteLoad } from '@/lib/liveTournament';
-import { canRebuy, canReEnter } from '@/lib/entryLimits';
+import { canRebuy, canReEnter, addOnsOpen } from '@/lib/entryLimits';
 import { gameIsOver } from '@/lib/gameOver';
 import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
@@ -1552,7 +1552,13 @@ export function useTournament(tournamentId?: string) {
   // Process addon
   const processAddon = useCallback((playerId: string) => {
     setState(prev => {
-      if (!prev.prizeStructure?.allowAddons) return prev;
+      // The rule is at the action, not only the screen (October audit, Low):
+      // the add-on window, a player still in, one add-on each — the three the
+      // Add-on section shows — and no entries once the game is over.
+      if (!addOnsOpen(prev.prizeStructure, blindLevelIndex(prev.levels, prev.currentLevel))) return prev;
+      if (gameIsOver(prev.players)) return prev;
+      const target = prev.players.find(p => p.id === playerId);
+      if (!target || target.isActive === false || (target.addons || 0) > 0) return prev;
 
       const updatedPlayers = prev.players.map(p =>
         p.id === playerId
@@ -1773,9 +1779,15 @@ export function useTournament(tournamentId?: string) {
       // Insert the break after the specified level
       newLevels.splice(levelIndex + 1, 0, breakLevel);
 
+      // A break inserted BEFORE the level being played moves that level one
+      // index along, and `currentLevel` has to move with it — or the clock
+      // stays on the old index, which is now the level before, and the blinds
+      // in play drop a level on every screen (October audit, Low).
+      const insertedAt = levelIndex + 1;
       return {
         ...prev,
-        levels: newLevels
+        levels: newLevels,
+        currentLevel: insertedAt <= prev.currentLevel ? prev.currentLevel + 1 : prev.currentLevel,
       };
     });
   }, []);
@@ -2151,46 +2163,9 @@ export function useTournament(tournamentId?: string) {
     return `${small} / ${big}`;
   }, [state.currentLevel, state.levels, state.players]);
 
-  // Get next level info
-  const getNextLevelInfo = useCallback(() => {
-    if (state.currentLevel + 1 >= state.levels.length) {
-      return "Tournament will be complete";
-    }
-
-    const nextLevel = state.levels[state.currentLevel + 1];
-
-    // If next level is a break
-    if (nextLevel.isBreak) {
-      return `🍺 Break | Duration: ${(nextLevel.duration || 0) / 60} min`;
-    }
-
-    return `Small: ${nextLevel.small} | Big: ${nextLevel.big} | Duration: ${(nextLevel.duration || 0) / 60} min`;
-  }, [state.currentLevel, state.levels]);
-
-  // Get current level text
-  const getCurrentLevelText = useCallback(() => {
-    if (state.currentLevel >= state.levels.length) {
-      return "Tournament complete";
-    }
-
-    const currentLevel = state.levels[state.currentLevel];
-
-    // If this is a break, show it as a break without level number
-    if (currentLevel.isBreak) {
-      return `🍺 Break`;
-    }
-
-    // Calculate the correct blind level number (excluding breaks)
-    const blindLevelNumber = state.levels
-      .slice(0, state.currentLevel + 1)
-      .filter(level => !level.isBreak)
-      .length;
-
-    // Count total blind levels (excluding breaks)
-    const totalBlindLevels = state.levels.filter(level => !level.isBreak).length;
-
-    return `Level ${blindLevelNumber}/${totalBlindLevels}`;
-  }, [state.currentLevel, state.levels]);
+  // `getNextLevelInfo` and `getCurrentLevelText` were here: returned by this
+  // hook and drawn by nothing — TimerCard renders its own level text — and
+  // both put an emoji in a string (October audit, Low/Delete).
 
   // Get remaining time text
   const getRemainingTimeText = useCallback(() => {
@@ -2232,17 +2207,27 @@ export function useTournament(tournamentId?: string) {
         }
       }
 
-      // Also adjust the seconds left if we're now on a different level
+      // Only removing the level BEING PLAYED changes what is on the clock.
+      // Removing an earlier one renumbers the current level without changing
+      // it, and keying the reset on the index moving reset a paused clock to
+      // the full duration whenever an earlier level was deleted (October audit,
+      // Low).
+      if (index !== prev.currentLevel) {
+        return { ...prev, levels: newLevels, currentLevel: newCurrentLevel };
+      }
       const secondsLeft = newCurrentLevel < newLevels.length
         ? newLevels[newCurrentLevel].duration
         : 0;
+      const isRunning = newCurrentLevel >= newLevels.length ? false : prev.isRunning;
 
       return {
         ...prev,
         levels: newLevels,
         currentLevel: newCurrentLevel,
-        secondsLeft: newCurrentLevel !== prev.currentLevel ? secondsLeft : prev.secondsLeft,
-        isRunning: newCurrentLevel >= newLevels.length ? false : prev.isRunning
+        secondsLeft,
+        isRunning,
+        // A running clock is an end time — see lib/tournamentClock.ts.
+        targetEndTime: isRunning ? Date.now() + secondsLeft * 1000 : prev.targetEndTime,
       };
     });
   }, []);
@@ -2506,8 +2491,6 @@ export function useTournament(tournamentId?: string) {
     formatTime,
     calculateProgress,
     getCurrentBlinds,
-    getNextLevelInfo,
-    getCurrentLevelText,
     getRemainingTimeText,
     isBreak,
     undoBustOut,

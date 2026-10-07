@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt, assignSeats, tablesNeededFor, tableNamesFor } from './seating';
+import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -310,5 +310,36 @@ describe('seatToReclaim against the current tables', () => {
   it('still returns a real, free chair', () => {
     expect(seatToReclaim(busted, [busted], { numberOfTables: 3, seatsPerTable: 8 }))
       .toEqual({ tableIndex: 2, seatIndex: 3 });
+  });
+});
+
+describe('Seat Selected around chairs already held (Oct Low)', () => {
+  const cfg = { numberOfTables: 3, seatsPerTable: 8 };
+  // Table 1 full with eight players outside the selection.
+  const table1Full = new Set(Array.from({ length: 8 }, (_, s) => `0-${s}`));
+
+  it('plans against the chairs that are free, not every chair in the room', () => {
+    expect(planSeating(10, cfg, table1Full).overflow).toBe(0);
+    expect(planSeating(20, cfg, table1Full).overflow).toBe(4);
+  });
+
+  it('seats all ten when ten chairs are free, none of them taken', () => {
+    const plan = planSeating(10, cfg, table1Full);
+    const seats = assignSeats(10, table1Full, plan, cfg);
+    expect(seats).toHaveLength(10);
+    const keys = seats.map(x => `${x.tableIndex}-${x.seatIndex}`);
+    expect(new Set(keys).size).toBe(10);
+    expect(keys.some(k => table1Full.has(k))).toBe(false);
+    expect(seats.every(x => x.seatIndex < 8)).toBe(true);
+  });
+
+  it('occupiedChairs ignores the selection, the unseated and a ghost chair', () => {
+    const players = [
+      { id: 'a', seated: true, tableAssignment: { tableIndex: 0, seatIndex: 0 } },
+      { id: 'b', seated: true, tableAssignment: { tableIndex: 0, seatIndex: 1 } },
+      { id: 'c', seated: false },
+      { id: 'g', seated: true, tableAssignment: { tableIndex: 0, seatIndex: 8 } },
+    ];
+    expect([...occupiedChairs(players, new Set(['b']), 8)]).toEqual(['0-0']);
   });
 });

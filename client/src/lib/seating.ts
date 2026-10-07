@@ -204,7 +204,40 @@ export function assignSeats(
       if (!occupied.has(`${t}-${s}`)) { seats.push({ tableIndex: t, seatIndex: s }); got++; placed++; }
     }
   }
+  // A table's share can be short of free chairs — its seats are held by players
+  // outside the selection — so whoever that left over takes any free chair that
+  // remains rather than standing (October audit, Low). The even split above is
+  // a preference; nobody stands while a chair is empty.
+  if (seats.length < wanted) {
+    const taken = new Set(seats.map(x => `${x.tableIndex}-${x.seatIndex}`));
+    for (let t = 0; t < tables && seats.length < wanted; t++) {
+      for (let s = 0; s < seatsEach && seats.length < wanted; s++) {
+        const key = `${t}-${s}`;
+        if (!occupied.has(key) && !taken.has(key)) { seats.push({ tableIndex: t, seatIndex: s }); taken.add(key); }
+      }
+    }
+  }
   return seats;
+}
+
+/**
+ * The chairs held by seated players outside `exclude` — the `occupied` that
+ * `planSeating` and `assignSeats` take, spelled once for the seater and the
+ * dialog that describes it. A seat index beyond the table holds no chair: it is
+ * the ghost `assignSeats` exists to free.
+ */
+export function occupiedChairs(
+  players: readonly { id: string; seated?: boolean; tableAssignment?: { tableIndex: number; seatIndex: number } }[],
+  exclude: ReadonlySet<string>,
+  seatsPerTable: number,
+): Set<string> {
+  const occupied = new Set<string>();
+  for (const p of players) {
+    if (!p.seated || !p.tableAssignment || exclude.has(p.id)) continue;
+    if (p.tableAssignment.seatIndex >= seatsPerTable) continue;
+    occupied.add(`${p.tableAssignment.tableIndex}-${p.tableAssignment.seatIndex}`);
+  }
+  return occupied;
 }
 
 /**
@@ -264,12 +297,24 @@ export interface SeatingPlan {
 export function planSeating(
   count: number,
   { numberOfTables, seatsPerTable }: { numberOfTables: number; seatsPerTable: number },
+  /**
+   * Chairs held by players OUTSIDE the selection (October audit, Low). Seat
+   * Selected planned against every chair in the room, so with table 1 full and
+   * ten selected across three eight-seat tables it promised ten and seated six.
+   * Only chairs that exist count — see `occupiedChairs`.
+   */
+  occupied: ReadonlySet<string> = new Set(),
 ): SeatingPlan {
   const tables = Math.max(1, Math.floor(numberOfTables) || 1);
   const seats = Math.max(1, Math.floor(seatsPerTable) || 1);
   const wanted = Math.max(0, Math.floor(count) || 0);
 
-  const capacity = tables * seats;
+  let held = 0;
+  occupied.forEach(key => {
+    const [t, s] = key.split('-').map(Number);
+    if (t >= 0 && t < tables && s >= 0 && s < seats) held++;
+  });
+  const capacity = tables * seats - held;
   const seatable = Math.min(wanted, capacity);
   const overflow = wanted - seatable;
 

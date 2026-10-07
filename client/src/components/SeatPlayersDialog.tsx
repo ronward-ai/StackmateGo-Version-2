@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { seatablePlayers, allSeated, planSeating, tablesNeededFor } from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor } from '@/lib/seating';
 import { Button } from "@/components/ui/button";
 import { buttonCombinations, getButtonVariant } from "@/lib/buttonUtils";
 import {
@@ -210,10 +210,19 @@ export default function SeatPlayersDialog({
                  director's configuration — so it described a seating that was
                  not going to happen, and at a final table it rarely said the
                  one thing that matters: one table. */
-              const { perTable, overflow } = planSeating(selectedPlayers.length, {
-                numberOfTables,
-                seatsPerTable,
-              });
+              /* Against the chairs players OUTSIDE the selection already hold,
+                 and counted from the seats actually handed out — so a full
+                 table 1 no longer reads as room for ten (October audit, Low). */
+              const cfg = { numberOfTables, seatsPerTable };
+              const occupied = occupiedChairs(allPlayers, new Set(selectedPlayers), seatsPerTable);
+              const plan = planSeating(selectedPlayers.length, cfg, occupied);
+              const { overflow } = plan;
+              const counts = new Map<number, number>();
+              for (const seat of assignSeats(selectedPlayers.length, occupied, plan, cfg)) {
+                counts.set(seat.tableIndex, (counts.get(seat.tableIndex) || 0) + 1);
+              }
+              const perTable = Array.from(counts.values());
+              if (perTable.length === 0) perTable.push(0);
               const low = Math.min(...perTable);
               const high = Math.max(...perTable);
               const spread = low === high ? `${low} per table` : `${low}–${high} per table`;
@@ -242,7 +251,7 @@ export default function SeatPlayersDialog({
                       <p className="text-caption text-amber-200/80">
                         {numberOfTables} {numberOfTables === 1 ? 'table' : 'tables'} of {seatsPerTable}
                         {' '}{seatsPerTable === 1 ? 'seat' : 'seats'} {numberOfTables === 1 ? 'holds' : 'hold'}
-                        {' '}{numberOfTables * seatsPerTable}. Seat them anyway and the rest stay unseated.
+                        {' '}{numberOfTables * seatsPerTable}{occupied.size > 0 ? `, and ${occupied.size} of those ${occupied.size === 1 ? 'is' : 'are'} taken` : ''}. Seat them anyway and the rest stay unseated.
                       </p>
                       {onAddTables && extra > 0 && (
                         <Button
@@ -275,7 +284,8 @@ export default function SeatPlayersDialog({
               // The number, at the moment the button is pressed. "Seat 16 of 17"
               // is the one place a director cannot miss it.
               if (redrawOnly) return 'Randomize Selected';
-              const { overflow } = planSeating(selectedPlayers.length, { numberOfTables, seatsPerTable });
+              const occupied = occupiedChairs(allPlayers, new Set(selectedPlayers), seatsPerTable);
+              const { overflow } = planSeating(selectedPlayers.length, { numberOfTables, seatsPerTable }, occupied);
               return overflow > 0
                 ? `Seat ${selectedPlayers.length - overflow} of ${selectedPlayers.length}`
                 : 'Seat Selected Players';

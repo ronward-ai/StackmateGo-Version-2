@@ -82,7 +82,6 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
     formatTime,
     calculateProgress,
     getCurrentBlinds,
-    getCurrentLevelText,
     getRemainingTimeText,
     isBreak,
     skipToNextLevel,
