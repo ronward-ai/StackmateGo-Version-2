@@ -50,7 +50,7 @@ import { LiveBanner } from '@/components/LiveBanner';
 import OtherLiveGameBanner from '@/components/OtherLiveGameBanner';
 import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
 import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
-import { gameIsOver, winnerOf } from '@/lib/gameOver';
+import { gameIsOver, shouldReopen, winnerOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
 import { markRosterWritten, rosterPayload } from '@/lib/pendingRoster';
@@ -465,6 +465,39 @@ function PokerTimerInner({
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournament.state.players, saveCompletedTournament, user?.id, readOnlyConsole]);
+
+  // ...and the way back out of "finished" (October audit, M12). Undo bust-out is
+  // the documented correction for a misrecorded final hand, but the game stayed
+  // `completed` — resume and handover skipped it — and History kept the first
+  // winner, because the dedupe key above never let the corrected ending be saved.
+  // When a finished game is no longer over, clear the status through the door
+  // and forget the key, so the next ending re-saves History over the same record.
+  const reopeningRef = useRef(false);
+  useEffect(() => {
+    const players = tournament.state.players || [];
+    if (gameIsOver(players)) { reopeningRef.current = false; return; }
+    if (readOnlyConsole || !user?.id || reopeningRef.current) return;
+
+    const details = tournament.state.details;
+    const stateAny = tournament.state as any;
+    // The snapshot spreads the document's `status` onto state; the first read
+    // puts it on details. The snapshot is the newer of the two.
+    const storedStatus = 'status' in stateAny ? stateAny.status : (details as any)?.status;
+    const gameKey = String(details?.localGameId ?? details?.id ?? '');
+    const finishedHere = !!gameKey && savedHistoryRef.current === gameKey;
+    if (!shouldReopen(players, storedStatus, finishedHere)) return;
+
+    reopeningRef.current = true;
+    savedHistoryRef.current = null;
+    if (details?.id) {
+      writeLiveGame(String(details.id), { status: null, updatedAt: new Date().toISOString() })
+        .catch(err => {
+          reopeningRef.current = false;
+          console.error('Could not reopen the tournament:', err);
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournament.state.players, user?.id, readOnlyConsole, (tournament.state as any).status]);
 
   // Whether the league panel below the setup card is shown at all.
   // Reuses _isLeagueMode from above rather than recomputing the same expression.

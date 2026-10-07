@@ -93,3 +93,22 @@ export function finishedGameNote(players?: readonly GameOverPlayerLike[] | null)
   if (!gameIsOver(players)) return null;
   return 'This game is over. To correct the result, undo the last bust-out — otherwise start the next game.';
 }
+
+/**
+ * Does a game recorded as finished need reopening (October audit, M12)?
+ *
+ * The completion effect writes `status: 'completed'` and History the moment the
+ * game ends — and nothing ever un-wrote either. After the documented correction
+ * for a misrecorded final hand (Undo bust-out), play carried on, but resume and
+ * handover skipped the game as finished, and the corrected ending never reached
+ * History, which kept the first winner. A finished status on a game that is no
+ * longer over — whether written here or read from the document — is the signal.
+ */
+export function shouldReopen(
+  players: readonly GameOverPlayerLike[] | null | undefined,
+  storedStatus: string | null | undefined,
+  finishedHere: boolean,
+): boolean {
+  if (!players || gameIsOver(players)) return false;
+  return storedStatus === 'completed' || finishedHere;
+}

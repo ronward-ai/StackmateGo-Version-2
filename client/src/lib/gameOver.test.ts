@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameIsOver, winnerOf, finishedGameNote } from './gameOver';
+import { gameIsOver, winnerOf, finishedGameNote, shouldReopen } from './gameOver';
 
 describe('gameIsOver', () => {
   /**
@@ -98,5 +98,25 @@ describe('finishedGameNote', () => {
     expect(note).toMatch(/over/i);
     expect(note).toMatch(/undo/i);
     expect(note).toMatch(/next game/i);
+  });
+});
+
+// October audit, M12: Undo bust-out after the final hand must reopen the game.
+describe('shouldReopen', () => {
+  const over = [{ isActive: false, position: 1 }, { isActive: false, position: 2 }];
+  const reopened = [{ isActive: true }, { isActive: true }, { isActive: false, position: 3 }];
+
+  it('reopens a game recorded as completed that is no longer over', () => {
+    expect(shouldReopen(reopened, 'completed', false)).toBe(true);
+  });
+  it('reopens a game this console finished, before its status has come back', () => {
+    expect(shouldReopen(reopened, undefined, true)).toBe(true);
+  });
+  it('leaves a finished game finished', () => {
+    expect(shouldReopen(over, 'completed', true)).toBe(false);
+  });
+  it('leaves an ordinary game in progress alone', () => {
+    expect(shouldReopen(reopened, undefined, false)).toBe(false);
+    expect(shouldReopen(reopened, null, false)).toBe(false);
   });
 });

@@ -3077,6 +3077,14 @@ shared by the slider's two paths. A red **"Full reset (clears structure & switch
 at the foot of the same dialog went later for the same reason — reported as making no sense there. The
 standalone game's own **New** dialog keeps its Keep structure / Full reset choice, where it does.
 
+**A finished game reopens when its ending is undone** (October audit M12). The completion effect writes
+`status: 'completed'` and History at the final hand, and nothing un-wrote either — so after Undo
+bust-out, the documented correction for a misrecorded final hand, resume and handover skipped the game
+and History kept the first winner. `shouldReopen` (`lib/gameOver.ts`) spots a finished status on a game
+no longer over; `PokerTimer` clears it through the door and forgets the history key, so the next ending
+re-saves History over the same record. The rule is tested; the effect is inline in the page and was
+verified by reading — the offline devstub cannot round-trip the status.
+
 **There is deliberately no "End Game" button.** A finished game already marks itself — `PokerTimer`'s
 completion effect writes `status: 'completed'` and a `completedTournaments` record — and the mode lock
 staying on after the final hand is correct, not a bug: `syncLeagueResults` records every eliminated
