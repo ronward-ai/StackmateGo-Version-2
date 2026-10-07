@@ -1,10 +1,10 @@
-import { useCallback, useMemo, useEffect, useState, useRef } from 'react';
+import { useCallback, useMemo, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from './useLeagueSettings';
 import { useAuth } from './useAuth';
 import { db, collections } from '@/lib/firebase';
 import { reportWriteFailure } from '@/lib/syncReporter';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
 import { isRealLeagueId } from '@/lib/seasonProgress';
@@ -369,29 +369,6 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     }
   }, [leagueId, deleteSeasonMutation, queryClient]);
 
-  // Reset a season (clear all data but keep the season)
-  const resetSeason = useCallback(async (seasonId: string | number) => {
-    if (!leagueId) {
-      console.warn('Cannot reset season without league ID');
-      return;
-    }
-
-    try {
-      // Find all tournament results for this season and delete them
-      const q = query(collections.tournamentResults, where('seasonId', '==', String(seasonId)));
-      const snapshot = await getDocs(q);
-      const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, 'tournamentResults', docSnap.id)));
-      await Promise.all(deletePromises);
-      
-      queryClient.invalidateQueries({ queryKey: ['leaguePlayers', leagueId] });
-      queryClient.invalidateQueries({ queryKey: ['leagueResults', leagueId] });
-    } catch (error) {
-      // Destructive and partially applied: some results may already be gone.
-      // Saying nothing leaves a director thinking the season was cleared.
-      reportWriteFailure('The season reset', error);
-    }
-  }, [leagueId, queryClient]);
-
   return {
     seasons,
     currentSeason,
@@ -400,10 +377,5 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     addSeason,
     updateSeason,
     deleteSeason,
-    resetSeason,
-    // Legacy compatibility stubs
-    switchSeason: (id: string | number) => {},
-    addPlayerToSeason: () => {},
-    getCurrentSeasonPlayers: () => []
   };
 }

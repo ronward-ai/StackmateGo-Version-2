@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor } from '@/lib/seating';
 import { Button } from "@/components/ui/button";
-import { buttonCombinations, getButtonVariant } from "@/lib/buttonUtils";
 import {
   Dialog,
   DialogContent,
@@ -100,8 +99,6 @@ export default function SeatPlayersDialog({
   // Handle the seating process
   const handleSeatPlayers = () => {
     const selectedPlayerObjects = getSelectedPlayerObjects();
-    console.log('Manual seating triggered from dialog');
-    console.log('Selected players for seating:', selectedPlayerObjects.map(p => p.name));
     onSeatPlayers(selectedPlayerObjects);
     onClose();
   };

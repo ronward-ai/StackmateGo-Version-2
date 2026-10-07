@@ -110,6 +110,5 @@ export function useTournamentTemplates() {
     error,
     saveTemplate,
     deleteTemplate,
-    refreshTemplates: fetchTemplates
   };
 }

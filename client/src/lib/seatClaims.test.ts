@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { claimedByFor, isClaimed, myPlayerId, claimFieldPath, playerIdsOf } from './seatClaims';
+import { claimedByFor, myPlayerId, claimFieldPath, playerIdsOf } from './seatClaims';
 
 describe('claimedByFor', () => {
   it('reads the new claims map', () => {
@@ -33,17 +33,6 @@ describe('claimedByFor', () => {
   it('survives a null or undefined tournament', () => {
     expect(claimedByFor(null, 'p1')).toBeUndefined();
     expect(claimedByFor(undefined, 'p1')).toBeUndefined();
-  });
-});
-
-describe('isClaimed', () => {
-  it('is true under either scheme', () => {
-    expect(isClaimed({ claims: { p1: 'device-a' } }, 'p1')).toBe(true);
-    expect(isClaimed({ players: [{ id: 'p1', claimedBy: 'device-a' }] }, 'p1')).toBe(true);
-  });
-
-  it('is false when nobody has claimed it', () => {
-    expect(isClaimed({ claims: {}, players: [{ id: 'p1' }] }, 'p1')).toBe(false);
   });
 });
 

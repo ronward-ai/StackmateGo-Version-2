@@ -55,11 +55,6 @@ export interface BadgeInputs {
   currencySymbol: string;
 }
 
-/** One chip's text, for somewhere that cannot render two spans — the PNG export. */
-export function badgeText(badge: PlayerBadge): string {
-  return [badge.figure, badge.label].filter(Boolean).join(' ');
-}
-
 /**
  * The chips for one player, in a fixed order.
  *

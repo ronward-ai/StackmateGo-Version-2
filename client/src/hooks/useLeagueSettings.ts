@@ -3,18 +3,12 @@ import { withBonuses } from '@/lib/pointsBonuses';
 import { bandsOf, pointsForBand } from '@/lib/pointsBands';
 import { evaluateFormula } from '@/lib/formulaEval';
 import { defaultSettingsDocId, currentSettingsFrom } from '@/lib/leagueSettingsId';
-import {
-  LeagueSettings,
-  PointsSystem,
-  DEFAULT_LEAGUE_SETTINGS,
-  PositionPoints,
-  POINTS_SYSTEMS
-} from '@/types/leagueSettings';
+import { LeagueSettings, PointsSystem, DEFAULT_LEAGUE_SETTINGS, POINTS_SYSTEMS } from '@/types/leagueSettings';
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { reportWriteFailure } from '@/lib/syncReporter';
 import { db, collections } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { query, where, addDoc, deleteDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
 
@@ -237,9 +231,6 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     setSettings(prev => ({ ...prev, pointsSystem }));
   }, []);
 
-  const updateStatsToTrack = useCallback((statsToTrack: LeagueSettings['statsToTrack']) => {
-    setSettings(prev => ({ ...prev, statsToTrack }));
-  }, []);
 
   const updateStatsToDisplay = useCallback((statsToDisplay: Partial<LeagueSettings['statsToDisplay']>) => {
     setSettings(prev => ({
@@ -255,9 +246,6 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     setSettings(prev => ({ ...prev, displaySettings }));
   }, []);
 
-  const updateSeasonSettings = useCallback((seasonSettings: LeagueSettings['seasonSettings']) => {
-    setSettings(prev => ({ ...prev, seasonSettings }));
-  }, []);
 
   // Reset to defaults
   const resetToDefaults = useCallback(() => {
@@ -468,13 +456,6 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     }
   }, [settings, user?.id, leagueId, savedSettings]);
 
-  // Load settings from database by ID
-  const loadSettingsFromDatabase = useCallback((settingId: string | number) => {
-    const savedSetting = savedSettings.find(s => s.id === settingId);
-    if (savedSetting) {
-      setSettings(savedSetting.settings);
-    }
-  }, [savedSettings]);
 
   // Delete settings from database
   const deleteSettingsFromDatabase = useCallback(async (settingId: string | number) => {
@@ -557,47 +538,20 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     });
   }, [settings.pointsSystem, updatePointsSystem]);
 
-  // Placeholder functions for export/import/save/delete custom formula, and reload settings.
-  // These would need actual implementation based on your application's logic.
-  const exportSettings = useCallback(() => {
-    // Export settings functionality
-  }, []);
-
-  const importSettings = useCallback(() => {
-    // Import settings functionality
-  }, []);
-
-  const saveCustomFormula = useCallback((formulaName: string, formula: string) => {
-    // Logic to save custom formula
-  }, []);
-
-  const deleteCustomFormula = useCallback((formulaId: string) => {
-    // Logic to delete custom formula
-  }, []);
-
-  const reloadSettings = useCallback(() => {
-    // Logic to reload settings, potentially from localStorage or a default state
-    setSettings(DEFAULT_LEAGUE_SETTINGS); // Example: reset to default
-  }, []);
-
-
   return {
     settings,
     savedSettings,
     calculatePoints,
     updateSettings,
     updatePointsSystem,
-    updateStatsToTrack,
     updateStatsToDisplay,
     updateDisplaySettings,
-    updateSeasonSettings,
     resetToDefaults,
     updateCustomFormula,
     setPointsSystemType,
     availablePointsSystems: POINTS_SYSTEMS,
     updateFormulaParameter,
     saveSettingsToDatabase,
-    loadSettingsFromDatabase,
     deleteSettingsFromDatabase,
     loadSavedSettings,
     saveCustomFormulaTemplate,

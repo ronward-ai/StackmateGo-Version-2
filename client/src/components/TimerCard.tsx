@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Progress } from "@/components/ui/progress";
 import TimerFace from "@/components/TimerFace";
 import { Button } from "@/components/ui/button";
-import { buttonCombinations } from "@/lib/buttonUtils";
 import { cn } from "@/lib/utils";
 import { TournamentQR } from "@/components/ui/tournament-qr";
-import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,9 +15,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Play, Pause, RotateCcw, SkipForward, SkipBack, Volume2, VolumeX, Settings, Maximize2, Minimize2 } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Maximize2, Minimize2 } from 'lucide-react';
 import { gameIsOver } from '@/lib/gameOver';
-import { Slider } from './ui/slider';
 
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -78,17 +75,13 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
     state, 
     startTimer, 
     pauseTimer,
-    resetTimer,
     formatTime,
     calculateProgress,
     getCurrentBlinds,
-    getRemainingTimeText,
     isBreak,
     skipToNextLevel,
     skipToPreviousLevel,
-    updateTimer
   } = tournament;
-  const [otherDirectorsActive, setOtherDirectorsActive] = useState(false);
 
   // Is the game over? One predicate, lib/gameOver.ts — the golden clock face,
   // the Tournament Over banner and the winner card used to ask three different
@@ -181,14 +174,10 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
 
     return `Level ${blindLevelNumber}`;
   }, [state.currentLevel, state.levels]);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showTimeInput, setShowTimeInput] = useState(false);
-  const [timeInput, setTimeInput] = useState('');
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [voiceLanguage, setVoiceLanguage] = useState('en-GB');
-  const [voiceSpeed, setVoiceSpeed] = useState(1);
+  // Minimise, settings, a custom-time input, a volume slider, mute and two
+  // voice options were declared here with their handlers — reset, adjust-time
+  // and custom-time — and none was ever drawn (October audit, Delete). The
+  // third clearance of this file; see the note below.
   // Eight pieces of state and two audio refs used to sit here — voiceVolume,
   // nextLevelAnnouncement, lastAnnouncementTime, isAlarmActive, alarmDuration,
   // isLevelComplete, and Audio elements for /notification.mp3 and
@@ -212,26 +201,6 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
 
   const handleNextLevel = () => {
     skipToNextLevel();
-  };
-
-  const handleResetTimer = () => {
-    resetTimer();
-  };
-
-  const adjustTime = (minutes: number) => {
-    const newTime = Math.max(0, state.secondsLeft + (minutes * 60));
-    updateTimer({ secondsLeft: newTime });
-  };
-
-  const handleCustomTime = () => {
-    if (timeInput) {
-      const minutes = parseInt(timeInput, 10);
-      if (!isNaN(minutes) && minutes > 0) {
-        updateTimer({ secondsLeft: minutes * 60 });
-        setTimeInput('');
-        setShowTimeInput(false);
-      }
-    }
   };
 
   // The director's choice, from Settings. Absent means the ring, which is the

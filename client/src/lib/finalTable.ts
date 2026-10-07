@@ -484,7 +484,8 @@ function seatForReturningPlayer<T extends SeatablePlayer>(
 /**
  * Does the field now need MORE tables than the game is configured for?
  *
- * The generalisation of `outgrowsFinalTable`, and the test the unwind turns on.
+ * The test the unwind turns on — generalised from the final table's own
+ * `active > seatsPerTable` check, which was deleted once nothing called it.
  * Through `tablesNeededFor` rather than a second ceil, so it cannot disagree with
  * the predicate that asked for the consolidation in the first place.
  */
@@ -495,6 +496,3 @@ export function outgrowsTables(
   return tablesNeededFor(activeAfterRestore, seatsPerTable) > Math.max(1, Math.floor(numberOfTables) || 1);
 }
 
-export function outgrowsFinalTable(activeAfterRestore: number, seatsPerTable: number): boolean {
-  return activeAfterRestore > seatsPerTable;
-}

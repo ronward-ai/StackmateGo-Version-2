@@ -1,21 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { gameIsOver } from '@/lib/gameOver';
 import { currencyOf } from '@/lib/currency';
-import { payoutsOf } from '@/lib/payoutTemplates';
 import { useParams } from 'wouter';
 import { UserCheck } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Users, Play, Pause, SkipForward, Settings, Volume2, VolumeX, Timer, AlertCircle, Shield, Check, X, ChevronUp, ChevronDown, Home, LogOut, StickyNote } from 'lucide-react';
+import { Card } from "@/components/ui/card";
+import { ChevronUp, ChevronDown, Home, LogOut, StickyNote } from 'lucide-react';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
-import { Button } from '@/components/ui/button'; // Assuming Button component is available
 import { useAuth } from '@/hooks/useAuth';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useLeagueName } from '@/hooks/useLeagueName';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
-import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
 import TimerFace from '@/components/TimerFace';
 import type { TimerPiping } from '@/types';
 import { cn } from '@/lib/utils';
@@ -381,7 +377,6 @@ function TournamentParticipantView() {
 
   const currentLevel = getCurrentLevel();
   const nextLevel = getNextLevelInfo();
-  const currencySymbol = currencyOf(tournament.settings);
 
   // Create tournament object for read-only components with proper player data structure
   const tournamentForComponents = {
@@ -409,16 +404,6 @@ function TournamentParticipantView() {
   };
 
   /**
-   * The pool and the house fee, from the same function the director's screen
-   * uses.
-   *
-   * This used to be a local copy that omitted re-entry and rebuy rake, so the
-   * house fee shown to players disagreed with the figure the director was
-   * looking at for the very same game. The pool itself matched, so payouts were
-   * never affected — it just could not be explained to anyone who compared the
-   * two screens.
-   */
-  /**
    * What the clock is showing, derived once.
    *
    * The headline used to be assembled inline inside the JSX with an IIFE, and
@@ -444,29 +429,6 @@ function TournamentParticipantView() {
   const levelDuration = tournament.blindLevels?.[tournament.currentLevel]?.duration || 900;
   const levelProgress = Math.min(100, Math.max(0, 100 - (timeLeft / levelDuration) * 100));
 
-  const prizePoolData = (() => {
-    // Typed as RakeStructure rather than any: the local default object this is
-    // read from is narrower than a real prize structure, and the version this
-    // replaced dodged that by taking `any`.
-    const ps = (tournament.prizeStructure || {}) as RakeStructure;
-    const buyIn = ps.buyIn || tournament.buyIn || 10;
-    const players = tournament.players || [];
-    const { gross, rake } = prizePoolFor(players, { ...ps, buyIn });
-
-    return {
-      totalPlayers: players.length,
-      totalPool: gross,
-      grossPrizePool: gross,
-      rakeAmount: rake,
-      rakeType: ps.rakeType || 'percentage',
-      rakePercentage: ps.rakePercentage || 0,
-      // payoutsOf, not manualPayouts: a structure saved before the default was
-      // corrected keeps its percentages in `structure`, and reading the raw
-      // field showed payouts to the director — whose two load paths DO
-      // normalise — and none at all to the players.
-      payouts: payoutsOf(tournament.prizeStructure),
-    };
-  })();
 
 
   return (

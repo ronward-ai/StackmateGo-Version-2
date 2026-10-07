@@ -47,14 +47,6 @@ export function claimedByFor(
   return legacy || undefined;
 }
 
-/** Whether anyone at all — new scheme or old — has claimed this seat. */
-export function isClaimed(
-  tournament: ClaimableTournament | null | undefined,
-  playerId: string,
-): boolean {
-  return !!claimedByFor(tournament, playerId);
-}
-
 /**
  * Which player, if any, this device has claimed.
  *

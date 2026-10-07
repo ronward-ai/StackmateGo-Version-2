@@ -358,37 +358,6 @@ export function nextSeasonDates(season: SeasonLike & { startDate?: string | null
 }
 
 /**
- * A name for the next season, derived from this one where the pattern is
- * obvious.
- *
- * "Season 3" -> "Season 4". A trailing year is bumped when the next period
- * crosses into a new one. Anything else falls back to the quarter and year,
- * which is what pub leagues tend to use.
- */
-export function suggestNextName(currentName: string | undefined, nextStartDate?: string): string {
-  // Optional: a league that does not run on a calendar has no next start date,
-  // and falls back to naming by today's quarter — or, far more usefully, to
-  // bumping the trailing number on the current name ("Season 3" → "Season 4").
-  const start = new Date(nextStartDate ?? '');
-  const year = Number.isNaN(start.getTime()) ? new Date().getFullYear() : start.getUTCFullYear();
-  const quarter = Number.isNaN(start.getTime()) ? 1 : Math.floor(start.getUTCMonth() / 3) + 1;
-
-  if (currentName) {
-    const numbered = currentName.match(/^(.*?)(\d+)\s*$/);
-    if (numbered) {
-      const [, prefix, n] = numbered;
-      // Skip a bare year — bumping "Spring 2026" to "Spring 2027" is wrong when
-      // the next season is merely the following quarter.
-      if (!/^(19|20)\d{2}$/.test(n)) {
-        return `${prefix}${Number(n) + 1}`;
-      }
-    }
-  }
-
-  return `Q${quarter} ${year}`;
-}
-
-/**
  * Where the NEXT game of a season stands, before it is started.
  *
  * Reported: after the last game the director pressed End Season, and Next Game

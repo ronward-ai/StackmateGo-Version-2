@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { badgesFor, badgeText, type BadgeInputs } from './playerBadges';
+import { badgesFor, type BadgeInputs } from './playerBadges';
 
 const base: BadgeInputs = { gameFinished: false, currencySymbol: '£' };
 const keys = (i: Partial<BadgeInputs>) => badgesFor({ ...base, ...i }).map(b => b.key);
@@ -114,20 +114,3 @@ describe('badgesFor', () => {
   });
 });
 
-describe('badgeText', () => {
-  // The exported PNG writes plain DOM nodes, so it needs one string per chip —
-  // and it must be the same string the screen shows.
-  it('joins the figure and label', () => {
-    expect(badgeText({ key: 'ko', figure: '4', label: 'KO', tone: 'neutral' })).toBe('4 KO');
-  });
-
-  it('handles a chip that is only a figure, or only a label', () => {
-    expect(badgeText({ key: 'prize', figure: '£170', tone: 'money' })).toBe('£170');
-    expect(badgeText({ key: 'out', label: 'out to Kelly', tone: 'eliminated' })).toBe('out to Kelly');
-  });
-
-  it('says the same thing the screen says, chip for chip', () => {
-    const badges = badgesFor({ ...base, knockouts: 3, prize: 40 });
-    expect(badges.map(badgeText)).toEqual(['3 KO', '£40']);
-  });
-});

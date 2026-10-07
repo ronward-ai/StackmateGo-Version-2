@@ -19,8 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Settings, Calculator, BarChart3, Trophy, Info, ChevronUp, ChevronDown, CalendarDays, Check, X } from 'lucide-react';
+import { Settings, Calculator, BarChart3, Info, ChevronUp, ChevronDown, CalendarDays, Check, X } from 'lucide-react';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useLeague } from '@/hooks/useLeague';
 import LeagueSeasonsTab from '@/components/LeagueSeasonsTab';
@@ -230,7 +229,6 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
     setError(null);
     try {
       const result = await saveCustomFormulaTemplate(name, formula);
-      console.log('Template saved successfully:', result);
 
       // Immediately add the saved template to the savedFormulas state
       if (result) {

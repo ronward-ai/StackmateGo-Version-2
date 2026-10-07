@@ -9,7 +9,6 @@ import {
   gameProgressLabel,
   seasonLine,
   nextSeasonDates,
-  suggestNextName,
   seasonSubtitle,
   gamesInRange,
   SYNTHETIC_SEASON_ID,
@@ -281,30 +280,6 @@ describe('nextSeasonDates — calendar quarters', () => {
   });
 });
 
-describe('suggestNextName', () => {
-  it('increments a trailing sequence number', () => {
-    expect(suggestNextName('Season 3', '2026-04-01')).toBe('Season 4');
-    expect(suggestNextName('Season 12', '2026-04-01')).toBe('Season 13');
-  });
-
-  it('does NOT treat a trailing year as a sequence number', () => {
-    // "Spring 2026" -> "Spring 2027" would be wrong when the next season is
-    // simply the following quarter of the same year.
-    expect(suggestNextName('Spring 2026', '2026-04-01')).toBe('Q2 2026');
-  });
-
-  it('falls back to quarter and year', () => {
-    expect(suggestNextName('Winter League', '2026-04-01')).toBe('Q2 2026');
-    expect(suggestNextName(undefined, '2026-07-01')).toBe('Q3 2026');
-    expect(suggestNextName('', '2026-10-01')).toBe('Q4 2026');
-    expect(suggestNextName('Anything', '2027-01-01')).toBe('Q1 2027');
-  });
-
-  it('tolerates an unparseable date', () => {
-    expect(suggestNextName('Winter League', 'nonsense')).toMatch(/^Q[1-4] \d{4}$/);
-  });
-});
-
 describe('a season with no dates', () => {
   // Not every league runs on a calendar: a 12-game season runs until the
   // twelfth game is played, whenever that falls.
@@ -331,10 +306,6 @@ describe('a season with no dates', () => {
 
   it('has no next dates to offer', () => {
     expect(nextSeasonDates({ numberOfGames: 12 })).toBeNull();
-  });
-
-  it('names the next one by bumping the trailing number, with no date to go on', () => {
-    expect(suggestNextName('Season 3')).toBe('Season 4');
   });
 });
 

@@ -23,7 +23,7 @@ describe('useAuth actions are stable across renders', () => {
     const first = h.result.current;
     h.rerender();
     const second = h.result.current;
-    for (const k of ['login', 'loginWithEmail', 'register', 'registerWithEmail', 'resetPassword', 'signInAnonymously', 'logout'] as const) {
+    for (const k of ['login', 'loginWithEmail', 'registerWithEmail', 'resetPassword', 'signInAnonymously', 'logout'] as const) {
       expect(second[k], k).toBe(first[k]);
     }
   });

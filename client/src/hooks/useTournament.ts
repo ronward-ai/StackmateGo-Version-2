@@ -32,7 +32,6 @@ import { payoutForPlace } from '@/lib/prizePool';
 function repriceMovedFinishers<T extends Player>(before: T[], after: T[], structure: any): T[] {
   return repricedForNewPlaces(before as any, after as any, payoutForPlace(after as any, structure), structure) as T[];
 }
-import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
@@ -419,20 +418,6 @@ export function useTournament(tournamentId?: string) {
           
           if (docSnap.exists()) {
             const tournamentData = docSnap.data();
-
-            // Force reload league data from localStorage for director access
-            // This ensures director access sees the current league state
-            if (typeof window !== 'undefined') {
-              try {
-                const savedLeagueData = localStorage.getItem('leaguePlayers');
-                if (savedLeagueData) {
-                  // Dispatch event to refresh league data across all components
-                  window.dispatchEvent(new CustomEvent('leagueDataChanged'));
-                }
-              } catch (error) {
-                console.error('Error reloading league data for director access:', error);
-              }
-            }
 
             // Transform the database tournament data to match our state structure
             let initialSecondsLeft = tournamentData.secondsLeft || (tournamentData.blindLevels?.[0]?.duration || 900);
@@ -925,31 +910,11 @@ export function useTournament(tournamentId?: string) {
 
   // Enhanced broadcast function with proper WebSocket communication
   const broadcastTournamentAction = useCallback(async (actionName: string, newState: TournamentState) => {
-    // Common action data for all tournament types
-    const actionData = {
-      currentLevel: newState.currentLevel,
-      secondsLeft: newState.secondsLeft,
-      targetEndTime: newState.targetEndTime || null,
-      isRunning: newState.isRunning,
-      players: newState.players,
-      blindLevels: newState.levels,
-      settings: newState.settings,
-      prizeStructure: newState.prizeStructure,
-      notes: newState.notes || ''
-    };
+    // Nothing is written from here any more, for any action: PokerTimer's
+    // three sync effects own the roster, the clock and the settings. An unused
+    // payload and an empty `database` branch went with the October audit; what
+    // is left dispatches events CLAUDE.md lists as heard by nothing.
 
-    // Broadcast to database tournaments via HTTP
-    if (newState.details?.type === 'database' && newState.details?.id) {
-      try {
-        // Nothing is written from here any more, for any action: PokerTimer's
-        // three sync effects own the roster, the clock and the settings. See
-        // the notes where the two broadcast functions used to be.
-
-      } catch (error) {
-        console.error('Failed to broadcast database tournament action:', error);
-      }
-    }
-    
     // Broadcast to season tournaments (league games) via local events
     if (newState.details?.type === 'season') {
       try {
@@ -2379,20 +2344,6 @@ export function useTournament(tournamentId?: string) {
     });
   }, [broadcastTournamentAction]);
 
-  // Reset all players to active (for testing/fixing rankings)
-  const resetAllPlayersToActive = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      players: prev.players.map(player => ({
-        ...player,
-        isActive: true,
-        position: undefined,
-        prizeMoney: 0,
-        eliminatedBy: undefined
-      }))
-    }));
-  }, []);
-
   // Skip to next level
   const skipToNextLevel = useCallback(() => {
     setState(prev => {
@@ -2506,7 +2457,6 @@ export function useTournament(tournamentId?: string) {
     undoBustOut,
     undoFinalTable,
     undoPlayerReturn,
-    resetAllPlayersToActive,
     processRebuy,
     processReEntry,
     processAddon,

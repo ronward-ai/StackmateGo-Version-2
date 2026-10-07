@@ -44,7 +44,6 @@ import { consoleTournamentId, pinIsDead } from '@/lib/liveTournament';
 import ConsoleHeader from '@/components/ConsoleHeader';
 import { useIsOffscreen } from '@/hooks/useIsOffscreen';
 import { blindLevelNumber } from '@/lib/announcements';
-import { reportToOverlay } from '@/lib/debugOverlay';
 import SettingsSection from '@/components/SettingsSection';
 import LeagueSection from '@/components/LeagueSection';
 import { LiveBanner } from '@/components/LiveBanner';
@@ -303,7 +302,6 @@ function PokerTimerInner({
   const [signedOutBarDismissed, setSignedOutBarDismissed] = useState(false);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const showSignedOutBar = !authLoading && (!user || isAnonymous) && !signedOutBarDismissed;
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   // Compute game number once here so the info card and the mode toggle inside it always show the same value.

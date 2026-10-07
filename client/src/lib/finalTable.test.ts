@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  activeCount, alreadyAtOneTable, dismissalIsStale, consolidationAfterReturn, outgrowsFinalTable, promptDismissedFor,
+  activeCount, alreadyAtOneTable, dismissalIsStale, consolidationAfterReturn, promptDismissedFor,
   restoreSeating, shouldPromptForFinalTable, snapshotSeating, type SeatablePlayer,
 } from './finalTable';
 
@@ -176,16 +176,6 @@ describe('snapshotSeating and restoreSeating', () => {
     const restored = restoreSeating([seated('a', 0, 4)], snapshot);
     expect(restored[0].seated).toBe(false);
     expect(restored[0].tableAssignment).toBeUndefined();
-  });
-});
-
-describe('outgrowsFinalTable', () => {
-  it('is true when a returning player no longer fits', () => {
-    expect(outgrowsFinalTable(9, 8)).toBe(true);
-  });
-
-  it('is false at exactly one table', () => {
-    expect(outgrowsFinalTable(8, 8)).toBe(false);
   });
 });
 

@@ -34,8 +34,6 @@ interface AnonymousUser {
 export function useAuth() {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [loginError, setLoginError] = useState<string | undefined>();
-  const [registerError, setRegisterError] = useState<string | undefined>();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -53,71 +51,30 @@ export function useAuth() {
     return () => unsubscribe();
   }, []);
 
-  // Every action is a useCallback with no deps: each touches only `auth` and
-  // state setters, which are stable. They were fresh each render, and the
+  // Every action is a useCallback with no deps: each touches only `auth`,
+  // which is stable. They were fresh each render, and the
   // participant view lists `signInAnonymously` in an effect's deps — so that
   // effect re-ran on every render and could mint a SECOND anonymous identity
   // (October audit, Low).
   const login = useCallback(async () => {
-    try {
-      setLoginError(undefined);
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      setLoginError(error.message);
-      throw error;
-    }
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
   }, []);
 
   const loginWithEmail = useCallback(async (email: string, password: string) => {
-    try {
-      setLoginError(undefined);
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error: any) {
-      setLoginError(error.message);
-      throw error;
-    }
-  }, []);
-
-  const register = useCallback(async () => {
-    try {
-      setRegisterError(undefined);
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      setRegisterError(error.message);
-      throw error;
-    }
+    await signInWithEmailAndPassword(auth, email, password);
   }, []);
 
   const registerWithEmail = useCallback(async (email: string, password: string) => {
-    try {
-      setRegisterError(undefined);
-      await createUserWithEmailAndPassword(auth, email, password);
-    } catch (error: any) {
-      setRegisterError(error.message);
-      throw error;
-    }
+    await createUserWithEmailAndPassword(auth, email, password);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    try {
-      setLoginError(undefined);
-      await sendPasswordResetEmail(auth, email);
-    } catch (error: any) {
-      setLoginError(error.message);
-      throw error;
-    }
+    await sendPasswordResetEmail(auth, email);
   }, []);
 
   const signInAnonymously = useCallback(async () => {
-    try {
-      setLoginError(undefined);
-      await firebaseSignInAnonymously(auth);
-    } catch (error: any) {
-      setLoginError(error.message);
-      throw error;
-    }
+    await firebaseSignInAnonymously(auth);
   }, []);
 
   const logout = useCallback(async () => {
@@ -237,12 +194,9 @@ export function useAuth() {
     isAnonymous: firebaseUser ? firebaseUser.isAnonymous : !!anonymousUser,
     login,
     loginWithEmail,
-    register,
     registerWithEmail,
     resetPassword,
     signInAnonymously,
     logout,
-    loginError,
-    registerError,
   };
 }
