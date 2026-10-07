@@ -111,7 +111,8 @@ export default function NextGameControl({
         leagueId: String(dialogLeagueId ?? league?.id ?? ''),
         seasonId: String(chosenSeason.id),
         seasonName: chosenSeason.name,
-        numberOfGames: chosenSeason.numberOfGames || 12,
+        // The season's own count, or none — never an invented 12 (Oct M9).
+        numberOfGames: chosenSeason.numberOfGames || undefined,
       } : undefined,
     }, () => {
       // switchLeague persists its own scoped key synchronously, so it survives
@@ -137,7 +138,9 @@ export default function NextGameControl({
     return nextGameNumber(dialogSeasonId, leaguePlayers);
   }, [dialogSeasonId, dialogLeagueId, league?.id, leaguePlayers, displaySeason?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const totalGames = displaySeason?.numberOfGames || 12;
+  // No count means no count: `|| 12` printed "Game 4 of 12" for a season that
+  // never set one (October audit, M9). gameProgressLabel already handles none.
+  const totalGames: number | undefined = displaySeason?.numberOfGames || undefined;
 
   const dialogTotalGames = useMemo(() => {
     const dialogSeason = (dialogSeasonsList as any[]).find(s => String(s.id) === String(dialogSeasonId))

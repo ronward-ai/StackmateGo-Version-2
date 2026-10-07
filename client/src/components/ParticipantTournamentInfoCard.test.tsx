@@ -24,3 +24,23 @@ describe('ParticipantTournamentInfoCard prize pool', () => {
     expect(screen.getAllByText('£50').length).toBeGreaterThan(0);
   });
 });
+
+// October audit, M9: a season with no game count is not "of 12".
+describe('ParticipantTournamentInfoCard season line', () => {
+  const doc = (numberOfGames?: number) => ({
+    players: [{ id: 'a', name: 'Amy', isActive: true }, { id: 'b', name: 'Bob', isActive: true }],
+    prizeStructure: { buyIn: 10, manualPayouts: [] },
+    settings: { isSeasonTournament: true, seasonName: 'Spring', gameNumber: 4, numberOfGames },
+  });
+
+  it('says only the game number when the season sets no count', () => {
+    render(<ParticipantTournamentInfoCard tournament={doc()} />);
+    expect(screen.getByText(/Spring · Game 4/)).toBeTruthy();
+    expect(screen.queryByText(/of 12/)).toBeNull();
+  });
+
+  it('still says "of N" when the season has one', () => {
+    render(<ParticipantTournamentInfoCard tournament={doc(13)} />);
+    expect(screen.getByText(/Game 4 of 13/)).toBeTruthy();
+  });
+});

@@ -318,7 +318,9 @@ function PokerTimerInner({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId, tournament.state.details?.id]);
   useEffect(() => { displaySeasonRef.current = _displaySeason; }, [_displaySeason]);
-  const totalGames = _displaySeason?.numberOfGames || 12;
+  // No count means no count: `|| 12` printed "Game 4 of 12" for a season that
+  // never set one (October audit, M9). gameProgressLabel already handles none.
+  const totalGames: number | undefined = _displaySeason?.numberOfGames || undefined;
 
   // The on-screen event name. Falls back to the league's own name in league mode
   // when no event name is set, so renaming the league is visible here — these

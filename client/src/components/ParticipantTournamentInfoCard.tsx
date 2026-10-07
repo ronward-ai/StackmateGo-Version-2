@@ -27,7 +27,9 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const isLeagueMode = tournament.settings?.isSeasonTournament === true;
   const seasonName = tournament.settings?.seasonName as string | undefined;
   const gameNumber = tournament.settings?.gameNumber as number | undefined;
-  const totalGames = (tournament.settings?.numberOfGames as number | undefined) || 12;
+  // No count means no count: `|| 12` printed "Game 4 of 12" for a season that
+  // never set one (October audit, M9). gameProgressLabel already handles none.
+  const totalGames = (tournament.settings?.numberOfGames as number | undefined) || undefined;
 
   const sym = currencyOf(tournament.settings);
   const p = tournament.prizeStructure || {};

@@ -115,7 +115,9 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
       : null),
     [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId, state.details?.id], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const totalGames = displaySeason?.numberOfGames || 12;
+  // No count means no count: `|| 12` printed "Game 4 of 12" for a season that
+  // never set one (October audit, M9). gameProgressLabel already handles none.
+  const totalGames: number | undefined = displaySeason?.numberOfGames || undefined;
 
   /**
    * Once a player has busted, what KIND of game this is stops being a free
@@ -249,7 +251,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
   // Prefer the value computed by the parent (PokerTimer) to guarantee consistency
   // with TournamentModeToggle, which is also computed there from the same data.
   const gameNumber = gameNumberProp !== undefined ? gameNumberProp : null;
-  const totalGames = totalGamesProp ?? displaySeason?.numberOfGames ?? 12;
+  const totalGames = totalGamesProp ?? (displaySeason?.numberOfGames || undefined);
 
   const lastLoadedSeasonId = useRef<string | number | null>(null);
   useEffect(() => {
