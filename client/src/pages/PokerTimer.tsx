@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { recordedForGame, removalsDue, recordsDue } from '@/lib/leagueRecorder';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
 import { gameIdOf } from '@/lib/localGameId';
@@ -260,7 +261,7 @@ function PokerTimerInner({
   const readOnlyConsole = !mayDrive(control);
 
 
-  const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague, userLeagues, leaguePlayers } = useLeague();
+  const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague, userLeagues, leaguePlayers, isLoading: leagueLoading } = useLeague();
   const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);
   useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
@@ -1046,26 +1047,41 @@ function PokerTimerInner({
           return;
         }
 
+        // What is already recorded is read from the league's results, so it
+        // must not decide anything before they have arrived.
+        if (leagueLoading) {
+          return;
+        }
+
         const players = tournament?.state?.players || [];
         const activePlayers = players.filter(p => p.isActive !== false);
         const isFinished = activePlayers.length <= 1 && players.length > 1;
         const gameId = gameIdOf(tournament.state.details) ?? undefined;
 
-        // 1. A player who is back in the game but already has a result: drop it.
-        //    They will be recorded again when they are eliminated for good.
-        for (const player of activePlayers) {
-          if (!processedEliminationsRef.current.has(player.id)) continue;
+        // What is ALREADY recorded for this game comes from the league's own
+        // results, with this tab's memory first wherever it has an answer — see
+        // lib/leagueRecorder.ts (October audit, H6). It used to be this tab's
+        // memory alone, so after a reload or a takeover a re-entry never
+        // cleared the old result and the duplicate check then blocked the
+        // corrected one: a wrong place, for good.
+        const memory = processedEliminationsRef.current;
+        const cloud = recordedForGame(leaguePlayers, gameId);
+        const { back, moved } = removalsDue(players, memory, cloud);
+
+        // 1. Back in the game (rebuy, re-entry, undo) but still recorded: drop
+        //    it. They will be recorded again when they are out for good.
+        //
+        //    The claim is released only AFTER the removal lands — memory marks it
+        //    0, "removed by this tab" — and removeTournamentResultForPlayer now
+        //    THROWS on failure (October audit, M3). It used to swallow every
+        //    error, so this catch was unreachable and a failed removal was never
+        //    retried.
+        for (const player of back) {
+          if (!gameId) break;
           try {
-            // The claim is released only AFTER the removal lands. It used to go
-            // first, so a failed removal left the claim gone — and the next
-            // pass, seeing the player as unprocessed, skipped straight past
-            // them. The stale result was never retried and the player kept a
-            // wrong finishing position in the league permanently.
-            if (gameId) await removeTournamentResultForPlayer(player.name, gameId);
-            processedEliminationsRef.current.delete(player.id);
+            await removeTournamentResultForPlayer(player.name, gameId);
+            memory.set(player.id, 0);
           } catch (rebuyError) {
-            // Claim kept, so the next pass tries again — the same shape as the
-            // elimination path below.
             reportWriteFailure(`${player.name}'s rebuy`, rebuyError);
             toast({
               title: 'League result not cleared',
@@ -1075,32 +1091,25 @@ function PokerTimerInner({
           }
         }
 
-        // 2. A player still out, but whose position has changed since we recorded
-        //    it. A re-entry shifts everyone who busted after the returning player
-        //    one place worse, so their stored result is now wrong. Remove it and
-        //    let step 3 re-record the corrected position.
-        const corrected = new Set<string>();
-        for (const player of players) {
-          const recorded = processedEliminationsRef.current.get(player.id);
-          if (recorded === undefined || recorded === player.position) continue;
+        // 2. Still out, but recorded at a place that has since changed — a
+        //    re-entry shifts everyone who busted after the returning player. The
+        //    stale result goes first, and only once it HAS gone is the player
+        //    re-recorded: recording on top of a failed removal is how a player
+        //    ended up with two results for one game, counting twice in points,
+        //    games played and money (October audit, M3).
+        for (const player of moved) {
+          if (!gameId) break;
           try {
-            processedEliminationsRef.current.delete(player.id);
-            if (gameId) {
-              await removeTournamentResultForPlayer(player.name, gameId);
-              corrected.add(player.id);
-            }
+            await removeTournamentResultForPlayer(player.name, gameId);
+            memory.set(player.id, 0);
           } catch (shiftError) {
-            console.error('Error clearing a stale league result:', player.name, shiftError);
+            reportWriteFailure(`${player.name}'s corrected place`, shiftError);
           }
         }
 
-        // 3. Record anyone eliminated who is not already recorded. When the
+        // 3. Record anyone finished who is not recorded at that place. When the
         //    tournament is over that includes the winner.
-        const toRecord = players.filter(p => {
-          if (!p.position || p.position <= 0) return false;
-          if (processedEliminationsRef.current.has(p.id)) return false;
-          return isFinished ? true : p.isActive === false;
-        });
+        const toRecord = recordsDue(players, memory, cloud, isFinished);
 
         for (const player of toRecord) {
           if (cancelled) return;
@@ -1123,7 +1132,13 @@ function PokerTimerInner({
           // Claim the slot BEFORE awaiting. The effect re-runs on every players
           // change, so without a synchronous claim a second run could start
           // recording the same player while the first is still in flight.
-          processedEliminationsRef.current.set(player.id, player.position);
+          //
+          // A tombstone (0) means this tab removed the old result itself, so the
+          // results snapshot — which lags that deletion — must not be allowed to
+          // veto the write as a duplicate.
+          const previousClaim = memory.get(player.id);
+          const replacing = previousClaim === 0;
+          memory.set(player.id, player.position);
 
           try {
             // Awaited deliberately. This used to be fire-and-forget inside a
@@ -1143,7 +1158,7 @@ function PokerTimerInner({
               // recordResultByName's own duplicate check reads a snapshot that
               // lags that deletion — it would skip the write and leave the player
               // with no result at all.
-              corrected.has(player.id),
+              replacing,
               // What the player put in again, and what their bounties were
               // worth. These have always been on the player object right here
               // and were simply dropped, which is why the league table's
@@ -1161,7 +1176,9 @@ function PokerTimerInner({
             );
           } catch (playerError) {
             console.error('Error recording individual player to league:', player.name, playerError);
-            processedEliminationsRef.current.delete(player.id);
+            // Released to what it was, so the next pass retries it.
+            if (previousClaim === undefined) memory.delete(player.id);
+            else memory.set(player.id, previousClaim);
             toast({
               title: 'League result not saved',
               description: `${player.name}'s result could not be saved to the league. It will be retried automatically.`,
@@ -1201,7 +1218,7 @@ function PokerTimerInner({
       if (retryTimer) clearTimeout(retryTimer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, readOnlyConsole]);
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, readOnlyConsole, leaguePlayers, leagueLoading]);
 
   // Reset processed eliminations only when it's a genuine tournament reset (all active, no positions).
   // Guarding on positions prevents mid-game Firestore snapshots during handover from wiping the set.

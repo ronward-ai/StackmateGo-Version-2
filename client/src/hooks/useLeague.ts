@@ -596,6 +596,12 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       queryClient.invalidateQueries({ queryKey: ['leagueResults', currentLeagueId] });
     } catch (error) {
       console.error('Error removing tournament result for rebuy:', error);
+      // Rethrown (October audit, M3). This used to swallow every error, which
+      // made the recorder's "keep the claim and retry" path unreachable: a
+      // failed removal looked like a successful one, the stale result stayed,
+      // and a corrected result was then written beside it — two results for
+      // one game. The caller decides how to report; it must be TOLD.
+      throw error;
     }
   }, [currentLeagueId, queryClient, leaguePlayers]);
 

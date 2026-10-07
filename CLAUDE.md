@@ -257,6 +257,24 @@ The elimination path ninety lines below always had it right — it releases the 
 precisely *so that* the next pass retries, and toasts. Two paths, one rule, and only one of them
 followed it.
 
+**And the catch was unreachable anyway, because the removal swallowed its own errors** (October
+audit M3). `removeTournamentResultForPlayer` logged and returned, so a failed removal looked like a
+success: the claim was released, the stale result stayed, and on a re-entry renumbering the corrected
+result was then written BESIDE it — two results for one game, counting twice in points, games played
+and money. It rethrows now, and a corrected result is written only once the stale one has gone. (No
+unit test pins the rethrow: `useLeague` has no test file. The recorder's decisions are tested in
+`lib/leagueRecorder.ts`.)
+
+**What is already recorded is read from the league, not from this tab** — `lib/leagueRecorder.ts`
+(October audit H6). The claims lived only in this tab's memory, so a reload (an iPad evicting the tab)
+or a takeover started empty: a re-entered player's old result was never removed, and when they busted
+again the duplicate check found it and skipped the corrected one. A wrong place, for good — and every
+finisher that re-entry renumbered kept a stale place too. The league's results for this game are the
+record now, with this tab's memory first wherever it has an answer, because the results snapshot LAGS
+this tab's own writes. Memory holds a position, or **0 for "this tab removed it"** — a tombstone, so
+the lagging snapshot can neither veto a correction as a duplicate nor resurrect a removal. The
+recorder waits for the league's results to load before deciding anything.
+
 ### An ad blocker is a first-class failure mode
 
 `ERR_BLOCKED_BY_CLIENT` on `firestore.googleapis.com` is a browser extension cancelling the request
@@ -3953,6 +3971,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `pendingRoster.ts` | Whether a roster change is still waiting on Firestore, so its own echo cannot revert it. |
 | `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id — and `gameIdOf`, the ONE answer to "which game is this" for the recorder, History, the game number and the mirror. |
+| `leagueRecorder.ts` | What the league recorder must remove, correct and record tonight — and what is ALREADY recorded, read from the league's results with this tab's memory first. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
 | `directorControl.ts` | Which device is driving the live game, whether this one may write to it, and what to say when it may not — **that a device has control, never that anyone is running the game**. |
 
