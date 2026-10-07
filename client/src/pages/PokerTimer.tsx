@@ -55,7 +55,7 @@ import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/l
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
 import { markRosterWritten, rosterPayload } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
-import { getDeviceId } from '@/lib/deviceId';
+import { getConsoleId, subscribeConsoleId } from '@/lib/consoleId';
 import { recordedStatsFor } from '@/lib/resultStats';
 
 export default function PokerTimer({ params }: { params?: { tournamentId?: string } }) {
@@ -256,7 +256,10 @@ function PokerTimerInner({
   // Declared here, above everything that consults it, because the completion
   // effect needs it too: a read-only console must not write this game into
   // history a second time.
-  const myDeviceId = useMemo(() => getDeviceId(), []);
+  // The CONSOLE — device and tab — not the device: two tabs on one laptop
+  // were both "mine" and both drove the game (October audit, Low). It can
+  // change once, if this tab turns out to be a duplicate; see lib/consoleId.ts.
+  const myDeviceId = useSyncExternalStore(subscribeConsoleId, getConsoleId, getConsoleId);
   const control = controlOf(tournament.controllingDeviceId, myDeviceId);
   const readOnlyConsole = !mayDrive(control);
 

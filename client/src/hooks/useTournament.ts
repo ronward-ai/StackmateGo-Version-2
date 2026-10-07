@@ -16,7 +16,7 @@ import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
 import { controlOf, mayDrive, takesDocumentRoster, type Control } from '@/lib/directorControl';
 import { rosterIsPending } from '@/lib/pendingRoster';
 import { breakTable as doBreakTable, consolidationDue, reindexAfterBreak, tableToBreak } from '@/lib/tableBreak';
-import { getDeviceId } from '@/lib/deviceId';
+import { getConsoleId } from '@/lib/consoleId';
 
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
@@ -616,7 +616,7 @@ export function useTournament(tournamentId?: string) {
           // disagree about who is driving.
           const nextControl = controlOf(
             typeof data.controllingDeviceId === 'string' ? data.controllingDeviceId : null,
-            getDeviceId(),
+            getConsoleId(),
           );
           // A takeover, or a console that is only watching: the document's roster
           // replaces the one on screen rather than merging (October audit, M14 —

@@ -552,6 +552,15 @@ true. **Amber, not red: nothing is broken and nothing is at risk** — the game 
 just not here. The digits stay, because they keep tracking the real game through the snapshot and are
 the one thing a second screen is genuinely good for.
 
+**Control names the TAB, not just the device** — `lib/consoleId.ts`, `<deviceId>#<tabId>` (October
+audit, Low). `getDeviceId()` is shared by every tab of a browser, so two tabs on one laptop were both
+`mine` and both drove the game. The tab id is in sessionStorage so a RELOAD keeps control; a DUPLICATED
+tab copies sessionStorage too, so each console announces its id on a BroadcastChannel and the newcomer
+re-mints if anyone answers — the original keeps the id and the control. **A claim written before this
+(a bare device id) reads as `unclaimed` on that device** and `other` everywhere else, so the deploy did
+not turn every console read-only mid-game; the first tab to load claims it in the new shape. Check-in
+still uses the bare device id: a claimed seat belongs to the phone, not a tab.
+
 **A takeover reaches the other device for free.** It holds an `onSnapshot` on the document, so the
 field changing is all it takes; nothing is pushed at it and no local state is set on either side.
 

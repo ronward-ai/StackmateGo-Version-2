@@ -115,13 +115,13 @@ export function useAuth() {
     try {
       const pinned = localStorage.getItem('activeDirectorTournamentId');
       if (pinned) {
-        const [{ releaseLiveGameControl }, { getDeviceId }] = await Promise.all([
+        const [{ releaseLiveGameControl }, { getConsoleId }] = await Promise.all([
           import('@/lib/liveGameWrite'),
-          import('@/lib/deviceId'),
+          import('@/lib/consoleId'),
         ]);
         // Bounded: offline or blocked, the transaction never settles, and
         // being unable to release must not trap somebody signed in.
-        await withDeadline(releaseLiveGameControl(pinned, getDeviceId()), undefined, 'release of control');
+        await withDeadline(releaseLiveGameControl(pinned, getConsoleId()), undefined, 'release of control');
       }
     } catch (err) {
       console.error('Could not hand back control of the live game:', err);

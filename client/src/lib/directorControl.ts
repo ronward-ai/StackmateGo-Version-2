@@ -40,7 +40,15 @@ export function controlOf(
   const holder = typeof controllingDeviceId === 'string' ? controllingDeviceId.trim() : '';
   if (!holder) return 'unclaimed';
   if (!myDeviceId) return 'other';
-  return holder === myDeviceId ? 'mine' : 'other';
+  if (holder === myDeviceId) return 'mine';
+  // A claim written before control named the TAB (`<device>#<tab>`, October
+  // audit) names this device bare. It was ours, but which tab cannot be known —
+  // so it reads as unclaimed, and the first console on this device to load
+  // claims it in the new shape. Reading it as `other` would turn every console
+  // read-only on the deploy that shipped this, mid-game.
+  const hash = myDeviceId.indexOf('#');
+  if (hash !== -1 && !holder.includes('#') && holder === myDeviceId.slice(0, hash)) return 'unclaimed';
+  return 'other';
 }
 
 /** May this device write to the live game right now? */
