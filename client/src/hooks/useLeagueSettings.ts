@@ -1,7 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { withBonuses } from '@/lib/pointsBonuses';
-import { bandsOf, pointsForBand } from '@/lib/pointsBands';
-import { evaluateFormula } from '@/lib/formulaEval';
+import { pointsFor } from '@/lib/points';
 import { defaultSettingsDocId, currentSettingsFrom } from '@/lib/leagueSettingsId';
 import { LeagueSettings, PointsSystem, DEFAULT_LEAGUE_SETTINGS, POINTS_SYSTEMS } from '@/types/leagueSettings';
 import { useAuth } from './useAuth';
@@ -142,84 +140,9 @@ export function useLeagueSettings(overrideOwnerId?: string, leagueId?: string | 
     totalCost: number = 0,
     prizepool: number = 0
   ): number => {
-    try {
-      const currentSettings = settingsRef.current;
-      if (!currentSettings?.pointsSystem?.formula) {
-        return 0;
-      }
-      // The bonuses ride on top of every scheme, custom included — see
-      // lib/pointsBonuses.ts. They were declared on the type and read by
-      // nobody, so wanting points per knockout meant writing a formula.
-      const bonuses = currentSettings.pointsSystem.formula;
-
-      const { formula } = currentSettings.pointsSystem;
-
-      switch (formula.type) {
-        case 'logarithmic': {
-          const baseMultiplier = formula.baseMultiplier || 10;
-          const winnerMultiplier = formula.winnerMultiplier || 1.5;
-          const points = baseMultiplier * Math.log(totalPlayers - position + 2);
-          return withBonuses(position === 1 ? points * winnerMultiplier : points, knockouts, bonuses);
-        }
-
-        case 'squareRoot': {
-          const baseMultiplier = formula.baseMultiplier || 10;
-          const winnerMultiplier = formula.winnerMultiplier || 1.2;
-          const points = baseMultiplier * Math.sqrt(totalPlayers - position + 1);
-          return withBonuses(position === 1 ? points * winnerMultiplier : points, knockouts, bonuses);
-        }
-
-        case 'linear': {
-          const baseMultiplier = formula.baseMultiplier || 10;
-          const winnerMultiplier = formula.winnerMultiplier || 1.0;
-          const points = baseMultiplier * (totalPlayers - position + 1);
-          return withBonuses(position === 1 ? points * winnerMultiplier : points, knockouts, bonuses);
-        }
-
-        case 'fixed': {
-          // Bands, which a stored positionPoints array converts into on read —
-          // see lib/pointsBands.ts. `fixedPoints` is the older-still shape and
-          // only answers when there is nothing else at all.
-          const bands = bandsOf(formula);
-          const points = bands.length
-            ? pointsForBand(bands, position, totalPlayers)
-            : (formula.fixedPoints ?? 0);
-          return withBonuses(points, knockouts, bonuses);
-        }
-
-        case 'custom': {
-          if (!formula.customFormula?.trim()) {
-            return withBonuses(0, knockouts, bonuses);
-          }
-
-          // lib/formulaEval.ts, not new Function. This ran a director's stored
-          // string through the JS engine directly, and RealTimeLeagueTable
-          // loads the DIRECTOR's settings and scores with them in the
-          // PARTICIPANT's browser by design — so any signed-in director could
-          // put arbitrary JavaScript in a points formula and have it execute
-          // on this origin in every visitor's browser. The parser can only
-          // ever produce arithmetic; there is no path from a formula string to
-          // executing anything, however the string is contrived.
-          const evaluation = evaluateFormula(formula.customFormula, {
-            position, totalPlayers, knockouts, buyIn, totalCost, prizepool,
-          });
-          if (evaluation.ok === false) {
-            console.error('Error evaluating custom formula:', evaluation.error, 'Formula:', formula.customFormula);
-            // The bonuses still apply: a formula failing for one place is no
-            // reason to take away that player's knockout and turning-up points
-            // (October audit, Low). The settings tick names the failing place.
-            return withBonuses(0, knockouts, bonuses);
-          }
-          return withBonuses(evaluation.value, knockouts, bonuses);
-        }
-
-        default:
-          return 0;
-      }
-    } catch (error) {
-      console.error('Error calculating points:', error);
-      return 0;
-    }
+    // The engine is lib/points.ts; this reads the CURRENT settings through the
+    // ref so the callback stays stable.
+    return pointsFor(settingsRef.current?.pointsSystem?.formula, position, totalPlayers, knockouts, buyIn, totalCost, prizepool);
   // settingsRef is stable; no deps needed — reads always go through the ref
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

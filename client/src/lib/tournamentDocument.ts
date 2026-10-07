@@ -19,11 +19,17 @@ import type { TournamentState } from '@/types';
  * only sets isPublished.
  */
 
-// Convert a plain JS value to Firestore REST API field format
-function toFirestoreValue(val: any): any {
+// Convert a plain JS value to Firestore REST API field format.
+// Exported for its test, which round-trips it through lib/firestoreRest.ts.
+export function toFirestoreValue(val: any): any {
   if (val === null || val === undefined) return { nullValue: null };
   if (typeof val === 'boolean') return { booleanValue: val };
   if (typeof val === 'number') {
+    // NaN and Infinity have no JSON form: `{ doubleValue: NaN }` serialises as
+    // `{ doubleValue: null }`, which Firestore refuses with a 400 — so ONE bad
+    // figure anywhere in a roster failed the whole save (October audit,
+    // coverage). Stored as null, which every reader already treats as absent.
+    if (!Number.isFinite(val)) return { nullValue: null };
     return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
   }
   if (typeof val === 'string') return { stringValue: val };
