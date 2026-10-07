@@ -33,8 +33,44 @@ interface LeaguePlayerResults {
   tournamentResults?: Array<{ tournamentId?: string | number | null; position?: number | null }>;
 }
 
-/** The league matches players by lower-cased name; so does this. */
-const nameKey = (name: string) => name.toLowerCase();
+/**
+ * The league matches players by lower-cased, TRIMMED name; so does everything
+ * that asks "is this the same person" (October audit, coverage). The recorder's
+ * lookup did not trim and its Firestore fallback was case-SENSITIVE, so "amy"
+ * missed "Amy" whenever the roster snapshot lagged and created a second player.
+ */
+export const nameKey = (name: string | null | undefined) => (name || '').toLowerCase().trim();
+
+/** The league player a name belongs to, the way the standings merge them. */
+export function findPlayerByName<P extends { name?: string | null }>(players: readonly P[], name: string): P | undefined {
+  const key = nameKey(name);
+  return players.find(p => nameKey(p.name) === key);
+}
+
+/**
+ * Has this person a result for this game already — under ANY of the player
+ * documents that share their name?
+ *
+ * The standings merge duplicate-named documents into one row, so the recorder
+ * only ever sees the PRIMARY document's id. Checking that id alone missed a
+ * result recorded against a duplicate, and the night was recorded twice: the
+ * dedupe CLAUDE.md relies on as the second console's backstop had a hole the
+ * merge itself made.
+ */
+export function alreadyRecorded(
+  playerDocs: readonly { id: string | number; name?: string | null }[],
+  results: readonly { leaguePlayerId?: string | number | null; tournamentId?: string | number | null }[],
+  name: string,
+  tournamentId: string | number,
+  extraIds: readonly (string | number)[] = [],
+): boolean {
+  const key = nameKey(name);
+  const ids = new Set([
+    ...playerDocs.filter(p => nameKey(p.name) === key).map(p => String(p.id)),
+    ...extraIds.map(String),
+  ]);
+  return results.some(r => ids.has(String(r.leaguePlayerId)) && String(r.tournamentId) === String(tournamentId));
+}
 
 /** Each player's recorded position for this game, from the league's results. */
 export function recordedForGame(

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recordedForGame, recordedPosition, removalsDue, recordsDue } from './leagueRecorder';
+import { recordedForGame, recordedPosition, removalsDue, recordsDue, nameKey, findPlayerByName, alreadyRecorded } from './leagueRecorder';
 
 const league = (rows: Array<[string, string, number]>) => {
   const byName = new Map<string, any>();
@@ -71,5 +71,34 @@ describe('recordsDue', () => {
     ];
     expect(recordsDue(players, new Map(), new Map(), false).map(p => p.name)).toEqual(['Bust']);
     expect(recordsDue(players, new Map(), new Map(), true).map(p => p.name)).toEqual(['Win', 'Bust']);
+  });
+});
+
+describe('the recorder\'s name match and dedupe (Oct coverage)', () => {
+  it('matches a name however it is cased or padded', () => {
+    const players = [{ id: '1', name: 'Amy Smith' }, { id: '2', name: 'Bob' }];
+    expect(findPlayerByName(players, '  amy smith ')?.id).toBe('1');
+    expect(findPlayerByName(players, 'BOB')?.id).toBe('2');
+    expect(findPlayerByName(players, 'Cat')).toBeUndefined();
+    expect(nameKey('  Amy ')).toBe('amy');
+  });
+
+  // The hole: the standings merge duplicate-named documents into one row, so
+  // the recorder sees only the primary id. A result under the duplicate was
+  // missed and the night recorded twice.
+  it('finds a result recorded under a DUPLICATE document with the same name', () => {
+    const docs = [{ id: 'primary', name: 'Amy' }, { id: 'dupe', name: 'amy ' }];
+    const results = [{ leaguePlayerId: 'dupe', tournamentId: 'G' }];
+    expect(alreadyRecorded(docs, results, 'Amy', 'G', ['primary'])).toBe(true);
+  });
+
+  it('is only about THIS game, and this person', () => {
+    const docs = [{ id: 'a', name: 'Amy' }, { id: 'b', name: 'Bob' }];
+    const results = [{ leaguePlayerId: 'a', tournamentId: 'OTHER' }, { leaguePlayerId: 'b', tournamentId: 'G' }];
+    expect(alreadyRecorded(docs, results, 'Amy', 'G')).toBe(false);
+  });
+
+  it('counts the id it was handed even before the roster snapshot has it', () => {
+    expect(alreadyRecorded([], [{ leaguePlayerId: 'new', tournamentId: 'G' }], 'Amy', 'G', ['new'])).toBe(true);
   });
 });

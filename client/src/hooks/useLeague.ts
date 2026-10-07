@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { standingsFromDocs } from '@/lib/leagueStandings';
+import { nameKey, findPlayerByName, alreadyRecorded } from '@/lib/leagueRecorder';
 import { buyInOf, investedIn } from '@/lib/resultStats';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
@@ -259,62 +261,15 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   // recordResultByName reads this synchronously to dedupe, so it must not wait
   // for a re-render to observe new results.
   useEffect(() => { cloudResultsRef.current = cloudResults; }, [cloudResults]);
+  // The raw player documents, duplicates included, for the same reason.
+  const cloudPlayersRef = useRef<any[]>([]);
+  useEffect(() => { cloudPlayersRef.current = cloudPlayers; }, [cloudPlayers]);
 
   // Convert cloud data to legacy format, deduplicating players with the same name.
   // Duplicate player docs can arise from concurrent recording — merge them so the
   // table always shows one row per player, with results deduplicated by tournamentId.
-  const leaguePlayers: LeaguePlayer[] = (() => {
-    const byName = new Map<string, { primaryPlayer: any; mergedResults: any[] }>();
-
-    cloudPlayers.forEach((player: any) => {
-      const key = (player.name || '').toLowerCase().trim();
-      const playerResults = cloudResults.filter((r: any) => r.leaguePlayerId === player.id);
-
-      if (byName.has(key)) {
-        const entry = byName.get(key)!;
-        playerResults.forEach(r => {
-          const alreadyPresent = r.tournamentId
-            ? entry.mergedResults.some(existing => existing.tournamentId === r.tournamentId)
-            : false;
-          if (!alreadyPresent) entry.mergedResults.push(r);
-        });
-      } else {
-        byName.set(key, { primaryPlayer: player, mergedResults: [...playerResults] });
-      }
-    });
-
-    return Array.from(byName.values()).map(({ primaryPlayer, mergedResults }) => {
-      const totalPoints = mergedResults.reduce((sum, r) => sum + (r.points || 0), 0);
-      return {
-        id: primaryPlayer.id.toString(),
-        name: primaryPlayer.name,
-        totalPoints,
-        tournamentResults: mergedResults.map((result: any) => ({
-          id: result.id.toString(),
-          tournamentId: result.tournamentId,
-          tournamentDate: result.tournamentDate || null,
-          seasonId: result.seasonId || null,
-          position: result.position,
-          totalPlayers: result.totalPlayers,
-          points: result.points,
-          playersEliminatedCount: result.knockouts,
-          cashWon: result.prizeMoney,
-          buyIn: result.buyIn,
-          // What the player put in again, and what they took off other players'
-          // heads. Rebuilding each result from an explicit whitelist is why
-          // adding these to the document alone was not enough: the columns
-          // would still have read 0.
-          rebuys: result.rebuys,
-          rebuyAmount: result.rebuyAmount,
-          addons: result.addons,
-          addonAmount: result.addonAmount,
-          reEntries: result.reEntries,
-          bountyWinnings: result.bountyWinnings,
-          date: result.createdAt?.toDate?.()?.toISOString() || result.createdAt || new Date().toISOString()
-        }))
-      };
-    });
-  })();
+  // The merge and the read whitelist — lib/leagueStandings.ts.
+  const leaguePlayers: LeaguePlayer[] = standingsFromDocs(cloudPlayers, cloudResults);
 
   const isLoading = leaguesLoading || playersLoading || resultsLoading || createLeagueMutation.isPending;
   const error = playersError || createLeagueMutation.error;
@@ -472,26 +427,26 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       // leaguePlayers may be stale when multiple players are recorded concurrently
       // (e.g. tournament end). Use a shared in-flight promise per name so only one
       // Firestore creation fires even if all callers see an empty leaguePlayers.
-      let targetPlayer = leaguePlayers.find((p: any) =>
-        p.name.toLowerCase() === playerName.toLowerCase()
-      );
+      let targetPlayer: any = findPlayerByName(leaguePlayers, playerName);
 
       if (!targetPlayer) {
-        const lowerName = playerName.toLowerCase().trim();
+        const lowerName = nameKey(playerName);
         let inFlight = pendingPlayerCreations.current.get(lowerName);
         if (!inFlight) {
           // Create and store the promise synchronously before any await so
           // concurrent calls can pick it up in the same microtask turn.
           inFlight = (async () => {
+            // Every player in the league, matched by nameKey — a `where('name',
+            // '==', …)` is case-sensitive, so "amy" missed "Amy" and made a
+            // second player (October audit, coverage). A league's roster is
+            // small; one read of it costs nothing against a split history.
             const snap = await getDocs(
-              query(collections.leaguePlayers,
-                where('leagueId', '==', String(leagueId)),
-                where('name', '==', playerName.trim())
-              )
+              query(collections.leaguePlayers, where('leagueId', '==', String(leagueId)))
             );
-            if (!snap.empty) {
-              return { id: snap.docs[0].id, ...snap.docs[0].data() };
-            }
+            const existing = findPlayerByName(
+              snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })), playerName,
+            );
+            if (existing) return existing;
             return createPlayerMutation.mutateAsync({ name: playerName.trim() });
           })();
           pendingPlayerCreations.current.set(lowerName, inFlight);
@@ -512,10 +467,9 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       // renumbering would delete the stale result, skip the re-record as a
       // duplicate, and leave the player with no result at all.
       if (tournamentId && !allowReplace) {
-        const alreadyRecorded = cloudResultsRef.current.some(r =>
-          r.leaguePlayerId === String(targetPlayer.id) && r.tournamentId === tournamentId
-        );
-        if (alreadyRecorded) return;
+        // Under ANY document sharing the name, not just the merged row's
+        // primary id — see alreadyRecorded in lib/leagueRecorder.ts.
+        if (alreadyRecorded(cloudPlayersRef.current, cloudResultsRef.current, playerName, tournamentId, [targetPlayer.id])) return;
       }
 
       // Calculate points.
