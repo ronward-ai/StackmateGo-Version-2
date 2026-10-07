@@ -86,7 +86,12 @@ export function useAccountReset() {
           // next sign-in pull back exactly what was just cleared.
           await updateDoc(doc(db, 'userSettings', uid), {
             setup: deleteField(),
-            recentPlayers: deleteField(),
+            // An EMPTY list, not a deleted field (October audit, M2). An absent
+            // field reads as "no cloud list" to every other device holding names
+            // (lib/recentPlayers.ts resolveRecent), and each of them pushed its
+            // cache straight back up. An empty list is still a list, and every
+            // device adopts it.
+            recentPlayers: [],
           });
         } catch (err) {
           // No document yet, or offline. The local clear below is the part the
@@ -165,7 +170,9 @@ export function useAccountReset() {
         const { deleteField, updateDoc } = await import('firebase/firestore');
         await updateDoc(doc(collection(db, 'userSettings'), uid), {
           setup: deleteField(),
-          recentPlayers: deleteField(),
+          // Empty, not deleted, or another device re-pushes its cached names —
+          // and Delete must mean delete (October audit, M2).
+          recentPlayers: [],
         });
       } catch {}
 

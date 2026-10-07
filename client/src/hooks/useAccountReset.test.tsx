@@ -72,7 +72,9 @@ describe('resetDevice', () => {
     expect(h.updateDoc).toHaveBeenCalledTimes(1);
     // Recent Players follows the account now too, so it is cleared on the same
     // terms — or the next sign-in pulls every name straight back.
-    expect(h.updateDoc.mock.calls[0][1]).toEqual({ setup: '__deleted__', recentPlayers: '__deleted__' });
+    // recentPlayers is EMPTIED, not deleted: an absent field reads as "no cloud
+    // list" to every other device, which then pushed its own names back (Oct M2).
+    expect(h.updateDoc.mock.calls[0][1]).toEqual({ setup: '__deleted__', recentPlayers: [] });
   });
 
   it('still clears this device when the cloud write fails', async () => {
@@ -150,7 +152,7 @@ describe('deleteEverything', () => {
     await act(async () => { await result.current.deleteEverything(); });
 
     expect(h.updateDoc.mock.calls.some(([, fields]) =>
-      fields?.recentPlayers === '__deleted__' && fields?.setup === '__deleted__')).toBe(true);
+      Array.isArray(fields?.recentPlayers) && fields.recentPlayers.length === 0 && fields?.setup === '__deleted__')).toBe(true);
   });
 
   it('never deletes from users, which holds the subscription', async () => {

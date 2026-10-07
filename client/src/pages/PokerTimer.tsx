@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
 import { gameIdOf } from '@/lib/localGameId';
 import { useToast } from '@/hooks/use-toast';
@@ -60,6 +61,11 @@ export default function PokerTimer({ params }: { params?: { tournamentId?: strin
   const tournamentId = params?.tournamentId;
   const [, setLocation] = useLocation();
   const { user, isAnonymous, isLoading: authLoading } = useAuth();
+
+  // An account change this tab did not make is a logout — see the hook. An
+  // anonymous session counts as no account, so signing in from one keeps the
+  // game built before it, as it always has.
+  useAccountChangeIsALogout(isAnonymous ? null : user?.id, authLoading);
 
   // Did the user sign in during THIS page's lifetime?
   //

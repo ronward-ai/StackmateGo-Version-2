@@ -14,8 +14,7 @@ import {
   rememberSignedInUid,
   removeScoped,
   scopedKey,
-  writeScoped,
-} from './scopedStorage';
+  writeScoped, archiveBucketFor } from './scopedStorage';
 
 beforeEach(() => localStorage.clear());
 
@@ -117,10 +116,40 @@ describe('claimStorageFor', () => {
     expect(readScoped('tournamentLocalGameId', 'alice')).toBe('game_1');
   });
 
-  it('copies rather than moves, so the source is still there', () => {
+  // Changed by the October audit (H2). The source used to stay in the signed-out
+  // bucket, where EVERY later account adopted it again. It is archived under the
+  // account that adopted it instead: nothing is destroyed, but it is nobody
+  // else's to inherit.
+  it('destroys nothing: the source is archived under the account that adopted it', () => {
     writeScoped('tournamentSettings', '{"local":true}', null);
     claimStorageFor('alice');
-    expect(readScoped('tournamentSettings', null)).toBe('{"local":true}');
+    expect(localStorage.getItem(`tournamentSettings::${archiveBucketFor('alice')}`)).toBe('{"local":true}');
+    expect(readScoped('tournamentSettings', null)).toBeNull();
+  });
+
+  it('archives even the keys the account already had its own copy of', () => {
+    writeScoped('tournamentSettings', '{"mine":true}', 'alice');
+    writeScoped('tournamentSettings', '{"local":true}', null);
+    claimStorageFor('alice');
+    expect(readScoped('tournamentSettings', 'alice')).toBe('{"mine":true}');
+    expect(localStorage.getItem(`tournamentSettings::${archiveBucketFor('alice')}`)).toBe('{"local":true}');
+  });
+
+  // THE regression (Oct H2): a director starts signed out — the ordinary first
+  // use — signs in, signs out; a second account signs in on the same browser.
+  it('does not hand what one director built signed out to the next account', () => {
+    writeScoped('tournamentSettings', '{"event":"Alice Home Game"}', null);
+    writeScoped('tournamentLocalProgress', '{"players":["alice-friend"]}', null);
+    writeScoped('recentPlayers', '[{"name":"Alice Friend"}]', null);
+    claimStorageFor('alice');
+    rememberSignedInUid(null);
+    // The signed-out console after the logout starts clean.
+    expect(readScoped('tournamentLocalProgress', null)).toBeNull();
+    claimStorageFor('bob');
+    expect(readScoped('tournamentSettings', 'bob')).toBeNull();
+    expect(readScoped('tournamentLocalProgress', 'bob')).toBeNull();
+    expect(readScoped('recentPlayers', 'bob')).toBeNull();
+    expect(readScoped('tournamentSettings', 'alice')).toBe('{"event":"Alice Home Game"}');
   });
 
   it('never overwrites a setup the account already has', () => {
@@ -180,6 +209,13 @@ describe('clearScopedStorage', () => {
     clearScopedStorage('alice');
     expect(readScoped('tournamentSettings', 'alice')).toBeNull();
     expect(readScoped('tournamentBlindLevels', null)).toBeNull();
+  });
+
+  it('clears the signed-out bucket this account adopted, archived', () => {
+    writeScoped('tournamentSettings', '{"local":true}', null);
+    claimStorageFor('alice');
+    clearScopedStorage('alice');
+    expect(localStorage.getItem(`tournamentSettings::${archiveBucketFor('alice')}`)).toBeNull();
   });
 
   it('leaves another account alone', () => {

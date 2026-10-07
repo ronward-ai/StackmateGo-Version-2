@@ -151,3 +151,17 @@ describe('resolveRecent', () => {
     expect(resolveRecent([], device)).toEqual({ list: [], pushLocal: false });
   });
 });
+
+// October audit, M2: Reset and Delete on one device write an EMPTY list, so a
+// second device holding names adopts the empty list instead of re-pushing them.
+// This is the half of the fix that lives here: it would have been undone by an
+// absent field, which is what the reset used to write.
+describe('a reset elsewhere reaches a device still holding names', () => {
+  const cached = [{ name: 'Dave', lastUsed: 2 }, { name: 'Amy', lastUsed: 1 }];
+  it('adopts the empty list and pushes nothing', () => {
+    expect(resolveRecent([], cached)).toEqual({ list: [], pushLocal: false });
+  });
+  it('whereas an absent field would push the names straight back up', () => {
+    expect(resolveRecent(null, cached).pushLocal).toBe(true);
+  });
+});

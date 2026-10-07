@@ -2041,6 +2041,11 @@ Four things are load-bearing:
   settles); localStorage is the whole store there and the offline cache everywhere else. A failed
   cloud write logs and keeps the local list: a blocked browser already wears the "Not syncing" chip.
 
+**Reset and Delete EMPTY it — `recentPlayers: []`, never `deleteField()`** (October audit M2). An
+absent field reads as "no cloud list" to every other device still holding names, and each of them
+pushed its cache straight back, so Delete did not delete. An empty list is still a list, and every
+device adopts it.
+
 **Reset and Delete clear it with the setup.** Both used to clear only `setup` on that document, and a
 field left behind is pulled straight back by the next sign-in — the trap the setup sync section
 records. Delete especially: these are real people's names. `userSettings` had **no rules coverage at
@@ -2414,6 +2419,19 @@ destroying things.
   exact failure the local mirror was added to prevent.
 - **Adoption copies, never moves.** A wrong guess can cost a director their local defaults; it can
   never cost them data.
+- **And the signed-out bucket is then ARCHIVED under the adopter** (`::local@<uid>`, October audit
+  H2). It used to stay where it was, so every account that signed in later adopted it again: a second
+  director inherited the first one's structure, event name, logo, roster and player names, and the
+  setup sync and Recent Players pushed them into the second account's cloud copy. Archiving keeps
+  copy-never-move's promise — nothing is destroyed, and a source key is removed only once its archive
+  copy reads back — while making it nobody else's to inherit. Reset clears the archive with the rest
+  of the account's setup.
+- **An account change this tab did not make is a logout** — `hooks/useAccountChangeIsALogout.ts`,
+  mounted in `PokerTimer` (October audit M4). Signing out in another tab, or signing in as somebody
+  else on the "Sign in to run this game" screen, changed the account under a console still holding
+  the first account's game in memory; its mirror then wrote that roster into the next bucket every
+  second, and the next account's setup sync pushed it to the cloud. Only a change AWAY from an account
+  this tab had confirmed counts, so a cold load never fires it and an expired session cannot loop.
 
 Storage written before this shipped has no bucket and belongs to whoever was using the browser, which
 is unknowable after the fact. The first signed-in account that finds its own bucket empty adopts it

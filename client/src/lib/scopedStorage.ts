@@ -250,6 +250,20 @@ export function claimStorageFor(uid: string | null | undefined): void {
     if (fromLocal !== null) safeSet(scopedKey(key, uid), fromLocal);
   }
 
+  // ...and then RETIRE the signed-out bucket, by archiving it under this
+  // account (October audit, H2). It used to be left in place, so it was adopted
+  // again by EVERY account that signed in later: a second director on this
+  // browser inherited the first one's structure, event name, logo, roster and
+  // player names — and the setup sync and Recent Players then pushed them into
+  // that second account's cloud copy, to follow it to every device. The
+  // signed-out console after a logout showed the previous director's roster too.
+  //
+  // Archived, not deleted: "copy, never move" exists so that a wrong guess can
+  // never cost anybody data, and nothing here is destroyed — it is only no
+  // longer anybody else's to adopt. A key is removed from the signed-out bucket
+  // only once its archive copy has been read back.
+  archiveLocalBucket(uid);
+
   if (canReadLegacy(uid)) {
     for (const key of SCOPED_KEYS) {
       if (safeGet(scopedKey(key, uid)) !== null) continue;
@@ -260,6 +274,23 @@ export function claimStorageFor(uid: string | null | undefined): void {
       }
     }
     if (adoptedLegacy) safeSet(LEGACY_CLAIM_KEY, bucketFor(uid));
+  }
+}
+
+/** Where a signed-out bucket goes once an account has adopted it. */
+export function archiveBucketFor(uid: string): string {
+  return `${LOCAL_BUCKET}@${uid}`;
+}
+
+function archiveLocalBucket(uid: string): void {
+  const archive = archiveBucketFor(uid);
+  for (const key of keysInBucket(null)) {
+    const source = scopedKey(key, null);
+    const value = safeGet(source);
+    if (value === null) continue;
+    const target = `${key}::${archive}`;
+    safeSet(target, value);
+    if (safeGet(target) === value) safeRemove(source);
   }
 }
 
@@ -306,6 +337,8 @@ export function clearScopedStorage(uid: string | null | undefined): void {
       const bucket = stored.slice(marker + 2);
       if (!isScopedKey(bare)) continue;
       if (bucket === bucketFor(uid) || bucket === LOCAL_BUCKET) targets.add(stored);
+      // The signed-out bucket this account adopted is part of its setup too.
+      if (uid && bucket === archiveBucketFor(uid)) targets.add(stored);
     }
   } catch {}
 

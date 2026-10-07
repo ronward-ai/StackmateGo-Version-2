@@ -258,8 +258,11 @@ export function useTournament(tournamentId?: string) {
   // because Firebase restores the session asynchronously and this runs in the
   // hook body. Falling back to the last-known uid means a returning director
   // reads their own setup immediately instead of being shown a default
-  // tournament until auth catches up; if auth then resolves to somebody else,
-  // the effect below re-reads.
+  // tournament until auth catches up. If auth resolves to somebody ELSE, nothing
+  // here re-reads — this comment used to promise an effect that never existed
+  // (October audit, M4). hooks/useAccountChangeIsALogout.ts turns any account
+  // change away from a confirmed account into a full page load instead, which is
+  // what discards this state.
   //
   // Anonymous never reads a bucket. useTournament is the director console only
   // (the participant view has its own hook), so this is belt and braces.
