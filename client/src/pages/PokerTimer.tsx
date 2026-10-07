@@ -35,6 +35,7 @@ import BlindLevelsSection from '@/components/BlindLevelsSection';
 import BuyInSection from '@/components/BuyInSection';
 import QRCodeSection from '@/components/QRCodeSection';
 import { reportWriteFailure, reportWriteSuccess, subscribeSyncHealth, getSyncBlocked } from '@/lib/syncReporter';
+import { judgePreflight } from '@/lib/syncHealth';
 import { isStorageWritable, subscribeStorageHealth } from '@/lib/scopedStorage';
 import { recoverableProgress } from '@/lib/localProgress';
 import { lastSignedInUid } from '@/lib/scopedStorage';
@@ -876,12 +877,12 @@ function PokerTimerInner({
           { lastSeenAt: new Date().toISOString() },
           { merge: true },
         );
-        const timedOut = Symbol('timeout');
-        const result = await Promise.race([
-          probe.then(() => 'ok' as const),
-          new Promise<typeof timedOut>(resolve => setTimeout(() => resolve(timedOut), 8000)),
-        ]);
-        if (result !== 'ok') setPreflightFailed(true);
+        // A write that lands after the deadline takes the verdict back — see
+        // judgePreflight.
+        judgePreflight(probe, 8000, ok => {
+          if (!ok) console.error('Firestore preflight did not land within 8s');
+          setPreflightFailed(!ok);
+        });
       } catch (e) {
         console.error('Firestore preflight failed:', e);
         setPreflightFailed(true);

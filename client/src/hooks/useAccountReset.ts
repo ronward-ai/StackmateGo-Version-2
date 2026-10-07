@@ -1,3 +1,4 @@
+import { withDeadline } from '@/lib/deadline';
 import { useCallback, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { clearScopedStorage } from '@/lib/scopedStorage';
@@ -84,7 +85,7 @@ export function useAccountReset() {
           // the ad-blocker preflight's and has nothing to do with either. Both
           // follow the account, so clearing only the device would have the
           // next sign-in pull back exactly what was just cleared.
-          await updateDoc(doc(db, 'userSettings', uid), {
+          await withDeadline(updateDoc(doc(db, 'userSettings', uid), {
             setup: deleteField(),
             // An EMPTY list, not a deleted field (October audit, M2). An absent
             // field reads as "no cloud list" to every other device holding names
@@ -92,7 +93,7 @@ export function useAccountReset() {
             // cache straight back up. An empty list is still a list, and every
             // device adopts it.
             recentPlayers: [],
-          });
+          }), undefined, 'clearing the saved setup');
         } catch (err) {
           // No document yet, or offline. The local clear below is the part the
           // user asked for and must still happen.
@@ -154,7 +155,7 @@ export function useAccountReset() {
           try {
             const batch = writeBatch(db);
             for (const id of group) batch.delete(doc(collection(db, stage.collection), id));
-            await batch.commit();
+            await withDeadline(batch.commit(), undefined, `deletion of ${stage.label}`);
           } catch (err: any) {
             throw new Error(`Stopped while deleting ${stage.label}: ${err?.message || err}`);
           }
@@ -168,13 +169,17 @@ export function useAccountReset() {
       // names especially: they are real people's, and Delete means delete.
       try {
         const { deleteField, updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(collection(db, 'userSettings'), uid), {
+        await withDeadline(updateDoc(doc(collection(db, 'userSettings'), uid), {
           setup: deleteField(),
           // Empty, not deleted, or another device re-pushes its cached names —
           // and Delete must mean delete (October audit, M2).
           recentPlayers: [],
-        });
-      } catch {}
+        }), undefined, 'clearing the saved setup');
+      } catch (err) {
+        // The results are gone, which is what was asked; say so if the setup
+        // could not follow rather than swallowing it.
+        console.warn('Could not clear the saved setup for this account:', err);
+      }
 
       clearScopedStorage(uid);
       window.location.href = '/?home=1';

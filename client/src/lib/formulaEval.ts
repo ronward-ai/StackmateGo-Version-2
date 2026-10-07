@@ -45,6 +45,16 @@ export type FormulaEvaluation =
   | { ok: false; error: string };
 
 /** Every real `Math` static function, minus `random`. Pure and deterministic. */
+/**
+ * Whether `key` is one of the table's OWN entries. `in` walks the prototype, so
+ * it accepted `Math.constructor` and `Math.hasOwnProperty` — no route to code,
+ * one member deep, but the whitelist was not the explicit list it claims to be
+ * (October audit, Low).
+ */
+function ownKey(table: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(table, key);
+}
+
 const MATH_FUNCTIONS: Record<string, (...args: number[]) => number> = {
   abs: Math.abs, acos: Math.acos, acosh: Math.acosh, asin: Math.asin,
   asinh: Math.asinh, atan: Math.atan, atanh: Math.atanh, atan2: Math.atan2,
@@ -254,10 +264,10 @@ class Parser {
             while (this.peek().type === 'comma') { this.next(); args.push(this.ternary()); }
           }
           this.expect('rparen', "')'");
-          if (!(member in MATH_FUNCTIONS)) throw new Error(`Math.${member} is not available`);
+          if (!ownKey(MATH_FUNCTIONS, member)) throw new Error(`Math.${member} is not available`);
           return { kind: 'call', name: member, args };
         }
-        if (!(member in MATH_CONSTANTS)) throw new Error(`Math.${member} is not available`);
+        if (!ownKey(MATH_CONSTANTS, member)) throw new Error(`Math.${member} is not available`);
         return { kind: 'const', name: member };
       }
       if (!VARIABLE_NAMES.has(t.value)) throw new Error(`'${t.value}' is not a known variable`);

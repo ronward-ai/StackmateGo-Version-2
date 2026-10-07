@@ -257,7 +257,7 @@ describe('POST /api/stripe-webhook', () => {
     id: 'evt_1',
     type: 'customer.subscription.created',
     created: 1000,
-    data: { object: { id: 'sub_1', metadata: { uid: 'user-1' } } },
+    data: { object: { id: 'sub_1', metadata: { uid: 'user-1' }, status: 'active' } },
     ...overrides,
   });
 
@@ -271,6 +271,22 @@ describe('POST /api/stripe-webhook', () => {
       });
       expect(res.status).toBe(503);
       expect(mocks.webhooksConstructEvent).not.toHaveBeenCalled();
+    } finally {
+      await s.close();
+    }
+  });
+
+  it('does not grant pro on an INCOMPLETE customer.subscription.created', async () => {
+    setPaymentsConfigured();
+    mocks.webhooksConstructEvent.mockReturnValue(baseEvent({
+      data: { object: { id: 'sub_1', metadata: { uid: 'user-1' }, status: 'incomplete' } },
+    }));
+    const s = await serve();
+    try {
+      await fetch(`${s.url}/api/stripe-webhook`, { method: 'POST', headers: { 'stripe-signature': 'sig' }, body: '{}' });
+      expect(mocks.firestoreSet).toHaveBeenCalledWith(
+        'user-1', expect.objectContaining({ subscriptionStatus: 'free' }), { merge: true },
+      );
     } finally {
       await s.close();
     }

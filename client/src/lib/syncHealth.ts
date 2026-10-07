@@ -93,3 +93,28 @@ export function syncFailureMessage(health: SyncHealth, what: string): string {
   }
   return `${what} could not be saved (${health.code}). Live updates may be delayed.`;
 }
+
+/**
+ * Judge a preflight write, and keep judging it after the deadline (October
+ * audit, Low).
+ *
+ * A write cancelled by an extension never settles, so "still pending after
+ * `timeoutMs`" is reported as blocked — that part is right. But a merely SLOW
+ * write, on venue Wi-Fi, lands at nine seconds, and the verdict used to be
+ * final: the red banner and the Not syncing chip stayed up for the life of the
+ * page over writes that were all succeeding. So the probe keeps its say — if it
+ * lands after the deadline, `onResult(true)` takes the verdict back. A blocked
+ * write never lands, so a genuinely blocked browser is unaffected.
+ */
+export function judgePreflight(
+  probe: Promise<unknown>,
+  timeoutMs: number,
+  onResult: (ok: boolean) => void,
+): void {
+  let decided = false;
+  const timer = setTimeout(() => { if (!decided) { decided = true; onResult(false); } }, timeoutMs);
+  probe.then(
+    () => { clearTimeout(timer); decided = true; onResult(true); },
+    () => { clearTimeout(timer); if (!decided) { decided = true; onResult(false); } },
+  );
+}

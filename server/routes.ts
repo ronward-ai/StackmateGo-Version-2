@@ -268,9 +268,13 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
           // Only when Stripe says the money actually arrived — this event
           // used to grant Pro unconditionally.
           if (obj.payment_status === 'paid') await setStatus('pro');
-        } else if (event.type === 'customer.subscription.created' || event.type === 'invoice.paid') {
+        } else if (event.type === 'invoice.paid') {
           await setStatus('pro');
-        } else if (event.type === 'customer.subscription.updated') {
+        } else if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
+          // `created` carries a status too, and it is not always active: a
+          // subscription whose first payment needs 3-D Secure is created
+          // `incomplete`, and granting Pro on sight kept it Pro until it
+          // expired. Same mapping as an update (October audit, Low).
           // Was unhandled entirely — a subscription going past_due or unpaid
           // kept Pro forever, because only a hard `deleted` ever took it away.
           // See server/lib/subscriptionStatus.ts for the policy: a failed

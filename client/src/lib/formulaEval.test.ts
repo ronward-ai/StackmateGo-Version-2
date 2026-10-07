@@ -253,3 +253,14 @@ describe('parse caching', () => {
     expect(value(f, { ...VARS, position: 1 })).toBe(0);
   });
 });
+
+describe('the Math whitelist is its own entries only (Oct Low)', () => {
+  it.each(['Math.constructor(5)+0', 'Math.hasOwnProperty(1)+3', 'Math.toString()', 'Math.__proto__'])(
+    'rejects %s', (f) => {
+      expect(evaluateFormula(f, VARS).ok).toBe(false);
+    },
+  );
+  it('still accepts a real member', () => {
+    expect(value('Math.max(1, 4)')).toBe(4);
+  });
+});

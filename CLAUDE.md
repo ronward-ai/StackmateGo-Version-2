@@ -301,6 +301,14 @@ check must therefore be a WRITE** — `PokerTimer`'s preflight writes `lastSeenA
 **A blocked request does not reject.** The SDK keeps retrying and the promise never settles, so the
 preflight races it against 8 seconds and treats "still pending" as blocked.
 
+**And a slow write is not a blocked one** (October audit, Low). The 8-second verdict used to be final,
+so venue Wi-Fi landing the probe at nine seconds left the red banner and *Not syncing* up all night over
+writes that were all succeeding. `judgePreflight` in `lib/syncHealth.ts` lets the probe take the verdict
+back if it lands late; a blocked write never lands, so a blocked browser is unaffected. The same
+"a blocked write never settles" fact is why Reset, Delete and sign-out's release now go through
+`lib/deadline.ts`'s `withDeadline` — each awaited Firestore with no bound and spun for ever on a blocked
+browser, sign-out's release included, which this file promises never blocks.
+
 `lib/syncHealth.ts` owns when a failure is worth saying. Both extremes were tried: reporting every
 failure re-fired three identical destructive toasts on every retry, and suppressing `unavailable`
 outright — an offline blip, self-healing — hid a blocked browser completely. The distinction is not
@@ -1102,6 +1110,11 @@ Three things keep it fixed, and all three are wanted. `useAuth` memoises. Depend
 early when it matches what it last wrote — recorded **after** the write resolves, so a failure is
 retried rather than looking saved. Referential instability is invisible at the call site, which is
 why the belt as well as the braces.
+
+**The actions are memoised too** — `login`, `logout`, `signInAnonymously` and the rest are
+`useCallback`s with no deps (October audit, Low). The participant view lists `signInAnonymously` in an
+effect's deps, so a fresh function per render re-ran it every render and could mint a second anonymous
+identity. `useAuth.stable.test.tsx` pins it.
 
 The sync toast now names the Firestore code and the sync, and fires **once per failure streak**:
 three identical destructive toasts re-fired on every retry turned one underlying failure into a popup
@@ -1970,6 +1983,13 @@ having one.
 `railway.json` overrides the dashboard only for the fields it names, so the Dockerfile, the build
 settings and the environment variables are untouched.
 
+**Every response carries security headers** — `server/securityHeaders.ts`, installed first in
+`server/index.ts` (October audit, Low): `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'`, because
+Take control and Go Live are single presses and the console could be framed by any site; HSTS,
+`nosniff` and a referrer policy. **Deliberately not a full CSP yet** — Firebase, Fonts, Stripe and
+html2canvas's inline styles would each need an entry, and a wrong CSP breaks the app silently on the one
+device nobody tested. `frame-ancestors` restricts who may embed the page, never what it may load.
+
 ### The footer shows the build, and `index.html` is never cached
 
 `vite.config.ts` defines `__BUILD_ID__` from the git short SHA and `PokerTimer`'s footer renders it.
@@ -2330,6 +2350,10 @@ this was director → participant, not attacker → anyone — but it was a real
 
 **The parser can only ever produce arithmetic.** However a formula string is contrived, there is no
 path from it to executing anything — the worst outcome is a formula that fails to parse.
+
+**The whitelist is the tables' OWN keys** — `ownKey`, not `in` (October audit, Low). `in` walks the
+prototype, so `Math.constructor(5)` and `Math.hasOwnProperty(1)` parsed. One member deep and no route to
+code, but the "explicitly enumerated" claim above was false until this.
 
 **Whitelisted `Math` is the FULL real set, minus `random`, not just the four the dialog names.** The
 "What you can use" reference has always promised "anything else on JavaScript's Math works too," and a
@@ -3684,6 +3708,9 @@ period is over, at which point `customer.subscription.deleted` fires (unchanged,
 `server/lib/subscriptionStatus.ts`'s `statusForSubscription()` — it only ever sees `status`, never the
 `cancel_at_period_end` flag, which is the point being written down: "keep Pro until period end" falls
 out of NOT special-casing cancellation, not from adding logic for it.
+
+**`customer.subscription.created` takes the same mapping** (October audit, Low). It granted Pro on
+sight, and a subscription whose first payment needs 3-D Secure is created `incomplete`.
 
 **Ordering, not just dedupe.** Every Stripe event carries `event.created`; before writing, the webhook
 reads the user's stored `lastStripeEventAt` and skips anything not strictly newer

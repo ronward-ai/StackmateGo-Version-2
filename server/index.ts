@@ -2,12 +2,15 @@ import express, { type Request, Response, NextFunction } from "express";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { installBodyParsers } from "./bodyParsers";
+import { installSecurityHeaders } from "./securityHeaders";
 import { log } from "./vite";
 
 // Set Vite allowed hosts to fix "Blocked request" error
 // process.env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS = '.replit.dev'; // Removed as Vite is disabled
 
 const app = express();
+// First, so every response carries them — static files and errors included.
+installSecurityHeaders(app);
 // Raw body for the Stripe webhook, JSON for everything else — and in that
 // order, which is load-bearing. See server/bodyParsers.ts.
 installBodyParsers(app);

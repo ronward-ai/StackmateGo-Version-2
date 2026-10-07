@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
 import { TournamentTemplate } from '@/types';
 import { sanitizeForFirestore } from '@/lib/utils';
 
@@ -8,9 +9,16 @@ export function useTournamentTemplates() {
   const [templates, setTemplates] = useState<TournamentTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Keyed on the signed-in uid, not the auth singleton's current user behind
+  // empty deps (September's hold-out, October audit Low). Read at mount, that
+  // is null until Firebase restores the session, so a console opened cold
+  // listed no templates until something else made it refetch — and signing in
+  // as somebody else kept the first account's list.
+  const { user, isAnonymous } = useAuth();
+  const uid = user && !isAnonymous ? user.id : null;
 
   const fetchTemplates = useCallback(async () => {
-    if (!auth.currentUser) {
+    if (!uid) {
       setTemplates([]);
       setIsLoading(false);
       return;
@@ -21,7 +29,7 @@ export function useTournamentTemplates() {
       setError(null);
       const q = query(
         collection(db, 'tournamentTemplates'),
-        where('ownerId', '==', auth.currentUser.uid)
+        where('ownerId', '==', uid)
       );
       
       const querySnapshot = await getDocs(q);
@@ -44,21 +52,21 @@ export function useTournamentTemplates() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [uid]);
 
   useEffect(() => {
     fetchTemplates();
   }, [fetchTemplates]);
 
   const saveTemplate = async (template: Omit<TournamentTemplate, 'id' | 'ownerId' | 'createdAt' | 'updatedAt'>) => {
-    if (!auth.currentUser) {
+    if (!uid) {
       throw new Error('Must be logged in to save templates');
     }
 
     try {
       const newTemplate = {
         ...template,
-        ownerId: auth.currentUser.uid,
+        ownerId: uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -81,7 +89,7 @@ export function useTournamentTemplates() {
   };
 
   const deleteTemplate = async (id: string) => {
-    if (!auth.currentUser) {
+    if (!uid) {
       throw new Error('Must be logged in to delete templates');
     }
 

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   HEALTHY,
+  judgePreflight,
   isBlocked,
   markReported,
   recordFailure,
@@ -94,5 +95,38 @@ describe('syncFailureMessage', () => {
     expect(syncFailureMessage(h, 'Players')).toBe(
       'Players could not be saved (permission-denied). Live updates may be delayed.'
     );
+  });
+});
+
+describe('judgePreflight (Oct Low)', () => {
+  const flush = () => new Promise(r => setTimeout(r, 0));
+
+  it('takes the verdict back when a slow write lands after the deadline', async () => {
+    vi.useFakeTimers();
+    let land!: () => void;
+    const results: boolean[] = [];
+    judgePreflight(new Promise<void>(r => { land = r; }), 8000, ok => results.push(ok));
+    vi.advanceTimersByTime(8000);
+    expect(results).toEqual([false]);
+    land();
+    vi.useRealTimers();
+    await flush();
+    expect(results).toEqual([false, true]);
+  });
+
+  it('stays blocked while the write never settles', () => {
+    vi.useFakeTimers();
+    const results: boolean[] = [];
+    judgePreflight(new Promise(() => {}), 8000, ok => results.push(ok));
+    vi.advanceTimersByTime(60_000);
+    expect(results).toEqual([false]);
+    vi.useRealTimers();
+  });
+
+  it('reports a rejected write once, as blocked', async () => {
+    const results: boolean[] = [];
+    judgePreflight(Promise.reject(new Error('denied')), 8000, ok => results.push(ok));
+    await flush();
+    expect(results).toEqual([false]);
   });
 });

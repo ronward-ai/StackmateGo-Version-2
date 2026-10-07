@@ -1,7 +1,8 @@
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { auth } from "../lib/firebase";
 import { claimStorageFor, rememberSignedInUid } from "../lib/scopedStorage";
+import { withDeadline } from "../lib/deadline";
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -52,7 +53,12 @@ export function useAuth() {
     return () => unsubscribe();
   }, []);
 
-  const login = async () => {
+  // Every action is a useCallback with no deps: each touches only `auth` and
+  // state setters, which are stable. They were fresh each render, and the
+  // participant view lists `signInAnonymously` in an effect's deps — so that
+  // effect re-ran on every render and could mint a SECOND anonymous identity
+  // (October audit, Low).
+  const login = useCallback(async () => {
     try {
       setLoginError(undefined);
       const provider = new GoogleAuthProvider();
@@ -61,9 +67,9 @@ export function useAuth() {
       setLoginError(error.message);
       throw error;
     }
-  };
+  }, []);
 
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
     try {
       setLoginError(undefined);
       await signInWithEmailAndPassword(auth, email, password);
@@ -71,9 +77,9 @@ export function useAuth() {
       setLoginError(error.message);
       throw error;
     }
-  };
+  }, []);
 
-  const register = async () => {
+  const register = useCallback(async () => {
     try {
       setRegisterError(undefined);
       const provider = new GoogleAuthProvider();
@@ -82,9 +88,9 @@ export function useAuth() {
       setRegisterError(error.message);
       throw error;
     }
-  };
+  }, []);
 
-  const registerWithEmail = async (email: string, password: string) => {
+  const registerWithEmail = useCallback(async (email: string, password: string) => {
     try {
       setRegisterError(undefined);
       await createUserWithEmailAndPassword(auth, email, password);
@@ -92,9 +98,9 @@ export function useAuth() {
       setRegisterError(error.message);
       throw error;
     }
-  };
+  }, []);
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = useCallback(async (email: string) => {
     try {
       setLoginError(undefined);
       await sendPasswordResetEmail(auth, email);
@@ -102,9 +108,9 @@ export function useAuth() {
       setLoginError(error.message);
       throw error;
     }
-  };
+  }, []);
 
-  const signInAnonymously = async () => {
+  const signInAnonymously = useCallback(async () => {
     try {
       setLoginError(undefined);
       await firebaseSignInAnonymously(auth);
@@ -112,9 +118,9 @@ export function useAuth() {
       setLoginError(error.message);
       throw error;
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     // Un-pin the live tournament. PokerTimer redirects / straight to
     // /tournament/{id}/director whenever activeDirectorTournamentId is set, so
     // leaving it behind meant the app reopened the game you had just signed out
@@ -156,7 +162,9 @@ export function useAuth() {
           import('@/lib/liveGameWrite'),
           import('@/lib/deviceId'),
         ]);
-        await releaseLiveGameControl(pinned, getDeviceId());
+        // Bounded: offline or blocked, the transaction never settles, and
+        // being unable to release must not trap somebody signed in.
+        await withDeadline(releaseLiveGameControl(pinned, getDeviceId()), undefined, 'release of control');
       }
     } catch (err) {
       console.error('Could not hand back control of the live game:', err);
@@ -170,7 +178,7 @@ export function useAuth() {
     // uid is what that read guesses with.
     rememberSignedInUid(null);
     await signOut(auth);
-  };
+  }, []);
 
   // EVERYTHING BELOW IS MEMOISED, and that is load-bearing.
   //
