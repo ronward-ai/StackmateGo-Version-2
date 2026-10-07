@@ -35,6 +35,9 @@ export interface OfferablePlayer {
   isActive?: boolean;
   position?: number;
   rebuys?: number;
+  reEntries?: number;
+  /** How many times this player has been knocked out — see offerKey. */
+  bustCount?: number;
 }
 
 /**
@@ -48,7 +51,15 @@ export interface OfferablePlayer {
  */
 export function offerKey(player: OfferablePlayer | null | undefined): string | null {
   if (!player?.id) return null;
-  return `${player.id}:${player.rebuys || 0}`;
+  const base = `${player.id}:${player.rebuys || 0}`;
+  // A re-entry, or an undone bust-out, does not change the rebuy count — so
+  // `id:rebuys` alone could not tell a player's second bust-out from their first,
+  // and an answered "No" swallowed a rebuy the rules allowed (October audit,
+  // M13). The re-entry count and the bust count go in too — but only when either
+  // is non-zero, so every key stored before this still matches.
+  const reEntries = player.reEntries || 0;
+  const busts = player.bustCount || 0;
+  return reEntries || busts > 1 ? `${base}:${reEntries}:${busts}` : base;
 }
 
 /**

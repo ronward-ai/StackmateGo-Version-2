@@ -3363,6 +3363,18 @@ what they asked about and both re-arm when it changes:
   on a read-only console. So it seeds `balanceDismissedKey` from the imbalance present on its first
   render instead. That also makes a tab switch silent, which is a fair reading of the same rule.
 
+**And what a console FOUND at load is not an answer either** (October audit M13). The seen set is
+seeded with every bust-out on the roster at the first render, so a refresh does not re-ask about an
+hour-old one — and that seed was being synced as ANSWERS. A phone opened after the laptop died holding
+Amy's question wrote "answered" for her and lost the failsafe, the exact case above. The hook now keeps
+`answeredHereRef` apart from the seed: the seed still suppresses the dialog, only real answers are
+synced, and where the game carries the shared record the failsafe follows it. Two more in the same
+place: **`offerKey` adds the re-entry and bust counts** (`bustCount`, incremented at every bust-out and
+never decremented) once either is non-zero — a re-entry or an undone bust-out left the rebuy count
+unchanged, so an answered "No" swallowed a rebuy the rules allowed on the second bust-out; keys stored
+before keep their old shape — and **the hook's memory resets when the game changes**, which on the home
+route it never did.
+
 A hook test drives the whole thing across a control change, because the fault was never in the
 predicate — `lib/rebuyOffer.ts` was right throughout. Three mutants are caught: dropping the read-only
 levelling reopens the dialog, folding watched into answered leaks a false answer, and keying the

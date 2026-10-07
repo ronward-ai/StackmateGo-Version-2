@@ -103,6 +103,15 @@ export function useRebuyOffer(
    * what lets an unanswered bust-out stay reachable here.
    */
   const watchedRef = useRef<Set<string>>(new Set());
+  /**
+   * What THIS console has answered. Kept apart from `seenRef`, which also holds
+   * every bust-out already on the roster when the console loaded (October audit,
+   * M13). Those are not answers: syncing them told every other device that a
+   * question nobody answered was closed — so a phone opened after the laptop
+   * died holding Amy's question wrote "answered" for her and lost the failsafe,
+   * the one case CLAUDE.md promises works.
+   */
+  const answeredHereRef = useRef<Set<string>>(new Set());
   const latestKeyRef = useRef<string | null>(null);
   const [, bump] = useState(0);
 
@@ -117,6 +126,18 @@ export function useRebuyOffer(
    * fallback is for a database game opened straight from its URL.
    */
   const gameId = String(state.details?.localGameId ?? state.details?.id ?? '');
+
+  // A new game is a clean slate (October audit, M13). On the home route New
+  // Tournament keeps this console mounted, so game 1's seen and watched keys
+  // used to carry into game 2 — and be written into its document as answers.
+  const gameRef = useRef(gameId);
+  if (gameRef.current !== gameId) {
+    gameRef.current = gameId;
+    seenRef.current = null;
+    answeredHereRef.current = new Set();
+    watchedRef.current = new Set();
+    latestKeyRef.current = null;
+  }
 
   if (seenRef.current === null && (state.players?.length ?? 0) > 0) {
     seenRef.current = new Set(bustedKeys(state.players as OfferablePlayer[]));
@@ -152,10 +173,29 @@ export function useRebuyOffer(
    * it on the next render — which is why this field needs no echo guard. See
    * `answeredKeys`. This is what the page syncs, and it contains ANSWERS only.
    */
-  const answered = answeredKeys(state.rebuysAnswered, seenRef.current);
+  const answered = answeredKeys(state.rebuysAnswered, answeredHereRef.current);
 
-  /** What suppresses the dialog: answered by anyone, or watched from the sidelines. */
-  const noAsk = answeredKeys(Array.from(answered), watchedRef.current);
+  /**
+   * What suppresses the dialog: answered by anyone, seen at load, or watched from
+   * the sidelines. A device that loads or takes control never pops a dialog
+   * about a bust-out it did not witness — it simply does not CLAIM to have
+   * answered it.
+   */
+  const noAsk = answeredKeys(
+    Array.from(answered),
+    new Set([...(seenRef.current ?? []), ...watchedRef.current]),
+  );
+
+  /**
+   * What decides whether the failsafe may hang on a bust-out: the shared answers
+   * — and, for a game written before they were shared, what this console found
+   * at load, as before. Where the record exists it is the truth, which is what
+   * lets a fresh device hand the failsafe to a bust-out a dead device never
+   * answered.
+   */
+  const settled = Array.isArray(state.rebuysAnswered)
+    ? answered
+    : answeredKeys(Array.from(answered), seenRef.current);
 
   const player = seenRef.current
     ? rebuyToOffer(state.players as OfferablePlayer[], state.prizeStructure, blindLevelIndex(state.levels, state.currentLevel), noAsk)
@@ -190,7 +230,7 @@ export function useRebuyOffer(
     // which would otherwise come straight back on a second device with an empty
     // memory. An answer nobody has given is the one case that still advances it,
     // and that is the dead-other-device case the button is for.
-    if (justBustedKey && !answered.has(justBustedKey)) {
+    if (justBustedKey && !settled.has(justBustedKey)) {
       latestKeyRef.current = justBustedKey;
     }
   }
@@ -227,7 +267,10 @@ export function useRebuyOffer(
    */
   const answer = (rebuy: boolean) => {
     const key = offerKey(player);
-    if (key) seenRef.current?.add(key);
+    if (key) {
+      seenRef.current?.add(key);
+      answeredHereRef.current.add(key);
+    }
     if (rebuy && player) processRebuy(player.id);
     // The answer lives in a ref, so a decline would otherwise re-render nothing.
     bump(n => n + 1);

@@ -1212,6 +1212,7 @@ export function useTournament(tournamentId?: string) {
               prizeMoney,
               isActive: false,
               seatInfo: recordedSeat,
+              bustCount: (player.bustCount || 0) + 1,
             }
           : player.id === eliminatedById && eliminatedById
             ? {

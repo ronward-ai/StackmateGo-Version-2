@@ -45,6 +45,9 @@ export interface Player {
    * knockout, and these must not pay (October audit, M6). Absent means none.
    */
   bountylessKnockouts?: number;
+  /** How many times this player has been knocked out; never decremented. Keys
+   *  the rebuy offer, so a second bust-out is a new question (October audit, M13). */
+  bustCount?: number;
   chipCount?: number; // Current chip count (for active players)
   /**
    * @deprecated Read only, for tournaments started before check-in moved off

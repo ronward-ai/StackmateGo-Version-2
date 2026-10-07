@@ -371,3 +371,18 @@ describe('answeredKeys', () => {
     expect(answeredKeys(['a:0'], local).size).toBe(2);
   });
 });
+
+// October audit, M13: a second bust-out after a re-entry or an undo is a new question.
+describe('offerKey and a second bust-out', () => {
+  it('keeps the old shape while nothing else has happened, so stored answers still match', () => {
+    expect(offerKey({ id: 'amy', rebuys: 1, bustCount: 1 })).toBe('amy:1');
+  });
+  it('changes after a re-entry, which does not touch the rebuy count', () => {
+    expect(offerKey({ id: 'amy', rebuys: 0, reEntries: 1, bustCount: 2 }))
+      .not.toBe(offerKey({ id: 'amy', rebuys: 0, bustCount: 1 }));
+  });
+  it('changes after an undone bust-out and a second one', () => {
+    expect(offerKey({ id: 'amy', rebuys: 0, bustCount: 2 }))
+      .not.toBe(offerKey({ id: 'amy', rebuys: 0, bustCount: 1 }));
+  });
+});

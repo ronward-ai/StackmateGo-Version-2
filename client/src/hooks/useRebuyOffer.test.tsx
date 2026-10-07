@@ -26,27 +26,27 @@ type Harness = {
 let rebought: string[] = [];
 
 /** Only what the hook touches. */
-const fakeTournament = (h: Harness) => ({
+const fakeTournament = (h: Harness & { gameId?: string }) => ({
   state: {
     players: h.players,
     prizeStructure: { allowRebuys: true, rebuyAmount: 10 },
     currentLevel: 0,
-    details: { localGameId: 'g1' },
+    details: { localGameId: h.gameId ?? 'g1' },
     rebuysAnswered: h.rebuysAnswered,
   },
   processRebuy: (id: string) => rebought.push(id),
 }) as any;
 
 let latest: ReturnType<typeof useRebuyOffer>;
-function Probe({ h }: { h: Harness }) {
+function Probe({ h }: { h: Harness & { gameId?: string } }) {
   latest = useRebuyOffer(fakeTournament(h), h.readOnly);
   return null;
 }
 
-const drive = (h: Harness) => {
+const drive = (h: Harness & { gameId?: string }) => {
   const r = render(<Probe h={h} />);
   return {
-    rerender: (next: Harness) => act(() => { r.rerender(<Probe h={next} />); }),
+    rerender: (next: Harness & { gameId?: string }) => act(() => { r.rerender(<Probe h={next} />); }),
   };
 };
 
@@ -175,5 +175,39 @@ describe('useRebuyOffer at the end of the game', () => {
     drive({ players: finishedGame, readOnly: false });
     expect(latest.failsafeFor).toBeNull();
     expect(latest.player).toBeNull();
+  });
+});
+
+// October audit, M13.
+describe('what a console found at load is not an answer', () => {
+  beforeEach(() => {
+    rebought = [];
+    try { localStorage.clear(); } catch { /* jsdom without storage */ }
+  });
+
+  // The dead-other-device case: the laptop died holding Amy's question. The
+  // phone opened afresh must not write "answered" for her — and must offer the
+  // failsafe, because the shared record says nobody answered.
+  it('does not sync a bust-out it merely found, and hands it the failsafe', () => {
+    drive({ players: [busted('amy', 2), active('dave'), active('cat')], rebuysAnswered: [], readOnly: false });
+    expect(latest.answered).toEqual([]);
+    expect(latest.player).toBeNull();          // no dialog popped about it
+    expect(latest.failsafeFor).toBe('amy');    // but the button is there
+  });
+
+  it('syncs a real answer', () => {
+    const h: Harness = { players: [active('amy'), active('dave'), active('cat')], rebuysAnswered: [], readOnly: false };
+    const d = drive(h);
+    d.rerender({ ...h, players: [busted('amy', 3), active('dave'), active('cat')] });
+    act(() => { latest.answer(false); });
+    expect(latest.answered).toEqual(['amy:0']);
+  });
+
+  it('starts every new game with nothing seen and nothing answered', () => {
+    const d = drive({ players: [active('amy'), busted('dave', 2)], readOnly: false, gameId: 'g1' });
+    d.rerender({ players: [active('amy'), active('dave')], readOnly: false, gameId: 'g2' });
+    d.rerender({ players: [active('amy'), busted('dave', 2)], readOnly: false, gameId: 'g2' });
+    // Dave busting in game 2 is a new question, not game 1's old key.
+    expect(latest.player?.id).toBe('dave');
   });
 });
