@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { gameIdOf } from '@/lib/localGameId';
 import { useToast } from '@/hooks/use-toast';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useTournament } from '@/hooks/useTournament';
@@ -304,10 +305,10 @@ function PokerTimerInner({
     : currentSeason;
   const gameNumber = useMemo(
     () => (_isLeagueMode && _displaySeason
-      ? gameNumberFor(_displaySeason.id, leaguePlayers, tournament.state.details?.localGameId)
+      ? gameNumberFor(_displaySeason.id, leaguePlayers, gameIdOf(tournament.state.details) ?? undefined)
       : null),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId]);
+  [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId, tournament.state.details?.id]);
   useEffect(() => { displaySeasonRef.current = _displaySeason; }, [_displaySeason]);
   const totalGames = _displaySeason?.numberOfGames || 12;
 
@@ -1038,8 +1039,7 @@ function PokerTimerInner({
         const players = tournament?.state?.players || [];
         const activePlayers = players.filter(p => p.isActive !== false);
         const isFinished = activePlayers.length <= 1 && players.length > 1;
-        const rawGameId = tournament.state.details?.localGameId || tournament.state.details?.id;
-        const gameId = rawGameId ? String(rawGameId) : undefined;
+        const gameId = gameIdOf(tournament.state.details) ?? undefined;
 
         // 1. A player who is back in the game but already has a result: drop it.
         //    They will be recorded again when they are eliminated for good.

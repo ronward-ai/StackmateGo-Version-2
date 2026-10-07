@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { gameIdOf } from '@/lib/localGameId';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trophy, ChevronDown, ChevronUp, Settings } from 'lucide-react';
@@ -74,8 +75,8 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame }
   const { currentSeason, formatSeasonDateRange } = useSeasons({ leagueId: league?.id });
 
   const gameNumber = useMemo(
-    () => gameNumberFor(currentSeason?.id, leaguePlayers, tournament?.state?.details?.localGameId),
-    [currentSeason?.id, leaguePlayers, tournament?.state?.details?.localGameId],
+    () => gameNumberFor(currentSeason?.id, leaguePlayers, gameIdOf(tournament?.state?.details) ?? undefined),
+    [currentSeason?.id, leaguePlayers, tournament?.state?.details?.localGameId, tournament?.state?.details?.id],
   );
 
   /** One line of context under the title: progress, then the date range. */

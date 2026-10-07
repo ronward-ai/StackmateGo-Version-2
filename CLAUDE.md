@@ -191,6 +191,30 @@ So the mirror is written for live games too, and the hazard is closed at the oth
 The clock is deliberately restored paused, in both paths. The page was away for an unknown time, so
 resuming a running timer would silently be wrong.
 
+**The mirror is filed under the GAME's id, never the device's** — `lib/localGameId.ts`'s `gameIdOf`:
+the local id for a local game, the document id for a game opened by its document. It asked for
+`localGameId` alone, which a game opened on the director route never has, and fell back to the
+device's own local id — minting one if there was none. So every device that RESUMED a game (each
+handover, each second device) filed the live roster under an id that was not its own, the home
+route restored it as a brand-new local game, and the auto-save saved that as a SECOND DOCUMENT and
+pinned it; in a league game every player got a second result. October audit C1, and **M8 is the same
+root**: the header's game number asked for `localGameId` too, could not see tonight's game was
+already counted, and read one too high on every console that loaded the game. The recorder had
+always asked correctly. Everything that keys on "which game is this" asks `gameIdOf` now.
+
+Two guards beside it, both in `lib/localProgress.ts`:
+
+- **`restorableAtHome` refuses a mirror whose two ids disagree** — the shape the old build left on
+  every such device. It still restores a game saved FROM the home route, whose local id IS its
+  document id: a refresh of `/?home=1` clears the pin, and that restore plus the auto-save's adopt is
+  how such a game survives it.
+- **`wouldClobberMirror`: an empty new game never overwrites another game's roster.** There is one
+  mirror slot per account, and landing on the home route used to empty it — throwing away what may
+  be the only copy of a live game whose writes are blocked.
+
+`useTournament.mirror.test.tsx` drives the real hook across both routes; three mutants (the old key,
+no refusal, no guard) each turn it red.
+
 ### One sync streak, app-wide — and the device is the other place data vanishes
 
 `lib/syncHealth.ts` owns the judgement (report once per streak; make `unavailable` prove it
@@ -3852,7 +3876,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `rebuyOffer.ts` | Who is offered a rebuy, and when — once, at the bust-out — and who holds the failsafe after. |
 | `snapshotMerge.ts` | How an incoming snapshot's roster meets the one on screen — biased toward local, except on a takeover. |
 | `pendingRoster.ts` | Whether a roster change is still waiting on Firestore, so its own echo cannot revert it. |
-| `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id. |
+| `localGameId.ts` | Which games carry a stable local id — the one that becomes the document id — and `gameIdOf`, the ONE answer to "which game is this" for the recorder, History, the game number and the mirror. |
 | `liveGameWrite.ts` | The one door every director-side write to the live tournament goes through. |
 | `directorControl.ts` | Which device is driving the live game, whether this one may write to it, and what to say when it may not — **that a device has control, never that anyone is running the game**. |
 

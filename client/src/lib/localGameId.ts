@@ -60,3 +60,26 @@ export function initialDetails(
     localGameId: mintLocalGameId(),
   };
 }
+
+/**
+ * THIS game's identity — the one answer to "which game is this", for everything
+ * that keys on it: the league recorder, History, the season's game number and
+ * the local mirror.
+ *
+ * A local game has a `localGameId`, and when it is saved that id BECOMES the
+ * document id. A game opened by its document id — the director route, every
+ * resume, every second device — has only `id`, and never a `localGameId`.
+ *
+ * Asking for `localGameId` alone is how the October audit's C1 and M8 happened:
+ * the mirror filed a live game under the DEVICE's own local id, which the home
+ * route then restored as a brand-new game and saved as a duplicate document; and
+ * the header's game number could not see that tonight's game was already
+ * counted, so it read one too high. The recorder already asked this question
+ * correctly. Now everything asks it here.
+ */
+export function gameIdOf(
+  details: { localGameId?: string | number | null; id?: string | number | null } | null | undefined,
+): string | null {
+  const id = details?.localGameId ?? details?.id;
+  return id === undefined || id === null || id === '' ? null : String(id);
+}

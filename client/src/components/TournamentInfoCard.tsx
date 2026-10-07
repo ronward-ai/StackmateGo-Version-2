@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { gameIdOf } from '@/lib/localGameId';
 import { ordinal } from '@/lib/ordinal';
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, Clock } from 'lucide-react';
@@ -110,9 +111,9 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
 
   const gameNumber = useMemo(
     () => (isLeagueMode && displaySeason
-      ? gameNumberFor(displaySeason.id, leaguePlayers, state.details?.localGameId)
+      ? gameNumberFor(displaySeason.id, leaguePlayers, gameIdOf(state.details) ?? undefined)
       : null),
-    [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId], // eslint-disable-line react-hooks/exhaustive-deps
+    [isLeagueMode, displaySeason?.id, leaguePlayers, state.details?.localGameId, state.details?.id], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const totalGames = displaySeason?.numberOfGames || 12;
 

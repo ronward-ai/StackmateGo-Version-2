@@ -72,6 +72,61 @@ export function loadLocalProgress(localGameId?: string, uid: string | null = nul
   return 'progress' in result ? result.progress : null;
 }
 
+/**
+ * May the HOME route restore this mirror automatically?
+ *
+ * A game created on this device and saved from the home route has a mirror
+ * whose `localGameId` IS its `dbTournamentId` — the document id is the local id —
+ * and restoring it on a refresh of `/?home=1` is how that game survives; the
+ * auto-save then adopts the same document. That stays.
+ *
+ * What must never be restored is a mirror whose two ids DISAGREE. That is a live
+ * game filed under some other local id — the shape the October audit's C1 left
+ * on every device that resumed a game rather than creating it — and restoring it
+ * made a brand-new local game out of somebody else's roster, which the auto-save
+ * then saved as a duplicate document. Devices that ran the old build still hold
+ * such mirrors, which is why this refuses them rather than trusting that none
+ * are written any more.
+ */
+export function restorableAtHome(mirror: LocalProgress | null): LocalProgress | null {
+  if (!mirror) return null;
+  if (mirror.dbTournamentId && mirror.dbTournamentId !== mirror.localGameId) return null;
+  return mirror;
+}
+
+/** The mirror as stored, whichever game it names — or null. */
+export function peekLocalProgress(uid: string | null = null): LocalProgress | null {
+  try {
+    const raw = readScoped(LOCAL_PROGRESS_KEY, uid);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as LocalProgress;
+    return saved && Array.isArray(saved.players) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Would writing this game's mirror throw away ANOTHER game's roster?
+ *
+ * There is one mirror slot per account on a device. Landing on the home route
+ * starts an empty local game, and its first mirror write used to overwrite the
+ * live game's copy — which, with Firestore writes blocked by an ad blocker, is
+ * the ONLY copy. "Deleting the only copy is worse than keeping a second one."
+ *
+ * So an EMPTY roster never replaces a different game's non-empty one. As soon as
+ * the new game has a player it is a real game and takes the slot; New Tournament
+ * clears the slot explicitly, as it always has.
+ */
+export function wouldClobberMirror(
+  existing: LocalProgress | null,
+  nextGameId: string,
+  nextPlayerCount: number,
+): boolean {
+  if (!existing || nextPlayerCount > 0) return false;
+  return existing.localGameId !== nextGameId && existing.players.length > 0;
+}
+
 export function saveLocalProgress(progress: LocalProgress, uid: string | null = null) {
   writeScoped(LOCAL_PROGRESS_KEY, JSON.stringify(progress), uid);
 }

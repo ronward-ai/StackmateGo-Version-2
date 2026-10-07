@@ -10,7 +10,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { initialDetails, needsLocalGameId } from '@/lib/localGameId';
+import { initialDetails, needsLocalGameId, gameIdOf } from '@/lib/localGameId';
 import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
 import { controlOf, mayDrive, shouldAdoptRemote, type Control } from '@/lib/directorControl';
 import { rosterIsPending } from '@/lib/pendingRoster';
@@ -24,7 +24,7 @@ import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
-import { clearLocalProgress, loadLocalProgress, saveLocalProgress } from '@/lib/localProgress';
+import { clearLocalProgress, loadLocalProgress, saveLocalProgress, restorableAtHome, peekLocalProgress, wouldClobberMirror } from '@/lib/localProgress';
 import { secondsLeftFrom } from '@/lib/tournamentClock';
 import type { RemoteLoad } from '@/lib/liveTournament';
 import { canRebuy, canReEnter } from '@/lib/entryLimits';
@@ -300,7 +300,13 @@ export function useTournament(tournamentId?: string) {
   // is Firestore, and seeding it from localStorage is the same hazard the
   // hasLoadedRemoteState latch exists to prevent — a device writing its own idea
   // of the roster over the real game.
-  const restored = tournamentId ? null : loadLocalProgress(getOrCreateLocalGameId(), storageUid);
+  //
+  // And never a mirror whose ids disagree: that is a LIVE game filed under some
+  // other local id, and restoring it made a new local game out of its roster,
+  // which the auto-save then saved as a duplicate document. See restorableAtHome.
+  const restored = tournamentId
+    ? null
+    : restorableAtHome(loadLocalProgress(getOrCreateLocalGameId(), storageUid));
 
   const initialState: TournamentState = {
     levels: savedLevels,
@@ -512,8 +518,22 @@ export function useTournament(tournamentId?: string) {
     // stays for a game whose details have not filled in yet, but the comment
     // that used to say standalone games never have one is no longer true and
     // was misleading readers.
-    const localGameId = state.details?.localGameId ?? getOrCreateLocalGameId();
+    //
+    // Keyed on THIS game's identity (lib/localGameId.ts's gameIdOf): the local id
+    // for a local game, the document id for a game opened by its document. It used
+    // to fall back to the DEVICE's local id for the latter — minting and storing
+    // one if there was none — so a live game was filed under an id that was not
+    // its own, and the home route restored it as a brand-new game. A database game
+    // never mints a local id here.
+    const localGameId = gameIdOf(state.details)
+      ?? (state.details?.type === 'database' ? null : getOrCreateLocalGameId());
     if (!localGameId) return;
+
+    // One mirror slot per account: an empty new game must not throw away another
+    // game's roster, which can be the only copy. See wouldClobberMirror.
+    if (wouldClobberMirror(peekLocalProgress(storageUidRef.current), String(localGameId), state.players.length)) {
+      return;
+    }
 
     // Written for a LIVE game too. Nothing reads it back into one without the
     // director pressing Restore, so it costs nothing and it is the only copy

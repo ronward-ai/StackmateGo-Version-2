@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { initialDetails, needsLocalGameId } from './localGameId';
+import { initialDetails, needsLocalGameId, gameIdOf } from './localGameId';
 
 describe('initialDetails', () => {
   // THE regression. A standalone game had no localGameId, so
@@ -66,5 +66,28 @@ describe('needsLocalGameId', () => {
   it('is false for nothing at all', () => {
     expect(needsLocalGameId(null)).toBe(false);
     expect(needsLocalGameId(undefined)).toBe(false);
+  });
+});
+
+describe('gameIdOf — this game\'s identity (Oct C1, M8)', () => {
+  it('is the local id for a local game', () => {
+    expect(gameIdOf({ localGameId: 'game_1' })).toBe('game_1');
+  });
+
+  // The director route, every resume, every second device: a game opened by its
+  // DOCUMENT never has a localGameId. Asking for localGameId alone is what filed
+  // live games under the device's own id and counted tonight's game twice.
+  it('is the document id for a game opened by its document', () => {
+    expect(gameIdOf({ type: 'database', id: 'G' } as any)).toBe('G');
+  });
+
+  it('agrees with itself for a game saved on this device, where the two are one id', () => {
+    expect(gameIdOf({ localGameId: 'G', id: 'G' })).toBe('G');
+  });
+
+  it('is null when nothing names the game, rather than "undefined"', () => {
+    expect(gameIdOf(null)).toBeNull();
+    expect(gameIdOf({})).toBeNull();
+    expect(gameIdOf({ id: '' })).toBeNull();
   });
 });

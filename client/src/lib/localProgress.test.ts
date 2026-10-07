@@ -7,6 +7,9 @@ import {
   saveLocalProgress,
   type LocalProgress,
   readLocalProgress,
+  restorableAtHome,
+  peekLocalProgress,
+  wouldClobberMirror,
 } from './localProgress';
 import type { Player } from '@/types';
 
@@ -99,5 +102,68 @@ describe('readLocalProgress', () => {
     saveLocalProgress(progress());
     const result = readLocalProgress('game_1');
     expect('progress' in result && result.progress.players).toHaveLength(2);
+  });
+});
+
+describe('the home route and the mirror (Oct C1)', () => {
+  const mirror = (over: Partial<LocalProgress>): LocalProgress => ({
+    localGameId: 'G', players: [{ id: 'a', name: 'Amy' } as Player],
+    currentLevel: 3, secondsLeft: 100, isRunning: false, ...over,
+  });
+
+  it('restores a local game that never went live', () => {
+    const m = mirror({ localGameId: 'L', dbTournamentId: undefined });
+    expect(restorableAtHome(m)).toBe(m);
+  });
+
+  // A game created on THIS device and saved from the home route: the document
+  // id IS the local id. A refresh of /?home=1 restores it and the auto-save
+  // adopts the same document — the way that game survives a refresh.
+  it('restores a game this device saved from home, where the two ids are one', () => {
+    const m = mirror({ localGameId: 'G', dbTournamentId: 'G' });
+    expect(restorableAtHome(m)).toBe(m);
+  });
+
+  // THE regression: a live game filed under some other local id. Restoring it
+  // made a new local game of somebody else's roster, saved as a duplicate.
+  it('refuses a live game filed under another id', () => {
+    expect(restorableAtHome(mirror({ localGameId: 'L', dbTournamentId: 'G' }))).toBeNull();
+  });
+
+  it('has nothing to say about no mirror', () => {
+    expect(restorableAtHome(null)).toBeNull();
+  });
+});
+
+describe('wouldClobberMirror — one slot, never emptied by another game', () => {
+  const live: LocalProgress = {
+    localGameId: 'G', dbTournamentId: 'G', players: [{ id: 'a', name: 'Amy' } as Player],
+    currentLevel: 3, secondsLeft: 100, isRunning: false,
+  };
+
+  it('keeps a live game\'s roster when an EMPTY new game arrives', () => {
+    expect(wouldClobberMirror(live, 'L', 0)).toBe(true);
+  });
+
+  it('lets the new game take the slot once it has a player', () => {
+    expect(wouldClobberMirror(live, 'L', 1)).toBe(false);
+  });
+
+  it('lets a game empty its OWN mirror', () => {
+    expect(wouldClobberMirror(live, 'G', 0)).toBe(false);
+  });
+
+  it('writes freely over nothing, or over an empty mirror', () => {
+    expect(wouldClobberMirror(null, 'L', 0)).toBe(false);
+    expect(wouldClobberMirror({ ...live, players: [] }, 'L', 0)).toBe(false);
+  });
+
+  it('peeks at whatever the slot holds, or null for junk', () => {
+    localStorage.clear();
+    expect(peekLocalProgress()).toBeNull();
+    saveLocalProgress(live);
+    expect(peekLocalProgress()?.localGameId).toBe('G');
+    localStorage.setItem(LOCAL_PROGRESS_KEY + '::local', '{not json');
+    expect(peekLocalProgress()).toBeNull();
   });
 });
