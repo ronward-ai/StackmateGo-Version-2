@@ -1053,6 +1053,22 @@ function PokerTimerInner({
           return;
         }
 
+        // Only ever into the league this GAME belongs to (October audit, H5).
+        // Switching the selected league mid-game used to send every later
+        // bust-out into the other league. Manage League no longer offers the
+        // switch while results are being recorded; this is the rule at the
+        // recorder itself, so no other door can walk round it. Results wait,
+        // and land once the two agree again.
+        //
+        // Only for a league the account still has: a game naming one that has
+        // since been deleted must not stop recording for good, silently.
+        const gameLeagueId = tournament?.state?.settings?.leagueId;
+        const gameLeagueExists = !!gameLeagueId
+          && (userLeagues ?? []).some((l: any) => String(l.id) === String(gameLeagueId));
+        if (gameLeagueExists && league?.id && String(league.id) !== String(gameLeagueId)) {
+          return;
+        }
+
         const players = tournament?.state?.players || [];
         const activePlayers = players.filter(p => p.isActive !== false);
         const isFinished = activePlayers.length <= 1 && players.length > 1;
@@ -1218,7 +1234,7 @@ function PokerTimerInner({
       if (retryTimer) clearTimeout(retryTimer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, readOnlyConsole, leaguePlayers, leagueLoading]);
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, readOnlyConsole, leaguePlayers, leagueLoading, league?.id, tournament?.state?.settings?.leagueId, userLeagues]);
 
   // Reset processed eliminations only when it's a genuine tournament reset (all active, no positions).
   // Guarding on positions prevents mid-game Firestore snapshots during handover from wiping the set.

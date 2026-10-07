@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLeagueTournament, modeLockReason } from './tournamentMode';
+import { isLeagueTournament, modeLockReason, leagueSwitchLockReason } from './tournamentMode';
 
 describe('isLeagueTournament', () => {
   it('is a league game when the flag is set on the document', () => {
@@ -103,5 +103,29 @@ describe('modeLockReason', () => {
     // resetTournament and the seeding paths leave position unset or 0; treating
     // that as "someone busted" would lock a game that has not started.
     expect(modeLockReason([{ position: 0 }, { position: -1 }], 'league')).toBeNull();
+  });
+});
+
+// October audit, H5: switching the selected league mid-game sent every later
+// bust-out into the other league. Locked from the first result to the end.
+describe('leagueSwitchLockReason', () => {
+  const fresh = [{ isActive: true }, { isActive: true }, { isActive: true }];
+  const started = [{ isActive: true }, { isActive: true }, { isActive: false, position: 3 }];
+  const over = [{ isActive: false, position: 1 }, { isActive: false, position: 2 }, { isActive: false, position: 3 }];
+
+  it('is free before anybody has a result', () => {
+    expect(leagueSwitchLockReason(fresh, true, 'Thursday')).toBeNull();
+  });
+
+  it('locks once results are being recorded, and names the league', () => {
+    expect(leagueSwitchLockReason(started, true, 'Thursday')).toMatch(/Thursday/);
+  });
+
+  it('is free again once the game is over — everything is recorded', () => {
+    expect(leagueSwitchLockReason(over, true, 'Thursday')).toBeNull();
+  });
+
+  it('never locks a standalone game, which records nothing', () => {
+    expect(leagueSwitchLockReason(started, false, 'Thursday')).toBeNull();
   });
 });

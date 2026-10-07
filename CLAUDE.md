@@ -2812,6 +2812,20 @@ somebody would actually press.
 **Already-contaminated data is not migrated.** Stray results come out through normal league admin; a
 migration guessing which results were a demo and which were real is how a league loses its standings.
 
+**The LEAGUE cannot be switched mid-game either, by the same logic** (October audit H5). Manage
+League's league picker — and its New button, which switches to the league it creates — moved the
+console's selected league, and the recorder writes into the SELECTED league: every later bust-out went
+into the other one, scored by its scheme against its season, while the game still named the first.
+Two layers, as with the mode:
+
+- **The rule, at the recorder:** it never writes while the selected league differs from the game's
+  own `settings.leagueId` (if the account still has that league — a game naming a deleted one must
+  not stop recording silently). Results wait and land once the two agree. Inline in the page effect,
+  so no unit test reaches it.
+- **The screen:** `leagueSwitchLockReason` in `lib/tournamentMode.ts` — locked from the first result
+  to the end of the game, the `modeLockReason` window — and `LeagueScopeBar` then renders neither the
+  picker nor New, with one line saying why. Rename stays; it changes no results.
+
 ### At the end of a game NOBODY is active, and three screens were gated on the opposite
 
 `eliminatePlayer` awards the last player standing `position: 1` **and `isActive: false`, in the same

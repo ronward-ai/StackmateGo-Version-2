@@ -131,3 +131,31 @@ export function modeLockReason(
 
   return 'This game has started, so its type is fixed.';
 }
+
+/**
+ * Why the selected LEAGUE cannot be switched right now, or null if it can
+ * (October audit, H5).
+ *
+ * The recorder writes every bust-out into the league the console has selected.
+ * Switching it in Manage League mid-game — to look at another league's seasons
+ * during a break, or by pressing New, which switches to the new league — sent
+ * every later bust-out into THAT league, scored with its points scheme against
+ * its season, while the game itself still named the first one. Switching back
+ * moved nothing back. The transfer code's failure by a third door: "their half
+ * of the night was recorded into their own league, silently".
+ *
+ * Locked from the first result to the end of the game — the same window as
+ * `modeLockReason`, for the same reason: before a finishing position there is
+ * nothing to record, and once the game is over everything is.
+ */
+export function leagueSwitchLockReason(
+  players: PlacedPlayer[] | null | undefined,
+  isLeagueGame: boolean,
+  leagueName?: string | null,
+): string | null {
+  if (!isLeagueGame || !players || players.length === 0) return null;
+  if (!players.some(p => Number(p?.position) > 0)) return null;
+  if (gameIsOver(players)) return null;
+  const name = leagueName ? leagueName : 'this league';
+  return `Tonight's game is recording results into ${name}, so the league can't be switched until it finishes.`;
+}

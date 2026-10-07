@@ -17,7 +17,14 @@ import { useLeague } from '@/hooks/useLeague';
  * Rename and New are labelled buttons, not a bare `⋯` menu: that pattern is
  * what previously hid Delete League inside a menu titled "Season actions".
  */
-export default function LeagueScopeBar({ readOnly = false }: { readOnly?: boolean }) {
+/**
+ * `lockReason` set means the console's game is recording into the selected
+ * league, so switching it — the picker, or New, which switches to the league it
+ * creates — is not offered (October audit, H5; lib/tournamentMode.ts's
+ * leagueSwitchLockReason). Not disabled: absent, with one line saying why, the
+ * DirectorOnly rule. Rename stays: it changes no results.
+ */
+export default function LeagueScopeBar({ readOnly = false, lockReason = null }: { readOnly?: boolean; lockReason?: string | null }) {
   const { league, userLeagues, switchLeague, createLeague, renameLeague } = useLeague();
 
   const [mode, setMode] = useState<'idle' | 'rename' | 'create'>('idle');
@@ -51,7 +58,7 @@ export default function LeagueScopeBar({ readOnly = false }: { readOnly?: boolea
         <div className="flex items-center gap-2 flex-wrap">
           <Label className="text-xs text-muted-foreground flex-shrink-0">League</Label>
 
-          {userLeagues.length > 1 ? (
+          {userLeagues.length > 1 && !lockReason ? (
             <Select value={league?.id ? String(league.id) : undefined} onValueChange={id => switchLeague(id)}>
               <SelectTrigger className="h-8 text-sm w-auto min-w-[180px]">
                 <SelectValue placeholder="Select league" />
@@ -72,10 +79,12 @@ export default function LeagueScopeBar({ readOnly = false }: { readOnly?: boolea
                 <Pencil className="h-3.5 w-3.5" />
                 <span className="text-xs">Rename</span>
               </Button>
-              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={startCreate}>
-                <Plus className="h-3.5 w-3.5" />
-                <span className="text-xs">New</span>
-              </Button>
+              {!lockReason && (
+                <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={startCreate}>
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="text-xs">New</span>
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -113,6 +122,9 @@ export default function LeagueScopeBar({ readOnly = false }: { readOnly?: boolea
         </div>
       )}
 
+      {lockReason && mode === 'idle' && (
+        <p className="text-caption text-muted-foreground">{lockReason}</p>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

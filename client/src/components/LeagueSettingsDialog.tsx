@@ -49,12 +49,14 @@ interface LeagueSettingsDialogProps {
   /** Open on the Seasons tab with the New Season form showing — where Start
    *  Next Season leads. */
   startNewSeason?: boolean;
+  /** Why the league cannot be switched right now — see LeagueScopeBar. */
+  leagueLockReason?: string | null;
 }
 
 
 
 
-export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenChange, startNewSeason = false }: LeagueSettingsDialogProps) {
+export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenChange, startNewSeason = false, leagueLockReason = null }: LeagueSettingsDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   // A controlled dialog already has an external trigger (the cog in LeagueSection),
   // so rendering the built-in fallback trigger as well put TWO League Settings
@@ -319,7 +321,7 @@ export function LeagueSettingsDialog({ children, open: controlledOpen, onOpenCha
 
         {/* League is the SCOPE for everything below — settings are stored per
             league — so it sits above the tabs rather than beside them. */}
-        <LeagueScopeBar />
+        <LeagueScopeBar lockReason={leagueLockReason} />
 
         <Tabs defaultValue="seasons" className="w-full">
           <TabsList className="grid w-full grid-cols-3">

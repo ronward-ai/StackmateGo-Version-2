@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { leagueSwitchLockReason, isLeagueTournament } from '@/lib/tournamentMode';
 import { gameIdOf } from '@/lib/localGameId';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -109,6 +110,11 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame }
         open={showLeagueSettings}
         onOpenChange={o => { setShowLeagueSettings(o); if (!o) setSetUpNewSeason(false); }}
         startNewSeason={setUpNewSeason}
+        leagueLockReason={leagueSwitchLockReason(
+          tournament?.state?.players,
+          isLeagueTournament(tournament?.state as any) || tournament?.state?.details?.type === 'season',
+          league?.name,
+        )}
       />
 
       <Card className="card-glass rounded-xl">
