@@ -3971,6 +3971,11 @@ fix, plus a section recording what was checked and found clean. It carries a sta
 what has been cleared and what is still open, and why. Read it before hunting for something to
 improve — it is a to-do list, unlike the archived plan below.
 
+**`docs/audit-2026-10.md` is the October 2026 audit and the CURRENT to-do list** — September's is fully
+cleared. It covers the 117 commits since, ranked C/H/M/Low with file:line, the rules tests each rules
+finding needs, and its own "What is clean". Fix commits cite its findings as "Oct H3" and update its
+status line.
+
 `docs/league-seasons-rework-plan.md` is the archived plan the League & Seasons rework was executed
 from. Read it for *why* the model looks the way it does — the single `activeSeasonId` pointer, the
 derived game number, league-as-scope in the Manage League dialog. It is a record, not a to-do list.
