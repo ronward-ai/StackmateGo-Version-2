@@ -2929,6 +2929,42 @@ why 900 passing tests said nothing. Driving it is what confirmed the fix: a real
 final hand shows no dialog, no entry control anywhere, `Dave 2nd / Amy 3rd` in the Busted strip with
 the champion absent, and the Tournament Winner card up.
 
+### The places stay a run from 1 to the field, whatever changes the field
+
+October audit H7 and M7. `nextEliminationPosition` is `field − already placed`, which is only right
+while the field never changes underneath it — and three actions changed it without renumbering:
+
+- **A late entry** (`positionsAfterAdd`): nine players, three out (9th, 8th, 7th), one added — and the
+  next one out was ALSO 7th, while nobody was ever 10th. Everybody already out now moves one place
+  worse, because in the bigger field that is where they finished.
+- **A removal** (`positionsAfterRemove`): everybody who finished below the removed player moves up
+  one, or a place larger than the field — 9th of eight — was left for a points formula built on
+  `p ≤ f`.
+- **Undo bust-out** now renumbers exactly as a re-entry does, and **whoever held 1st goes back into
+  play**, keyed on who held it BEFORE the renumbering. Undoing the FIRST player out of a finished game
+  used to leave the champion at 1st with one player in; busting that player again awarded a second
+  1st and recorded two winners. The Undo dialog lists the most recent bust-out first now — the row a
+  director reaches for — with the winner last, since the winner did not bust. Its no-id fallback took
+  the HIGHEST position (the first player out); it is `mostRecentlyBusted` now.
+
+**A moved finisher is re-priced** (`repricedForNewPlaces` in `lib/resultStats.ts`, through one helper
+in `useTournament` at all four doors). `prizeMoney` was fixed at the bust-out, so a 3rd-place
+finisher pushed to 4th by a re-entry kept the 3rd-place money — shown by the results table's fallback,
+recorded as Cash, and paid again to the eventual 3rd. Their money is now the payout for the place they
+hold, from the pool as it stands (`payoutForPlace`), plus `bountyTakeFor`'s bounty money.
+
+`useTournament.positions.test.tsx` drives every one of these through the real hook; dropping the
+renumbering at any door, or the re-pricing, turns it red.
+
+**And a chair must exist and be free** (October audit M15). `seatToReclaim` takes the table
+configuration and refuses a chair on a table no longer in play or past the end of one — after a table
+break a rebuy returned a player to table 3 of two, the ghost again. `breakTable` carries busted
+players' remembered chairs with the renumbering, and forgets one on the table that went.
+`restoreSeating` puts back only players still in — a player who busted AT the final table is in the
+snapshot and was being handed a chair — and moves anyone whose chair it hands back to a free seat at
+the same table, or unseats them. One `finalTable.test.ts` fixture had been asserting a double-booked
+chair; it was the fixture that was wrong.
+
 ### A finished game takes no new entries
 
 Reported: a player was added to a tournament after it had finished. Nothing stopped it, and a second

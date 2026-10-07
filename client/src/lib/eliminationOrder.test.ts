@@ -5,6 +5,8 @@ import {
   bustedPlayers,
   nextEliminationPosition,
   positionsAfterReEntry,
+  positionsAfterAdd,
+  positionsAfterRemove,
   rostersMatchForUndo,
   type PositionedPlayer,
 } from './eliminationOrder';
@@ -354,5 +356,56 @@ describe('rostersMatchForUndo', () => {
     const swapped = clone(base);
     [swapped[0], swapped[1]] = [swapped[1], swapped[0]];
     expect(rostersMatchForUndo(base, swapped)).toBe(false);
+  });
+});
+
+// October audit, H7: the places must stay a run from 1 to the field whatever
+// changes the field — a late entry, a removal.
+describe('positionsAfterAdd — late entry', () => {
+  const p = (id: string, position?: number): PositionedPlayer =>
+    ({ id, isActive: position ? false : true, position });
+
+  it('moves everybody already out one place worse', () => {
+    const roster = [p('a'), p('b'), p('x', 9), p('y', 8), p('z', 7), p('new')];
+    const out = positionsAfterAdd(roster);
+    expect(out.find(q => q.id === 'x')!.position).toBe(10);
+    expect(out.find(q => q.id === 'z')!.position).toBe(8);
+  });
+
+  // THE regression: nine players, three out, one added — the next one out was
+  // ALSO 7th, and nobody was ever 10th.
+  it('leaves the next bust-out a place nobody holds', () => {
+    const roster = [...Array.from({ length: 6 }, (_, i) => p(`in${i}`)), p('x', 9), p('y', 8), p('z', 7), p('late')];
+    const after = positionsAfterAdd(roster);
+    const next = nextEliminationPosition(after);
+    expect(after.map(q => q.position).filter(Boolean)).not.toContain(next);
+    expect(next).toBe(7);
+    expect(after.map(q => q.position).filter(Boolean).sort()).toEqual([10, 8, 9].sort());
+  });
+
+  it('changes nothing before anybody is out', () => {
+    const roster = [p('a'), p('b')];
+    expect(positionsAfterAdd(roster)).toBe(roster);
+  });
+});
+
+describe('positionsAfterRemove', () => {
+  const p = (id: string, position?: number): PositionedPlayer =>
+    ({ id, isActive: position ? false : true, position });
+
+  it('moves everybody below a removed finisher up one', () => {
+    const out = positionsAfterRemove([p('a'), p('x', 9), p('y', 8), p('z', 7)], 'y');
+    expect(out.map(q => [q.id, q.position])).toEqual([['a', undefined], ['x', 8], ['z', 7]]);
+  });
+
+  it('moves every finisher up one when the removed player was still in', () => {
+    const out = positionsAfterRemove([p('a'), p('gone'), p('x', 9), p('y', 8)], 'gone');
+    expect(out.map(q => q.position)).toEqual([undefined, 8, 7]);
+  });
+
+  it('never leaves a place larger than the field', () => {
+    const roster = [p('a'), p('b'), p('c'), p('d'), p('e'), p('f'), p('g'), p('x', 9), p('y', 8)];
+    const out = positionsAfterRemove(roster, 'a');
+    expect(Math.max(...out.map(q => q.position || 0))).toBeLessThanOrEqual(out.length);
   });
 });

@@ -64,11 +64,24 @@ export function freeSeatAt(
   return null;
 }
 
-export function seatToReclaim(player: Player, players: Player[]): Seat | null {
+export function seatToReclaim(
+  player: Player,
+  players: Player[],
+  tables?: { numberOfTables?: number; seatsPerTable?: number } | null,
+): Seat | null {
   const seat = player.seatInfo;
   if (!seat || typeof seat.tableIndex !== 'number' || typeof seat.seatIndex !== 'number') {
     return null;
   }
+
+  // A chair on a table that is no longer in play, or past the end of one, is not
+  // a chair (October audit, M15). After a table break — or a lowered Tables or
+  // Seats field — a busted player's remembered seat could name table 3 of a
+  // two-table game, and a rebuy or an undo put them there: seated, drawn
+  // nowhere, with no KO button. The ghost again, by another door. Unseated is
+  // honest; the director places them.
+  if (tables?.numberOfTables && seat.tableIndex >= tables.numberOfTables) return null;
+  if (tables?.seatsPerTable && seat.seatIndex >= tables.seatsPerTable) return null;
 
   // Only a player still IN the game holds a seat. Someone eliminated may carry a
   // stale tableAssignment, and that must not lock the chair.

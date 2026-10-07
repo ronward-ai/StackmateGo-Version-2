@@ -218,12 +218,17 @@ export function snapshotSeating(players: SeatablePlayer[]): SeatSnapshot[] {
 export function restoreSeating<T extends SeatablePlayer>(
   players: T[],
   snapshot: SeatSnapshot[] | null | undefined,
+  seatsPerTable?: number,
 ): T[] {
   if (!snapshot || snapshot.length === 0) return players;
   const byId = new Map(snapshot.map(s => [s.playerId, s]));
-  return players.map(player => {
+  // Only players still IN go back to a chair (October audit, M15). Somebody who
+  // busted AT the final table is in the snapshot — it was taken while they were
+  // active — and restoring them put a busted player back in a seat, the state
+  // `seatablePlayers` exists to make impossible.
+  const restored = players.map(player => {
     const seat = byId.get(player.id);
-    if (!seat) return player;
+    if (!seat || player.isActive === false) return player;
     return {
       ...player,
       seated: seat.seated,
@@ -232,6 +237,27 @@ export function restoreSeating<T extends SeatablePlayer>(
         : { tableIndex: seat.tableIndex, seatIndex: seat.seatIndex },
     };
   });
+
+  // A player the snapshot never heard of — seated after the collapse — keeps
+  // their chair unless a restored player has just been given it. Two people in
+  // one chair means one of them is drawn nowhere, with no KO button; so the
+  // newcomer moves to a free seat at the same table, or waits to be placed.
+  const restoredIds = new Set(restored.filter(p => byId.has(p.id) && p.isActive !== false).map(p => p.id));
+  const holds = (p: SeatablePlayer, t: number, s: number) =>
+    p.isActive !== false && p.seated && p.tableAssignment?.tableIndex === t && p.tableAssignment?.seatIndex === s;
+  let out = restored;
+  for (const p of restored) {
+    if (restoredIds.has(p.id) || !p.seated || !p.tableAssignment || p.isActive === false) continue;
+    const { tableIndex, seatIndex } = p.tableAssignment;
+    const clash = out.some(q => q.id !== p.id && restoredIds.has(q.id) && holds(q, tableIndex, seatIndex));
+    if (!clash) continue;
+    const others = out.filter(q => q.id !== p.id);
+    const free = seatsPerTable ? freeSeatAt(others, tableIndex, seatsPerTable) : null;
+    out = out.map(q => q.id === p.id
+      ? (free ? { ...q, tableAssignment: free } : { ...q, seated: false, tableAssignment: undefined })
+      : q);
+  }
+  return out;
 }
 
 /**
@@ -356,7 +382,7 @@ export function consolidationAfterReturn<T extends SeatablePlayer>(
 
   if (outgrown) {
     const snap = state.preConsolidation;
-    const restored = restoreSeating(players, snap?.seats);
+    const restored = restoreSeating(players, snap?.seats, state.seatsPerTable);
     // Their own chair back, now that the restore has vacated it. "A rebuy is
     // chips bought in the chair they never left" finally survives a collapse.
     const seat = state.reclaimSeat;

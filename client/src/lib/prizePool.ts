@@ -183,3 +183,16 @@ export function payoutAmount(pool: number, percentage: number | null | undefined
   if (!Number.isFinite(pool) || !Number.isFinite(pct) || pct <= 0) return 0;
   return Math.floor(pool * pct / 100);
 }
+
+/**
+ * The payout for a finishing place, from the pool as it stands for this roster —
+ * the same arithmetic the bust-out uses to pay a player. A function of the place,
+ * so a re-pricing can ask it for any place (October audit, M7).
+ */
+export function payoutForPlace(
+  players: CountedPlayer[],
+  structure: (RakeStructure & { manualPayouts?: Array<{ position: number; percentage: number }> }) | null | undefined,
+): (position: number) => number {
+  const { net } = prizePoolFor(players, structure ?? undefined);
+  return position => payoutAmount(net, structure?.manualPayouts?.find(p => p.position === position)?.percentage);
+}

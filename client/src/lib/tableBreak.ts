@@ -34,6 +34,8 @@ export interface BreakablePlayer {
   isActive?: boolean;
   seated?: boolean;
   tableAssignment?: { tableIndex: number; seatIndex: number };
+  /** Where a busted player sat — what a rebuy or an undo will try to return them to. */
+  seatInfo?: { tableIndex: number; seatIndex: number };
 }
 
 function tableCount(n: number): number {
@@ -233,9 +235,23 @@ export function breakTable<T extends BreakablePlayer>(
   }
 
   const shifted = updated.map(p => {
+    let next = p;
     const t = p.tableAssignment?.tableIndex;
-    if (typeof t !== 'number' || t <= brokenIdx) return p;
-    return { ...p, tableAssignment: { tableIndex: t - 1, seatIndex: p.tableAssignment!.seatIndex } };
+    if (typeof t === 'number' && t > brokenIdx) {
+      next = { ...next, tableAssignment: { tableIndex: t - 1, seatIndex: p.tableAssignment!.seatIndex } };
+    }
+    // A busted player's remembered chair moves with its table too, or a rebuy
+    // after the break returned them to the old numbering — a chair on a table
+    // that no longer exists (October audit, M15). A chair on the table that
+    // went is forgotten: there is nothing to return to.
+    const remembered = p.seatInfo?.tableIndex;
+    if (typeof remembered === 'number') {
+      if (remembered === brokenIdx) next = { ...next, seatInfo: undefined };
+      else if (remembered > brokenIdx) {
+        next = { ...next, seatInfo: { tableIndex: remembered - 1, seatIndex: p.seatInfo!.seatIndex } };
+      }
+    }
+    return next;
   });
 
   return { players: shifted, broken: brokenIdx, tables: Math.max(1, tables - 1) };

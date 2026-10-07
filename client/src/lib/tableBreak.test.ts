@@ -233,3 +233,21 @@ describe('breakTable', () => {
     expect(tableOccupancy(after, 2)).toEqual([4, 4]);
   });
 });
+
+// October audit, M15: a busted player's remembered chair has to move with the
+// renumbering, or a rebuy after the break returns them to a table that is gone.
+describe('breakTable and the chairs busted players remember', () => {
+  const seat = (id: string, t: number, sIdx: number) =>
+    ({ id, isActive: true, seated: true, tableAssignment: { tableIndex: t, seatIndex: sIdx } });
+
+  it('renumbers a chair on a later table, and forgets one on the table that went', () => {
+    const players: BreakablePlayer[] = [
+      seat('a', 0, 0), seat('b', 2, 0),
+      { id: 'onLater', isActive: false, seated: false, seatInfo: { tableIndex: 2, seatIndex: 5 } },
+      { id: 'onBroken', isActive: false, seated: false, seatInfo: { tableIndex: 1, seatIndex: 4 } },
+    ];
+    const { players: out } = breakTable(players, { numberOfTables: 3, seatsPerTable: 8, broken: 1 });
+    expect(out.find(p => p.id === 'onLater')!.seatInfo).toEqual({ tableIndex: 1, seatIndex: 5 });
+    expect(out.find(p => p.id === 'onBroken')!.seatInfo).toBeUndefined();
+  });
+});

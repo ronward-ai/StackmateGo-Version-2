@@ -6,6 +6,7 @@ import {
   recordedStatsFor,
   bountyWinningsIn,
   totalsAcross,
+  repricedForNewPlaces,
   type ResultCosts,
 } from './resultStats';
 
@@ -188,5 +189,34 @@ describe('recordedStatsFor', () => {
       bountyWinnings: 0, rebuyAmount: 0, addonAmount: 0,
     });
     Object.values(recordedStatsFor(null, null)).forEach(v => expect(v).toBe(0));
+  });
+});
+
+// October audit, M7: a renumbering moved the place and not the money.
+describe('repricedForNewPlaces', () => {
+  const payout = (pos: number) => ({ 1: 60, 2: 30, 3: 10 } as Record<number, number>)[pos] ?? 0;
+  const bounties = { enableBounties: true, bountyAmount: 5 };
+
+  it('takes the 3rd-place money away from somebody pushed down to 4th', () => {
+    const before = [{ id: 'c', position: 3, prizeMoney: 10, knockouts: 0 }];
+    const after = [{ id: 'c', position: 4, prizeMoney: 10, knockouts: 0 }];
+    expect(repricedForNewPlaces(before, after, payout, null)[0].prizeMoney).toBe(0);
+  });
+
+  it('keeps their bounty money while it moves the payout', () => {
+    const before = [{ id: 'c', position: 3, prizeMoney: 20, knockouts: 2 }];
+    const after = [{ id: 'c', position: 2, prizeMoney: 20, knockouts: 2 }];
+    expect(repricedForNewPlaces(before, after, payout, bounties)[0].prizeMoney).toBe(30 + 10);
+  });
+
+  it('leaves everybody whose place did not move exactly as they were', () => {
+    const same = { id: 'a', position: 5, prizeMoney: 99, knockouts: 0 };
+    const out = repricedForNewPlaces([same], [same], payout, null);
+    expect(out[0]).toBe(same);
+  });
+
+  it('ignores players still in the game', () => {
+    const playing = { id: 'p', position: undefined, prizeMoney: 0 };
+    expect(repricedForNewPlaces([{ id: 'p', position: 4, prizeMoney: 0 }], [playing], payout, null)[0]).toBe(playing);
   });
 });

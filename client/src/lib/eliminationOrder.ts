@@ -191,6 +191,42 @@ export function positionsAfterReEntry<T extends PositionedPlayer>(
 }
 
 /**
+ * A player joins a game that already has finishers — late entry (October audit,
+ * H7).
+ *
+ * The field just grew by one, so everybody already out finished one place worse
+ * than they were given. Without this the next bust-out was handed a place
+ * somebody already held: nine players, three out (9th, 8th, 7th), one added —
+ * and the next one out was also 7th, while nobody was ever 10th. Two league
+ * results at one place, one place never awarded.
+ */
+export function positionsAfterAdd<T extends PositionedPlayer>(players: T[]): T[] {
+  if (!players.some(isFinished)) return players;
+  return players.map(p => (isFinished(p) ? { ...p, position: (p.position as number) + 1 } : p));
+}
+
+/**
+ * A player is taken out of the game altogether — a mistaken add, a no-show —
+ * and the roster returned without them (October audit, H7).
+ *
+ * Everybody who finished BELOW the removed player moves up one; a player removed
+ * while still in counts as above every finisher, so all of them move. Without
+ * this the field shrank and the places did not: a gap, and a place number larger
+ * than the field — 9th in an eight-player game — which a points formula built on
+ * `p <= f` does not expect.
+ */
+export function positionsAfterRemove<T extends PositionedPlayer>(players: T[], removedId: string): T[] {
+  const removed = players.find(p => p.id === removedId);
+  if (!removed) return players;
+  const slot = isFinished(removed) ? (removed.position as number) : 0;
+  return players
+    .filter(p => p.id !== removedId)
+    .map(p => (isFinished(p) && (p.position as number) > slot
+      ? { ...p, position: (p.position as number) - 1 }
+      : p));
+}
+
+/**
  * Do these two rosters agree on everything an undo depends on?
  *
  * Undoing a rebuy or re-entry restores a whole players array, so it must only

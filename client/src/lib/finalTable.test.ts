@@ -332,7 +332,10 @@ describe('consolidationAfterReturn', () => {
 
   const snapshot = [
     ...Array.from({ length: 5 }, (_, i) => ({ playerId: `a${i}`, seated: true, tableIndex: 0, seatIndex: i })),
-    ...Array.from({ length: 3 }, (_, i) => ({ playerId: `a${i + 5}`, seated: true, tableIndex: 1, seatIndex: i })),
+    // Seats 1-3, not 0-2: chair (1, 0) is the returning player's own. This
+    // fixture used to give it to a5 as well, so the test below was asserting a
+    // DOUBLE-BOOKED chair — the state the October audit's M15 fix now refuses.
+    ...Array.from({ length: 3 }, (_, i) => ({ playerId: `a${i + 5}`, seated: true, tableIndex: 1, seatIndex: i + 1 })),
   ];
 
   it('unwinds when the returning player no longer fits — the reported game', () => {
@@ -459,5 +462,44 @@ describe('consolidationAfterReturn — the chair back after an unwind', () => {
         numberOfTables: 1, seatsPerTable: 8, returningId: 'back',
     });
     expect(out.seatForReturner).toBeNull();
+  });
+});
+
+// October audit, M15.
+describe('restoreSeating puts back only players still in, and never double-books', () => {
+  const snapshot = [
+    { playerId: 'b', seated: true, tableIndex: 0, seatIndex: 0 },
+    { playerId: 'g', seated: true, tableIndex: 1, seatIndex: 2 },
+  ];
+
+  it('leaves a player who busted AT the final table out of a chair', () => {
+    const players: SeatablePlayer[] = [
+      { id: 'b', isActive: true, seated: true, tableAssignment: { tableIndex: 0, seatIndex: 5 } },
+      { id: 'g', isActive: false, seated: false },
+    ];
+    const out = restoreSeating(players, snapshot, 8);
+    expect(out.find(p => p.id === 'g')!.seated).toBe(false);
+  });
+
+  it('moves a newcomer off a chair the restore hands back', () => {
+    const players: SeatablePlayer[] = [
+      { id: 'b', isActive: true, seated: true, tableAssignment: { tableIndex: 0, seatIndex: 5 } },
+      { id: 'a', isActive: true, seated: true, tableAssignment: { tableIndex: 0, seatIndex: 0 } },
+    ];
+    const out = restoreSeating(players, snapshot, 8);
+    const b = out.find(p => p.id === 'b')!;
+    const a = out.find(p => p.id === 'a')!;
+    expect(b.tableAssignment).toEqual({ tableIndex: 0, seatIndex: 0 });
+    expect(a.tableAssignment).not.toEqual({ tableIndex: 0, seatIndex: 0 });
+    expect(a.seated).toBe(true);
+  });
+
+  it('unseats the newcomer when it cannot know the table size', () => {
+    const players: SeatablePlayer[] = [
+      { id: 'b', isActive: true, seated: true, tableAssignment: { tableIndex: 0, seatIndex: 5 } },
+      { id: 'a', isActive: true, seated: true, tableAssignment: { tableIndex: 0, seatIndex: 0 } },
+    ];
+    const a = restoreSeating(players, snapshot).find(p => p.id === 'a')!;
+    expect(a.seated).toBe(false);
   });
 });

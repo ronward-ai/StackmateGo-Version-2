@@ -852,7 +852,12 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
           <div className="py-3 space-y-2 max-h-64 overflow-y-auto">
             {state.players
               .filter(p => p.isActive === false && p.position)
-              .sort((a, b) => (b.position || 0) - (a.position || 0))
+              // Most recent bust-out FIRST — the row a director reaches for, and
+              // the one "undo the last bust-out" means. This listed the FIRST
+              // player out at the top, and undoing that in a finished game is
+              // what once recorded two winners (October audit, H7). The winner
+              // did not bust, so they go last rather than first.
+              .sort((a, b) => (a.position === 1 ? Infinity : a.position || 0) - (b.position === 1 ? Infinity : b.position || 0))
               .map(player => (
                 <div
                   key={player.id}

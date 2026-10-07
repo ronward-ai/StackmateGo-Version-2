@@ -169,3 +169,34 @@ export function totalsAcross(results: ResultCosts[]): ResultTotals {
     { rebuys: 0, reEntries: 0, addons: 0, bountyWinnings: 0, invested: 0 },
   );
 }
+
+/**
+ * Re-price every finisher whose PLACE changed (October audit, M7).
+ *
+ * A player's stored `prizeMoney` is everything they collected — the payout for
+ * the place they finished in, plus their bounty money — and it was fixed at the
+ * moment they busted. When a re-entry, an undo, a late entry or a removal then
+ * renumbered the places, the position moved and the money did not. With three
+ * paid, a 3rd-place finisher pushed down to 4th kept the 3rd-place money; the
+ * results table falls back to the stored figure outside the places, the league
+ * recorded it as Cash, and the eventual 3rd was paid as well — the 3rd-place
+ * money, twice.
+ *
+ * So a moved finisher's money is rebuilt: the payout for the place they now hold,
+ * from the pool as it stands, plus the bounty money from `bountyTakeFor`, the one
+ * derivation of it. Players whose place did not change keep their figure
+ * untouched, by identity.
+ */
+export function repricedForNewPlaces<T extends { id: string; position?: number | null; prizeMoney?: number } & BountyPlayerLike>(
+  before: readonly T[],
+  after: T[],
+  payoutFor: (position: number) => number,
+  structure: BountyStructureLike | null | undefined,
+): T[] {
+  const was = new Map(before.map(p => [p.id, p.position]));
+  return after.map(p => {
+    const pos = Number(p.position);
+    if (!(pos > 0) || was.get(p.id) === p.position) return p;
+    return { ...p, prizeMoney: payoutFor(pos) + bountyTakeFor(p, structure).money };
+  });
+}

@@ -19,7 +19,18 @@ import { getDeviceId } from '@/lib/deviceId';
 
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
-import { nextEliminationPosition, positionsAfterReEntry, rostersMatchForUndo } from '@/lib/eliminationOrder';
+import { nextEliminationPosition, positionsAfterReEntry, positionsAfterAdd, positionsAfterRemove, mostRecentlyBusted, rostersMatchForUndo } from '@/lib/eliminationOrder';
+import { repricedForNewPlaces } from '@/lib/resultStats';
+import { payoutForPlace } from '@/lib/prizePool';
+
+/**
+ * Every finisher whose place a renumbering moved gets the money for the place
+ * they now hold (October audit, M7) — see lib/resultStats.ts. One helper, used
+ * by all four doors that renumber, so none of them can forget.
+ */
+function repriceMovedFinishers<T extends Player>(before: T[], after: T[], structure: any): T[] {
+  return repricedForNewPlaces(before as any, after as any, payoutForPlace(after as any, structure), structure) as T[];
+}
 import { payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
@@ -1050,9 +1061,13 @@ export function useTournament(tournamentId?: string) {
         bountyWinnings: 0
       };
 
+      // Late entry into a game with finishers: everybody already out finished
+      // one place worse in the bigger field (October audit, H7), and is paid for
+      // that place (M7).
+      const grown = positionsAfterAdd([...prev.players, newPlayer]);
       const newState = {
         ...prev,
-        players: [...prev.players, newPlayer]
+        players: repriceMovedFinishers(prev.players, grown, prev.prizeStructure),
       };
 
       // Dispatch event for real-time sync
@@ -1072,9 +1087,12 @@ export function useTournament(tournamentId?: string) {
   // Remove player
   const removePlayer = useCallback((playerId: string) => {
     setState(prev => {
+      // Everybody who finished below the removed player moves up one, so the
+      // places stay a run from 1 to the field (October audit, H7).
+      const shrunk = positionsAfterRemove(prev.players, playerId);
       const newState = {
         ...prev,
-        players: prev.players.filter(p => p.id !== playerId)
+        players: repriceMovedFinishers(prev.players, shrunk, prev.prizeStructure),
       };
 
       // Broadcast player removal to all connected clients
@@ -1373,12 +1391,14 @@ export function useTournament(tournamentId?: string) {
           : p
       );
 
+      const repricedEntry = repriceMovedFinishers(prev.players, updatedPlayers, prev.prizeStructure);
+
       // Same rule as the rebuy, and it needs no seat logic: a re-entry stays
       // unseated by design, so only the UNWIND branch can change anything here.
       // Nine players on an eight-seat final table is wrong however they got
       // there, and the flag drives the seating screen and the next bust-out's
       // prompt.
-      const ft = consolidationAfterReturn(updatedPlayers, {
+      const ft = consolidationAfterReturn(repricedEntry, {
         isFinalTable: prev.isFinalTable,
         preConsolidation: prev.preConsolidation,
         seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
@@ -1433,7 +1453,7 @@ export function useTournament(tournamentId?: string) {
       // it — unless someone has taken it while they were out, in which case they
       // wait to be seated rather than double-booking a seat. lib/seating.ts
       // answers that, for this and for undo alike.
-      const reclaimed = seatToReclaim(player, prev.players);
+      const reclaimed = seatToReclaim(player, prev.players, prev.settings.tables);
 
       // Update player to active status and increment rebuy count
       const updatedPlayers = renumbered.map(p =>
@@ -1463,7 +1483,7 @@ export function useTournament(tournamentId?: string) {
       //
       // seatToReclaim ran above and this goes over the top, which is the order
       // `undoBustOut` already used and the reason the unwind composes.
-      const ft = consolidationAfterReturn(updatedPlayers, {
+      const ft = consolidationAfterReturn(repriceMovedFinishers(prev.players, updatedPlayers, prev.prizeStructure), {
         isFinalTable: prev.isFinalTable,
         preConsolidation: prev.preConsolidation,
         seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
@@ -2253,18 +2273,28 @@ export function useTournament(tournamentId?: string) {
         playerToRestore = eliminatedPlayers.find(p => p.id === playerId);
         if (!playerToRestore) return prev; // Player not found or not eliminated
       } else {
-        // Find the most recently eliminated player (highest position number among eliminated players)
-        playerToRestore = eliminatedPlayers.reduce((latest, current) =>
-          (current.position || 0) > (latest.position || 0) ? current : latest
-        );
+        // The most recently busted — the SMALLEST position among the bust-outs.
+        // This used to take the highest, which is the first player out, the
+        // inverted "most recent" lib/eliminationOrder.ts exists to own.
+        playerToRestore = mostRecentlyBusted(prev.players);
+        if (!playerToRestore) return prev;
       }
 
       // Their seat, if it is still free — the same question the rebuy asks.
-      const reclaimedSeat = seatToReclaim(playerToRestore, prev.players);
+      const reclaimedSeat = seatToReclaim(playerToRestore, prev.players, prev.settings.tables);
+
+      // Renumber exactly as a re-entry does (October audit, H7): everybody who
+      // went out AFTER the restored player finished one place worse than they
+      // were given. Without it an undo that was not the last bust-out left the
+      // next one a place somebody already held — and in a finished game, undoing
+      // the top row of the Undo dialog (the FIRST player out) left the champion
+      // at 1st with one player in, so busting that player again awarded a second
+      // 1st and recorded two winners to the league.
+      const renumberedForUndo = positionsAfterReEntry(prev.players, playerToRestore.id);
 
       // Restore the player to active status and remove their elimination data
       // Also decrement knockout count from the eliminating player
-      const restoredPlayers = prev.players.map(player => {
+      const restoredPlayers = renumberedForUndo.map(player => {
         if (player.id === playerToRestore.id) {
           return {
             ...player,
@@ -2282,15 +2312,23 @@ export function useTournament(tournamentId?: string) {
         return player;
       });
 
-      // If 2+ players are now active, reset any false winner locked in at position 1
-      const activeAfterUndo = restoredPlayers.filter(p => p.isActive !== false).length;
-      const finalPlayers = activeAfterUndo >= 2
-        ? restoredPlayers.map(p =>
-            p.position === 1 && p.isActive === false
-              ? { ...p, isActive: true, position: undefined, prizeMoney: 0, eliminatedBy: undefined }
-              : p
-          )
-        : restoredPlayers;
+      // Whoever held 1st did not win after all: undoing ANY bust-out puts a
+      // second player back in, so the game is not over and the 1st-place holder
+      // is back in play. Keyed on who held 1st BEFORE the renumbering, which may
+      // have moved them to 2nd — the old check looked for position 1 afterwards
+      // and only fired when two or more were already active, so undoing the
+      // first player out of a finished game stranded the champion.
+      const heldFirst = prev.players.find(p => p.position === 1 && p.isActive === false)?.id;
+      const finalPlayers = repriceMovedFinishers(
+        prev.players,
+        heldFirst && heldFirst !== playerToRestore.id
+          ? restoredPlayers.map(p =>
+              p.id === heldFirst
+                ? { ...p, isActive: true, position: undefined, prizeMoney: 0, eliminatedBy: undefined }
+                : p)
+          : restoredPlayers,
+        prev.prizeStructure,
+      );
 
       // Undoing the bust-out that CAUSED the collapse has to undo the collapse
       // too. Restoring the player puts more of them in the game than one table

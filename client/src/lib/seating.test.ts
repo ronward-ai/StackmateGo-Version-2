@@ -293,3 +293,22 @@ describe('tablesNeededFor', () => {
     expect(tablesNeededFor(10, 0)).toBe(10);
   });
 });
+
+// October audit, M15: a remembered chair on a table no longer in play.
+describe('seatToReclaim against the current tables', () => {
+  const busted = { id: 'x', name: 'X', isActive: false, seatInfo: { tableIndex: 2, seatIndex: 3 } } as Player;
+
+  it('refuses a chair on a table that has been broken away', () => {
+    expect(seatToReclaim(busted, [busted], { numberOfTables: 2, seatsPerTable: 8 })).toBeNull();
+  });
+
+  it('refuses a chair past the end of a table', () => {
+    const p = { ...busted, seatInfo: { tableIndex: 0, seatIndex: 8 } } as Player;
+    expect(seatToReclaim(p, [p], { numberOfTables: 2, seatsPerTable: 8 })).toBeNull();
+  });
+
+  it('still returns a real, free chair', () => {
+    expect(seatToReclaim(busted, [busted], { numberOfTables: 3, seatsPerTable: 8 }))
+      .toEqual({ tableIndex: 2, seatIndex: 3 });
+  });
+});
