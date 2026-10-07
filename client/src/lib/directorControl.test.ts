@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { controlOf, mayDrive, shouldClaim, shouldAdoptRemote, controlLockReason, describeClaimTime } from './directorControl';
+import { controlOf, mayDrive, shouldClaim, shouldAdoptRemote, controlLockReason, describeClaimTime, takesDocumentRoster } from './directorControl';
 
 describe('controlOf', () => {
   it('is mine when the holder is this device', () => {
@@ -124,5 +124,24 @@ describe('shouldAdoptRemote', () => {
     expect(shouldAdoptRemote('other', 'other')).toBe(false);
     expect(shouldAdoptRemote('other', 'unclaimed')).toBe(false);
     expect(shouldAdoptRemote('mine', 'unclaimed')).toBe(false);
+  });
+});
+
+// October audit, M14: a console that is only watching must show the game as
+// the document has it, or the driving device's rebuys and undos never arrive.
+describe('takesDocumentRoster', () => {
+  it('takes the document whenever this device is only watching', () => {
+    expect(takesDocumentRoster('other', 'other')).toBe(true);
+    expect(takesDocumentRoster(null, 'other')).toBe(true);
+    expect(takesDocumentRoster('mine', 'other')).toBe(true);
+  });
+  it('takes it on a takeover, as before', () => {
+    expect(takesDocumentRoster('other', 'mine')).toBe(true);
+  });
+  // The two exclusions that make the merge work for the DRIVING device.
+  it('merges, never replaces, for a device that is driving', () => {
+    expect(takesDocumentRoster('mine', 'mine')).toBe(false);
+    expect(takesDocumentRoster('unclaimed', 'mine')).toBe(false);
+    expect(takesDocumentRoster(null, 'unclaimed')).toBe(false);
   });
 });

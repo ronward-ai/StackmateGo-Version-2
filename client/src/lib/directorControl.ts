@@ -91,6 +91,23 @@ export function shouldAdoptRemote(previous: Control | null | undefined, next: Co
 }
 
 /**
+ * Should this snapshot's roster REPLACE the one on screen, rather than merge?
+ *
+ * On a takeover (`shouldAdoptRemote`) — and whenever this device may NOT drive
+ * (October audit, M14). The merge is biased toward local for the driving
+ * device's sake: a locally-busted player stays busted, counts take the larger
+ * figure, a player missing from the document is appended back. On a console that
+ * is only WATCHING, that bias meant the driving device's rebuys, re-entries,
+ * undos and removals never arrived — a rebought player stayed busted on the
+ * second screen, an undone knockout stayed counted, a removed player stayed
+ * listed, all night. A watcher has nothing local worth protecting: the document
+ * is the game.
+ */
+export function takesDocumentRoster(previous: Control | null | undefined, next: Control): boolean {
+  return shouldAdoptRemote(previous, next) || !mayDrive(next);
+}
+
+/**
  * What to tell the director, when there is anything to tell them.
  *
  * The wording lives here with the rule rather than in the banner, the same way

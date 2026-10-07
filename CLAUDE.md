@@ -564,6 +564,12 @@ exactly once per snapshot. And **the ref resets when the listener re-subscribes*
 snapshot of a DIFFERENT game could read as `other` → `mine` and adopt — a control fact belongs to
 one game, exactly like a held tournament id.
 
+**A console that is only watching takes the document's roster outright** — `takesDocumentRoster`
+(October audit M14): a takeover, as above, or any snapshot while this device may not drive. The
+local-biased merge kept the driving device's rebuys, re-entries, undos and removals from ever reaching
+a read-only second screen — a rebought player stayed busted there all night. A watcher has nothing
+local worth protecting. The two exclusions above still hold for a device that IS driving.
+
 **Only `players` was ever biased.** `levels`, `settings`, the clock (via `secondsLeftFrom`),
 `ownerId` and `isPublished` already take the document's value, which is what kept the fix narrow.
 

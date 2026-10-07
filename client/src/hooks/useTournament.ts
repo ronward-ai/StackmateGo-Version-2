@@ -13,7 +13,7 @@ import { db } from '../lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { initialDetails, needsLocalGameId, gameIdOf } from '@/lib/localGameId';
 import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
-import { controlOf, mayDrive, shouldAdoptRemote, type Control } from '@/lib/directorControl';
+import { controlOf, mayDrive, takesDocumentRoster, type Control } from '@/lib/directorControl';
 import { rosterIsPending } from '@/lib/pendingRoster';
 import { breakTable as doBreakTable, consolidationDue, reindexAfterBreak, tableToBreak } from '@/lib/tableBreak';
 import { getDeviceId } from '@/lib/deviceId';
@@ -633,7 +633,10 @@ export function useTournament(tournamentId?: string) {
             typeof data.controllingDeviceId === 'string' ? data.controllingDeviceId : null,
             getDeviceId(),
           );
-          const adopt = shouldAdoptRemote(lastControlRef.current, nextControl);
+          // A takeover, or a console that is only watching: the document's roster
+          // replaces the one on screen rather than merging (October audit, M14 —
+          // see takesDocumentRoster).
+          const adopt = takesDocumentRoster(lastControlRef.current, nextControl);
           lastControlRef.current = nextControl;
           
           setState(currentState => {
