@@ -460,6 +460,8 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       bountyWinnings?: number;
       rebuyAmount?: number;
       addonAmount?: number;
+      /** The game's real prize pool, for the formula's `z`. */
+      prizePool?: number;
     },
   ) => {
     try {
@@ -540,9 +542,11 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         playersEliminatedCount,
         buyInOf(costs),
         investedIn(costs),
-        // The pool as this game's own entries paid for it. prizePoolFor works
-        // from live players, which a recorded result no longer has.
-        buyInOf(costs) * totalPlayers,
+        // `z`, the prize pool: the game's real pool when the console passes it
+        // (October audit, correctness debt — both scoring sites passed buy-in ×
+        // players, leaving out every rebuy, re-entry and add-on), and that
+        // estimate only for a caller that has none.
+        stats?.prizePool ?? buyInOf(costs) * totalPlayers,
       );
 
       // Add the tournament result

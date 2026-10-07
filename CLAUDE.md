@@ -4158,6 +4158,33 @@ See the comment block in the file.
 
 ## Architecture decisions worth knowing
 
+### The October correctness debt, cleared — what each one answers now
+
+Each was right today and primed to drift; each now has one answer and a test.
+
+- **`settings` and `prizeStructure` have one writer**: PokerTimer's guarded settings sync. The Seating
+  tab's felt picker and the Buy-in tab's Apply each wrote them too, keyed on `details.type`.
+- **The initial `getDoc`** takes league and season from the GAME — it fell back to this device's own, and
+  the sync then wrote them into the game — carries `isPublished`, and never overwrites a snapshot already
+  applied (`snapshotAppliedForRef`).
+- **useTournament reads its stored setup once**, in a `useState` initialiser. It re-read and re-parsed
+  settings (logo included), levels, prize structure and mirror every second, and wrote storage in render.
+- **`tablesOf(settings)`** in `lib/seating.ts` is the one table default, 2×8 — there were seven.
+  `randomFreeSeat` + `tablesEmptiestFirst` are the one single-player seat draw, used by late seating and
+  the uneven-tables move; the two inline walks counted busted players' chairs as taken. So
+  CLAUDE.md's "both seaters call assignSeats" is now: the MULTI-player seaters call `assignSeats`; the
+  single-player ones call `randomFreeSeat`.
+- **`lib/firestoreRest.ts`** is the one REST decoder; the wake-up copy dropped timestamps.
+- **`isLeagueGame(state)`** in `lib/tournamentMode.ts` is the console's league test — an explicit flag wins
+  either way, then a local `'season'` type, then a linked league. About ten sites spelled their own, the
+  league recorder among them.
+- **`secondsUntilNextBreak`** (with `formatClock`) and **`blindLevelNumber`** are the clock's vocabulary on
+  both screens.
+- **`z` in a points formula is the real pool** (`prizePoolFor`), at both scoring sites; it was
+  `buyIn × players`, which left out every rebuy, re-entry and add-on. A game with no price has a pool of 0.
+- **The participant's Payouts panel normalises on read** (`withNormalisedPayouts`); older structures
+  showed players no payouts.
+
 ### `client/src/lib/` holds pure, tested logic
 
 Anything non-trivial and testable lives here with a colocated `.test.ts`, kept free of React and

@@ -277,7 +277,10 @@ export function resultRowsFor<T extends ResultPlayerLike>(
           }),
           // (the same figure as `invested` below; kept inline so the six
           //  arguments read in the order the formula documents them)
-          buyIn * roster.length,
+          // `z` is the prize pool, so it is the POOL — rebuys, re-entries and
+          // add-ons included — not buy-in × players, which both scoring sites
+          // passed (October audit, correctness debt).
+          prizePool,
         )
       : 0;
 

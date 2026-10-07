@@ -199,8 +199,12 @@ describe('resultRowsFor', () => {
         return 10;
       },
     });
-    // buyIn falls back to 10, invested is that one buy-in, pool is 10 x 3.
-    expect(seen[0]).toEqual([1, 3, 3, 10, 10, 30]);
+    // buyIn falls back to 10 and invested is that one buy-in. The pool is the
+    // REAL pool from lib/prizePool.ts — 0 for a game with no price set. It
+    // was `buyIn × players`, which left out every rebuy and add-on (October
+    // audit); the recorder passes the same figure, so console and standings
+    // still agree.
+    expect(seen[0]).toEqual([1, 3, 3, 10, 10, 0]);
     expect(seen).toHaveLength(3);
   });
 
@@ -252,5 +256,24 @@ describe('resultRowsFor', () => {
     expect(resultRowsFor([])).toEqual([]);
     expect(resultRowsFor(null)).toEqual([]);
     expect(resultRowsFor(undefined)).toEqual([]);
+  });
+});
+
+describe('the formula variable z is the real prize pool (Oct correctness debt)', () => {
+  it('includes rebuys, not just buy-in × players', () => {
+    const seen: number[] = [];
+    resultRowsFor(
+      [
+        { id: 'a', name: 'A', isActive: false, position: 1, rebuys: 2 },
+        { id: 'b', name: 'B', isActive: false, position: 2 },
+      ] as any,
+      {
+        prizeStructure: { buyIn: 10, allowRebuys: true, rebuyAmount: 10, manualPayouts: [] } as any,
+        isLeagueMode: true,
+        calculatePoints: (_p, _f, _k, _b, _c, z) => { seen.push(z as number); return 0; },
+      },
+    );
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every(z => z === 40)).toBe(true);
   });
 });

@@ -122,3 +122,26 @@ export function formatClock(totalSeconds: number): string {
     ? `${hours}:${minutes.toString().padStart(2, '0')}:${ss}`
     : `${minutes.toString().padStart(2, '0')}:${ss}`;
 }
+
+/**
+ * Seconds until the next break begins, or null when the game is on a break or
+ * has none left (October audit, correctness debt).
+ *
+ * The console and the participant view each walked the levels for this and
+ * each spelled the result as `m:ss` by hand — a third and fourth spelling of the
+ * clock beside `formatClock`. Callers format it with `formatClock`.
+ */
+export function secondsUntilNextBreak(
+  levels: readonly { duration?: number; isBreak?: boolean }[] | null | undefined,
+  currentLevel: number,
+  secondsLeft: number,
+): number | null {
+  const all = levels || [];
+  if (all[currentLevel]?.isBreak) return null;
+  let total = Math.max(0, secondsLeft || 0);
+  for (let i = currentLevel + 1; i < all.length; i++) {
+    if (all[i].isBreak) return total;
+    total += all[i].duration || 0;
+  }
+  return null;
+}

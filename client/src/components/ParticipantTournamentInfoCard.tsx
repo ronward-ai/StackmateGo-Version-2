@@ -9,6 +9,7 @@ import { isUnlimited } from '@/lib/entryLimits';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { bountyTakeFor } from '@/lib/resultStats';
+import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { seasonLine } from '@/lib/seasonProgress';
 
 const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
@@ -33,7 +34,12 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const totalGames = (tournament.settings?.numberOfGames as number | undefined) || undefined;
 
   const sym = currencyOf(tournament.settings);
-  const p = tournament.prizeStructure || {};
+  // Normalised on read, as the console's two load paths are: a structure saved
+  // before the default was corrected keeps its percentages in `structure`, and
+  // this panel read `manualPayouts` raw, so those games showed players no
+  // payouts at all (October audit, correctness debt — the fix had landed in a
+  // dead block in the participant view instead).
+  const p = withNormalisedPayouts(tournament.prizeStructure || {}) as any;
   const buyIn = p.buyIn || 0;
   const rebuyAmt = p.rebuyAmount || 0;
   const addonAmt = p.addonAmount || 0;

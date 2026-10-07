@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { isLeagueTournament } from '@/lib/tournamentMode';
 import { tablesOf } from '@/lib/seating';
+import { blindLevelNumber } from '@/lib/announcements';
 import { fromRestFields } from '@/lib/firestoreRest';
 import { gameIsOver } from '@/lib/gameOver';
 import { currencyOf } from '@/lib/currency';
@@ -21,7 +22,7 @@ import { cn } from '@/lib/utils';
 import { eventNameOfTournament } from '@/lib/eventName';
 import { isRealSeasonId } from '@/lib/seasonProgress';
 import { ordinal } from '@/lib/ordinal';
-import { secondsLeftFrom, formatClock } from '@/lib/tournamentClock';
+import { secondsLeftFrom, formatClock, secondsUntilNextBreak } from '@/lib/tournamentClock';
 import { getDeviceId } from '@/lib/deviceId';
 import { myPlayerId } from '@/lib/seatClaims';
 
@@ -270,35 +271,11 @@ function TournamentParticipantView() {
     return tournament.blindLevels[tournament.currentLevel + 1];
   };
 
+  // The console's derivation and spelling — lib/tournamentClock.ts.
   const getNextBreakInfo = () => {
     if (!tournament?.blindLevels) return null;
-
-    // If we're currently on a break, return null
-    if (getCurrentLevel()?.isBreak) return null;
-
-    // Look for the next break starting from the current level
-    for (let i = tournament.currentLevel + 1; i < tournament.blindLevels.length; i++) {
-      if (tournament.blindLevels[i].isBreak) {
-        // Found the next break
-        let secondsUntilBreak = timeLeft; // Current level remaining time
-
-        // Add the duration of all levels between current and break
-        for (let j = tournament.currentLevel + 1; j < i; j++) {
-          secondsUntilBreak += tournament.blindLevels[j].duration;
-        }
-
-        // Format the time until break
-        const minutesUntilBreak = Math.floor(secondsUntilBreak / 60);
-        const secondsRemaining = secondsUntilBreak % 60;
-
-        return {
-          timeUntilBreak: `${minutesUntilBreak}:${secondsRemaining.toString().padStart(2, '0')}`
-        };
-      }
-    }
-
-    // No breaks found in the remaining levels
-    return null;
+    const secs = secondsUntilNextBreak(tournament.blindLevels, tournament.currentLevel, timeLeft);
+    return secs === null ? null : { timeUntilBreak: formatClock(secs) };
   };
 
   const getCurrentLevel = () => {
@@ -588,7 +565,7 @@ function TournamentParticipantView() {
               <div className="flex-1 min-w-0 truncate text-left font-medium">
                 {currentLevel?.isBreak ? "Break" :
                  `Level ${tournament.blindLevels ?
-                   tournament.blindLevels.slice(0, tournament.currentLevel + 1).filter((l: any) => !l.isBreak).length :
+                   blindLevelNumber(tournament.blindLevels, tournament.currentLevel) :
                    (tournament.currentLevel || 0) + 1}`}
               </div>
 

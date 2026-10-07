@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { secondsLeftFrom, advanceClock, formatClock } from './tournamentClock';
+import { secondsLeftFrom, advanceClock, formatClock, secondsUntilNextBreak } from './tournamentClock';
 
 const now = 1_700_000_000_000;
 
@@ -82,5 +82,20 @@ describe('formatClock (Oct Low)', () => {
     [3600, '1:00:00'], [7200, '2:00:00'], [3661, '1:01:01'], [-5, '00:00'],
   ])('%i seconds reads %s on every screen', (secs, text) => {
     expect(formatClock(secs as number)).toBe(text);
+  });
+});
+
+describe('secondsUntilNextBreak (Oct correctness debt)', () => {
+  const levels = [{ duration: 600 }, { duration: 600 }, { duration: 300, isBreak: true }, { duration: 600 }];
+  it('adds the rest of this level to every level before the break', () => {
+    expect(secondsUntilNextBreak(levels, 0, 120)).toBe(720);
+    expect(secondsUntilNextBreak(levels, 1, 45)).toBe(45);
+  });
+  it('is null on a break, and with no break left', () => {
+    expect(secondsUntilNextBreak(levels, 2, 100)).toBeNull();
+    expect(secondsUntilNextBreak(levels, 3, 100)).toBeNull();
+  });
+  it('reads the same as the clock', () => {
+    expect(formatClock(secondsUntilNextBreak(levels, 0, 120)!)).toBe('12:00');
   });
 });

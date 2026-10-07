@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { formatClock, secondsUntilNextBreak } from '@/lib/tournamentClock';
+import { blindLevelNumber } from '@/lib/announcements';
 import { Progress } from "@/components/ui/progress";
 import TimerFace from "@/components/TimerFace";
 import { Button } from "@/components/ui/button";
@@ -104,35 +106,11 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
   const currentBreak = isBreak();
   const currentLevelAnte = state.levels[state.currentLevel]?.ante || 0;
 
-  // Calculate next break info
+  // When the next break begins — lib/tournamentClock.ts, spelled by formatClock
+  // like every other figure on the clock (October audit, correctness debt).
   const getNextBreakInfo = () => {
-    // If we're currently on a break, return null
-    if (currentBreak) return null;
-
-    // Look for the next break starting from the current level
-    for (let i = state.currentLevel + 1; i < state.levels.length; i++) {
-      if (state.levels[i].isBreak) {
-        // Found the next break
-        let secondsUntilBreak = state.secondsLeft; // Current level remaining time
-
-        // Add the duration of all levels between current and break
-        for (let j = state.currentLevel + 1; j < i; j++) {
-          secondsUntilBreak += state.levels[j].duration;
-        }
-
-        // Format the time until break
-        const minutesUntilBreak = Math.floor(secondsUntilBreak / 60);
-        const secondsRemaining = secondsUntilBreak % 60;
-
-        return {
-          levelsUntilBreak: i - state.currentLevel,
-          timeUntilBreak: `${minutesUntilBreak}:${secondsRemaining.toString().padStart(2, '0')}`
-        };
-      }
-    }
-
-    // No breaks found in the remaining levels
-    return null;
+    const secs = secondsUntilNextBreak(state.levels, state.currentLevel, state.secondsLeft);
+    return secs === null ? null : { timeUntilBreak: formatClock(secs) };
   };
 
   // Get next level preview
@@ -166,13 +144,8 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
       return "Break";
     }
 
-    // Calculate the correct blind level number (excluding breaks)
-    const blindLevelNumber = state.levels
-      .slice(0, state.currentLevel + 1)
-      .filter(level => !level.isBreak)
-      .length;
-
-    return `Level ${blindLevelNumber}`;
+    // The blind level number, breaks skipped — lib/announcements.ts.
+    return `Level ${blindLevelNumber(state.levels, state.currentLevel)}`;
   }, [state.currentLevel, state.levels]);
   // Minimise, settings, a custom-time input, a volume slider, mute and two
   // voice options were declared here with their handlers — reset, adjust-time

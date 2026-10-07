@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { blindLevelNumber } from '@/lib/announcements';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -265,7 +266,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
             <div className="divide-y divide-border/20">
               {state.levels.map((level, index) => {
                 const isCurrentLevel = index === state.currentLevel;
-                const blindLevelNum = state.levels.slice(0, index + 1).filter(l => !l.isBreak).length;
+                const blindLevelNum = blindLevelNumber(state.levels, index);
 
                 if (level.isBreak) {
                   return (
@@ -560,7 +561,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                     .filter(l => !l.isBreak)
                     .map((level) => {
                       const idx = state.levels.indexOf(level);
-                      const num = state.levels.slice(0, idx + 1).filter(l => !l.isBreak).length;
+                      const num = blindLevelNumber(state.levels, idx);
                       return (
                         <SelectItem key={idx} value={String(idx)}>
                           Level {num}: {level.small}/{level.big}

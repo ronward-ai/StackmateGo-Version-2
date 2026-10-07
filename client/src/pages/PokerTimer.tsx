@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { prizePoolFor } from '@/lib/prizePool';
 import { isLeagueGame } from '@/lib/tournamentMode';
 import { recordedForGame, removalsDue, recordsDue } from '@/lib/leagueRecorder';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
@@ -1227,7 +1228,12 @@ function PokerTimerInner({
               // it through the same `bountyTakeFor` the results table and both
               // Payouts panels read — and lives in lib/ because a call site
               // inside this effect has no test by construction.
-              recordedStatsFor(player, tournament.state.prizeStructure),
+              {
+                ...recordedStatsFor(player, tournament.state.prizeStructure),
+                // `z` in a points formula: the pool the screen shows, from the
+                // same lib/prizePool.ts — the same figure resultRows scores with.
+                prizePool: prizePoolFor(players, tournament.state.prizeStructure).net,
+              },
             );
           } catch (playerError) {
             console.error('Error recording individual player to league:', player.name, playerError);

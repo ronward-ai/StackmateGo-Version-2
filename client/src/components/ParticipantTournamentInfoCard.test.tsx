@@ -44,3 +44,17 @@ describe('ParticipantTournamentInfoCard season line', () => {
     expect(screen.getByText(/Game 4 of 13/)).toBeTruthy();
   });
 });
+
+// October audit, correctness debt: a structure that kept its percentages in
+// `structure` showed players no payouts at all.
+describe('ParticipantTournamentInfoCard payouts', () => {
+  it('reads payouts from an older structure too', () => {
+    render(<ParticipantTournamentInfoCard tournament={{
+      players: [{ id: 'a', name: 'Amy', isActive: true }, { id: 'b', name: 'Bob', isActive: true }],
+      prizeStructure: { buyIn: 10, structure: [{ position: 1, percentage: 70 }, { position: 2, percentage: 30 }] },
+      settings: { currency: '£' },
+    } as any} />);
+    expect(screen.getByText('Payouts')).toBeTruthy();
+    expect(screen.getAllByText('£14').length).toBeGreaterThan(0);
+  });
+});
