@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLeagueTournament, modeLockReason, leagueSwitchLockReason } from './tournamentMode';
+import { isLeagueTournament, isLeagueGame, modeLockReason, leagueSwitchLockReason } from './tournamentMode';
 
 describe('isLeagueTournament', () => {
   it('is a league game when the flag is set on the document', () => {
@@ -127,5 +127,20 @@ describe('leagueSwitchLockReason', () => {
 
   it('never locks a standalone game, which records nothing', () => {
     expect(leagueSwitchLockReason(started, false, 'Thursday')).toBeNull();
+  });
+});
+
+describe('isLeagueGame — the console state, one order (Oct correctness debt)', () => {
+  it('an explicit flag wins either way', () => {
+    expect(isLeagueGame({ details: { type: 'season' }, settings: { isSeasonTournament: false } })).toBe(false);
+    expect(isLeagueGame({ details: { type: 'standalone' }, settings: { isSeasonTournament: true } })).toBe(true);
+  });
+  it('with no flag, a local game typed season is a league game', () => {
+    expect(isLeagueGame({ details: { type: 'season' }, settings: {} })).toBe(true);
+  });
+  it('with no flag and no type, a linked league decides', () => {
+    expect(isLeagueGame({ details: { type: 'database' }, settings: { leagueId: 'L1' } })).toBe(true);
+    expect(isLeagueGame({ details: { type: 'database' }, settings: {} })).toBe(false);
+    expect(isLeagueGame(null)).toBe(false);
   });
 });

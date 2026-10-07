@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { tablesOf } from '@/lib/seating';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, ChevronUp, ChevronDown } from 'lucide-react';
 import PlayerBadge from '@/components/ui/player-badge';
@@ -45,7 +46,7 @@ interface TablesSectionReadOnlyProps {
 export default function TablesSectionReadOnly({ tournament }: TablesSectionReadOnlyProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const { players, settings } = tournament.state;
-  const tableSettings = settings?.tables || { numberOfTables: 1, seatsPerTable: 9, tableNames: ['Table 1'] };
+  const tableSettings = tablesOf(settings);
   const tableBackgrounds = settings?.tableBackgrounds || [];
 
   const seatedActive = players.filter(p => p.seated && p.tableAssignment && p.isActive !== false);

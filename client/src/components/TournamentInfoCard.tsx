@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, Calculator, LogIn, Clock } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { isUnlimited, lateEntryOpen } from '@/lib/entryLimits';
-import { modeLockReason, standaloneSettings } from '@/lib/tournamentMode';
+import { modeLockReason, standaloneSettings, isLeagueGame } from '@/lib/tournamentMode';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { useNewGame } from '@/hooks/useNewGame';
 import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
@@ -75,9 +75,7 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
   const { state, updateTournamentDetails, updateSettings } = tournament;
   const { startNewGame, newGameGuard } = useNewGame(tournament, otherLiveGame, league?.name);
 
-  const isLeagueMode =
-    state.details?.type === 'season' ||
-    state.settings?.isSeasonTournament === true;
+  const isLeagueMode = isLeagueGame(state);
 
   // `details.type` is OVERLOADED: it says both "league or standalone" and "saved
   // to Firestore". Writing the first meaning over the second un-saved the game —
@@ -239,9 +237,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
   const [isExpanded, setIsExpanded] = useState(true);
   const [showChipChop, setShowChipChop] = useState(false);
 
-  const isLeagueMode =
-    state.details?.type === 'season' ||
-    state.settings?.isSeasonTournament === true;
+  const isLeagueMode = isLeagueGame(state);
 
   const storedSeasonId = state.settings?.seasonId;
   const displaySeason = storedSeasonId

@@ -388,3 +388,66 @@ export function reseatStranded<T extends SeatHolder>(
   });
   return { players: next, unseated: Math.max(0, stranded.length - seats.length) };
 }
+
+/**
+ * The table configuration a game has, with the ONE default for a game that
+ * names none (October audit, correctness debt).
+ *
+ * There were seven: 2×8 in the console's own defaults, 6 seats in a dozen
+ * `|| 6` spellings inside useTournament, 1×9 in the Players tab, the read-only
+ * view, the participant view and the creation path, and 3×6 in the Seating
+ * tab — so the same game with no stored tables was a different room on every
+ * screen. 2×8 is what a new console starts from, so it is what "absent" means.
+ * Each field falls back on its own, because a stored config can lack just one.
+ */
+export const DEFAULT_TABLES = { numberOfTables: 2, seatsPerTable: 8 } as const;
+
+export function tablesOf(
+  settings: { tables?: { numberOfTables?: number; seatsPerTable?: number; tableNames?: string[] } } | null | undefined,
+): { numberOfTables: number; seatsPerTable: number; tableNames: string[] } {
+  const t = settings?.tables;
+  const numberOfTables = Math.max(1, Math.floor(t?.numberOfTables || 0) || DEFAULT_TABLES.numberOfTables);
+  const seatsPerTable = Math.max(1, Math.floor(t?.seatsPerTable || 0) || DEFAULT_TABLES.seatsPerTable);
+  return { numberOfTables, seatsPerTable, tableNames: tableNamesFor(t?.tableNames, numberOfTables) };
+}
+
+/**
+ * A random free chair at one of `tables`, tried in order — the draw both
+ * single-player seaters make (October audit, correctness debt).
+ *
+ * `seatSinglePlayer` (Players tab) and the uneven-tables "move a random
+ * player" (Seating tab) each walked the chairs themselves, past
+ * `freeSeatAt`'s rule: a busted player's chair counted as taken, and so did a
+ * ghost seat past the end of a table. Same question, one answer. Random within
+ * the table because that is what a seat draw is; the order of tables is the
+ * caller's choice.
+ */
+export function randomFreeSeat(
+  players: SeatedLike[],
+  tables: number[],
+  seatsPerTable: number,
+  random: () => number = Math.random,
+): Seat | null {
+  for (const tableIndex of tables) {
+    const free: number[] = [];
+    for (let seatIndex = 0; seatIndex < seatsPerTable; seatIndex++) {
+      const taken = players.some(p =>
+        p.isActive !== false && p.seated &&
+        p.tableAssignment?.tableIndex === tableIndex &&
+        p.tableAssignment?.seatIndex === seatIndex);
+      if (!taken) free.push(seatIndex);
+    }
+    if (free.length) return { tableIndex, seatIndex: free[Math.floor(random() * free.length)] };
+  }
+  return null;
+}
+
+/** Tables in play, emptiest first, ties to the lower index — where one late player sits. */
+export function tablesEmptiestFirst(players: SeatedLike[], numberOfTables: number): number[] {
+  const counts = Array.from({ length: Math.max(1, numberOfTables) }, () => 0);
+  for (const p of players) {
+    const t = p.tableAssignment?.tableIndex;
+    if (p.isActive !== false && p.seated && typeof t === 'number' && t >= 0 && t < counts.length) counts[t]++;
+  }
+  return counts.map((n, t) => ({ n, t })).sort((a, b) => a.n - b.n || a.t - b.t).map(x => x.t);
+}

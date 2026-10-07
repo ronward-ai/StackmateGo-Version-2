@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt, assignSeats, occupiedChairs, strandedBy, reseatStranded, tablesNeededFor, tableNamesFor } from './seating';
+import { seatToReclaim, seatablePlayers, allSeated, planSeating, freeSeatAt, assignSeats, occupiedChairs, strandedBy, reseatStranded, randomFreeSeat, tablesEmptiestFirst, tablesOf, tablesNeededFor, tableNamesFor } from './seating';
 import type { Player } from '@/types';
 
 const player = (over: Partial<Player> = {}): Player => ({
@@ -374,5 +374,34 @@ describe('changing the tables mid-game (Oct Low)', () => {
     const out = reseatStranded(players, { numberOfTables: 1, seatsPerTable: 2 });
     expect(out.unseated).toBe(1);
     expect(out.players.find(p => p.id === 'c')!.seated).toBe(false);
+  });
+});
+
+describe('one seat draw for one player (Oct correctness debt)', () => {
+  const at = (id: string, t: number, s: number, over: Record<string, unknown> = {}) =>
+    ({ id, isActive: true, seated: true, tableAssignment: { tableIndex: t, seatIndex: s }, ...over });
+
+  it("does not count a busted player's chair, or a ghost chair, as taken", () => {
+    const players = [at('a', 0, 0), at('b', 0, 1, { isActive: false }), at('g', 0, 9)];
+    // Only seat 1 and seats 2+ are free on a 3-seat table; seat 1 belonged to a busted player.
+    const seat = randomFreeSeat(players, [0], 3, () => 0);
+    expect(seat).toEqual({ tableIndex: 0, seatIndex: 1 });
+  });
+
+  it('tries the tables in the order given and says null when none is free', () => {
+    const players = [at('a', 0, 0), at('b', 0, 1)];
+    expect(randomFreeSeat(players, [0, 1], 2)?.tableIndex).toBe(1);
+    expect(randomFreeSeat(players, [0], 2)).toBeNull();
+  });
+
+  it('orders tables emptiest first, ties to the lower index', () => {
+    const players = [at('a', 0, 0), at('b', 0, 1), at('c', 1, 0)];
+    expect(tablesEmptiestFirst(players, 3)).toEqual([2, 1, 0]);
+  });
+
+  it('tablesOf has one default and fills a missing field on its own', () => {
+    expect(tablesOf(undefined)).toMatchObject({ numberOfTables: 2, seatsPerTable: 8 });
+    expect(tablesOf({ tables: { numberOfTables: 3 } })).toMatchObject({ numberOfTables: 3, seatsPerTable: 8 });
+    expect(tablesOf({ tables: { numberOfTables: 3 } }).tableNames).toEqual(['Table 1', 'Table 2', 'Table 3']);
   });
 });

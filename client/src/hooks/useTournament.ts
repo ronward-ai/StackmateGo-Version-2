@@ -42,7 +42,7 @@ import { canRebuy, canReEnter, addOnsOpen } from '@/lib/entryLimits';
 import { gameIsOver } from '@/lib/gameOver';
 import { playThirtySecondWarning, playLevelComplete } from '@/lib/chimes';
 import { defaultPrizeStructure } from '@/lib/prizeStructure';
-import { seatToReclaim } from '@/lib/seating';
+import { seatToReclaim, tablesOf } from '@/lib/seating';
 import {
   consolidationAfterReturn,
   shouldPromptForFinalTable as finalTableIsDue,
@@ -252,7 +252,7 @@ function settingsAfterRestore(
     tables: {
       ...(settings?.tables || {}),
       numberOfTables: restore.numberOfTables,
-      seatsPerTable: settings?.tables?.seatsPerTable ?? 6,
+      seatsPerTable: tablesOf(settings).seatsPerTable,
       ...(restore.names ? { tableNames: restore.names } : {}),
     },
     ...(restore.backgrounds ? { tableBackgrounds: restore.backgrounds } : {}),
@@ -1409,8 +1409,8 @@ export function useTournament(tournamentId?: string) {
       const ft = consolidationAfterReturn(repricedEntry, {
         isFinalTable: prev.isFinalTable,
         preConsolidation: prev.preConsolidation,
-        seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
-        numberOfTables: prev.settings.tables?.numberOfTables || 1,
+        seatsPerTable: tablesOf(prev.settings).seatsPerTable,
+        numberOfTables: tablesOf(prev.settings).numberOfTables,
         returningId: playerId,
       });
 
@@ -1495,8 +1495,8 @@ export function useTournament(tournamentId?: string) {
       const ft = consolidationAfterReturn(repriceMovedFinishers(prev.players, updatedPlayers, prev.prizeStructure), {
         isFinalTable: prev.isFinalTable,
         preConsolidation: prev.preConsolidation,
-        seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
-        numberOfTables: prev.settings.tables?.numberOfTables || 1,
+        seatsPerTable: tablesOf(prev.settings).seatsPerTable,
+        numberOfTables: tablesOf(prev.settings).numberOfTables,
         returningId: playerId,
         reclaimSeat: player.seatInfo,
       });
@@ -1967,7 +1967,7 @@ export function useTournament(tournamentId?: string) {
   // Check if we should prompt for final table
   const shouldPromptForFinalTable = useCallback(() => finalTableIsDue(
     state.players,
-    state.settings.tables?.seatsPerTable || 6,
+    tablesOf(state.settings).seatsPerTable,
     state.isFinalTable,
   ), [state.players, state.settings.tables, state.isFinalTable]);
 
@@ -1982,8 +1982,8 @@ export function useTournament(tournamentId?: string) {
   const tableBreakDue = useCallback(() => consolidationDue(
     state.players,
     {
-      numberOfTables: state.settings.tables?.numberOfTables || 1,
-      seatsPerTable: state.settings.tables?.seatsPerTable || 6,
+      numberOfTables: tablesOf(state.settings).numberOfTables,
+      seatsPerTable: tablesOf(state.settings).seatsPerTable,
     },
   ), [state.players, state.settings.tables]);
 
@@ -2002,7 +2002,7 @@ export function useTournament(tournamentId?: string) {
   const goToFinalTable = useCallback(() => {
     setState(prev => {
       const activePlayers = prev.players.filter(p => p.isActive !== false);
-      const seatsPerTable = prev.settings.tables?.seatsPerTable || 6;
+      const seatsPerTable = tablesOf(prev.settings).seatsPerTable;
 
       const arr = [...activePlayers];
       for (let i = arr.length - 1; i > 0; i--) {
@@ -2039,7 +2039,7 @@ export function useTournament(tournamentId?: string) {
         // caused the collapse left everyone on their new random seat.
         preConsolidation: {
           seats: snapshotSeating(prev.players),
-          tables: prev.settings.tables?.numberOfTables || 1,
+          tables: tablesOf(prev.settings).numberOfTables,
           names: prev.settings.tables?.tableNames,
           backgrounds: prev.settings.tableBackgrounds,
         },
@@ -2069,8 +2069,8 @@ export function useTournament(tournamentId?: string) {
    */
   const breakTable = useCallback((brokenIndex?: number) => {
     setState(prev => {
-      const seatsPerTable = prev.settings.tables?.seatsPerTable || 6;
-      const numberOfTables = prev.settings.tables?.numberOfTables || 1;
+      const seatsPerTable = tablesOf(prev.settings).seatsPerTable;
+      const numberOfTables = tablesOf(prev.settings).numberOfTables;
       if (numberOfTables < 2) return prev;
 
       const broken = brokenIndex ?? tableToBreak(prev.players, numberOfTables);
@@ -2334,8 +2334,8 @@ export function useTournament(tournamentId?: string) {
       const ft = consolidationAfterReturn(finalPlayers, {
         isFinalTable: prev.isFinalTable,
         preConsolidation: prev.preConsolidation,
-        seatsPerTable: prev.settings.tables?.seatsPerTable || 6,
-        numberOfTables: prev.settings.tables?.numberOfTables || 1,
+        seatsPerTable: tablesOf(prev.settings).seatsPerTable,
+        numberOfTables: tablesOf(prev.settings).numberOfTables,
         returningId: playerToRestore.id,
         reclaimSeat: playerToRestore.seatInfo,
       });
@@ -2480,7 +2480,7 @@ export function useTournament(tournamentId?: string) {
     goToFinalTable,
     breakTable,
     tableBreakDue,
-    tableToBreak: () => tableToBreak(state.players, state.settings.tables?.numberOfTables || 1),
+    tableToBreak: () => tableToBreak(state.players, tablesOf(state.settings).numberOfTables),
     // `isComplete` was exported here and read by nobody. It also answered a
     // different question from the one its name implies — it ORed "the blind
     // structure ran out" into "the game is over", which are not the same thing

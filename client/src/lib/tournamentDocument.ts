@@ -1,4 +1,5 @@
 import { getAuth } from 'firebase/auth';
+import { tablesOf } from './seating';
 import { playerIdsOf } from './seatClaims';
 import { currencyOf } from '@/lib/currency';
 import { projectId, databaseId } from '@/lib/firebase';
@@ -111,11 +112,7 @@ export function buildTournamentDocument(
       enableVoice: state.settings.enableVoice,
       showNextLevel: state.settings.showNextLevel,
       currency: currencyOf(state.settings),
-      tables: state.settings.tables || {
-        numberOfTables: 1,
-        seatsPerTable: 9,
-        tableNames: ['Table 1'],
-      },
+      tables: tablesOf(state.settings),
       // The director's OWN branding, never a resolved name (October audit, M18).
       // This used to write `leagueName: eventNameOf(settings, leagueName)`,
       // freezing the league's name at creation into the legacy key — which

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { isLeagueGame } from '@/lib/tournamentMode';
 import { ChevronRight, ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -72,9 +73,7 @@ export default function NextGameControl({
   const [showLeagueNewDialog, setShowLeagueNewDialog] = useState(false);
   const [dialogSeasonId, setDialogSeasonId] = useState<string | number | null>(null);
 
-  const isLeagueMode =
-    state.details?.type === 'season' ||
-    state.settings?.isSeasonTournament === true;
+  const isLeagueMode = isLeagueGame(state);
 
   const storedSeasonId = state.settings?.seasonId;
   const storedSeason = storedSeasonId

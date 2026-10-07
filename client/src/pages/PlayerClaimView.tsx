@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserCheck, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { getDeviceId } from '@/lib/deviceId';
+import { fromRestFields } from '@/lib/firestoreRest';
 import { claimedByFor, claimFieldPath, type ClaimsMap } from '@/lib/seatClaims';
 import EmptyState from '@/components/ui/empty-state';
 
@@ -18,21 +19,7 @@ interface TournamentPlayer {
   seatInfo?: { tableIndex: number; seatIndex: number; totalSeatedPlayers: number };
 }
 
-const fromVal = (v: any): any => {
-  if ('nullValue' in v) return null;
-  if ('booleanValue' in v) return v.booleanValue;
-  if ('integerValue' in v) return Number(v.integerValue);
-  if ('doubleValue' in v) return v.doubleValue;
-  if ('stringValue' in v) return v.stringValue;
-  if ('timestampValue' in v) return v.timestampValue;
-  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
-  if ('mapValue' in v) {
-    const o: any = {};
-    for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any);
-    return o;
-  }
-  return null;
-};
+// One decoder for REST documents — lib/firestoreRest.ts.
 
 /**
  * A check-in now names its seat (`lastClaim`), which the October rules require
@@ -100,7 +87,7 @@ export default function PlayerClaimView() {
         if (restRes.ok) {
           const raw = await restRes.json();
           const fields: any = {};
-          for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromVal(fv as any);
+          Object.assign(fields, fromRestFields(raw.fields));
           setPlayers((fields.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
           setClaims(fields.claims || {});
           // Same resolver as everywhere else. `name` is written once at

@@ -43,6 +43,26 @@ export function isLeagueTournament(tournament?: TournamentModeInput | null): boo
 }
 
 /**
+ * Is the game on the CONSOLE a league game? (October audit, correctness debt.)
+ *
+ * About ten sites spelled this inline as `details.type === 'season' ||
+ * settings.isSeasonTournament === true`, while `isLeagueTournament` — the
+ * document-level answer, which also honours `leagueId` — had one caller. One
+ * order, everywhere: an explicit flag wins either way (league-ness LIVES in
+ * the flag — CLAUDE.md, "`details.type` is overloaded"); with no flag, a local
+ * game typed 'season' is a league game; otherwise a linked league decides.
+ */
+export function isLeagueGame(
+  state: { details?: { type?: string } | null; settings?: TournamentModeInput['settings'] } | null | undefined,
+): boolean {
+  const explicit = state?.settings?.isSeasonTournament;
+  if (explicit === true) return true;
+  if (explicit === false) return false;
+  if (state?.details?.type === 'season') return true;
+  return !!state?.settings?.leagueId;
+}
+
+/**
  * The settings that make a game standalone.
  *
  * ONE ANSWER TO "make this standalone", because there are now two ways to ask:

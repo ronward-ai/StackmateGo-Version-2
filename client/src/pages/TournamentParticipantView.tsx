@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { isLeagueTournament } from '@/lib/tournamentMode';
+import { tablesOf } from '@/lib/seating';
+import { fromRestFields } from '@/lib/firestoreRest';
 import { gameIsOver } from '@/lib/gameOver';
 import { currencyOf } from '@/lib/currency';
 import { useParams } from 'wouter';
@@ -163,7 +166,7 @@ function TournamentParticipantView() {
       setTimeLeft(secondsLeftFrom(data as any, Date.now()));
       setError(null);
       setIsConnected(true);
-      if (data.settings?.isSeasonTournament) {
+      if (isLeagueTournament(data)) {
         window.dispatchEvent(new CustomEvent('leagueDataChanged', {
           detail: { source: 'participant-firebase-update', forceUpdate: true }
         }));
@@ -179,24 +182,8 @@ function TournamentParticipantView() {
         const restRes = await fetch(restUrl);
         if (restRes.ok) {
           const raw = await restRes.json();
-          // Convert Firestore REST field format to plain JS
-          const fromFirestoreValue = (v: any): any => {
-            if ('nullValue' in v) return null;
-            if ('booleanValue' in v) return v.booleanValue;
-            if ('integerValue' in v) return Number(v.integerValue);
-            if ('doubleValue' in v) return v.doubleValue;
-            if ('stringValue' in v) return v.stringValue;
-            if ('timestampValue' in v) return v.timestampValue;
-            if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromFirestoreValue);
-            if ('mapValue' in v) {
-              const o: any = {};
-              for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromFirestoreValue(fv);
-              return o;
-            }
-            return null;
-          };
-          const fields: any = {};
-          for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromFirestoreValue(fv as any);
+          // One decoder for REST documents — lib/firestoreRest.ts.
+          const fields: any = fromRestFields(raw.fields);
           if (mounted) applySnapshot(fields);
         } else if (restRes.status === 404) {
           if (mounted) setError('Tournament not found');
@@ -231,18 +218,9 @@ function TournamentParticipantView() {
         const res = await fetch(restUrl);
         if (res.ok) {
           const raw = await res.json();
-          const fields: any = {};
-          const fromVal = (v: any): any => {
-            if ('nullValue' in v) return null;
-            if ('booleanValue' in v) return v.booleanValue;
-            if ('integerValue' in v) return Number(v.integerValue);
-            if ('doubleValue' in v) return v.doubleValue;
-            if ('stringValue' in v) return v.stringValue;
-            if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromVal);
-            if ('mapValue' in v) { const o: any = {}; for (const [k, fv] of Object.entries(v.mapValue.fields || {})) o[k] = fromVal(fv as any); return o; }
-            return null;
-          };
-          for (const [k, fv] of Object.entries(raw.fields || {})) fields[k] = fromVal(fv as any);
+          // The same decoder as the first load. This copy dropped
+          // timestamps, so a phone waking up lost them (October audit).
+          const fields: any = fromRestFields(raw.fields);
           if (mounted) applySnapshot(fields);
         }
       } catch { /* silently ignore */ }
@@ -387,11 +365,7 @@ function TournamentParticipantView() {
       settings: {
         ...tournament.settings,
         currency: currencyOf(tournament.settings),
-        tables: tournament.settings?.tables || {
-          numberOfTables: 1,
-          seatsPerTable: 9,
-          tableNames: ['Table 1']
-        },
+        tables: tablesOf(tournament.settings),
         tableBackgrounds: tournament.settings?.tableBackgrounds || []
       },
       prizeStructure: tournament.prizeStructure || {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import { isLeagueGame } from '@/lib/tournamentMode';
 import { recordedForGame, removalsDue, recordsDue } from '@/lib/leagueRecorder';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
@@ -310,7 +311,7 @@ function PokerTimerInner({
   // The game number for the info card's header. The season line beside the
   // mode toggle derives its own through the same `gameNumberFor`, so the two
   // agree — but it is two derivations, not one.
-  const _isLeagueMode = tournament.state.details?.type === 'season' || tournament.state.settings?.isSeasonTournament === true;
+  const _isLeagueMode = isLeagueGame(tournament.state);
   const _storedSeasonId = tournament.state.settings?.seasonId;
   const _displaySeason = _storedSeasonId
     ? ((seasons as any[]).find((s: any) => String(s.id) === String(_storedSeasonId)) ?? currentSeason)
@@ -1066,9 +1067,7 @@ function PokerTimerInner({
 
     const syncLeagueResults = async () => {
       try {
-        const isSeasonTournament =
-          tournament?.state?.details?.type === 'season' ||
-          tournament?.state?.settings?.isSeasonTournament === true;
+        const isSeasonTournament = isLeagueGame(tournament?.state);
 
         if (!isSeasonTournament) {
           return;

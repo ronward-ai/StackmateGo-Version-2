@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { isLeagueGame } from '@/lib/tournamentMode';
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -213,9 +214,7 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                   value={state.settings.resultColumns}
                   context={{
                     prizeStructure: state.prizeStructure,
-                    isLeagueMode:
-                      state.details?.type === 'season' ||
-                      (state.settings as any)?.isSeasonTournament === true,
+                    isLeagueMode: isLeagueGame(state),
                   }}
                   onChange={next => updateSettings({ resultColumns: next })}
                 />

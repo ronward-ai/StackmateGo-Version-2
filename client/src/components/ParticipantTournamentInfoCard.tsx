@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isLeagueTournament } from '@/lib/tournamentMode';
 import { ordinal } from '@/lib/ordinal';
 import { currencyOf } from '@/lib/currency';
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,7 +25,7 @@ function DetailRow({ label, value, highlight }: { label: string; value: string |
 export default function ParticipantTournamentInfoCard({ tournament }: { tournament: any }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const isLeagueMode = tournament.settings?.isSeasonTournament === true;
+  const isLeagueMode = isLeagueTournament(tournament);
   const seasonName = tournament.settings?.seasonName as string | undefined;
   const gameNumber = tournament.settings?.gameNumber as number | undefined;
   // No count means no count: `|| 12` printed "Game 4 of 12" for a season that

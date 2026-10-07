@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { isLeagueGame } from '@/lib/tournamentMode';
 import { blindLevelIndex } from '@/lib/entryLimits';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,7 @@ import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
 import { eventNameOf } from '@/lib/eventName';
 import { addOnsOpen, lateEntryClosedReason } from '@/lib/entryLimits';
 import BustOutDialog from '@/components/BustOutDialog';
-import { planSeating, assignSeats, tablesNeededFor, tableNamesFor } from '@/lib/seating';
+import { planSeating, assignSeats, tablesNeededFor, tableNamesFor, tablesOf, randomFreeSeat, tablesEmptiestFirst } from '@/lib/seating';
 import { ordinal } from '@/lib/ordinal';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
@@ -92,9 +93,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   /** A player waiting on the late-entry confirmation. */
   const [pendingLateEntry, setPendingLateEntry] = useState<string | null>(null);
 
-  const isLeagueMode =
-    state.details?.type === 'season' ||
-    (state.settings as any)?.isSeasonTournament === true;
+  const isLeagueMode = isLeagueGame(state);
 
   /**
    * The finishing order, derived ONCE for the rows on screen and the exported
@@ -316,8 +315,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
    * When the field will not fit it ASKS rather than seating 16 of 17 quietly.
    */
   const seatsForAll = () => {
-    const { numberOfTables, seatsPerTable = 9 } =
-      state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
+    const { numberOfTables, seatsPerTable } = tablesOf(state.settings);
     const activePlayers = state.players.filter(p => p.isActive !== false);
     return { activePlayers, numberOfTables, seatsPerTable };
   };
@@ -377,49 +375,16 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
     applySeating(needed);
   };
 
-  // Seat a single late-entry player — emptiest table first, random seat within that table.
+  // Seat a single late-entry player — emptiest table first, random seat within
+  // that table. Through lib/seating.ts: this walked the chairs itself and
+  // counted a busted player's chair as taken (October audit, correctness debt).
   const seatSinglePlayer = (player: Player) => {
     const { updatePlayers } = tournament;
-    const currentPlayers = [...state.players];
-    const { numberOfTables, seatsPerTable = 9 } = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
-
-    // Build set of occupied seat keys
-    const occupied = new Set(
-      currentPlayers
-        .filter(p => p.seated && p.tableAssignment)
-        .map(p => `${p.tableAssignment!.tableIndex}-${p.tableAssignment!.seatIndex}`)
-    );
-
-    // Count active seated players per table
-    const tableCount: Record<number, number> = {};
-    for (let t = 0; t < numberOfTables; t++) tableCount[t] = 0;
-    currentPlayers.forEach(p => {
-      if (p.seated && p.isActive !== false && p.tableAssignment) {
-        tableCount[p.tableAssignment.tableIndex] = (tableCount[p.tableAssignment.tableIndex] || 0) + 1;
-      }
-    });
-
-    // Sort tables by occupancy ascending, try each for an empty seat
-    const sorted = Object.entries(tableCount)
-      .map(([t, count]) => ({ tableIndex: parseInt(t), count }))
-      .sort((a, b) => a.count - b.count);
-
-    let assignedSeat: { tableIndex: number; seatIndex: number } | null = null;
-    for (const { tableIndex } of sorted) {
-      const emptySeats: number[] = [];
-      for (let s = 0; s < seatsPerTable; s++) {
-        if (!occupied.has(`${tableIndex}-${s}`)) emptySeats.push(s);
-      }
-      if (emptySeats.length > 0) {
-        const seatIndex = emptySeats[Math.floor(Math.random() * emptySeats.length)];
-        assignedSeat = { tableIndex, seatIndex };
-        break;
-      }
-    }
-
-    if (assignedSeat) {
-      const seat = assignedSeat;
-      updatePlayers(currentPlayers.map(p =>
+    const { numberOfTables, seatsPerTable } = tablesOf(state.settings);
+    const others = state.players.filter(p => p.id !== player.id);
+    const seat = randomFreeSeat(others, tablesEmptiestFirst(others, numberOfTables), seatsPerTable);
+    if (seat) {
+      updatePlayers(state.players.map(p =>
         p.id === player.id ? { ...p, seated: true, tableAssignment: seat } : p
       ));
     }
@@ -488,7 +453,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
   /** The table configuration, spelled once for the overflow dialog. Same
    *  fallback as the seater, which is the point of having it here. */
-  const tablesConfigured = state.settings.tables || { numberOfTables: 1, seatsPerTable: 9 };
+  const tablesConfigured = tablesOf(state.settings);
   /** Who the seater will actually try to seat. `isActive !== false`, not
    *  `isActive`, because an absent flag means active everywhere in this app —
    *  and the dialog must count the same heads the seating does. */

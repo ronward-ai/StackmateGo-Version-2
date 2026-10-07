@@ -25,7 +25,7 @@ import { ordinal } from '@/lib/ordinal';
 import { bustedPlayers } from '@/lib/eliminationOrder';
 import { gameIsOver } from '@/lib/gameOver';
 import BustOutDialog from '@/components/BustOutDialog';
-import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor, strandedBy, reseatStranded } from '@/lib/seating';
+import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, tablesNeededFor, tableNamesFor, strandedBy, reseatStranded, tablesOf, randomFreeSeat } from '@/lib/seating';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceKey, shouldAskToBalance } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
@@ -75,7 +75,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
     shouldPromptForFinalTable, goToFinalTable, breakTable, tableBreakDue
   } = tournament;
 
-  const tables = state.settings.tables || { numberOfTables: 3, seatsPerTable: 6, tableNames: ['Table 1','Table 2','Table 3'] };
+  const tables = tablesOf(state.settings);
 
   const sym = currencyOf(state.settings);
   const ps = state.prizeStructure;
@@ -355,21 +355,10 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   const balanceRandomly = () => {
     if (!balanceOptions) return;
     const player = balanceOptions.playersToMove[Math.floor(Math.random() * balanceOptions.playersToMove.length)];
-    const occupiedAtTarget = new Set(
-      state.players
-        .filter(p => p.seated && p.tableAssignment?.tableIndex === balanceOptions.underloadedTable)
-        .map(p => p.tableAssignment!.seatIndex)
-    );
-    const emptySeats: number[] = [];
-    for (let s = 0; s < seatsPerTable; s++) {
-      if (!occupiedAtTarget.has(s)) emptySeats.push(s);
-    }
-    if (emptySeats.length > 0) {
-      const seatIndex = emptySeats[Math.floor(Math.random() * emptySeats.length)];
-      updatePlayers(state.players.map(p => p.id === player.id
-        ? { ...p, tableAssignment: { tableIndex: balanceOptions.underloadedTable, seatIndex } }
-        : p
-      ));
+    // The draw lib/seating.ts makes for every single-player seating.
+    const seat = randomFreeSeat(state.players, [balanceOptions.underloadedTable], seatsPerTable);
+    if (seat) {
+      updatePlayers(state.players.map(p => p.id === player.id ? { ...p, tableAssignment: seat } : p));
     }
     setTableBalanceDialogOpen(false);
     setBalanceOptions(null);
