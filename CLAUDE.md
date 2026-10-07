@@ -2831,6 +2831,12 @@ survived. Before: `perTable [9, 8], maxSeat 8`. After, both entry points: the pr
 `[8, 8], maxSeat 7`, one honestly unseated — or **Use 3 tables**, giving `[6, 6, 5]`, all 17 seated,
 no duplicate chair and nothing out of range.
 
+**A seating plans against the chairs that are FREE** (October audit, Low). `planSeating` takes the
+`occupied` set too, and `assignSeats` spills anyone a table's share left over into any free chair — Seat
+Selected with table 1 full and ten selected across three eight-seat tables used to promise ten and seat
+six. `occupiedChairs` is the one spelling of "held by somebody outside this selection", shared by the
+seater and the dialog, and the dialog counts its summary from the seats actually handed out.
+
 ### What kind of game it is, is decided before the first hand
 
 The Standalone ↔ League slider was live for the whole game, and that was not cosmetic. League result
@@ -3083,6 +3089,10 @@ Two layers, and both are wanted:
   `PlayerSection` replaces Add Player, its autocomplete and Recent Players (every name there is an add
   button) with one line; `PlayerEntryActions` takes a `gameOver` prop and renders nothing, game-wide
   like a feature switched off, rather than a disabled button against every name.
+
+`processAddon` is gated at the action too (October audit, Low) — the add-on window, a player still in,
+one each, and not after the final hand — for the same reason: it checked only `allowAddons` and relied
+on the screen for the rest.
 
 `lib/gameOver.ts`'s `finishedGameNote` owns the sentence — *"This game is over. To correct the
 result, undo the last bust-out — otherwise start the next game."* — because a line that only says no
