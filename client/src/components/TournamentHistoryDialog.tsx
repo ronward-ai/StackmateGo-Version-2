@@ -1,3 +1,4 @@
+import { ordinal } from '@/lib/ordinal';
 import { useState } from 'react';
 import { currencyOf } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
@@ -77,7 +78,7 @@ function HistoryRow({
           {entry.results.map(r => (
             <div key={r.playerId} className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-2 min-w-0">
-                <span className="w-5 text-muted-foreground tabular-nums">{r.position}</span>
+                <span className="w-8 text-muted-foreground font-mono">{r.position ? ordinal(r.position) : ''}</span>
                 <span className="truncate">{r.playerName}</span>
               </span>
               <span className="flex items-center gap-3 flex-shrink-0 text-muted-foreground">

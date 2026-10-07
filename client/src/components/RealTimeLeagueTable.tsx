@@ -18,7 +18,8 @@ import { isLeagueTournament } from '@/lib/tournamentMode';
 import { currencyOf, money } from '@/lib/currency';
 import { countGamesPlayed, isRealLeagueId } from '@/lib/seasonProgress';
 import EmptyState from '@/components/ui/empty-state';
-import { totalsAcross } from '@/lib/resultStats';
+import { totalsAcross, cashedIn } from '@/lib/resultStats';
+import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
 import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
@@ -161,16 +162,17 @@ function RealTimeLeagueTable({
       });
       const totalPoints = prevResults.reduce((sum: number, r: any) => sum + (r.points || 0), 0);
       const games = prevResults.length;
-      return { id: player.id, totalPoints, games };
+      return { id: player.id, totalPoints, games, bestFinish: bestFinishOf(prevResults) };
     });
 
     // Everyone has 0 games before the latest tournament = first tournament ever, no arrows
     if (prevStats.every(p => p.games === 0)) return {};
 
-    const sorted = [...prevStats].sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      return a.games - b.games;
-    });
+    // The SAME order as the table below — lib/standingsOrder.ts.
+    const sorted = [...prevStats].sort((a, b) => compareStandings(
+      { points: a.totalPoints, games: a.games, bestFinish: a.bestFinish },
+      { points: b.totalPoints, games: b.games, bestFinish: b.bestFinish },
+    ));
 
     const rankings: {[playerId: string]: number} = {};
     sorted.forEach((p, i) => { rankings[p.id] = i + 1; });
@@ -265,10 +267,8 @@ function RealTimeLeagueTable({
       const totalReEntries = extras.reEntries;
 
       // ITM %
-      const itmCount = results.filter(r => {
-        const cash = (r as any).prizeMoney || (r as any).cashWon || (r as any).winnings || (r as any).prizeAmount || (r as any).totalWinnings || 0;
-        return cash > 0;
-      }).length;
+      // A place that paid, not bounty money alone — see cashedIn.
+      const itmCount = results.filter(r => cashedIn(r as any)).length;
       const itmPercentage = games > 0 ? Math.round((itmCount / games) * 100) : 0;
 
       // Add-ons
@@ -297,12 +297,13 @@ function RealTimeLeagueTable({
       });
       let currentStreak = 0;
       for (const r of sortedForStreak) {
-        const cash = (r as any).prizeMoney || (r as any).cashWon || (r as any).winnings || (r as any).prizeAmount || (r as any).totalWinnings || 0;
-        if (cash > 0) currentStreak++;
+        if (cashedIn(r as any)) currentStreak++;
         else break;
       }
 
-      // Biggest win
+      // Biggest win — everything collected in one night, bounties included,
+      // deliberately: it answers "most money taken home", where ITM and the
+      // streak above ask "finished in a paying place".
       const biggestWin = results.length > 0
         ? Math.max(...results.map((r: any) => r.prizeMoney || r.cashWon || r.winnings || r.prizeAmount || r.totalWinnings || 0))
         : 0;
@@ -435,24 +436,12 @@ function RealTimeLeagueTable({
 
   // Use the calculated stats instead of raw standings
   const displayPlayers = useMemo(() => {
-    return [...playersWithStats].sort((a, b) => {
-      // Primary sort: total points (descending)
-      if (b.displayPoints !== a.displayPoints) {
-        return b.displayPoints - a.displayPoints;
-      }
-
-      // Secondary sort: number of games (ascending - fewer games played ranks higher)
-      const aGames = a.games;
-      const bGames = b.games;
-      if (aGames !== bGames) {
-        return aGames - bGames;
-      }
-
-      // Tertiary sort: best finish (ascending - better finish ranks higher)
-      const aBest = Math.min(...a.tournamentResults.map(r => r.position), 999);
-      const bBest = Math.min(...b.tournamentResults.map(r => r.position), 999);
-      return aBest - bBest;
-    });
+    // Points, fewer games, best finish — lib/standingsOrder.ts, shared with
+    // the movement arrows so the two rankings cannot disagree.
+    return [...playersWithStats].sort((a, b) => compareStandings(
+      { points: a.displayPoints, games: a.games, bestFinish: bestFinishOf(a.tournamentResults) },
+      { points: b.displayPoints, games: b.games, bestFinish: bestFinishOf(b.tournamentResults) },
+    ));
   }, [playersWithStats]);
 
 

@@ -136,8 +136,13 @@ export default function SeasonDashboard({
         {(currentSeason.numberOfGames || 0) > 0 && (
           <div className="mt-4">
             <div className="flex justify-between text-caption text-muted-foreground mb-1.5">
+              {/* Games PLAYED, which is what the bar measures. It read "Game X of N"
+                  from the played count while the header one card away says
+                  "Game X of N" for the game in PROGRESS, so on a league night
+                  before the first KO the two disagreed by one (October audit,
+                  Low). Saying "played" is what stops them reading as one fact. */}
               <span className="font-mono">
-                Game {clampedGameNumber(seasonStats.totalTournaments, currentSeason)} of {currentSeason.numberOfGames}
+                {clampedGameNumber(seasonStats.totalTournaments, currentSeason)} of {currentSeason.numberOfGames} played
               </span>
               <span>{seasonStats.gamesRemaining} remaining</span>
             </div>

@@ -77,6 +77,23 @@ export function bountyWinningsIn(result: ResultCosts): number {
 }
 
 /**
+ * Did this result finish IN THE MONEY — a place that paid, as opposed to
+ * collecting only bounties? (October audit, Low.)
+ *
+ * `prizeMoney` is everything collected, and `bountyWinnings` says how much of
+ * that was bounty — the contract recorded in CLAUDE.md. The league's ITM % and
+ * Current streak tested the total, so a player out in 9th with one bounty
+ * "cashed". Taking the bounty back out leaves the place's payout.
+ *
+ * Results recorded before ordinary bounties were written carry
+ * `bountyWinnings: 0`, so their total is their prize and nothing changes.
+ */
+export function cashedIn(result: ResultCosts & Record<string, any>): boolean {
+  const collected = result.prizeMoney || result.cashWon || result.winnings || result.prizeAmount || result.totalWinnings || 0;
+  return collected - bountyWinningsIn(result) > 0;
+}
+
+/**
  * What a player's bounties are worth, and how many heads that is.
  *
  * **ONE derivation, because there were four and one of them wrote to the

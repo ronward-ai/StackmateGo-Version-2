@@ -6,7 +6,9 @@ describe('neutraliseFormula', () => {
     // Player names are typed in by whoever runs the game and land in the file
     // unmodified, so this would otherwise run on the opener's machine.
     expect(neutraliseFormula('=HYPERLINK("http://x","click")')).toBe("'=HYPERLINK(\"http://x\",\"click\")");
-    expect(neutraliseFormula('+1')).toBe("'+1");
+    // An expression, not a figure. A bare `+1` is left alone since October:
+    // it is a number the app wrote, and defusing it stopped columns summing.
+    expect(neutraliseFormula('+1+1')).toBe("'+1+1");
     expect(neutraliseFormula('-cmd')).toBe("'-cmd");
     expect(neutraliseFormula('@SUM(A1)')).toBe("'@SUM(A1)");
   });
@@ -65,7 +67,9 @@ describe('toCsv', () => {
     // Fidelity to the screen: the export uses the same accessor the table
     // renders with, so a column can never disagree with what the director saw.
     // Excel and Sheets both parse a leading currency symbol, so SUM still works.
-    expect(csvRow(['£20', '-£5'])).toBe("£20,'-£5");
+    // This used to expect `'-£5` — asserting the very bug that stopped a loss
+    // column summing (October audit, Low). A signed figure is a number.
+    expect(csvRow(['£20', '-£5'])).toBe("£20,-£5");
   });
 });
 
@@ -85,5 +89,14 @@ describe('csvFilename', () => {
   it('falls back to a usable name when there is nothing to use', () => {
     expect(csvFilename([null, undefined, '  '], new Date('2026-09-24T12:00:00Z')))
       .toBe('standings-2026-09-24.csv');
+  });
+});
+
+describe('signed figures stay numbers (Oct Low)', () => {
+  it.each(['+£40', '-£30', '-5', '+12.5%', '-$1,250.50', '0'])('leaves %s alone so the column sums', (v) => {
+    expect(neutraliseFormula(v)).toBe(v);
+  });
+  it.each(['-2+3', '+£40)', '-1*cmd', '+SUM(A1)', '-£', '=1'])('still defuses %s', (v) => {
+    expect(neutraliseFormula(v)).toBe(`'${v}`);
   });
 });

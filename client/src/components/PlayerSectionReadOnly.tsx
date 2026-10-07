@@ -4,6 +4,7 @@ import { Users, Trophy, Target, ChevronUp, ChevronDown } from 'lucide-react';
 import EmptyState from '@/components/ui/empty-state';
 import ResultsTable from '@/components/ResultsTable';
 import { resultRowsFor } from '@/lib/resultRows';
+import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 
 interface Player {
   id: string;
@@ -60,10 +61,21 @@ export default function PlayerSectionReadOnly({ tournament }: PlayerSectionReadO
    * The two sections stay, because they are a real difference of purpose on a
    * phone — who is still in, and how it finished — not drift.
    */
-  const rows = resultRowsFor(players, { prizeStructure, settings });
+  // The league's own scoring, read the way the standings below already read it
+  // (a public `get` of the director's settings — see lib/leagueSettingsId.ts).
+  // This screen offered the Points column in league mode and had no
+  // `calculatePoints` to fill it, so every phone and every read-only console
+  // showed a column of dashes (October audit, Low).
+  const isLeagueMode = !!(settings as any)?.isSeasonTournament;
+  const leagueId = (settings as any)?.leagueId ?? null;
+  const { calculatePoints } = useLeagueSettings(
+    (tournament.state as any).details?.ownerId,
+    isLeagueMode && leagueId ? String(leagueId) : null,
+  );
+  const rows = resultRowsFor(players, { prizeStructure, settings, isLeagueMode, calculatePoints });
   /** The SAME columns the director chose: `settings` rides into the tournament
    *  document, so a player's phone shows the table the console shows. */
-  const columnContext = { prizeStructure, isLeagueMode: !!(settings as any)?.isSeasonTournament };
+  const columnContext = { prizeStructure, isLeagueMode };
   const activeRows = rows.filter(r => r.position === 0);
   const finishedRows = rows.filter(r => r.position > 0);
 

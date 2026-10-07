@@ -1,5 +1,14 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+
+const leagueSettingsCalls: unknown[][] = [];
+vi.mock('@/hooks/useLeagueSettings', () => ({
+  useLeagueSettings: (...args: unknown[]) => {
+    leagueSettingsCalls.push(args);
+    return { calculatePoints: (position: number, totalPlayers: number) => (totalPlayers - position + 1) * 10 };
+  },
+}));
+
 import PlayerSectionReadOnly from './PlayerSectionReadOnly';
 
 /**
@@ -134,5 +143,28 @@ describe('PlayerSectionReadOnly', () => {
   it('says so when nobody has joined', () => {
     render(<PlayerSectionReadOnly tournament={tournament([]) as any} />);
     expect(screen.getByText('Nobody has joined yet')).toBeTruthy();
+  });
+});
+
+// October audit, Low: in league mode the Points column was offered with no
+// `calculatePoints` to fill it, so every phone showed a column of dashes.
+describe('PlayerSectionReadOnly points', () => {
+  it("scores the Points column with the director's league settings", () => {
+    leagueSettingsCalls.length = 0;
+    const t = {
+      state: {
+        details: { ownerId: 'owner-1' },
+        players: [
+          { id: '1', name: 'Dan', isActive: false, position: 1 },
+          { id: '2', name: 'Amy', isActive: false, position: 2 },
+        ],
+        settings: { currency: '£', isSeasonTournament: true, leagueId: 'L1' },
+        prizeStructure: { buyIn: 10, manualPayouts: [] },
+      },
+    };
+    render(<PlayerSectionReadOnly tournament={t as any} />);
+    expect(leagueSettingsCalls.at(-1)).toEqual(['owner-1', 'L1']);
+    const danRow = screen.getByText('Dan').closest('tr')!;
+    expect(within(danRow).getByText('20')).toBeTruthy();
   });
 });

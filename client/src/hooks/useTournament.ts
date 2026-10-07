@@ -37,7 +37,7 @@ import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement } from '@/lib/announcements';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress, restorableAtHome, peekLocalProgress, wouldClobberMirror } from '@/lib/localProgress';
-import { secondsLeftFrom, advanceClock } from '@/lib/tournamentClock';
+import { secondsLeftFrom, advanceClock, formatClock } from '@/lib/tournamentClock';
 import type { RemoteLoad } from '@/lib/liveTournament';
 import { canRebuy, canReEnter, addOnsOpen } from '@/lib/entryLimits';
 import { gameIsOver } from '@/lib/gameOver';
@@ -2139,17 +2139,9 @@ export function useTournament(tournamentId?: string) {
   // lib/prizePool.ts is the canonical implementation and is now covered by tests.
 
   // Format time
-  const formatTime = useCallback(() => {
-    // Ensure secondsLeft is a valid number and not negative
-    const validSecondsLeft = Math.max(0, Math.floor(state.secondsLeft || 0));
-
-    // Cap at reasonable maximum (99:59) to prevent display issues
-    const cappedSeconds = Math.min(validSecondsLeft, 5999); // 99 minutes 59 seconds max
-
-    const minutes = Math.floor(cappedSeconds / 60).toString().padStart(2, '0');
-    const seconds = (cappedSeconds % 60).toString().padStart(2, '0');
-    return `${minutes}:${seconds}`;
-  }, [state.secondsLeft]);
+  // One spelling of the digits, shared with the participant view — see
+  // formatClock in lib/tournamentClock.ts.
+  const formatTime = useCallback(() => formatClock(state.secondsLeft || 0), [state.secondsLeft]);
 
   // Calculate level progress percentage
   const calculateProgress = useCallback(() => {

@@ -21,8 +21,21 @@
  */
 const FORMULA_STARTERS = ['=', '+', '-', '@', '\t', '\r'];
 
+/**
+ * A signed figure the app wrote itself — `+£40`, `-£30`, `-5`, `+12.5%` — and
+ * nothing else: no letters, no brackets, no operator past the sign.
+ *
+ * The defusing above caught these too, because they begin `+` or `-`, so the
+ * Profit and ROI columns arrived as text (`'+£40`) and did not sum —
+ * contradicting the promise that "a column still sums" (October audit, Low). A
+ * cell matching this cannot be a formula: there is nothing in it for a
+ * spreadsheet to call.
+ */
+const SIGNED_FIGURE = /^[+-]?[£$€¥₹]?\d[\d,]*(\.\d+)?%?$/;
+
 export function neutraliseFormula(value: string): string {
   if (value.length === 0) return value;
+  if (SIGNED_FIGURE.test(value)) return value;
   return FORMULA_STARTERS.includes(value[0]) ? `'${value}` : value;
 }
 

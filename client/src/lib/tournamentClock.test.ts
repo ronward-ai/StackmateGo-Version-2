@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { secondsLeftFrom, advanceClock } from './tournamentClock';
+import { secondsLeftFrom, advanceClock, formatClock } from './tournamentClock';
 
 const now = 1_700_000_000_000;
 
@@ -73,5 +73,14 @@ describe('advanceClock — catch up from the end time', () => {
 
   it('finishes when the structure runs out', () => {
     expect(advanceClock(levels, 3, 1_000_000, 1_000_500, true)).toMatchObject({ finished: true, isRunning: false, secondsLeft: 0 });
+  });
+});
+
+describe('formatClock (Oct Low)', () => {
+  it.each([
+    [0, '00:00'], [59, '00:59'], [300, '05:00'], [3599, '59:59'],
+    [3600, '1:00:00'], [7200, '2:00:00'], [3661, '1:01:01'], [-5, '00:00'],
+  ])('%i seconds reads %s on every screen', (secs, text) => {
+    expect(formatClock(secs as number)).toBe(text);
   });
 });

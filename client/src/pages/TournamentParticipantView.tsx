@@ -20,7 +20,9 @@ import TimerFace from '@/components/TimerFace';
 import type { TimerPiping } from '@/types';
 import { cn } from '@/lib/utils';
 import { eventNameOfTournament } from '@/lib/eventName';
-import { secondsLeftFrom } from '@/lib/tournamentClock';
+import { isRealSeasonId } from '@/lib/seasonProgress';
+import { ordinal } from '@/lib/ordinal';
+import { secondsLeftFrom, formatClock } from '@/lib/tournamentClock';
 import { getDeviceId } from '@/lib/deviceId';
 import { myPlayerId } from '@/lib/seatClaims';
 
@@ -62,6 +64,7 @@ interface TournamentData {
     };
     isSeasonTournament?: boolean;
     leagueId?: string;
+    seasonId?: string;
     notes?: string;
   };
   prizeStructure: {
@@ -281,16 +284,8 @@ function TournamentParticipantView() {
     };
   }, [tournament?.isRunning, tournament?.targetEndTime]);
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
+  // The console's spelling of the same digits — lib/tournamentClock.ts.
+  const formatTime = formatClock;
 
   // Director authentication logic removed as it's handled by the login system now.
 
@@ -391,6 +386,8 @@ function TournamentParticipantView() {
   // Create tournament object for read-only components with proper player data structure
   const tournamentForComponents = {
     state: {
+      // Whose league settings score the Points column — PlayerSectionReadOnly.
+      details: { ownerId: tournament.ownerId },
       players: tournament.players || [],
       settings: {
         ...tournament.settings,
@@ -572,7 +569,7 @@ function TournamentParticipantView() {
                           ? me.position === 1
                             ? 'Winner!'
                             : me.position
-                            ? `Finished in position ${me.position}`
+                            ? `Finished ${ordinal(me.position)}`
                             : 'Eliminated'
                           : seat
                           ? `Table ${(seat.tableIndex ?? 0) + 1} · Seat ${(seat.seatIndex ?? 0) + 1}`
@@ -705,7 +702,16 @@ function TournamentParticipantView() {
         {/* Real-Time League Table — always mounted for season tournaments;
             the component handles auth-pending state and loading internally */}
         <div className="mb-6">
-          <RealTimeLeagueTable tournament={tournament} isParticipantView={true} />
+          {/* The GAME's season, not the league's current one (October audit,
+              Low): a game played in a season that has since been replaced as
+              current showed a player the wrong standings. The console's own
+              table follows the season the director is viewing; a phone has only
+              the game to go on. */}
+          <RealTimeLeagueTable
+            tournament={tournament}
+            isParticipantView={true}
+            seasonIdOverride={isRealSeasonId(tournament.settings?.seasonId) ? String(tournament.settings?.seasonId) : null}
+          />
         </div>
 
         {/* Tournament Notes Section */}

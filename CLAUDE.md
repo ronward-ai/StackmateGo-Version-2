@@ -1315,6 +1315,10 @@ The league's **Cash** and **Profit** columns are untouched and were always right
 total. Four mutants are caught: recording nothing for an ordinary bounty (the bug), dropping the
 winner's `+1`, deriving for progressive, and adding the breakdown back in the drill-down.
 
+**ITM % and Current streak ask `cashedIn`** (October audit, Low): a paying PLACE, the total less the
+bounty breakdown — a player out in 9th with one bounty did not cash. Biggest win keeps the total on
+purpose; it answers "most taken home".
+
 **Results recorded before this carry `bountyWinnings: 0` and are not migrated**, so an old league's
 Bounties column stays blank. Nothing that reads correctly today changes.
 
@@ -1896,6 +1900,10 @@ both sides hide the bar for `ring` and show it for everything else.
 
 ### A running clock is an end time, not a countdown
 
+**And the digits are spelled once** — `formatClock` in `lib/tournamentClock.ts` (October audit, Low). The
+console capped at `99:59` and padded; the phones went to hours. A 60-minute break read `60:00` on the big
+screen and `1:00:00` at the table. MM:SS under an hour, H:MM:SS from one, never capped.
+
 A tournament document carries the clock twice, and the two are not equally trustworthy.
 `targetEndTime` is absolute — the moment the level ends — and stays true however old the document is.
 `secondsLeft` is a countdown **snapshotted at write time**, true only at the instant it was stored.
@@ -2033,6 +2041,11 @@ so a column still sums.
 typed in by whoever is running the game and reach the file unmodified, so a name like
 `=HYPERLINK(...)` would run on the machine of whoever opened the export. A leading apostrophe, which
 spreadsheets strip on display, is the standard fix.
+
+**A signed FIGURE is not a formula** (October audit, Low). The defusing caught `+£40`, `-£30` and `-5`
+too, because they begin `+` or `-`, so Profit and ROI arrived as text and did not sum — the very promise
+above. `SIGNED_FIGURE` leaves a sign, an optional currency symbol, digits and an optional `%` alone; there
+is nothing in such a cell for a spreadsheet to call. A test that expected `'-£5` was asserting the bug.
 
 **The game results export as a CSV too**, beside the image, for the same reason and the same way:
 `lib/resultColumns.ts`'s `resultsCsvTable` writes the columns, labels and cells `ResultsTable` and

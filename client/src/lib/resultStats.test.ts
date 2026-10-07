@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buyInOf,
+  cashedIn,
   investedIn,
   bountyTakeFor,
   recordedStatsFor,
@@ -238,5 +239,18 @@ describe('buyInOf and a freeroll', () => {
   });
   it('still falls back to 10 for a result that never recorded a price', () => {
     expect(buyInOf({})).toBe(10);
+  });
+});
+
+describe('cashedIn (Oct Low)', () => {
+  it('a bounty alone is not a cash', () => {
+    expect(cashedIn({ prizeMoney: 5, bountyWinnings: 5 } as any)).toBe(false);
+  });
+  it('a paying place is, bounties or not', () => {
+    expect(cashedIn({ prizeMoney: 35, bountyWinnings: 5 } as any)).toBe(true);
+    expect(cashedIn({ cashWon: 20 } as any)).toBe(true);
+  });
+  it('nothing collected is not', () => {
+    expect(cashedIn({} as any)).toBe(false);
   });
 });

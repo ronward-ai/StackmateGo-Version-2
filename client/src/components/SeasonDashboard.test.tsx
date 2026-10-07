@@ -78,4 +78,18 @@ describe('SeasonDashboard', () => {
     expect(screen.queryByText(/has ended/)).toBeNull();
     expect(screen.queryByText('Start Next Season')).toBeNull();
   });
+
+  // October audit, Low: the bar's label read "Game 4 of 12" from the PLAYED
+  // count, one card away from a header saying "Game 5 of 12" for the game in
+  // progress. It says what it measures now.
+  it('labels the progress bar with games played, not a game number', () => {
+    inPanel(
+      <SeasonDashboard
+        season={{ id: 's1', name: 'Spring 2026', numberOfGames: 12, status: 'active' } as any}
+        leaguePlayers={played(4)}
+      />,
+    );
+    expect(screen.getByText('4 of 12 played')).toBeTruthy();
+    expect(screen.queryByText(/Game 4 of 12/)).toBeNull();
+  });
 });

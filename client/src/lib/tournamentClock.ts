@@ -101,3 +101,24 @@ export function advanceClock(
     }
   }
 }
+
+/**
+ * How the clock's digits are spelled, on the console and on every phone
+ * (October audit, Low).
+ *
+ * There were two: the console capped at `99:59` and padded the minutes, the
+ * participant view did neither and switched to hours — so a 60-minute break
+ * read `60:00` on the big screen and `1:00:00` at the table, and a
+ * 2-hour level read `99:59` on one and `2:00:00` on the other. MM:SS under an
+ * hour, H:MM:SS from an hour, never capped.
+ */
+export function formatClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(Number.isFinite(totalSeconds) ? totalSeconds : 0));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  const ss = secs.toString().padStart(2, '0');
+  return hours > 0
+    ? `${hours}:${minutes.toString().padStart(2, '0')}:${ss}`
+    : `${minutes.toString().padStart(2, '0')}:${ss}`;
+}
