@@ -153,14 +153,11 @@ export function TournamentModeToggle({ tournament, league, leaguePlayers = [], c
     // The continuation, not a statement after the call: the guard may defer the
     // start, and these two writes must defer with it or they land on a game
     // that was never reset.
-    startNewGame({ keepStructure: true }, () => {
-      // Written straight rather than through setMode: after the reset the type
-      // must be 'standalone' whatever it was, and updateTournamentDetails merges
-      // into the state the reset just produced, where setMode would be reading a
-      // `state` captured before it.
-      updateTournamentDetails({ type: 'standalone' });
-      updateSettings(standaloneSettings());
-    });
+    // Standalone goes INTO the reset, which sets the new game's type from it and
+    // writes it to storage: from the director route a setState in the
+    // continuation never commits, and the new game came up in League mode,
+    // recording a casual night into the league (Oct H3).
+    startNewGame({ keepStructure: true, settings: standaloneSettings() });
   };
 
   return (

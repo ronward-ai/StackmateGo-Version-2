@@ -1548,7 +1548,26 @@ export function useTournament(tournamentId?: string) {
   }, [broadcastTournamentAction]);
 
   // Reset entire tournament to initial state
-  const resetTournament = useCallback((options?: { keepStructure?: boolean }) => {
+  /**
+   * Start a fresh game. `settings` is what the NEXT game should be — a league and
+   * season, or standalone — applied on top of what is kept.
+   *
+   * **The new game's setup is written to storage HERE, synchronously, as well as
+   * into state** (October audit, H3). From the director route, starting a new
+   * game navigates to `/?home=1`, which is a different route: the console is
+   * replaced in the same batch, so neither this `setState` nor anything a caller
+   * did afterwards ever committed, and the new console rebuilt itself from
+   * storage. Next Game's chosen season, the slider's "standalone" and Full
+   * reset's defaults were all silently lost — and a game was filed into the
+   * season the director had just ended.
+   *
+   * Do NOT fix that by committing first and navigating after. On the director
+   * route the URL still names the old game, so the old console's players sync
+   * would write `players: []` over the live game the moment the reset committed.
+   * The same-batch navigation is what spares it; the storage write is what lets
+   * the next console start from the right setup anyway.
+   */
+  const resetTournament = useCallback((options?: { keepStructure?: boolean; settings?: Partial<Settings> }) => {
     const keepStructure = options?.keepStructure ?? true;
 
     // Clear any running timer
@@ -1559,8 +1578,15 @@ export function useTournament(tournamentId?: string) {
 
     const levels = keepStructure ? state.levels : DEFAULT_LEVELS;
     const prizeStructure = keepStructure ? (state.prizeStructure || loadSavedPrizeStructure(storageUidRef.current)) : { buyIn: 0 };
-    const settings = keepStructure ? state.settings : DEFAULT_SETTINGS;
-    const isLeagueReset = keepStructure && state.details?.type === 'season';
+    const settings: Settings = {
+      ...(keepStructure ? state.settings : DEFAULT_SETTINGS),
+      ...(options?.settings ?? {}),
+    };
+    // League-ness lives in settings.isSeasonTournament; a caller that says what
+    // the next game is wins over what this one was.
+    const isLeagueReset = options?.settings?.isSeasonTournament !== undefined
+      ? options.settings.isSeasonTournament === true
+      : keepStructure && state.details?.type === 'season';
     const preservedType = isLeagueReset ? 'season' : 'standalone';
     // Every new tournament gets a fresh id, standalone included. This used to be
     // league-only, which left standalone games with localGameId undefined — so
@@ -1573,6 +1599,10 @@ export function useTournament(tournamentId?: string) {
     // not match anyway, but leaving a dead roster in storage is how one came
     // back to life once already.
     clearLocalProgress(storageUidRef.current);
+    // The next console may be a NEW mount reading only storage — see above.
+    saveSettings(settings, storageUidRef.current);
+    saveBlindLevels(levels, storageUidRef.current);
+    savePrizeStructure(prizeStructure, storageUidRef.current);
 
     setState({
       levels,

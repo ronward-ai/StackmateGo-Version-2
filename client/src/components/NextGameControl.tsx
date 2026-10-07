@@ -102,18 +102,22 @@ export default function NextGameControl({
     // guard defers the start, this must defer with it. Writing the league and
     // season against a game that was never reset is the half-applied state the
     // continuation exists to prevent.
-    startNewGame({ keepStructure: true }, () => {
+    // The season goes INTO the reset, not into the continuation: from the
+    // director route the continuation's setState never commits (Oct H3).
+    startNewGame({
+      keepStructure: true,
+      settings: chosenSeason ? {
+        isSeasonTournament: true,
+        leagueId: String(dialogLeagueId ?? league?.id ?? ''),
+        seasonId: String(chosenSeason.id),
+        seasonName: chosenSeason.name,
+        numberOfGames: chosenSeason.numberOfGames || 12,
+      } : undefined,
+    }, () => {
+      // switchLeague persists its own scoped key synchronously, so it survives
+      // the remount.
       if (dialogLeagueId && String(dialogLeagueId) !== String(league?.id)) {
         switchLeague(dialogLeagueId);
-      }
-      if (chosenSeason) {
-        updateSettings({
-          isSeasonTournament: true,
-          leagueId: String(dialogLeagueId ?? league?.id ?? ''),
-          seasonId: String(chosenSeason.id),
-          seasonName: chosenSeason.name,
-          numberOfGames: chosenSeason.numberOfGames || 12,
-        });
       }
     });
   };

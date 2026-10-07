@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import NewGameGuardDialog from '@/components/NewGameGuardDialog';
 import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
+import type { Settings } from '@/types';
 
 /**
  * Starting a fresh game — the one implementation of it.
@@ -40,6 +41,12 @@ import type { AccountLiveGame } from '@/hooks/useAccountLiveGame';
  * settings written against a game that was never reset. The continuation is held
  * with the pending options and runs in the same order it does today — after the
  * navigation, not before — so a confirmed start is byte-for-byte the old path.
+ *
+ * **`after` must not set anything about the new GAME** — that goes in
+ * `options.settings`. From the director route the navigation replaces the
+ * console in the same batch, so a `setState` in `after` lands on a console that
+ * is already gone (October audit, H3). Only work that persists itself
+ * synchronously belongs there — `switchLeague` writes its scoped key directly.
  */
 export function useNewGame(
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>,
@@ -49,11 +56,15 @@ export function useNewGame(
   const [, setLocation] = useLocation();
   const openLiveGame = useOpenLiveGame();
   const { resetTournament } = tournament;
-  const [pending, setPending] = useState<{ keepStructure: boolean; after?: () => void } | null>(null);
+  const [pending, setPending] = useState<{ keepStructure: boolean; settings?: Partial<Settings>; after?: () => void } | null>(null);
 
-  const run = useCallback((keepStructure: boolean, after?: () => void) => {
+  const run = useCallback((keepStructure: boolean, settings?: Partial<Settings>, after?: () => void) => {
     try { localStorage.removeItem('activeDirectorTournamentId'); } catch {}
-    resetTournament({ keepStructure });
+    // What the next game IS goes into the reset, not into `after`: from the
+    // director route the navigation below replaces the console in the same
+    // batch, so a setState made after it never commits. resetTournament writes
+    // the new game's setup to storage, which the next console reads either way.
+    resetTournament({ keepStructure, settings });
     setLocation('/?home=1');
     // Last, matching the order these callers have always run in: they called
     // this hook and then did their own work when it returned.
@@ -61,15 +72,15 @@ export function useNewGame(
   }, [resetTournament, setLocation]);
 
   const startNewGame = useCallback((
-    options?: { keepStructure?: boolean },
+    options?: { keepStructure?: boolean; settings?: Partial<Settings> },
     after?: () => void,
   ) => {
     const keepStructure = options?.keepStructure ?? true;
     if (blockedBy) {
-      setPending({ keepStructure, after });
+      setPending({ keepStructure, settings: options?.settings, after });
       return;
     }
-    run(keepStructure, after);
+    run(keepStructure, options?.settings, after);
   }, [blockedBy, run]);
 
   /**
@@ -87,7 +98,7 @@ export function useNewGame(
       onProceed={() => {
         const p = pending;
         setPending(null);
-        if (p) run(p.keepStructure, p.after);
+        if (p) run(p.keepStructure, p.settings, p.after);
       }}
     />
   );

@@ -366,6 +366,40 @@ and "we read it and it is not there" must never authorise writing over anything.
 case, which is unfixable advice for a game that is not there. Three states now — blocked browser,
 game missing, still unread after ten seconds — and the two a reload cannot fix carry a button out.
 
+### The director route remounts per game, and the next game is decided in storage
+
+Two faults with one cause (October audit H4 and H3): **wouter keeps a route's component mounted when
+only its params change, and replaces it outright when the route changes** — and the console assumed
+neither.
+
+**H4 — `pages/DirectorRoute.tsx` keys `TournamentDirector` on the tournament id.** Going from
+`/tournament/A/director` to `/tournament/B/director` (the other-live-game banner, *Open that game*)
+used to carry A's whole console into B: its state, its `hasLoadedRemoteState` latch (so B was written
+before it was read), A's control fact labelled as B's, the held tournament id (so Go Live on B
+published A), and every per-game memory — the pending roster, the result claims, the rebuy offer's
+seen set. The clock sync then wrote A's level and blinds onto B. `TournamentDirector`'s own "this game
+is yours" verdict carried across too. A key gives every guard in that tree the clean slate it assumes,
+without each having to notice the id change. `DirectorRoute.test.tsx` drives wouter's real router; a
+mutant dropping the key turns it red.
+
+**H3 — `resetTournament` writes the new game's setup to storage, synchronously.** From the director
+route, starting a new game navigates to `/?home=1`, a different route, so the console is replaced in
+the SAME batch: neither the reset's `setState` nor anything a caller did afterwards ever committed,
+and the new console rebuilt itself from storage. Next Game's chosen season, the slider's
+"standalone" and Full reset's defaults were all silently lost — a casual night came up in League mode,
+and a game was filed into the season the director had just ended.
+
+So what the next game IS goes into the reset as `settings` (`startNewGame({ settings })`), which
+merges it, sets the game's type from it, and saves settings, levels and prize structure before
+returning. **`after` must not set anything about the new game** — only work that persists itself
+synchronously, like `switchLeague`.
+
+**Do not "fix" this by committing first and navigating after.** On the director route the URL still
+names the old game, so the old console's players sync would write `players: []` over the live game
+the instant the reset committed. The same-batch navigation is what spares it.
+`useTournament.reset.test.tsx` resets the real hook, unmounts it without a further render, and mounts
+a fresh one the way the home route does; dropping the synchronous save turns all four red.
+
 ### One writer per fact — a manual move had THREE
 
 Moving one player to another seat by hand made the name flicker between both chairs before settling

@@ -22,12 +22,12 @@ import { useNewGame } from './useNewGame';
 
 const GAME = { id: 'g5', settings: { gameNumber: 5, branding: { eventName: 'Fish & Chips' } } } as any;
 
-function Harness({ blockedBy, after }: { blockedBy: any; after?: () => void }) {
+function Harness({ blockedBy, after, settings }: { blockedBy: any; after?: () => void; settings?: any }) {
   const tournament = { resetTournament } as any;
   const { startNewGame, newGameGuard } = useNewGame(tournament, blockedBy);
   return (
     <div>
-      <button onClick={() => startNewGame({ keepStructure: true }, after)}>go</button>
+      <button onClick={() => startNewGame({ keepStructure: true, settings }, after)}>go</button>
       {newGameGuard}
     </div>
   );
@@ -129,5 +129,26 @@ describe('useNewGame when another device is running a game', () => {
     expect(opened).toEqual(['g5']);
     expect(resetTournament).not.toHaveBeenCalled();
     expect(after).not.toHaveBeenCalled();
+  });
+});
+
+// October audit, H3. From the director route the navigation replaces the console
+// in the same batch, so what the NEXT game is (its season, or standalone) must go
+// into the reset — which writes it to storage — never into a setState afterwards.
+describe('what the next game is travels with the reset', () => {
+  const NEXT = { isSeasonTournament: true, seasonId: 'spring', leagueId: 'L1' };
+
+  it('hands the settings to resetTournament', () => {
+    render(<Harness blockedBy={null} settings={NEXT} />);
+    clickText(/^go$/);
+    expect(resetTournament).toHaveBeenCalledWith({ keepStructure: true, settings: NEXT });
+  });
+
+  it('keeps them through the guard, so a deferred start is the same start', () => {
+    render(<Harness blockedBy={GAME} settings={NEXT} />);
+    clickText(/^go$/);
+    expect(resetTournament).not.toHaveBeenCalled();
+    clickText(/new one anyway/i);
+    expect(resetTournament).toHaveBeenCalledWith({ keepStructure: true, settings: NEXT });
   });
 });

@@ -12,7 +12,7 @@ import ComingSoonGate from '@/components/ComingSoonGate';
 // only when its route is matched.
 const PokerTimer = lazy(() => import('./pages/PokerTimer'));
 const TournamentParticipantView = lazy(() => import('./pages/TournamentParticipantView'));
-const TournamentDirector = lazy(() => import('./pages/TournamentDirector'));
+const DirectorRoute = lazy(() => import('./pages/DirectorRoute'));
 const PlayerClaimView = lazy(() => import('./pages/PlayerClaimView'));
 
 /** Matches the "Connecting…" state PlayerClaimView shows, so a split route
@@ -58,7 +58,7 @@ function App() {
                 <ComingSoonGate><PokerTimer /></ComingSoonGate>
               </Route>
               {/* Participant/handover routes — always accessible via QR/link */}
-              <Route path="/tournament/:tournamentId/director" component={TournamentDirector} />
+              <Route path="/tournament/:tournamentId/director" component={DirectorRoute} />
               <Route path="/tournament/:tournamentId/join" component={PlayerClaimView} />
               <Route path="/tournament/:tournamentId" component={TournamentParticipantView} />
               <Route path="/tournament/:tournamentId/participant-view" component={TournamentParticipantView} />
