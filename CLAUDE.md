@@ -1287,6 +1287,33 @@ winner's `+1`, deriving for progressive, and adding the breakdown back in the dr
 **Results recorded before this carry `bountyWinnings: 0` and are not migrated**, so an old league's
 Bounties column stays blank. Nothing that reads correctly today changes.
 
+**The bust-out now asks `bountyTakeFor` too** (October audit M6). It computed its own bounty money —
+`knockouts × bountyAmount` for EVERY bounty type — so a PKO player out of the money with one knockout
+(worth half a bounty) showed a phantom prize and a doubled Won, and the PKO winner's money left out
+everything they had taken. A busted player's and the winner's `prizeMoney` are now the place's payout
+(`payoutForPlace`) plus `bountyTakeFor`'s money: the derivation the results table, both Payouts panels
+and the re-pricing already used. Three more in the same place:
+
+- **A stored `currentBounty: 0` means "carries no bounty"** — a rebuy or re-entry taken without a
+  fresh one — and every `currentBounty || bountyAmount` turned it back into a full bounty. They are
+  `??` now.
+- **A standard bounty pays only for a player who carried one.** It paid per knockout regardless, so
+  knocking out somebody who had rebought without a bounty paid out money nobody had put in. The hunter
+  counts such knockouts in `bountylessKnockouts`, which `bountyTakeFor` takes off.
+- **Undo gives the bounty back** — the knockout, the bountyless count, and in a PKO game the half
+  bounty that went into the hunter's winnings and onto their head.
+
+**What a player put in counts every buy-in, at its real price** (October audit M5). The console's
+Invested and points charged a rebuy at the BUY-IN while the recorder charged its own price, so the
+night and the standings disagreed — invisible because every test fixture priced the two alike.
+`investedIn` ignored re-entries on the claim that one "is recorded as its own result"; it is not, so a
+player who re-entered twice showed a profit having broken even. And a free game was recorded as £10:
+`|| 10` at three writers and in `buyInOf`, the bug the Buy-in tab's `??` once fixed, arriving at the
+recorder. An ABSENT price still falls back to 10 for old results; a recorded 0 stays 0.
+
+**The prize-pool breakdown lists re-entries** (October audit M17), on the console and the player's
+phone, so its lines add up to the total under them; the average stack counts re-entry chips.
+
 `calculatePoints` arrives as a **callback** rather than an import, because it lives on
 `useLeagueSettings` and importing a hook would end the React-free property that lets the export sheet
 render from the identical list.

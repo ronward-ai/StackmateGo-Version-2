@@ -102,7 +102,7 @@ export function buildTournamentDocument(
     currentLevel: state.currentLevel,
     secondsLeft: state.secondsLeft,
     isRunning: state.isRunning,
-    buyIn: state.prizeStructure?.buyIn || 10,
+    buyIn: state.prizeStructure?.buyIn ?? 10,
     players: state.players || [],
     // The seats a check-in may claim — see lib/seatClaims.ts.
     playerIds: playerIdsOf(state.players),

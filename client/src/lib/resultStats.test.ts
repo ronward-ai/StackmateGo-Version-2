@@ -57,8 +57,16 @@ describe('investedIn', () => {
     expect(investedIn(withData)).toBeGreaterThan(investedIn({ buyIn: 10 }));
   });
 
-  it('ignores a re-entry, which is recorded as its own result', () => {
-    expect(investedIn({ buyIn: 20, reEntries: 2 })).toBe(20);
+  // Reversed by the October audit (M5). This asserted a re-entry was "recorded
+  // as its own result" — it is not; a re-entry reuses the same player and the
+  // recorder writes one result per player per game, so this was excluding real
+  // money from Invested, Profit and ROI.
+  it('charges each re-entry at the buy-in', () => {
+    expect(investedIn({ buyIn: 20, reEntries: 2 })).toBe(60);
+  });
+
+  it('charges a rebuy and an add-on at their own prices, not the buy-in', () => {
+    expect(investedIn({ buyIn: 20, rebuys: 1, rebuyAmount: 10, addons: 1, addonAmount: 5 })).toBe(35);
   });
 });
 
@@ -96,7 +104,8 @@ describe('totalsAcross', () => {
       reEntries: 1,
       addons: 1,
       bountyWinnings: 5,
-      invested: 30 + 15 + 10,
+      // The re-entry in the second game is a second buy-in (Oct M5).
+      invested: 30 + (15 + 10) + 10,
     });
   });
 
@@ -218,5 +227,16 @@ describe('repricedForNewPlaces', () => {
   it('ignores players still in the game', () => {
     const playing = { id: 'p', position: undefined, prizeMoney: 0 };
     expect(repricedForNewPlaces([{ id: 'p', position: 4, prizeMoney: 0 }], [playing], payout, null)[0]).toBe(playing);
+  });
+});
+
+// October audit, M5: a free game is a free game.
+describe('buyInOf and a freeroll', () => {
+  it('keeps a recorded zero at zero', () => {
+    expect(buyInOf({ buyIn: 0 })).toBe(0);
+    expect(investedIn({ buyIn: 0 })).toBe(0);
+  });
+  it('still falls back to 10 for a result that never recorded a price', () => {
+    expect(buyInOf({})).toBe(10);
   });
 });

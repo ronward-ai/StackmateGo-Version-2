@@ -284,7 +284,10 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
   const startChips = p?.startingChips || 10000;
   const rebuyChips = p?.rebuyChips || startChips;
   const addonChips = p?.addonChips || startChips;
-  const totalChips = (startChips * state.players.length) + (rebuyChips * totalRebuys) + (addonChips * totalAddons);
+  const totalChips = (startChips * state.players.length) + (rebuyChips * totalRebuys) + (addonChips * totalAddons)
+    // A re-entry is a fresh stack, so it is in the chips as well as the pool
+    // (October audit, M17).
+    + (startChips * totalReEntries);
   const active = state.players.filter(pl => pl.isActive !== false);
   const eliminated = state.players.filter(pl => pl.isActive === false);
   const avg = active.length > 0 ? Math.floor(totalChips / active.length) : 0;
@@ -460,6 +463,9 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                   </div>
                   <DetailRow label={`Buy-in ×${state.players.length}`} value={`${sym}${(buyIn * state.players.length).toLocaleString()}`} compact />
                   {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys}×)`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} compact />}
+                  {/* The pool counts every re-entry at the buy-in; without this line the
+                      breakdown did not add up to its own total (October audit, M17). */}
+                  {totalReEntries > 0 && <DetailRow label={`Re-entries (${totalReEntries}×)`} value={`${sym}${(buyIn * totalReEntries).toLocaleString()}`} compact />}
                   {totalAddons > 0 && <DetailRow label={`Add-ons (${totalAddons}×)`} value={`${sym}${(addonAmt * totalAddons).toLocaleString()}`} compact />}
                   {rake > 0 && <DetailRow label={`House fee${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`${sym}${rake.toLocaleString()}`} compact />}
                   <DetailRow label="Total" value={`${sym}${pool.toLocaleString()}`} highlight compact />

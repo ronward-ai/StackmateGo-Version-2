@@ -1167,7 +1167,8 @@ function PokerTimerInner({
               players.length,
               player.knockouts || 0,
               player.prizeMoney || 0,
-              tournament.state.prizeStructure?.buyIn || 10,
+              // `??`: a free game records 0, not 10 (October audit, M5).
+              tournament.state.prizeStructure?.buyIn ?? 10,
               gameId,
               seasonId,
               // On the correction path the old result has just been deleted, and

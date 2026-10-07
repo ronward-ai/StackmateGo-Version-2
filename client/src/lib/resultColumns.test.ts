@@ -285,3 +285,17 @@ describe('resultsCsvTable — the results as a spreadsheet', () => {
     expect(t.rows.map(r => r[0])).toContain('21st');
   });
 });
+
+// October audit, M5. Every fixture above prices a rebuy at the buy-in, which is
+// exactly why the console charging the BUY-IN for a rebuy went unnoticed while
+// the recorder charged its real price.
+describe('Invested uses the real rebuy price', () => {
+  it('charges a cheaper rebuy at its own price', () => {
+    const r = resultRowsFor(
+      [{ id: '1', name: 'Dan', isActive: false, position: 3, rebuys: 1 },
+       { id: '2', name: 'Amy', isActive: false, position: 2 }],
+      { prizeStructure: { buyIn: 20, rebuyAmount: 10, manualPayouts: [] } },
+    ).find(row => row.player.name === 'Dan')!;
+    expect(RESULT_COLUMNS.find(c => c.key === 'invested')!.value(r as any, '£')).toBe('£30');
+  });
+});

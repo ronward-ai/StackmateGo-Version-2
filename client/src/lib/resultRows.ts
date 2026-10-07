@@ -271,15 +271,22 @@ export function resultRowsFor<T extends ResultPlayerLike>(
           roster.length,
           Number(player.knockouts) || 0,
           buyIn,
-          investedIn({ buyIn: ps?.buyIn, rebuys: player.rebuys ?? 0, addons: player.addons ?? 0 }),
+          investedIn({
+            buyIn: ps?.buyIn, rebuys: player.rebuys ?? 0, addons: player.addons ?? 0,
+            rebuyAmount: ps?.rebuyAmount, addonAmount: ps?.addonAmount, reEntries: player.reEntries ?? 0,
+          }),
           // (the same figure as `invested` below; kept inline so the six
           //  arguments read in the order the formula documents them)
           buyIn * roster.length,
         )
       : 0;
 
+    // The same prices the recorder passes (October audit, M5): without them a
+    // rebuy was charged at the buy-in here and at its own price in the league,
+    // so the console's Invested and points disagreed with the standings.
     const invested = investedIn({
       buyIn: ps?.buyIn, rebuys: player.rebuys ?? 0, addons: player.addons ?? 0,
+      rebuyAmount: ps?.rebuyAmount, addonAmount: ps?.addonAmount, reEntries: player.reEntries ?? 0,
     });
     // ONE total, added here so two columns cannot disagree about what "won"
     // means — the same reason `badgesFor` adds the prize and the bounty into a

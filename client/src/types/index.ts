@@ -39,6 +39,12 @@ export interface Player {
   reEntries?: number;
   currentBounty?: number;
   bountyWinnings?: number;
+  /**
+   * Knockouts of players who carried NO bounty — a rebuy or re-entry taken
+   * without a fresh one stores `currentBounty: 0`. A standard bounty pays per
+   * knockout, and these must not pay (October audit, M6). Absent means none.
+   */
+  bountylessKnockouts?: number;
   chipCount?: number; // Current chip count (for active players)
   /**
    * @deprecated Read only, for tournaments started before check-in moved off

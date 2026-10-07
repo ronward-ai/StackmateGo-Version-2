@@ -20,7 +20,7 @@ import { getDeviceId } from '@/lib/deviceId';
 import { useAuth } from './useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { nextEliminationPosition, positionsAfterReEntry, positionsAfterAdd, positionsAfterRemove, mostRecentlyBusted, rostersMatchForUndo } from '@/lib/eliminationOrder';
-import { repricedForNewPlaces } from '@/lib/resultStats';
+import { repricedForNewPlaces, bountyTakeFor } from '@/lib/resultStats';
 import { payoutForPlace } from '@/lib/prizePool';
 
 /**
@@ -1178,23 +1178,18 @@ export function useTournament(tournamentId?: string) {
       // with any scheme a league can actually be set to. Nothing ever read
       // either. See the note on Player in types/index.ts.
 
-      // Calculate prize money if position qualifies
-      let prizeMoney = 0;
-      if (prev.prizeStructure?.manualPayouts) {
-        const payout = prev.prizeStructure.manualPayouts.find(p => p.position === newPosition);
-        if (payout && payout.percentage > 0) {
-          const { net: totalPrizePool } = prizePoolFor(prev.players, prev.prizeStructure);
-
-          prizeMoney = payoutAmount(totalPrizePool, payout.percentage);
-        }
-      }
-
-      // Add bounty winnings to prize money if bounties are enabled
-      if (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyAmount) {
-        const knockouts = playerToEliminate.knockouts || 0;
-        // All eliminated players get bounty winnings for their knockouts
-        prizeMoney += knockouts * prev.prizeStructure.bountyAmount;
-      }
+      // Everything the player collected: the payout for the place, plus their
+      // bounty money from bountyTakeFor — the one derivation of it, which the
+      // results table, both Payouts panels and the re-pricing already read.
+      //
+      // It used to add `knockouts × bountyAmount` for EVERY bounty type. In a
+      // progressive game a knockout pays half the victim's CURRENT bounty, not
+      // the base amount, so a PKO player out of the money with one knockout
+      // (worth £5) showed a phantom £5 prize and £10 won, and the league
+      // recorded £10 (October audit, M6).
+      const payoutAt = payoutForPlace(prev.players, prev.prizeStructure);
+      const prizeMoney = payoutAt(newPosition)
+        + bountyTakeFor({ ...playerToEliminate, position: newPosition }, prev.prizeStructure).money;
 
       // Update the eliminated player's data with comprehensive analytics
       let updatedPlayers = prev.players.map(player =>
@@ -1210,21 +1205,31 @@ export function useTournament(tournamentId?: string) {
               seatInfo: recordedSeat,
             }
           : player.id === eliminatedById && eliminatedById
-            ? { ...player, knockouts: (player.knockouts || 0) + 1 }
+            ? {
+                ...player,
+                knockouts: (player.knockouts || 0) + 1,
+                // A knockout of somebody carrying NO bounty pays nothing — see
+                // bountyTakeFor (October audit, M6).
+                ...(playerToEliminate.currentBounty === 0
+                  ? { bountylessKnockouts: (player.bountylessKnockouts || 0) + 1 }
+                  : {}),
+              }
             : player
       );
 
       // Handle PKO logic if enabled
       if (eliminatedById && prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyType === 'progressive') {
-        const eliminatedBounty = playerToEliminate.currentBounty || prev.prizeStructure.bountyAmount || 0;
+        // `??`: a stored 0 means this player carries no bounty, and `0 ||` paid
+        // half a bounty that was never bought (October audit, M6).
+        const eliminatedBounty = playerToEliminate.currentBounty ?? prev.prizeStructure.bountyAmount ?? 0;
         const wonAmount = eliminatedBounty / 2;
-        
+
         updatedPlayers = updatedPlayers.map(player => {
           if (player.id === eliminatedById) {
             return {
               ...player,
               bountyWinnings: (player.bountyWinnings || 0) + wonAmount,
-              currentBounty: (player.currentBounty || prev.prizeStructure!.bountyAmount || 0) + wonAmount
+              currentBounty: (player.currentBounty ?? prev.prizeStructure!.bountyAmount ?? 0) + wonAmount
             };
           }
           return player;
@@ -1243,30 +1248,13 @@ export function useTournament(tournamentId?: string) {
       if (remainingActivePlayers.length === 1) {
         const winner = remainingActivePlayers[0];
 
-        // Calculate 1st place prize money
-        let firstPlacePrize = 0;
-        if (prev.prizeStructure?.manualPayouts) {
-          const firstPlacePayout = prev.prizeStructure.manualPayouts.find(p => p.position === 1);
-          if (firstPlacePayout && firstPlacePayout.percentage > 0) {
-            const { net: totalPrizePool } = prizePoolFor(prev.players, prev.prizeStructure);
-
-            firstPlacePrize = payoutAmount(totalPrizePool, firstPlacePayout.percentage);
-          }
-        }
-
-        // Add bounty winnings if enabled
-        if (prev.prizeStructure?.enableBounties && prev.prizeStructure?.bountyAmount) {
-          if (prev.prizeStructure?.bountyType === 'progressive') {
-            // Winner gets their own current bounty back
-            const ownBounty = winner.currentBounty || prev.prizeStructure.bountyAmount || 0;
-            // The bountyWinnings already includes the won portions of other players' bounties
-            firstPlacePrize += ownBounty;
-          } else {
-            const knockouts = winner.knockouts || 0;
-            // Winner gets their own bounty back plus all their knockout bounties
-            firstPlacePrize += (knockouts + 1) * prev.prizeStructure.bountyAmount;
-          }
-        }
+        // 1st-place money, the same way as everybody else's: the payout plus
+        // bountyTakeFor's bounty money. For a progressive game that is the
+        // knockout winnings PLUS their own head — the winnings used to be left
+        // out, so the league's Cash for a PKO winner was short by everything they
+        // had taken (October audit, M6).
+        const firstPlacePrize = payoutAt(1)
+          + bountyTakeFor({ ...winner, position: 1 }, prev.prizeStructure).money;
 
         const finalState = {
           ...prev,
@@ -2307,7 +2295,24 @@ export function useTournament(tournamentId?: string) {
             seatInfo: undefined
           };
         } else if (player.id === playerToRestore.eliminatedBy && player.knockouts > 0) {
-          return { ...player, knockouts: player.knockouts - 1 };
+          // Everything the knockout gave the hunter comes back off them —
+          // the count, a bountyless knockout, and in a progressive game the half
+          // bounty that went into their winnings and onto their head, which an
+          // undo used to leave behind (October audit, M6).
+          const ps = prev.prizeStructure;
+          const progressive = !!ps?.enableBounties && ps?.bountyType === 'progressive';
+          const won = progressive ? (playerToRestore.currentBounty ?? ps?.bountyAmount ?? 0) / 2 : 0;
+          return {
+            ...player,
+            knockouts: player.knockouts - 1,
+            ...(playerToRestore.currentBounty === 0 && (player.bountylessKnockouts || 0) > 0
+              ? { bountylessKnockouts: (player.bountylessKnockouts || 0) - 1 }
+              : {}),
+            ...(won > 0 ? {
+              bountyWinnings: Math.max(0, (player.bountyWinnings || 0) - won),
+              currentBounty: Math.max(0, (player.currentBounty ?? 0) - won),
+            } : {}),
+          };
         }
         return player;
       });

@@ -40,7 +40,14 @@ export interface ResultCosts {
  * stored would otherwise drop to 0 and rewrite the history of every old league.
  */
 export function buyInOf(result: ResultCosts): number {
-  return result.buyIn || result.buyInAmount || 10;
+  // An ABSENT price is a document older than the field, and falls back to 10 so
+  // old leagues do not move. A ZERO is a free game, and stays zero: `0 || 10`
+  // recorded every freeroll as a £10 game, so a free league showed −£10 and
+  // −100% ROI for everybody, every week (October audit, M5) — the bug the Buy-in
+  // tab's `??` was fixed for, arriving at the recorder.
+  if (typeof result.buyIn === 'number') return result.buyIn;
+  if (typeof result.buyInAmount === 'number') return result.buyInAmount;
+  return 10;
 }
 
 /**
@@ -54,7 +61,14 @@ export function investedIn(result: ResultCosts): number {
   const buyIn = buyInOf(result);
   const rebuys = (result.rebuys || 0) * (result.rebuyAmount || buyIn);
   const addons = (result.addons || 0) * (result.addonAmount || buyIn);
-  return buyIn + rebuys + addons;
+  // A re-entry is another buy-in, and it is charged here (October audit, M5).
+  // It used to be left out on the grounds that "a re-entry is recorded as its
+  // own result" — it is not: processReEntry reuses the same player, and the
+  // recorder writes one result per player per game. So a player who re-entered
+  // twice showed +£40 profit having broken even, while the prize pool counted
+  // both re-entries.
+  const reEntries = (result.reEntries || 0) * buyIn;
+  return buyIn + rebuys + addons + reEntries;
 }
 
 /** Bounty money this result credits the player with. */
@@ -87,6 +101,8 @@ export interface BountyPlayerLike {
   position?: number | null;
   bountyWinnings?: number;
   currentBounty?: number;
+  /** Knockouts of players carrying no bounty, which pay nothing. */
+  bountylessKnockouts?: number;
 }
 
 export interface BountyStructureLike {
@@ -106,13 +122,23 @@ export function bountyTakeFor(
   }
   const knockouts = Number(player.knockouts) || 0;
   const isWinner = Number(player.position) === 1;
-  const count = knockouts + (isWinner ? 1 : 0);
+
+  // `??`, never `||`: a stored 0 means "carries no bounty" — a rebuy or re-entry
+  // taken without a fresh one — and `0 ||` turned it back into a full bounty, so
+  // a winner who never bought one was paid their own bounty back (October audit,
+  // M6). Absent still means the standard amount, for games stored before it.
+  const ownBounty = player.currentBounty ?? structure.bountyAmount;
 
   if (structure.bountyType === 'progressive') {
+    const count = knockouts + (isWinner ? 1 : 0);
     const winnings = Number(player.bountyWinnings) || 0;
-    const ownBounty = isWinner ? (Number(player.currentBounty) || structure.bountyAmount) : 0;
-    return { count, money: winnings + ownBounty };
+    return { count, money: winnings + (isWinner ? Number(ownBounty) || 0 : 0) };
   }
+  // A standard bounty pays per knockout — but only for a player who carried
+  // one. Knocking out somebody who rebought without a bounty used to pay out
+  // money that was never collected.
+  const paying = Math.max(0, knockouts - (Number(player.bountylessKnockouts) || 0));
+  const count = paying + (isWinner && ownBounty ? 1 : 0);
   return { count, money: count * structure.bountyAmount };
 }
 

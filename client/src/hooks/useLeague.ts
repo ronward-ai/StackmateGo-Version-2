@@ -553,7 +553,8 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
         points,
         knockouts: playersEliminatedCount,
         prizeMoney,
-        buyIn: buyInAmount || 10,
+        // `??`: a free game is recorded as 0, not as a £10 game (Oct M5).
+        buyIn: buyInAmount ?? 10,
         rebuys: stats?.rebuys || 0,
         reEntries: stats?.reEntries || 0,
         addons: stats?.addons || 0,

@@ -45,7 +45,10 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const startChips = p.startingChips || 10000;
   const rebuyChips = p.rebuyChips || startChips;
   const addonChips = p.addonChips || startChips;
-  const totalChips = (startChips * players.length) + (rebuyChips * totalRebuys) + (addonChips * totalAddons);
+  const totalChips = (startChips * players.length) + (rebuyChips * totalRebuys) + (addonChips * totalAddons)
+    // A re-entry is a fresh stack, so it is in the chips as well as the pool
+    // (October audit, M17).
+    + (startChips * totalReEntries);
   const active = players.filter((pl: any) => pl.isActive !== false);
   const eliminated = players.filter((pl: any) => pl.isActive === false);
   const avg = active.length > 0 ? Math.floor(totalChips / active.length) : 0;
@@ -185,6 +188,9 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                   </div>
                   <DetailRow label={`Buy-in ×${players.length}`} value={`${sym}${(buyIn * players.length).toLocaleString()}`} />
                   {totalRebuys > 0 && <DetailRow label={`Rebuys (${totalRebuys}×)`} value={`${sym}${(rebuyAmt * totalRebuys).toLocaleString()}`} />}
+                  {/* The pool counts every re-entry at the buy-in; without this line the
+                      breakdown did not add up to its own total (October audit, M17). */}
+                  {totalReEntries > 0 && <DetailRow label={`Re-entries (${totalReEntries}×)`} value={`${sym}${(buyIn * totalReEntries).toLocaleString()}`} />}
                   {totalAddons > 0 && <DetailRow label={`Add-ons (${totalAddons}×)`} value={`${sym}${(addonAmt * totalAddons).toLocaleString()}`} />}
                   {rake > 0 && <DetailRow label={`House fee${rakeType === 'percentage' ? ` (${rakePct}%)` : ''}`} value={`${sym}${rake.toLocaleString()}`} />}
                   <DetailRow label="Total" value={`${sym}${pool.toLocaleString()}`} highlight />
