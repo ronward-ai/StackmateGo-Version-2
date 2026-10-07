@@ -8,7 +8,6 @@ import { Loader2, Radio, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
-import { useLeague } from '@/hooks/useLeague';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { createTournamentDocument } from '@/lib/tournamentDocument';
 import { writeLiveGame } from '@/lib/liveGameWrite';
@@ -26,7 +25,6 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, sy
   const { toast } = useToast();
   const { user, isAnonymous } = useAuth();
   const { isPro } = useSubscription();
-  const { league } = useLeague();
 
   const [isCreating, setIsCreating] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -70,7 +68,7 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, sy
       } else {
         // One creation path, shared with the auto-save in PokerTimer — see
         // lib/tournamentDocument.ts.
-        docId = await createTournamentDocument(state, user.id, league?.name, true);
+        docId = await createTournamentDocument(state, user.id, true);
       }
 
       updateTournamentDetails({

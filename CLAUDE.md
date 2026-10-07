@@ -104,6 +104,18 @@ use — settings first, then `details.name`, then `name`, and `''` when a docume
 nowhere, so the caller keeps its own "Tournament" placeholder. Normalised on READ, the trade
 `payoutsOf()` and `bandsOf()` already make: no stored game is rewritten.
 
+**And the creation path was writing the stale name itself** (October audit M18).
+`lib/tournamentDocument.ts` stored `branding.leagueName = eventNameOf(settings, leagueName)` — the
+league's name AT CREATION, in the legacy key, which `eventNameOf` reads as an EXPLICIT event name. The
+snapshot merged it back into the console's settings, so it appeared in Settings → Event Name, a later
+league rename never reached the app bar, and `keepStructure` carried it into every next game. That is
+very likely the real origin of the "Main League" report above, rather than the director typing it.
+Creation now writes the director's own branding and nothing resolved. The players' screens, which had
+leaned on that frozen copy for their league fallback, read the league's CURRENT name with one `get`
+through `hooks/useLeagueName.ts` (`leagues/{id}` is publicly gettable). Documents already carrying a
+frozen name are not migrated — it cannot be told apart from a typed one — and it clears when Event Name
+is emptied.
+
 ### Handing over is logging out — there is no handover mechanism
 
 Two were built and both removed. **Do not build a third without reading this.**

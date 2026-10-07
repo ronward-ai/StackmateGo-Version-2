@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { eventNameOfTournament } from '@/lib/eventName';
+import { useLeagueName } from '@/hooks/useLeagueName';
 import { useParams, useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,11 @@ export default function PlayerClaimView() {
   // anything else in the players array too. It is its own top-level document
   // field now, and this view never writes to `players` again.
   const [claims, setClaims] = useState<ClaimsMap>({});
-  const [tournamentName, setTournamentName] = useState('');
+  // The document's naming fields, resolved in render so the league's CURRENT
+  // name can join in once it arrives (October audit, M18).
+  const [namingDoc, setNamingDoc] = useState<any>(null);
+  const leagueName = useLeagueName(namingDoc?.settings?.leagueId);
+  const tournamentName = eventNameOfTournament(namingDoc, leagueName) || 'Tournament';
   const [claiming, setClaiming] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +106,7 @@ export default function PlayerClaimView() {
           // Same resolver as everywhere else. `name` is written once at
           // creation from a field nothing sets, so on its own it reads
           // "Tournament <date>" for every ordinary game.
-          setTournamentName(eventNameOfTournament(fields, null) || 'Tournament');
+          setNamingDoc(fields);
           setDataLoaded(true);
         } else if (restRes.status === 404) {
           setError('Tournament not found. Check the QR code and try again.');
@@ -121,7 +126,7 @@ export default function PlayerClaimView() {
             const data = snap.data();
             setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
             setClaims(data.claims || {});
-            setTournamentName(eventNameOfTournament(data as any, null) || 'Tournament');
+            setNamingDoc(data);
           }
         }, (err) => {
           console.error('Firestore listener error:', err);

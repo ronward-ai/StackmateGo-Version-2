@@ -576,7 +576,7 @@ function PokerTimerInner({
         }
 
         const { createTournamentDocument } = await import('@/lib/tournamentDocument');
-        const docId = await createTournamentDocument(tournament.state, user.id, league?.name, false);
+        const docId = await createTournamentDocument(tournament.state, user.id, false);
         setDbTournamentId(docId);
         // Saved, not published: Go Live is what reveals the QR.
         tournament.updateTournamentDetails({ id: docId, type: 'database', isPublished: false });

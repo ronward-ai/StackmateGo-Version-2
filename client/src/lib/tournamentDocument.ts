@@ -3,7 +3,6 @@ import { playerIdsOf } from './seatClaims';
 import { currencyOf } from '@/lib/currency';
 import { projectId, databaseId } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/utils';
-import { eventNameOf } from '@/lib/eventName';
 import type { TournamentState } from '@/types';
 
 /**
@@ -94,7 +93,6 @@ export async function createDocViaRest(
 export function buildTournamentDocument(
   state: TournamentState,
   ownerId: string,
-  leagueName?: string,
   isPublished = false,
 ) {
   return sanitizeForFirestore({
@@ -118,9 +116,14 @@ export function buildTournamentDocument(
         seatsPerTable: 9,
         tableNames: ['Table 1'],
       },
+      // The director's OWN branding, never a resolved name (October audit, M18).
+      // This used to write `leagueName: eventNameOf(settings, leagueName)`,
+      // freezing the league's name at creation into the legacy key — which
+      // `eventNameOf` reads as an explicit event name, so it came back through
+      // the snapshot into Settings → Event Name and a later league rename never
+      // reached the app bar. The league fallback is resolved on READ.
       branding: {
-        // Participants see the same name as the big screen, league fallback included.
-        leagueName: eventNameOf(state.settings, leagueName),
+        ...(state.settings.branding || {}),
         logoUrl: state.settings.branding?.logoUrl || null,
         isVisible: state.settings.branding?.isVisible ?? true,
       },
@@ -155,7 +158,6 @@ export function buildTournamentDocument(
 export async function createTournamentDocument(
   state: TournamentState,
   ownerId: string,
-  leagueName?: string,
   isPublished = false,
 ): Promise<string> {
   const currentUser = getAuth().currentUser;
@@ -187,7 +189,7 @@ export async function createTournamentDocument(
       databaseId,
       'activeTournaments',
       {
-        ...buildTournamentDocument(state, ownerId, leagueName, isPublished),
+        ...buildTournamentDocument(state, ownerId, isPublished),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },

@@ -13,6 +13,7 @@ import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Button } from '@/components/ui/button'; // Assuming Button component is available
 import { useAuth } from '@/hooks/useAuth';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useLeagueName } from '@/hooks/useLeagueName';
 import ParticipantTournamentInfoCard from '@/components/ParticipantTournamentInfoCard';
 import { prizePoolFor, type RakeStructure } from '@/lib/prizePool';
 import TimerFace from '@/components/TimerFace';
@@ -97,10 +98,11 @@ function TournamentParticipantView() {
   // Players prop their phone up to watch the clock too, and a phone sleeps far
   // sooner than a laptop. Same hook, same silent failure on a browser that
   // refuses.
-  // What this game is called, resolved the way every other display of it is.
-  // No league object on this screen, so no league fallback — an explicitly set
-  // event name is what matters, and the stored `name` is the last resort.
-  const playerFacingName = eventNameOfTournament(tournament as any, null);
+  // What this game is called, resolved the way every other display of it is —
+  // league fallback included, from the league's CURRENT name. The document no
+  // longer carries a copy frozen at creation (October audit, M18).
+  const leagueName = useLeagueName(tournament?.settings?.leagueId);
+  const playerFacingName = eventNameOfTournament(tournament as any, leagueName);
 
   useWakeLock(!!tournament?.isRunning);
   const [timeLeft, setTimeLeft] = useState(0);
