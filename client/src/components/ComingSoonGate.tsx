@@ -157,9 +157,10 @@ export default function ComingSoonGate({ children }: { children: React.ReactNode
     },
     {
       icon: BarChart3,
-      title: 'Player stats at your fingertips',
-      body: 'Tap any name for that player\u2019s whole season, night by night: hits, finishes, what they ' +
-        'put in, what they took out. No opening last month\u2019s games one at a time.',
+      title: 'Stats, your way',
+      body: 'Choose the columns for every night\u2019s results and for the league table, from over twenty ' +
+        'stats \u2014 hits, rebuys, profit, ROI, cashes and more. Tap any name for that player\u2019s whole ' +
+        'season, night by night.',
     },
     {
       icon: Download,

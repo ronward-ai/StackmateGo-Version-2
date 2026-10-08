@@ -4278,6 +4278,11 @@ written at each elimination rather than at the end of the night (`PokerTimer`'s 
 → `addResultMutation`), so the table genuinely moves mid-game; `PlayerSeasonDialog` opens from any
 standings row with **no participant gate**, so a phone can open anyone's season night by night.
 
+**The stats pillar is "Stats, your way"** (renamed from "Player stats at your fingertips", which sold
+only the drill-down): it claims the director picks the columns for each night's results
+(`settings.resultColumns`) and for the league table (Manage League → Stats, 25 stats in `STAT_LABELS`),
+and that any name opens that player's season. "Over twenty" is counted from `STAT_LABELS`; keep it true.
+
 Two claims are qualified because the code qualifies them. "In a league game" is load-bearing — the
 table hides itself entirely for a standalone tournament — and the copy says "any name" rather than
 "your stats", because standings are shared and there is no private per-player page.
