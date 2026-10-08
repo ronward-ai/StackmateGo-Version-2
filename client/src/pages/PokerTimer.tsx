@@ -55,7 +55,7 @@ import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, shouldReopen, winnerOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
-import { markRosterWritten, rosterPayload } from '@/lib/pendingRoster';
+import { markRosterWritten, markRosterIssued, markRosterSettled, rosterPayload } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
 import { getConsoleId, subscribeConsoleId } from '@/lib/consoleId';
 import { recordedStatsFor } from '@/lib/resultStats';
@@ -916,6 +916,10 @@ function PokerTimerInner({
         isFinalTable: tournament.state.isFinalTable,
       });
       if (serialised === lastSyncedPlayersRef.current) return;
+      // In flight until it settles — a snapshot meanwhile must not apply an
+      // older roster over this one (lib/pendingRoster.ts).
+      markRosterIssued();
+      let landed = false;
       try {
         const result = await writeLiveGame(activeTournamentId, {
           players: tournament.state.players,
@@ -948,10 +952,13 @@ function PokerTimerInner({
           // merge so an in-flight write's echo cannot revert the change that
           // produced it — see lib/pendingRoster.ts.
           markRosterWritten(serialised);
+          landed = true;
           reportSyncSuccess();
         }
       } catch (e) {
         reportSyncFailure('Players', e);
+      } finally {
+        if (!landed) markRosterSettled();
       }
     };
     sync();

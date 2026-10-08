@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { markRosterWritten, rosterIsPending, rosterPayload } from './pendingRoster';
+import { markRosterWritten, markRosterIssued, markRosterSettled, rosterIsPending, rosterPayload } from './pendingRoster';
 
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, isActive: true }));
 
@@ -93,5 +93,31 @@ describe('pendingRoster — the final-table flag rides along', () => {
       .toBe(rosterPayload({ players: roster, isFinalTable: true }));
     expect(rosterPayload({ players: roster, isFinalTable: true }))
       .not.toBe(rosterPayload({ players: roster, isFinalTable: false }));
+  });
+});
+
+describe('a write in flight is pending (October 2026)', () => {
+  const roster = { players: [{ id: 'a', name: 'Amy', isActive: true }] as any[], isFinalTable: false };
+
+  it('is pending while a write is in flight, even before anything has landed', () => {
+    markRosterWritten(null);
+    expect(rosterIsPending(roster)).toBe(false);
+    markRosterIssued();
+    expect(rosterIsPending(roster)).toBe(true);
+    markRosterWritten(rosterPayload(roster));
+    expect(rosterIsPending(roster)).toBe(false);
+  });
+
+  it('a write that does not land stops counting as in flight', () => {
+    markRosterWritten(null);
+    markRosterIssued();
+    markRosterSettled();
+    expect(rosterIsPending(roster)).toBe(false);
+  });
+
+  it('a new game forgets anything in flight for the old one', () => {
+    markRosterIssued(); markRosterIssued();
+    markRosterWritten(null);
+    expect(rosterIsPending(roster)).toBe(false);
   });
 });

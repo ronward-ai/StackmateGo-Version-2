@@ -925,9 +925,18 @@ from it" is exactly "a write is outstanding". `pendingRoster.ts` keeps the same 
 for the reason `liveGameWrite.ts` and `syncReporter.ts` keep theirs there: the writer is an effect and
 the reader is a Firestore callback, neither with a route to a provider.
 
+**A write IN FLIGHT is pending too** (`markRosterIssued` / `markRosterSettled`, October 2026). "Nothing
+pending before the first write" read "nothing acknowledged yet" as "nothing to protect" — but between a
+write being sent and being acknowledged the document is behind the screen exactly as after any other
+write. Reproduced while chasing rebuys missing from a night: with the page's first roster write still in
+flight (just after a load or reload), the echo of another write put a player rebought from the pop-up
+straight back out, rebuy count and all, and the sync then wrote that. `rosterEcho.scenario.test.tsx`
+plays it through the real hooks. A write that never settles (a blocked browser) keeps the roster
+pending for good — right for the device driving, and a read-only console is not gated by it.
+
 Four things are load-bearing:
 
-- **Nothing pending before the first write.** Answering `true` there would stop the first snapshot
+- **Nothing pending before the first write** — and nothing in flight. Answering `true` there would stop the first snapshot
   seeding the roster — the `hasLoadedRemoteState` hazard with the sign flipped, and how a resumed game
   would come up empty.
 - **`adopt` beats `keepLocal`**, and the order in the code says so. A takeover is the one case where

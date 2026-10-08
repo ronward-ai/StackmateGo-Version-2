@@ -71,11 +71,36 @@ export function rosterPayload(payload: RosterPayload): string {
 let lastWritten: string | null = null;
 
 /**
+ * Roster writes ISSUED and not yet settled.
+ *
+ * "Nothing pending before the first write" assumed the first write had either
+ * not happened or had landed. Between the two — a write sent, not yet
+ * acknowledged — the document is behind the screen exactly as it is after any
+ * other write, and a snapshot in that window applied it: a player rebought
+ * while their bust-out's write was still in flight was put straight back out,
+ * rebuy count and all (found reproducing a report of rebuys missing from a
+ * night). In flight therefore counts as pending, whatever has landed before.
+ */
+let inFlight = 0;
+
+/** Call just before a roster write is sent. */
+export function markRosterIssued(): void {
+  inFlight += 1;
+}
+
+/** Call when a write ends WITHOUT landing — skipped by the door, or failed. */
+export function markRosterSettled(): void {
+  inFlight = Math.max(0, inFlight - 1);
+}
+
+/**
  * Called where the sync effect records a payload as synced — which is only ever
  * on `'written'`, never on a skipped or failed write. Passing null forgets it,
  * for a new game.
  */
 export function markRosterWritten(serialised: string | null): void {
+  if (serialised === null) inFlight = 0; // a new game: nothing of the old one is in flight for it
+  else inFlight = Math.max(0, inFlight - 1);
   lastWritten = serialised;
 }
 
@@ -92,6 +117,7 @@ export function markRosterWritten(serialised: string | null): void {
  * window is exactly as long as the hazard and not one snapshot longer.
  */
 export function rosterIsPending(payload: RosterPayload): boolean {
+  if (inFlight > 0) return true;
   if (lastWritten === null) return false;
   return rosterPayload(payload) !== lastWritten;
 }
