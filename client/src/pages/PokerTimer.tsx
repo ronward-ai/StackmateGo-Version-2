@@ -26,6 +26,8 @@ import NextGameControl from '@/components/NextGameControl';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import NightSummaryDialog from '@/components/NightSummary';
+import SeasonGameBar from '@/components/SeasonGameBar';
+import { currencyOf } from '@/lib/currency';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
 import FinalTablePrompt from '@/components/FinalTablePrompt';
@@ -391,7 +393,7 @@ function PokerTimerInner({
   // standalone tournament otherwise left no record once the next one started.
   // The record id is derived from localGameId, so a repeat save overwrites
   // rather than duplicating; the ref just avoids pointless writes.
-  const { saveCompletedTournament } = useCompletedTournaments();
+  const { saveCompletedTournament, history: gameHistory } = useCompletedTournaments();
   const savedHistoryRef = useRef<string | null>(null);
   // This mount reopened a finished game (an undo of its ending), so its next
   // ending is a CORRECTION — History keeps the original date.
@@ -1651,10 +1653,14 @@ function PokerTimerInner({
                     (useOpenLiveGame). The console then switches to the game's
                     own league by itself — the handover effect above — so the
                     recorder's league guard lets the correction through. */}
-                <TournamentHistoryDialog
-                  onReopen={openOtherGame}
-                  currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
-                />
+                {/* Standalone only: a league game's past nights are the season
+                    bar at the top of the Players tab. */}
+                {!isLeagueMode && (
+                  <TournamentHistoryDialog
+                    onReopen={openOtherGame}
+                    currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
+                  />
+                )}
                 {/* Standalone only — a league game's copy lives in the league
                     panel above. One mount either way. */}
                 {!isLeagueMode && !readOnlyConsole && <NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
@@ -1699,6 +1705,20 @@ function PokerTimerInner({
                 roster still reads correctly on a second screen while offering
                 no KO, no rebuy, no chip edit and no way to add anybody. */}
             <TabsContent value="players" className="mt-0 p-4 pt-5">
+              {/* The season's games, as a bar: a league night's history IS its
+                  season, so this replaces History in league mode. Shown on a
+                  read-only console too — it only reads, and Reopen navigates. */}
+              {isLeagueMode && (
+                <SeasonGameBar
+                  season={_displaySeason}
+                  leaguePlayers={leaguePlayers}
+                  currentGameId={gameIdOf(tournament.state.details) ?? null}
+                  history={gameHistory}
+                  currency={currencyOf(tournament.state.settings)}
+                  onReopen={openOtherGame}
+                  currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
+                />
+              )}
               <DirectorOnly
                 readOnly={readOnlyConsole}
                 instead={<PlayerSectionReadOnly tournament={tournament} />}

@@ -58,6 +58,150 @@ export async function liveGameExists(id: string): Promise<boolean> {
 
 type GameCheck = 'checking' | 'present' | 'missing';
 
+/** One row of a game's results — a History record's, or the league's own for an older game. */
+export interface GameRecordRow {
+  key: string;
+  name: string;
+  position?: number;
+  knockouts?: number;
+  rebuys?: number;
+  reEntries?: number;
+  addons?: number;
+  prizeMoney?: number;
+}
+
+/**
+ * One past game: its results, its Summary and the way to reopen it. The ONE
+ * rendering of a past game — History's expanded row and the Players tab's
+ * season bar both draw this, so the two cannot describe one night differently.
+ *
+ * `rows` defaults to the History record's results; the season bar passes the
+ * league's own for a game played before History kept a record of it. Mounted
+ * only when shown, so the existence check is one read per opening.
+ */
+export function GameRecord({
+  gameId,
+  entry,
+  rows,
+  currency,
+  onReopen,
+  checkGame = liveGameExists,
+}: {
+  gameId: string | null;
+  entry?: CompletedTournament | null;
+  rows?: GameRecordRow[];
+  currency?: string;
+  onReopen?: (tournamentId: string) => void;
+  checkGame?: (id: string) => Promise<boolean>;
+}) {
+  const [game, setGame] = useState<GameCheck>('checking');
+  const sym = currencyOf({ currency: currency ?? entry?.currency });
+  const resultRows: GameRecordRow[] = rows ?? (entry?.results ?? []).map(r => ({
+    key: r.playerId, name: r.playerName, position: r.position, knockouts: r.knockouts,
+    rebuys: r.rebuys, reEntries: r.reEntries, addons: r.addons, prizeMoney: r.prizeMoney,
+  }));
+
+  useEffect(() => {
+    if (!onReopen) return;
+    if (!gameId) { setGame('missing'); return; }
+    let cancelled = false;
+    setGame('checking');
+    checkGame(gameId).then(ok => { if (!cancelled) setGame(ok ? 'present' : 'missing'); });
+    return () => { cancelled = true; };
+  }, [gameId, onReopen, checkGame]);
+
+  return (
+    <>
+      {resultRows.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border/40 space-y-1">
+          {entry?.correctedAt && (
+            <p className="text-caption text-muted-foreground pb-1">Corrected {formatDate(entry.correctedAt)}</p>
+          )}
+          {resultRows.map(r => (
+            <div key={r.key} className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="w-8 text-muted-foreground font-mono">{r.position ? ordinal(r.position) : ''}</span>
+                <span className="truncate">{r.name}</span>
+              </span>
+              <span className="flex items-center gap-3 flex-shrink-0 text-muted-foreground">
+                {(r.knockouts ?? 0) > 0 && <span>{r.knockouts} KO</span>}
+                {(r.rebuys ?? 0) > 0 && <span>{plural(r.rebuys!, 'rebuy')}</span>}
+                {(r.reEntries ?? 0) > 0 && <span>{plural(r.reEntries!, 're-entry', 're-entries')}</span>}
+                {(r.addons ?? 0) > 0 && <span>{plural(r.addons!, 'add-on')}</span>}
+                {(r.prizeMoney ?? 0) > 0 && (
+                  <span className="text-green-400">{sym}{r.prizeMoney!.toLocaleString()}</span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 pt-3 border-t border-border/40">
+        <div className="text-caption uppercase tracking-wide text-muted-foreground mb-2">Summary</div>
+        <NightSummaryList
+          log={entry?.summary}
+          emptyText="No summary was kept for this game — it was played before the Summary existed."
+        />
+      </div>
+
+      {/* Reopen to correct: only for a game whose live record is still there.
+          Not mounted while unknown or missing — a button that fails is worse
+          than a line saying why it is not offered. */}
+      {onReopen && (
+        <div className="mt-3 pt-3 border-t border-border/40">
+          {game === 'present' && gameId && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onReopen(gameId)}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reopen to correct
+            </Button>
+          )}
+          {game === 'missing' && (
+            <p className="text-caption text-muted-foreground">
+              This game's live record no longer exists — only the summary is kept.
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** The one confirm before reopening a finished game, shared by History and the season bar. */
+export function ReopenConfirm({
+  name,
+  open,
+  currentGameInPlay,
+  onCancel,
+  onConfirm,
+}: {
+  name: string;
+  open: boolean;
+  currentGameInPlay?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={o => !o && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reopen {name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            It opens in the console exactly as it finished. Undo a bust-out to correct the
+            result — then rebuy, re-enter or bust players out as normal. Changes update the
+            league standings, and History keeps the game's original date.
+            {currentGameInPlay && ' Your current game stays saved; you can return to it from the banner.'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>Reopen</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function HistoryRow({
   entry,
   onDelete,
@@ -70,18 +214,7 @@ function HistoryRow({
   checkGame: (id: string) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
-  const [game, setGame] = useState<GameCheck>('checking');
   const sym = currencyOf({ currency: entry.currency });
-  const gameId = liveGameIdOf(entry);
-
-  // Asked only once the row is opened, so a long History costs no reads.
-  useEffect(() => {
-    if (!open || !onReopen) return;
-    if (!gameId) { setGame('missing'); return; }
-    let cancelled = false;
-    checkGame(gameId).then(ok => { if (!cancelled) setGame(ok ? 'present' : 'missing'); });
-    return () => { cancelled = true; };
-  }, [open, gameId, onReopen, checkGame]);
 
   return (
     <Card className="p-3">
@@ -128,58 +261,13 @@ function HistoryRow({
         </div>
       </div>
 
-      {open && entry.results?.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-border/40 space-y-1">
-          {entry.correctedAt && (
-            <p className="text-caption text-muted-foreground pb-1">Corrected {formatDate(entry.correctedAt)}</p>
-          )}
-          {entry.results.map(r => (
-            <div key={r.playerId} className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-2 min-w-0">
-                <span className="w-8 text-muted-foreground font-mono">{r.position ? ordinal(r.position) : ''}</span>
-                <span className="truncate">{r.playerName}</span>
-              </span>
-              <span className="flex items-center gap-3 flex-shrink-0 text-muted-foreground">
-                {(r.knockouts ?? 0) > 0 && <span>{r.knockouts} KO</span>}
-                {(r.rebuys ?? 0) > 0 && <span>{plural(r.rebuys!, 'rebuy')}</span>}
-                {(r.reEntries ?? 0) > 0 && <span>{plural(r.reEntries!, 're-entry', 're-entries')}</span>}
-                {(r.addons ?? 0) > 0 && <span>{plural(r.addons!, 'add-on')}</span>}
-                {r.prizeMoney > 0 && (
-                  <span className="text-green-400">{sym}{r.prizeMoney.toLocaleString()}</span>
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {open && (
-        <div className="mt-3 pt-3 border-t border-border/40">
-          <div className="text-caption uppercase tracking-wide text-muted-foreground mb-2">Summary</div>
-          <NightSummaryList
-            log={entry.summary}
-            emptyText="No summary was kept for this game — it was played before the Summary existed."
-          />
-        </div>
-      )}
-
-      {/* Reopen to correct: only for a game whose live record is still there.
-          Not mounted while unknown or missing — a button that fails is worse
-          than a line saying why it is not offered. */}
-      {open && onReopen && (
-        <div className="mt-3 pt-3 border-t border-border/40">
-          {game === 'present' && gameId && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onReopen(entry, gameId)}>
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reopen to correct
-            </Button>
-          )}
-          {game === 'missing' && (
-            <p className="text-caption text-muted-foreground">
-              This game's live record no longer exists — only the summary is kept.
-            </p>
-          )}
-        </div>
+        <GameRecord
+          gameId={liveGameIdOf(entry)}
+          entry={entry}
+          onReopen={onReopen ? id => onReopen(entry, id) : undefined}
+          checkGame={checkGame}
+        />
       )}
     </Card>
   );
@@ -244,31 +332,17 @@ export default function TournamentHistoryDialog({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!pendingReopen} onOpenChange={o => !o && setPendingReopen(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reopen {reopenName}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              It opens in the console exactly as it finished. Undo a bust-out to correct the
-              result — then rebuy, re-enter or bust players out as normal. Changes update the
-              league standings, and History keeps the game's original date.
-              {currentGameInPlay && ' Your current game stays saved; you can return to it from the banner.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingReopen && onReopen) onReopen(pendingReopen.id);
-                setPendingReopen(null);
-                setOpen(false);
-              }}
-            >
-              Reopen
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ReopenConfirm
+        name={reopenName}
+        open={!!pendingReopen}
+        currentGameInPlay={currentGameInPlay}
+        onCancel={() => setPendingReopen(null)}
+        onConfirm={() => {
+          if (pendingReopen && onReopen) onReopen(pendingReopen.id);
+          setPendingReopen(null);
+          setOpen(false);
+        }}
+      />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={o => !o && setPendingDelete(null)}>
         <AlertDialogContent>

@@ -3574,6 +3574,27 @@ merge keeps the original night) and stamps `correctedAt`, which History shows.
 `leagueSeasons.scenario.test.tsx` plays it: a night, the next night, then the first reopened with no
 recorder memory and corrected — that night's results right, the second night untouched.
 
+### The season's games are a bar, not a list
+
+Requested: a game selector like the season panel's orange progress bar. `components/SeasonGameBar.tsx`
+sits at the top of the **Players** tab in league mode — one segment per game of the displayed season.
+**Played** games are orange buttons that open the night underneath: results, Summary and Reopen to
+correct. **Tonight's** game is outlined. **Games still to come** are uncoloured `div`s — not mounted as
+controls at all, the `DirectorOnly` rule. A season played past its schedule grows extra segments; one
+with no game count shows only what has been played.
+
+**Derived, not stored** — `lib/seasonGames.ts`'s `seasonGameSlots`. A season's games already exist as the
+distinct `tournamentId`s on its results, which is exactly what `countGamesPlayed` counts, so the bar
+and "N of M played" cannot disagree. Ordered by each game's earliest result (dates come as strings,
+numbers and Timestamps — `resultTime` reads all of them), undated last. The night's record is matched to
+History by `liveGameIdOf`; a game with no History record (played before History existed) shows the
+league's own results through `leagueResultsForGame`, and says no Summary was kept.
+
+**One rendering of a past game:** `GameRecord` and `ReopenConfirm`, exported from
+`TournamentHistoryDialog.tsx`, draw both History's expanded row and the bar's panel. **History is
+standalone-only now** — a league night's history IS its season, and a standalone game has no season to
+draw a bar for. The Summary button stays in both modes.
+
 ### A player coming back has to meet the final table, whichever door they use
 
 Reported from a real game: nine players, bust one out, collapse to the final table via the prompt,
@@ -4324,6 +4345,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `numberField.ts` | What a half-typed number field commits to when it is left — the fallback when empty, and clamped, never rejected. |
 | `statusChip.ts` | Which one status chip the app bar shows, and why a blocked browser outranks a live game. |
 | `standingsOrder.ts` | The order of a league's standings — points, fewer games, best finish — shared by the table and its movement arrows. |
+| `seasonGames.ts` | The season's games as the Players tab's bar draws them: played (from results), tonight's, and the ones still to come. |
 | `nightLog.ts` | The night's Summary: what each action did (`eventsBetween`), the one sentence per event, and the grow-only union that keeps it whole across echoes and takeovers. |
 | `deadline.ts` | Stop waiting for a Firestore write that never settles (8s), for the actions that must not hang on a blocked browser. |
 
