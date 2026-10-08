@@ -129,8 +129,11 @@ export function shouldRecordCompletion(
   players: readonly GameOverPlayerLike[] | null | undefined,
   storedStatus: string | null | undefined,
   alreadySavedHere: boolean,
+  /** The results editor has just rewritten this game: record it again, as a correction. */
+  correction = false,
 ): boolean {
   if (!gameIsOver(players)) return false;
+  if (correction) return true;
   if (alreadySavedHere) return false;
   return storedStatus !== 'completed';
 }

@@ -35,6 +35,7 @@ function repriceMovedFinishers<T extends Player>(before: T[], after: T[], struct
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { levelAnnouncement, blindLevelNumber } from '@/lib/announcements';
 import { appendEvent, eventsBetween, mergeLog, type NewLogEvent } from '@/lib/nightLog';
+import { applyEdit, type EditRow } from '@/lib/resultsEdit';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress, restorableAtHome, peekLocalProgress, wouldClobberMirror } from '@/lib/localProgress';
 import { secondsLeftFrom, advanceClock, formatClock } from '@/lib/tournamentClock';
@@ -1421,6 +1422,7 @@ export function useTournament(tournamentId?: string) {
               isActive: true, // Reactivate the player
               position: undefined, // Clear elimination position
               eliminatedBy: undefined, // Clear elimination data
+              earlierBustsBy: [...(p.earlierBustsBy ?? []), { by: p.eliminatedBy ?? null, then: 'reEntry' as const }],
               prizeMoney: 0, // Reset prize money
               reEntries: (p.reEntries || 0) + 1, // Increment re-entry count
               bustLevel: undefined,
@@ -1510,6 +1512,9 @@ export function useTournament(tournamentId?: string) {
               isActive: true,
               position: undefined,
               eliminatedBy: undefined,
+              // Who busted them, kept: the knockout stays with the hunter, and
+              // without this the results editor could never say whose it was.
+              earlierBustsBy: [...(p.earlierBustsBy ?? []), { by: p.eliminatedBy ?? null, then: 'rebuy' as const }],
               prizeMoney: 0,
               rebuys: (p.rebuys || 0) + 1,
               bustLevel: undefined,
@@ -1732,6 +1737,29 @@ export function useTournament(tournamentId?: string) {
       isFinalTable: progress.isFinalTable ?? prev.isFinalTable,
       nightLog: mergeLog(prev.nightLog, progress.nightLog),
     }));
+  }, []);
+
+  /**
+   * Rewrite the night from the results editor — `lib/resultsEdit.ts`. One
+   * action, so the Summary records it once and the sync writes it once. A game
+   * the edit leaves unfinished loses its final-table flag and undo snapshot,
+   * which described a table that no longer exists.
+   */
+  const applyResultsEdit = useCallback((rows: EditRow[]) => {
+    setState(prev => {
+      const players = applyEdit(prev.players, rows, prev.prizeStructure as any) as Player[];
+      const over = gameIsOver(players);
+      return {
+        ...prev,
+        players,
+        ...(over ? {} : { isFinalTable: false, preConsolidation: undefined }),
+        nightLog: appendEvent(prev.nightLog, getConsoleId(), {
+          at: Date.now(),
+          level: blindLevelNumber(prev.levels, prev.currentLevel),
+          kind: 'resultsEdited',
+        }),
+      };
+    });
   }, []);
 
   /**
@@ -2528,6 +2556,7 @@ export function useTournament(tournamentId?: string) {
     updateTimer,
     restoreLocalProgress,
     logEvent,
+    applyResultsEdit,
 
     formatTime,
     calculateProgress,

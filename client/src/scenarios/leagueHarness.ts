@@ -17,7 +17,7 @@
  * mirrored below line for line because they live inside a page effect and a
  * Firebase hook. If either of those changes shape, change this with it.
  */
-import { removalsDue, recordsDue, recordedForGame, findPlayerByName, alreadyRecorded, resultsToWithdraw } from '@/lib/leagueRecorder';
+import { removalsDue, recordsDue, recordedForGame, recordedStatsForGame, statsOfPlayer, type RecordedStats, findPlayerByName, alreadyRecorded, resultsToWithdraw } from '@/lib/leagueRecorder';
 import { standingsFromDocs } from '@/lib/leagueStandings';
 import { seasonRoster } from '@/lib/playerSeason';
 import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
@@ -52,6 +52,7 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
   let seq = 0;
   /** This tab's memory (PokerTimer's processedEliminationsRef). A new tab, or a reload, starts empty. */
   let memory = new Map<string, number>();
+  let statsMemory = new Map<string, RecordedStats>();
 
   const standings = () => standingsFromDocs(playerDocs, results);
 
@@ -95,11 +96,15 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
     const active = players.filter(p => p.isActive !== false);
     const isFinished = active.length <= 1 && players.length > 1;
     const cloud = recordedForGame(standings(), gameId);
-    const { back, moved } = removalsDue(players, memory, cloud);
-    for (const p of [...back, ...moved]) { removeResultForPlayer(p.name, gameId); memory.set(p.id, 0); }
+    const { back, moved, changed } = removalsDue(players, memory, cloud,
+      { memory: statsMemory, cloud: recordedStatsForGame(standings(), gameId) });
+    for (const p of [...back, ...moved, ...changed]) {
+      removeResultForPlayer(p.name, gameId); memory.set(p.id, 0); statsMemory.delete(p.id);
+    }
     for (const p of recordsDue(players, memory, cloud, isFinished)) {
       const replacing = memory.get(p.id) === 0;
       memory.set(p.id, p.position);
+      statsMemory.set(p.id, statsOfPlayer(p));
       recordResultByName(p.name, p.position, players.length, p.knockouts || 0, p.prizeMoney || 0,
         state.prizeStructure?.buyIn ?? 10, gameId, seasonId, replacing,
         { ...recordedStatsFor(p, state.prizeStructure), prizePool: prizePoolFor(players, state.prizeStructure).net });
@@ -107,7 +112,7 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
   }
 
   /** A reload or a second tab: the page's in-memory claims are gone. */
-  function forgetTab() { memory = new Map(); }
+  function forgetTab() { memory = new Map(); statsMemory = new Map(); }
 
   /** The standings table for a season, in the order the screen draws it. */
   function table(seasonId: string) {

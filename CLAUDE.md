@@ -3595,6 +3595,43 @@ league's own results through `leagueResultsForGame`, and says no Summary was kep
 standalone-only now** — a league night's history IS its season, and a standalone game has no season to
 draw a bar for. The Summary button stays in both modes.
 
+### Results are edited as busts, and knockouts are derived
+
+Reported: a director undid every bust-out of a night to replay it and fix missed rebuys, and two
+players still showed a knockout. Undo could never have fixed it. A rebuy rightly KEEPS the hunter's
+knockout and clears `eliminatedBy`, and `undoBustOut` only reverses a player's most recent bust — so
+the knockouts earned before a rebuy, and the rebuy counts, survive a full unwind, and nothing recorded
+who those earlier hitmen were.
+
+**`Player.earlierBustsBy`** records it from now on: `processRebuy` and `processReEntry` push the bust
+they reverse (`{ by: eliminatedBy, then }`) before clearing it, and the toast's undo restores from its
+snapshot, so it reverts too.
+
+**`lib/resultsEdit.ts` and `components/ResultsEditor.tsx`** — **Edit results** on the Players tab, on any
+game, amber while the clock runs, not mounted on a read-only console. A night is each player's
+**busts**, `{ by, then: 'rebuy' | 'reEntry' | 'out' }`, plus a place. Rebuy and re-entry counts are counts
+of those, `eliminatedBy` is the `out` bust's hitman, and **a player's knockouts are the number of busts,
+across everybody, credited to them** — derived, so a stray hit is impossible by construction. Money is
+re-priced for every placed player from the pool as the edit leaves it. `validateEdit` refuses repeated
+places, places that do not run from the bottom, a lone player left "still in", a knocked-out winner, a
+finisher with no `out` bust and a self-knockout. Older games have counts and no hitmen; those busts load
+as **Unknown** and credit nobody, and the editor says so.
+
+**The league recorder corrects COUNTS now, not only places** — `removalsDue`'s third bucket, `changed`:
+same place, but the recorded knockouts, rebuys or re-entries differ, so it is withdrawn and re-recorded
+exactly as `moved` is. This tab's memory (`recordedStatsRef`, beside the position memory) beats a lagging
+snapshot, so a correction happens once. **A field an old result never stored is unknown, not 0**
+(`statsDiffer`) — or merely opening an old game would rewrite, and RESCORE under today's points scheme,
+every result in it. A re-recorded result IS scored under the current scheme; that is the price of an
+edit and is deliberate. `leagueHarness.ts` mirrors it.
+
+**History is re-saved as a correction**: the edit sets `correctionRef`, which `shouldRecordCompletion`
+honours even for a game already stored as completed — the original date kept, `correctedAt` stamped.
+The Summary records **Results edited**.
+
+`leagueSeasons.scenario.test.tsx` plays it: a night recorded, then edited on a fresh console to add the
+missed rebuy and move the pre-rebuy knockout — hits, rebuys and places right in the league, recorded once.
+
 ### A player coming back has to meet the final table, whichever door they use
 
 Reported from a real game: nine players, bust one out, collapse to the final table via the prompt,
@@ -4345,6 +4382,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `numberField.ts` | What a half-typed number field commits to when it is left — the fallback when empty, and clamped, never rejected. |
 | `statusChip.ts` | Which one status chip the app bar shows, and why a blocked browser outranks a live game. |
 | `standingsOrder.ts` | The order of a league's standings — points, fewer games, best finish — shared by the table and its movement arrows. |
+| `resultsEdit.ts` | The results editor: a night as each player's busts, knockouts derived from them, the edit validated and applied with money re-priced. |
 | `seasonGames.ts` | The season's games as the Players tab's bar draws them: played (from results), tonight's, and the ones still to come. |
 | `nightLog.ts` | The night's Summary: what each action did (`eventsBetween`), the one sentence per event, and the grow-only union that keeps it whole across echoes and takeovers. |
 | `deadline.ts` | Stop waiting for a Firestore write that never settles (8s), for the actions that must not hang on a blocked browser. |

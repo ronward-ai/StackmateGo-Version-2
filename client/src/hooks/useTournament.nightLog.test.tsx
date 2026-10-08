@@ -74,3 +74,34 @@ describe('the Summary records what each action did', () => {
     expect(g.h.result.current.state.nightLog ?? []).toEqual([]);
   });
 });
+
+describe('who busted a player before they came back is kept', () => {
+  it('a rebuy and a re-entry each record the bust they reversed; the toast undo takes it back', () => {
+    const g = game(['Amy', 'Bob', 'Cat']);
+    act(() => { g.h.result.current.updatePrizeStructure({ allowRebuys: true, allowReEntry: true } as any); });
+    act(() => { g.h.result.current.eliminatePlayer(g.id('Cat'), g.id('Amy')); });
+    act(() => { g.h.result.current.processRebuy(g.id('Cat')); });
+    act(() => { g.h.result.current.eliminatePlayer(g.id('Cat'), g.id('Bob')); });
+    act(() => { g.h.result.current.processReEntry(g.id('Cat')); });
+    const cat = () => g.h.result.current.state.players.find(p => p.name === 'Cat')!;
+    expect(cat().earlierBustsBy).toEqual([
+      { by: g.id('Amy'), then: 'rebuy' },
+      { by: g.id('Bob'), then: 'reEntry' },
+    ]);
+    act(() => { g.h.result.current.undoPlayerReturn(); });
+    expect(cat().earlierBustsBy).toEqual([{ by: g.id('Amy'), then: 'rebuy' }]);
+  });
+
+  it('applying an edit rewrites the night and says so in the Summary', () => {
+    const g = game(['Amy', 'Bob']);
+    act(() => {
+      g.h.result.current.applyResultsEdit([
+        { id: g.id('Amy'), name: 'Amy', place: 1, busts: [] },
+        { id: g.id('Bob'), name: 'Bob', place: 2, busts: [{ by: g.id('Amy'), then: 'out' }] },
+      ]);
+    });
+    const amy = g.h.result.current.state.players.find(p => p.name === 'Amy')!;
+    expect(amy).toMatchObject({ position: 1, knockouts: 1 });
+    expect(g.kinds().at(-1)).toBe('resultsEdited:');
+  });
+});

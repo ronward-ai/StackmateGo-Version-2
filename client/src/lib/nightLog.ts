@@ -31,7 +31,8 @@ export type LogKind =
   | 'rebuyRefused'
   | 'reEntryRefused'
   | 'finalTable'
-  | 'tableBreak';
+  | 'tableBreak'
+  | 'resultsEdited';
 
 export interface LogEvent {
   id: string;
@@ -128,6 +129,8 @@ export function describeEvent(e: LogEvent): string {
       return `Re-entry refused for ${who}${e.detail ? `: ${e.detail}` : ''}`;
     case 'finalTable':
       return 'Final table';
+    case 'resultsEdited':
+      return 'Results edited';
     case 'tableBreak':
       return e.detail ? `${e.detail} broken` : 'A table was broken';
     default:

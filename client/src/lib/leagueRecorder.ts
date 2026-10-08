@@ -30,7 +30,57 @@ export interface RecorderPlayer {
 
 interface LeaguePlayerResults {
   name: string;
-  tournamentResults?: Array<{ tournamentId?: string | number | null; position?: number | null }>;
+  tournamentResults?: Array<{
+    tournamentId?: string | number | null;
+    position?: number | null;
+    playersEliminatedCount?: number | null;
+    rebuys?: number | null;
+    reEntries?: number | null;
+  }>;
+}
+
+/**
+ * The counts a recorded result carries that the results editor can change
+ * without moving anybody's place. A field absent from an old result is
+ * unknown, not 0 — results recorded before rebuys were stored must not all be
+ * rewritten (and rescored under today's points scheme) the moment their game
+ * is opened.
+ */
+export interface RecordedStats {
+  knockouts?: number;
+  rebuys?: number;
+  reEntries?: number;
+}
+
+const STAT_KEYS = ['knockouts', 'rebuys', 'reEntries'] as const;
+
+export function statsOfPlayer(p: { knockouts?: number; rebuys?: number; reEntries?: number }): RecordedStats {
+  return { knockouts: p.knockouts || 0, rebuys: p.rebuys || 0, reEntries: p.reEntries || 0 };
+}
+
+/** Each player's recorded counts for this game, from the league's results. */
+export function recordedStatsForGame(
+  leaguePlayers: readonly LeaguePlayerResults[] | null | undefined,
+  gameId: string | null | undefined,
+): Map<string, RecordedStats> {
+  const out = new Map<string, RecordedStats>();
+  if (!gameId) return out;
+  const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
+  for (const lp of leaguePlayers ?? []) {
+    const hit = (lp.tournamentResults ?? []).find(r => String(r.tournamentId) === gameId);
+    if (hit) out.set(nameKey(lp.name), {
+      knockouts: num(hit.playersEliminatedCount),
+      rebuys: num(hit.rebuys),
+      reEntries: num(hit.reEntries),
+    });
+  }
+  return out;
+}
+
+/** Do the recorded counts disagree with the player's? Unknown fields never do. */
+export function statsDiffer(recorded: RecordedStats | undefined, player: RecordedStats): boolean {
+  if (!recorded) return false;
+  return STAT_KEYS.some(k => recorded[k] !== undefined && recorded[k] !== (player[k] ?? 0));
 }
 
 /**
@@ -129,20 +179,29 @@ export function recordedPosition(
  *   - `back`: in the game again (rebuy, re-entry, undo) but still recorded;
  *   - `moved`: still out, but recorded at a place that has since changed.
  */
-export function removalsDue<P extends RecorderPlayer>(
+export function removalsDue<P extends RecorderPlayer & { knockouts?: number; rebuys?: number; reEntries?: number }>(
   players: readonly P[],
   memory: ReadonlyMap<string, number>,
   cloud: ReadonlyMap<string, number>,
-): { back: P[]; moved: P[] } {
+  stats?: { memory: ReadonlyMap<string, RecordedStats>; cloud: ReadonlyMap<string, RecordedStats> },
+): { back: P[]; moved: P[]; changed: P[] } {
   const back: P[] = [];
   const moved: P[] = [];
+  const changed: P[] = [];
   for (const p of players) {
     const recorded = recordedPosition(memory, cloud, p);
     if (recorded === null) continue;
     if (p.isActive !== false && !p.position) back.push(p);
     else if (p.position && recorded !== p.position) moved.push(p);
+    // Same place, different counts — what the results editor does to a
+    // finished night. This tab's memory first, for the reason the positions
+    // take it first: the results snapshot lags this tab's own writes.
+    else if (stats && statsDiffer(
+      memory.has(p.id) ? stats.memory.get(p.id) : stats.cloud.get(nameKey(p.name)),
+      statsOfPlayer(p),
+    )) changed.push(p);
   }
-  return { back, moved };
+  return { back, moved, changed };
 }
 
 /** Who should be recorded now: finished, and not recorded at that place. */

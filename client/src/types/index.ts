@@ -31,6 +31,12 @@ export interface Player {
    */
   points?: never;
   eliminatedBy?: string;
+  /**
+   * Who busted this player each time they came back — the bust a rebuy or
+   * re-entry reversed. The knockout stays with the hunter; this keeps the name,
+   * so the results editor can show and correct it. `by` is null when unknown.
+   */
+  earlierBustsBy?: { by?: string | null; then: 'rebuy' | 'reEntry' }[];
   prizeMoney?: number;
   isActive?: boolean;
   seatInfo?: { tableIndex: number; seatIndex: number; totalSeatedPlayers: number };

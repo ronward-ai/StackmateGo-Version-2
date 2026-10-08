@@ -268,6 +268,44 @@ describe('a finished game reopened from History to correct it', () => {
   });
 });
 
+describe('a night rewritten in the results editor', () => {
+  const prize = { buyIn: 10, allowRebuys: true, rebuyAmount: 10, manualPayouts: [] };
+
+  // Reported: undoing every bust-out to replay a night left two players with a
+  // knockout — earned before a rebuy, which undo cannot reach. The editor sets
+  // the night right directly, and the league must follow: hits, rebuys and
+  // places, with nothing recorded twice and the other nights untouched.
+  it('the standings take the corrected hits and rebuys', () => {
+    const league = createLeague();
+    const n = night(league, 'g1', 'spring', ['Amy', 'Bob', 'Cat', 'Dan'], prize);
+    n.bust('Dan', 'Amy'); n.bust('Cat', 'Bob'); n.bust('Bob', 'Amy');
+    expectCleanGame(league, 'g1', 4);
+    const row = (name: string) => league.results.find(r =>
+      r.tournamentId === 'g1' && league.playerDocs.find(p => p.id === r.leaguePlayerId)!.name === name)! as any;
+    expect(row('Cat').rebuys ?? 0).toBe(0);
+
+    // What really happened: Cat rebought after Dan busted her, then went out to Bob.
+    league.forgetTab(); // the editor is used on a reopened game — a fresh console
+    act(() => {
+      n.h.result.current.applyResultsEdit([
+        { id: n.id('Amy'), name: 'Amy', place: 1, busts: [] },
+        { id: n.id('Bob'), name: 'Bob', place: 2, busts: [{ by: n.id('Amy'), then: 'out' }] },
+        { id: n.id('Cat'), name: 'Cat', place: 3, busts: [{ by: n.id('Dan'), then: 'rebuy' }, { by: n.id('Bob'), then: 'out' }] },
+        { id: n.id('Dan'), name: 'Dan', place: 4, busts: [{ by: n.id('Amy'), then: 'out' }] },
+      ]);
+    });
+    n.sync();
+    n.sync(); // a second pass, as the page would run, must change nothing more
+
+    expectCleanGame(league, 'g1', 4);
+    expect(row('Cat').rebuys).toBe(1);
+    expect(row('Dan').knockouts ?? row('Dan').playersEliminatedCount).toBe(1);
+    expect(row('Amy').knockouts ?? row('Amy').playersEliminatedCount).toBe(2);
+    expect(row('Bob').knockouts ?? row('Bob').playersEliminatedCount).toBe(1);
+    n.done();
+  });
+});
+
 describe('a second console records the same night', () => {
   it('writes nothing twice, even against a duplicate player document', () => {
     const league = createLeague();

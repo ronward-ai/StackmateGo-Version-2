@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { prizePoolFor } from '@/lib/prizePool';
 import { isLeagueGame } from '@/lib/tournamentMode';
-import { recordedForGame, removalsDue, recordsDue } from '@/lib/leagueRecorder';
+import { recordedForGame, removalsDue, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats } from '@/lib/leagueRecorder';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
 import { gameIdOf } from '@/lib/localGameId';
@@ -27,12 +27,14 @@ import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import NightSummaryDialog from '@/components/NightSummary';
 import SeasonGameBar from '@/components/SeasonGameBar';
+import ResultsEditor from '@/components/ResultsEditor';
 import { currencyOf } from '@/lib/currency';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
 import FinalTablePrompt from '@/components/FinalTablePrompt';
 import RebuyOffer from '@/components/RebuyOffer';
 import { logFingerprint } from '@/lib/nightLog';
+import type { EditRow } from '@/lib/resultsEdit';
 import DirectorOnly from '@/components/DirectorOnly';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
@@ -362,6 +364,9 @@ function PokerTimerInner({
   // returning player, so a result already written can become stale and must
   // be rewritten — see lib/eliminationOrder.ts.
   const processedEliminationsRef = useRef(new Map<string, number>());
+  // The counts this tab recorded beside each position, so an edited night is
+  // corrected once and a lagging snapshot cannot trigger it again.
+  const recordedStatsRef = useRef(new Map<string, RecordedStats>());
 
   // The league sync runs one at a time. It awaits Firestore writes, and the
   // effect re-fires on every players change, so overlapping runs could record a
@@ -398,6 +403,13 @@ function PokerTimerInner({
   // This mount reopened a finished game (an undo of its ending), so its next
   // ending is a CORRECTION — History keeps the original date.
   const reopenedRef = useRef(false);
+  // The results editor rewrote this game: its next "game over" is recorded
+  // again as a correction, even though the document already says completed.
+  const correctionRef = useRef(false);
+  const applyResultsEdit = (rows: EditRow[]) => {
+    correctionRef.current = true;
+    tournament.applyResultsEdit(rows);
+  };
 
   useEffect(() => {
     const players = tournament.state.players || [];
@@ -420,7 +432,7 @@ function PokerTimerInner({
     // Merely OPENING a finished game must not record it again — see
     // shouldRecordCompletion. Only a game ending on this mount, or ending again
     // after it was reopened to correct it, is written.
-    if (!shouldRecordCompletion(players, storedStatusOf(tournament.state), savedHistoryRef.current === gameKey)) return;
+    if (!shouldRecordCompletion(players, storedStatusOf(tournament.state), savedHistoryRef.current === gameKey, correctionRef.current)) return;
 
     // Signed-out directors have nowhere to save history to; saveCompletedTournament
     // returns null for that case just as it does for a real failure, so guard here
@@ -464,7 +476,9 @@ function PokerTimerInner({
     // Tournament History, which is exactly what would be missing.
     // A game ending again after it was reopened keeps its place in History —
     // its original end time — and says it was corrected.
-    saveCompletedTournament(tournament.state, { corrected: reopenedRef.current })
+    const corrected = reopenedRef.current || correctionRef.current;
+    correctionRef.current = false;
+    saveCompletedTournament(tournament.state, { corrected })
       .then(saved => {
         if (saved) return;
         savedHistoryRef.current = null;
@@ -1160,7 +1174,11 @@ function PokerTimerInner({
         // corrected one: a wrong place, for good.
         const memory = processedEliminationsRef.current;
         const cloud = recordedForGame(leaguePlayers, gameId);
-        const { back, moved } = removalsDue(players, memory, cloud);
+        // And what each recorded result says about the counts the results
+        // editor can change without moving a place — KOs, rebuys, re-entries.
+        const statsMemory = recordedStatsRef.current;
+        const { back, moved, changed } = removalsDue(players, memory, cloud,
+          { memory: statsMemory, cloud: recordedStatsForGame(leaguePlayers, gameId) });
 
         // 1. Back in the game (rebuy, re-entry, undo) but still recorded: drop
         //    it. They will be recorded again when they are out for good.
@@ -1191,11 +1209,14 @@ function PokerTimerInner({
         //    re-recorded: recording on top of a failed removal is how a player
         //    ended up with two results for one game, counting twice in points,
         //    games played and money (October audit, M3).
-        for (const player of moved) {
+        //    And an edited night (lib/resultsEdit.ts): same place, different
+        //    KOs or rebuys. Withdrawn and re-recorded the same way.
+        for (const player of [...moved, ...changed]) {
           if (!gameId) break;
           try {
             await removeTournamentResultForPlayer(player.name, gameId);
             memory.set(player.id, 0);
+            statsMemory.delete(player.id);
           } catch (shiftError) {
             reportWriteFailure(`${player.name}'s corrected place`, shiftError);
           }
@@ -1233,6 +1254,7 @@ function PokerTimerInner({
           const previousClaim = memory.get(player.id);
           const replacing = previousClaim === 0;
           memory.set(player.id, player.position);
+          statsMemory.set(player.id, statsOfPlayer(player));
 
           try {
             // Awaited deliberately. This used to be fire-and-forget inside a
@@ -1328,6 +1350,7 @@ function PokerTimerInner({
     const noPositions = !players.some(p => (p.position || 0) > 0);
     if (allActive && noPositions) {
       processedEliminationsRef.current = new Map();
+      recordedStatsRef.current = new Map();
     }
   }, [tournament?.state?.players]);
 
@@ -1718,6 +1741,18 @@ function PokerTimerInner({
                   onReopen={openOtherGame}
                   currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
                 />
+              )}
+              {/* Rewrite the night — places, hitmen, rebuys, re-entries. Not
+                  mounted on a read-only console (the DirectorOnly rule). */}
+              {!readOnlyConsole && tournament.state.players.length > 1 && (
+                <div className="flex justify-end mb-3">
+                  <ResultsEditor
+                    players={tournament.state.players}
+                    prizeStructure={tournament.state.prizeStructure}
+                    isRunning={tournament.state.isRunning}
+                    onSave={applyResultsEdit}
+                  />
+                </div>
               )}
               <DirectorOnly
                 readOnly={readOnlyConsole}

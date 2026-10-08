@@ -102,3 +102,29 @@ describe('the recorder\'s name match and dedupe (Oct coverage)', () => {
     expect(alreadyRecorded([], [{ leaguePlayerId: 'new', tournamentId: 'G' }], 'Amy', 'G', ['new'])).toBe(true);
   });
 });
+
+import { recordedStatsForGame, statsDiffer } from './leagueRecorder';
+
+describe('an edited night: same place, different counts', () => {
+  const league = [{ name: 'Amy', tournamentResults: [{ tournamentId: 'g', position: 2, playersEliminatedCount: 1, rebuys: 0, reEntries: 0 }] }];
+  const amy = { id: 'a', name: 'Amy', isActive: false, position: 2, knockouts: 3, rebuys: 1, reEntries: 0 };
+
+  it('is withdrawn to be re-recorded', () => {
+    const { changed, moved } = removalsDue([amy], new Map(), recordedForGame(league, 'g'),
+      { memory: new Map(), cloud: recordedStatsForGame(league, 'g') });
+    expect(changed.map(p => p.id)).toEqual(['a']);
+    expect(moved).toEqual([]);
+  });
+
+  it('this tab\'s memory beats a lagging snapshot, so it is corrected once', () => {
+    const { changed } = removalsDue([amy], new Map([['a', 2]]), recordedForGame(league, 'g'),
+      { memory: new Map([['a', { knockouts: 3, rebuys: 1, reEntries: 0 }]]), cloud: recordedStatsForGame(league, 'g') });
+    expect(changed).toEqual([]);
+  });
+
+  it('a field an old result never stored is unknown, not 0 — opening an old game rewrites nothing', () => {
+    expect(statsDiffer({ knockouts: 3 }, { knockouts: 3, rebuys: 2, reEntries: 1 })).toBe(false);
+    expect(statsDiffer({ knockouts: 2 }, { knockouts: 3, rebuys: 0, reEntries: 0 })).toBe(true);
+    expect(statsDiffer(undefined, { knockouts: 3 })).toBe(false);
+  });
+});

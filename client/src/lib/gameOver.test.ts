@@ -153,3 +153,11 @@ describe('storedStatusOf', () => {
     expect(storedStatusOf(undefined)).toBeUndefined();
   });
 });
+
+describe('shouldRecordCompletion after an edit', () => {
+  const over = [{ isActive: false, position: 1 }, { isActive: false, position: 2 }];
+  it('an edited finished game is recorded again, however it was stored', () => {
+    expect(shouldRecordCompletion(over, 'completed', true, true)).toBe(true);
+    expect(shouldRecordCompletion([{ isActive: true }, { isActive: false, position: 2 }], 'completed', false, true)).toBe(false);
+  });
+});
