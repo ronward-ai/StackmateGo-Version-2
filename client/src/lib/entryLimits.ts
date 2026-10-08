@@ -47,6 +47,24 @@ export interface EntryLimitStructure {
 export interface EntryCounts {
   rebuys?: number;
   reEntries?: number;
+  /** The blind level they busted in, when known — see `rebuyLevelFor`. */
+  bustLevel?: number | null;
+}
+
+/**
+ * The level a REBUY is judged at: the one the player busted in.
+ *
+ * A rebuy is taken at the bust-out, in the chair, so whether it falls inside the
+ * rebuy period is a fact about WHEN THEY BUSTED. It was judged at the level the
+ * clock was on when the button was pressed — and at the last hand of the period
+ * the level changes while the "rebuy?" question is still on screen. The dialog
+ * then vanished under the director's finger, the failsafe button with it, and
+ * the only way to honour a rebuy the rules allowed was to extend the period in
+ * the Buy-in tab (reported from a live night). A player with no recorded bust
+ * level — an older document — falls back to the current level, as before.
+ */
+export function rebuyLevelFor(player: EntryCounts | null | undefined, currentLevel: number): number {
+  return typeof player?.bustLevel === 'number' && player.bustLevel >= 0 ? player.bustLevel : currentLevel;
 }
 
 /**
@@ -119,7 +137,7 @@ export function canRebuy(
 ): boolean {
   if (!structure?.allowRebuys) return false;
   return underCap(player?.rebuys, structure.maxRebuys)
-    && withinPeriod(currentLevel, structure.rebuyPeriodLevels);
+    && withinPeriod(rebuyLevelFor(player, currentLevel), structure.rebuyPeriodLevels);
 }
 
 /** May this player re-enter? */
@@ -180,7 +198,7 @@ export function rebuyUnavailableReason(
     const max = structure.maxRebuys as number;
     return `Rebuys used (${player?.rebuys || 0} of ${max})`;
   }
-  if (!withinPeriod(currentLevel, structure.rebuyPeriodLevels)) {
+  if (!withinPeriod(rebuyLevelFor(player, currentLevel), structure.rebuyPeriodLevels)) {
     return `Rebuy period ended (first ${structure.rebuyPeriodLevels} levels)`;
   }
   return null;

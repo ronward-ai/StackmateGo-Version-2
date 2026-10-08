@@ -1215,6 +1215,10 @@ export function useTournament(tournamentId?: string) {
               isActive: false,
               seatInfo: recordedSeat,
               bustCount: (player.bustCount || 0) + 1,
+              // The level they busted in — the rebuy period is judged at it, so
+              // a bust in the last hand of the period stays rebuyable however
+              // long the question takes to answer. See rebuyLevelFor.
+              bustLevel: blindLevelIndex(prev.levels, prev.currentLevel),
             }
           : player.id === eliminatedById && eliminatedById
             ? {
@@ -1386,6 +1390,7 @@ export function useTournament(tournamentId?: string) {
               eliminatedBy: undefined, // Clear elimination data
               prizeMoney: 0, // Reset prize money
               reEntries: (p.reEntries || 0) + 1, // Increment re-entry count
+              bustLevel: undefined,
               // Unseated ON PURPOSE, unlike a rebuy. A re-entry is a fresh entry
               // into the tournament rather than more chips in the same chair,
               // which is the same distinction that has a re-entry raked by
@@ -1474,6 +1479,7 @@ export function useTournament(tournamentId?: string) {
               eliminatedBy: undefined,
               prizeMoney: 0,
               rebuys: (p.rebuys || 0) + 1,
+              bustLevel: undefined,
               seated: !!reclaimed,
               tableAssignment: reclaimed ?? undefined,
               seatInfo: undefined,
@@ -2279,7 +2285,8 @@ export function useTournament(tournamentId?: string) {
             prizeMoney: 0,
             seated: !!reclaimedSeat,
             tableAssignment: reclaimedSeat ?? undefined,
-            seatInfo: undefined
+            seatInfo: undefined,
+            bustLevel: undefined,
           };
         } else if (player.id === playerToRestore.eliminatedBy && player.knockouts > 0) {
           // Everything the knockout gave the hunter comes back off them —

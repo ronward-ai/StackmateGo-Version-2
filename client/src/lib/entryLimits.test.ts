@@ -342,3 +342,30 @@ describe('blindLevelIndex — windows count the levels the clock shows', () => {
     expect(canRebuy(structure, { rebuys: 0 }, blindLevelIndex(levels, 6))).toBe(false);
   });
 });
+
+// Reported from a live night: a player busted in the last hand of the rebuy
+// period, the level changed while the "rebuy?" question was on screen, and the
+// rebuy could only be taken by extending the period. The period is judged at
+// the level they BUSTED in.
+describe('a rebuy is judged at the level of the bust-out', () => {
+  const ps = { allowRebuys: true, rebuyPeriodLevels: 3 };
+
+  it('stays open after the period for a player who busted inside it', () => {
+    expect(canRebuy(ps, { rebuys: 0, bustLevel: 2 }, 3)).toBe(true);
+    expect(rebuyUnavailableReason(ps, { rebuys: 0, bustLevel: 2 }, 5)).toBeNull();
+  });
+
+  it('is closed for a player who busted after it', () => {
+    expect(canRebuy(ps, { rebuys: 0, bustLevel: 3 }, 3)).toBe(false);
+  });
+
+  it('falls back to the current level when the bust level is unknown', () => {
+    expect(canRebuy(ps, { rebuys: 0 }, 2)).toBe(true);
+    expect(canRebuy(ps, { rebuys: 0 }, 3)).toBe(false);
+    expect(canRebuy(ps, { rebuys: 0, bustLevel: null }, 3)).toBe(false);
+  });
+
+  it('still applies the cap', () => {
+    expect(canRebuy({ ...ps, maxRebuys: 1 }, { rebuys: 1, bustLevel: 0 }, 0)).toBe(false);
+  });
+});

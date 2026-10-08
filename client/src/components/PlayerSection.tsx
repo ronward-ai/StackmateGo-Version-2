@@ -16,7 +16,7 @@ import ResultsTable from '@/components/ResultsTable';
 import ResultsSheet from '@/components/export/ResultsSheet';
 import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
 import { eventNameOf } from '@/lib/eventName';
-import { addOnsOpen, lateEntryClosedReason } from '@/lib/entryLimits';
+import { addOnsOpen, lateEntryClosedReason, canRebuy, canReEnter, rebuyUnavailableReason, reEntryUnavailableReason } from '@/lib/entryLimits';
 import BustOutDialog from '@/components/BustOutDialog';
 import { planSeating, assignSeats, tablesNeededFor, tableNamesFor, tablesOf, randomFreeSeat, tablesEmptiestFirst } from '@/lib/seating';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
@@ -51,10 +51,28 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   // `useRebuyOffer` keeps to the one bust-out it last witnessed. The offer
   // itself lives in components/RebuyOffer.tsx.
   const returnPlayerToTable = (action: 'rebuy' | 'reentry', playerId: string) => {
+    const player = state.players.find(p => p.id === playerId);
+    const name = player?.name ?? 'Player';
+    // Asked HERE, with the rule the action itself applies (lib/entryLimits.ts),
+    // because the action refuses silently from inside a state updater — and this
+    // toast used to say "bought back in" regardless, so a refused rebuy looked
+    // taken and never reached the league (reported from a live night).
+    const level = blindLevelIndex(state.levels, state.currentLevel);
+    const refused = action === 'rebuy'
+      ? (canRebuy(state.prizeStructure, player, level) ? null : rebuyUnavailableReason(state.prizeStructure, player, level) ?? 'Rebuy not allowed')
+      : (canReEnter(state.prizeStructure, player, level) ? null : reEntryUnavailableReason(state.prizeStructure, player, level) ?? 'Re-entry not allowed');
+    if (refused) {
+      toast({
+        title: action === 'rebuy' ? `${name} has NOT bought back in` : `${name} has NOT re-entered`,
+        description: refused,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (action === 'rebuy') processRebuy(playerId);
     else tournament.processReEntry(playerId);
 
-    const name = state.players.find(p => p.id === playerId)?.name ?? 'Player';
     toast({
       title: action === 'rebuy' ? `${name} bought back in` : `${name} re-entered`,
       description: 'Back in the tournament.',

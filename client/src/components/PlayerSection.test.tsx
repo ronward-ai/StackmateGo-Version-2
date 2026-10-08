@@ -8,6 +8,11 @@ const scoring = { calculatePoints: () => 0 };
 vi.mock('@/hooks/useRecentPlayers', () => ({ useRecentPlayers: () => recent }));
 vi.mock('@/hooks/useLeagueSettings', () => ({ useLeagueSettings: () => scoring }));
 vi.mock('@/components/export/captureSheet', () => ({ captureSheet: vi.fn(), sheetFilename: () => 'x.png' }));
+const toasts = vi.hoisted(() => [] as any[]);
+vi.mock('@/hooks/use-toast', () => ({
+  useToast: () => ({ toast: (t: any) => { toasts.push(t); return { id: '1', dismiss: () => {}, update: () => {} }; } }),
+  toast: (t: any) => { toasts.push(t); },
+}));
 
 import PlayerSection from './PlayerSection';
 
@@ -18,7 +23,7 @@ import PlayerSection from './PlayerSection';
  */
 const p = (id: string, over: Record<string, unknown> = {}) => ({ id, name: id.toUpperCase(), isActive: true, knockouts: 0, ...over });
 
-function harness(players: any[], prizeStructure: any = { buyIn: 10, manualPayouts: [] }, currentLevel = 0) {
+function harness(players: any[], prizeStructure: any = { buyIn: 10, manualPayouts: [] }, currentLevel = 0, failsafeFor: string | null = null) {
   const addPlayer = vi.fn();
   const updatePlayers = vi.fn();
   const updateSettings = vi.fn();
@@ -33,8 +38,8 @@ function harness(players: any[], prizeStructure: any = { buyIn: 10, manualPayout
     removePlayer: vi.fn(), eliminatePlayer: vi.fn(), processRebuy: vi.fn(), processReEntry: vi.fn(),
     processAddon: vi.fn(), undoBustOut: vi.fn(), undoPlayerReturn: vi.fn(),
   };
-  render(<PlayerSection tournament={tournament} />);
-  return { addPlayer, updatePlayers, updateSettings };
+  render(<PlayerSection tournament={tournament} failsafeFor={failsafeFor} />);
+  return { addPlayer, updatePlayers, updateSettings, processRebuy: tournament.processRebuy };
 }
 
 const typeAndAdd = (name: string) => {
@@ -71,5 +76,23 @@ describe('PlayerSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Seat Players' }));
     expect(screen.getByText('More players than seats')).toBeTruthy();
     expect(h.updatePlayers).not.toHaveBeenCalled();
+  });
+
+  // Reported from a live night: rebuys missing from the standings. This button
+  // used to call the action — which refuses silently — and then say
+  // "bought back in" regardless.
+  it('says a rebuy was NOT taken when the rules refuse it, rather than claiming it was', () => {
+    toasts.length = 0;
+    const h = harness(
+      [p('amy', { isActive: false, position: 3, bustLevel: 4 }), p('bob'), p('cat')],
+      { buyIn: 10, allowRebuys: true, rebuyAmount: 10, rebuyPeriodLevels: 1, manualPayouts: [] },
+      5,
+      'amy',
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: /^Rebuy$/ })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Re-buy' }));
+    expect(h.processRebuy).not.toHaveBeenCalled();
+    expect(toasts.at(-1)).toMatchObject({ title: 'AMY has NOT bought back in', variant: 'destructive' });
+    expect(toasts.some(t => /bought back in/.test(t.title) && !/NOT/.test(t.title))).toBe(false);
   });
 });

@@ -3380,11 +3380,25 @@ to be available later.
 **`lib/entryLimits.ts` still owns whether a rebuy is ALLOWED** — the cap and the period are
 unchanged and every one of their rules still bites. This only decides when it is ASKED.
 
-**A happy consequence worth knowing before anyone "fixes" it back:** at the moment of the bust-out
-the current level IS the level the player busted in, so the period check needs no record of when
-they went out. Making the rebuy immediate removed an off-by-one rather than needing a new
-`eliminatedAtLevel` field to correct it — the period was being tested against the current level
-while the button lingered for hours.
+**The period is judged at the level of the BUST-OUT — `bustLevel`, and `rebuyLevelFor` in
+`lib/entryLimits.ts`.** This note used to say no such field was needed, because at the moment of the
+bust-out the current level IS the bust level. True for one tap, and wrong at the last hand of the
+period: the level changes while the question is on screen, and the dialog and the failsafe both
+vanished under the director's finger — reported from a live night, where the only way to honour a
+rebuy the rules allowed was to extend the period in the Buy-in tab. `eliminatePlayer` records the
+level; every return clears it; a player without one (an older document) falls back to the current
+level. The failsafe still disappears when somebody else busts, so this does not reopen the "rebuy in
+level 6 for a level-2 bust-out" problem — the window is still one bust-out long.
+
+**And a refused rebuy says so.** The Players tab's failsafe called `processRebuy` — which refuses
+silently from inside its updater — and then toasted "bought back in" regardless, so a refused rebuy
+looked taken and never reached the league. It asks the same rule first and says why when it is no.
+
+**The withdrawal does not trust the roster snapshot alone** (`removeTournamentResultForPlayer`). A
+player first recorded seconds ago — the bust-out, then an immediate rebuy — may not have reached the
+snapshot, and it returned having deleted nothing while the recorder marked the result withdrawn; the
+stale result then stood beside the corrected one. It asks the server when the snapshot does not know
+the name. `rebuyPeriod.scenario.test.tsx` plays the reported sequence into the standings.
 
 **The offer outranks the other two prompts and must be derived, not reported.** It asks about the
 bust-out that just happened; the final-table and uneven-tables prompts ask about what that bust-out

@@ -537,7 +537,18 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       // This used to take the merged row's one id, so a result recorded under
       // a duplicate document was never removed and counted twice. See
       // resultsToWithdraw in lib/leagueRecorder.ts.
-      if (playerIdsForName(cloudPlayersRef.current, playerName).length === 0) return;
+      //
+      // And not from the roster snapshot alone: a player first recorded seconds
+      // ago — their bust-out, then an immediate rebuy — may not have reached it
+      // yet, and this returned having deleted nothing while the caller marked
+      // the result withdrawn. The stale result then stood beside the corrected
+      // one. Asked of the server when the snapshot does not know them.
+      let playerDocs: Array<{ id: string; name?: string }> = cloudPlayersRef.current;
+      if (playerIdsForName(playerDocs, playerName).length === 0) {
+        const roster = await getDocs(query(collections.leaguePlayers, where('leagueId', '==', String(currentLeagueId))));
+        playerDocs = roster.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        if (playerIdsForName(playerDocs, playerName).length === 0) return;
+      }
 
       // 2. This game's results, then only this person's.
       const q = query(
@@ -549,7 +560,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       const docs = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
       // 3. Delete them
-      const doomed = resultsToWithdraw(cloudPlayersRef.current, docs, playerName, tournamentId);
+      const doomed = resultsToWithdraw(playerDocs, docs, playerName, tournamentId);
       await Promise.all(doomed.map(r => deleteDoc(doc(db, 'tournamentResults', r.id))));
 
       // 4. Invalidate queries

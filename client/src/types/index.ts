@@ -48,6 +48,13 @@ export interface Player {
   /** How many times this player has been knocked out; never decremented. Keys
    *  the rebuy offer, so a second bust-out is a new question (October audit, M13). */
   bustCount?: number;
+  /**
+   * The blind level (zero-indexed, breaks skipped) this player busted in — what
+   * the rebuy period is judged against, rather than the level the clock has
+   * moved on to by the time the director presses Rebuy (reported: a bust in the
+   * last hand of the period could not be rebought). Cleared on any return.
+   */
+  bustLevel?: number;
   chipCount?: number; // Current chip count (for active players)
   /**
    * @deprecated Read only, for tournaments started before check-in moved off
