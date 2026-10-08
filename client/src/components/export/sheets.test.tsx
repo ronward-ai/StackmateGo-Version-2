@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import ResultsSheet from './ResultsSheet';
 import StandingsSheet, { type StandingsSheetRow } from './StandingsSheet';
 import { resultRowsFor, type ResultPlayerLike } from '@/lib/resultRows';
@@ -83,6 +83,16 @@ describe('ResultsSheet', () => {
     render(results({ title: 'Thursday Night', subtitle: 'Game 4 · 3 players', rows }));
     expect(screen.getByText('Thursday Night')).toBeTruthy();
     expect(screen.getByText('Game 4 · 3 players')).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'StackMate Go' })).toBeTruthy();
+    expect(screen.getByText(/stackmatego\.com/)).toBeTruthy();
+  });
+
+  it('the footer wordmark falls back to the name as text if the logo cannot load', () => {
+    render(results({ title: 'Thursday Night', rows }));
+    const logo = screen.getByRole('img', { name: 'StackMate Go' });
+    expect(logo.getAttribute('src')).toBe('/stackmate-wordmark.png');
+    fireEvent.error(logo);
+    expect(screen.queryByRole('img', { name: 'StackMate Go' })).toBeNull();
     expect(screen.getByText('StackMate Go')).toBeTruthy();
   });
 

@@ -1439,6 +1439,14 @@ turns a test red. **Fonts are awaited**, because a sheet is measured in px rathe
 responsively and arriving a frame early captures the fallback stack. And the host is **off-screen at
 -10000px rather than `display:none`**, which has no layout for html2canvas to measure.
 
+**The footer carries the wordmark and stackmatego.com** (requested). The wordmark is
+`client/public/stackmate-wordmark.png` — 364×48, rendered from `stackmatelogo.svg` — **not the SVG**: the
+SVG has a viewBox and no width/height, and in a real html2canvas capture it drew as an empty space while
+the address beside it came out fine. `captureSheet` renders with `flushSync` and then waits (≤3s) for
+every `<img>` in the sheet (`imagesSettled`), because `root.render` commits on React's next tick and a
+wait run before it finds no images at all — the test for the wait caught exactly that. A wordmark that
+fails to load falls back to the name as text.
+
 `sheetFilename` appends the date SEPARATELY from the descriptive parts — with the date in the list the
 stem is never empty, so its own fallback was unreachable and a nameless sheet downloaded as
 `2026-10-01.png`. It also strips path separators, because a season called `Winter 25/26` is ordinary

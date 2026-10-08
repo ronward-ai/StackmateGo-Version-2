@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { SHEET } from './exportStyle';
 
 /**
@@ -38,11 +39,27 @@ export interface CaptureOptions {
   filename: string;
   /** Time for layout to settle after the root renders. */
   settleMs?: number;
+  /** The longest a capture waits for the sheet's images. */
+  imageWaitMs?: number;
+}
+
+/** Resolves once every `<img>` under `root` has loaded or failed, or after `timeoutMs`. */
+export function imagesSettled(root: ParentNode, timeoutMs: number): Promise<void> {
+  const pending = Array.from(root.querySelectorAll('img')).filter(img => !img.complete);
+  if (pending.length === 0) return Promise.resolve();
+  const each = pending.map(img => new Promise<void>(resolve => {
+    img.addEventListener('load', () => resolve(), { once: true });
+    img.addEventListener('error', () => resolve(), { once: true });
+  }));
+  return Promise.race([
+    Promise.all(each).then(() => undefined),
+    new Promise<void>(resolve => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 export async function captureSheet(
   element: ReactElement,
-  { filename, settleMs = 120 }: CaptureOptions,
+  { filename, settleMs = 120, imageWaitMs = 3000 }: CaptureOptions,
 ): Promise<void> {
   const host = document.createElement('div');
   // Off-screen rather than hidden: `display:none` has no layout, so html2canvas
@@ -53,7 +70,9 @@ export async function captureSheet(
   const root = createRoot(host);
 
   try {
-    root.render(element);
+    // Committed NOW, not on React's next tick: the image wait below looks for the
+    // sheet's <img>s, and a render still pending has none to find.
+    flushSync(() => root.render(element));
 
     // Best effort — `document.fonts` is absent in some test environments, and a
     // capture must never be the thing that throws over a missing API.
@@ -62,6 +81,11 @@ export async function captureSheet(
     } catch {
       /* fall through and capture in whatever face is available */
     }
+
+    // Every image in the sheet must have arrived — the footer's wordmark is
+    // one. An image still loading when html2canvas runs is drawn as nothing.
+    // Bounded, because a capture must never hang on one.
+    await imagesSettled(host, imageWaitMs);
 
     await new Promise(resolve => setTimeout(resolve, settleMs));
 

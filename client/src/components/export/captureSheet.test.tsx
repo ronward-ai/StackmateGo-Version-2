@@ -15,7 +15,7 @@ vi.mock('html2canvas', () => ({
   get default() { return html2canvas; },
 }));
 
-import { captureSheet, sheetFilename } from './captureSheet';
+import { captureSheet, sheetFilename, imagesSettled } from './captureSheet';
 import { SHEET } from './exportStyle';
 
 const Sheet = () => <div data-testid="sheet" style={{ width: 400 }}>Dan 1st</div>;
@@ -120,5 +120,55 @@ describe('sheetFilename', () => {
 
   it('still names something when given nothing', () => {
     expect(sheetFilename([])).toMatch(/^stackmate-\d{4}-\d{2}-\d{2}\.png$/);
+  });
+});
+
+describe('imagesSettled', () => {
+  const loading = () => {
+    const img = document.createElement('img');
+    Object.defineProperty(img, 'complete', { value: false });
+    return img;
+  };
+
+  it('waits for an image still loading, and lets go when it arrives', async () => {
+    const root = document.createElement('div');
+    const img = loading();
+    root.appendChild(img);
+    let done = false;
+    const p = imagesSettled(root, 10_000).then(() => { done = true; });
+    await new Promise(r => setTimeout(r, 20));
+    expect(done).toBe(false);
+    img.dispatchEvent(new Event('load'));
+    await p;
+    expect(done).toBe(true);
+  });
+
+  it('never hangs a capture on an image that does not arrive', async () => {
+    const root = document.createElement('div');
+    root.appendChild(loading());
+    await imagesSettled(root, 30);
+  });
+
+  it('the capture waits for the sheet\'s images before drawing', async () => {
+    const order: string[] = [];
+    html2canvas.mockImplementation(async () => {
+      order.push('draw');
+      return { toDataURL: () => 'data:image/png;base64,AAA' };
+    });
+    const WithImage = () => (
+      <div>
+        <img
+          alt="logo"
+          ref={el => {
+            if (!el || (el as any).__wired) return;
+            (el as any).__wired = true;
+            Object.defineProperty(el, 'complete', { value: false });
+            setTimeout(() => { order.push('loaded'); el.dispatchEvent(new Event('load')); }, 30);
+          }}
+        />
+      </div>
+    );
+    await captureSheet(<WithImage />, { filename: 'x.png', settleMs: 0, imageWaitMs: 5000 });
+    expect(order).toEqual(['loaded', 'draw']);
   });
 });

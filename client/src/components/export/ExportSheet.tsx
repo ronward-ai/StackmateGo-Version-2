@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { SHEET, SHEET_TYPE } from './exportStyle';
 
 /**
@@ -13,12 +13,40 @@ import { SHEET, SHEET_TYPE } from './exportStyle';
  * So: one header saying what this is and when, one footer saying what made it.
  * Everything that makes the two read as a pair lives here, once.
  *
- * **The wordmark is set as TEXT, not as `/stackmatelogo.svg`.** An `<img>` has
- * to have loaded before html2canvas runs, and an SVG drawn into a canvas is a
- * known source of silent blanks — inside a capture there is no second chance and
- * no error worth showing a director. The product's name in its own typeface
- * costs nothing and cannot fail to arrive.
+ * **The footer carries the wordmark and the address** (requested), and the
+ * wordmark is an `<img>` only because `captureSheet` now WAITS for every image
+ * in the sheet before html2canvas runs. It was text before for exactly that
+ * reason: an image not yet loaded comes out blank, with no second chance and no
+ * error. Its size is set explicitly so the layout never depends on it loading,
+ * and if it fails it falls back to the name as text.
+ *
+ * **It is a PNG, not `/stackmatelogo.svg`, and that is load-bearing.** The SVG
+ * has a viewBox and no width or height, and html2canvas drew it as NOTHING —
+ * captured for real in Chromium, the footer had the address and an empty space.
+ * `stackmate-wordmark.png` (364×48, transparent) is the same wordmark rendered
+ * from the SVG; a PNG has an intrinsic size and draws everywhere, iOS included.
  */
+export const SITE_ADDRESS = 'stackmatego.com';
+
+/** The wordmark's own aspect ratio (its viewBox is 1096.46 × 144.71). */
+const WORDMARK_HEIGHT = 16;
+const WORDMARK_WIDTH = Math.round(WORDMARK_HEIGHT * (1096.46 / 144.71));
+
+function Wordmark() {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <span>StackMate Go</span>;
+  return (
+    <img
+      src="/stackmate-wordmark.png"
+      alt="StackMate Go"
+      width={WORDMARK_WIDTH}
+      height={WORDMARK_HEIGHT}
+      style={{ display: 'block', width: WORDMARK_WIDTH, height: WORDMARK_HEIGHT }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 interface ExportSheetProps {
   /** The event, or the league. Whatever the night is called.  */
   title: string;
@@ -91,11 +119,12 @@ export default function ExportSheet({ title, subtitle, width, children }: Export
           fontSize: SHEET_TYPE.foot,
           color: SHEET.inkDim,
           display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
         }}
       >
-        <span>StackMate Go</span>
-        <span>{new Date().toLocaleDateString()}</span>
+        <Wordmark />
+        <span>{SITE_ADDRESS} · {new Date().toLocaleDateString()}</span>
       </div>
     </div>
   );
