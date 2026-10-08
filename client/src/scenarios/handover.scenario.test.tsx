@@ -78,7 +78,7 @@ function emit() {
   }
 }
 
-type Console = ReturnType<typeof openConsole>;
+type Console = Awaited<ReturnType<typeof openConsole>>;
 
 /** One console: the real hooks, as PokerTimer wires them. */
 async function openConsole(name: string) {
