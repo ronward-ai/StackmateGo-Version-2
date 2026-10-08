@@ -4355,8 +4355,22 @@ against a duplicate document survived a rebuy and counted twice — the same hol
 `resultsToWithdraw` / `playerIdsForName` in `lib/leagueRecorder.ts` are the one answer to "every
 document that is this person", for both.
 
-**Worth adding next:** handover across two consoles on one game (control, takeover, the shared
-`rebuysAnswered`), and a season that runs past its scheduled count.
+**`handover.scenario.test.tsx` — two consoles on one game.** Two real `useTournament` + `useRebuyOffer`
+hooks share one in-memory document; `lib/consoleId` is switched per console as each snapshot is
+delivered, so `controlOf` answers as that device. The laptop claims, the phone watches (and sees a rebuy
+land — M14), the phone takes control without being re-asked, the laptop's own change is refused by the
+door and replaced by the document, and the league records the night once across the switch. Two more:
+taking control mid-question (no dialog, the failsafe instead — the reported bug), and a phone opened after
+the laptop died holding an unanswered bust-out. **`lib/pendingRoster.ts`'s "last written" is per TAB in the
+app and shared here** (one module); harmless for these sequences, and the file says so. Four mutants are
+caught: the watcher merging instead of adopting, the takeover re-asking (watched set dropped), the seed
+synced as answers (M13), and the door not enforced.
+
+**`seasonOverrun.scenario.test.tsx` — a two-game season gets a third night, then ends.** Next Game,
+the season panel, the header line and the standings, read at each step: the extra game labelled
+"beyond the 2 scheduled", the header clamped, "2 of 2 played", an ended season taking no game, and the
+next season defaulting to Game 1. Four mutants caught: an ended season still open, "Game 3 of 2" in the
+dialog, an unclamped header, and Next Game defaulting to the ended season.
 
 ## Working style that has paid off here
 
