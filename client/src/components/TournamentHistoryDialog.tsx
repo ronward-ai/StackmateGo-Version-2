@@ -93,6 +93,7 @@ export function GameRecord({
   currency,
   onReopen,
   loadGame = loadLiveGame,
+  resultColumns,
 }: {
   gameId: string | null;
   entry?: CompletedTournament | null;
@@ -100,6 +101,8 @@ export function GameRecord({
   currency?: string;
   onReopen?: (tournamentId: string) => void;
   loadGame?: (id: string) => Promise<Record<string, any> | null>;
+  /** The console's current results columns; see `PastGameResults`. */
+  resultColumns?: string[];
 }) {
   const [game, setGame] = useState<GameCheck>({ state: 'checking' });
   const sym = currencyOf({ currency: currency ?? entry?.currency });
@@ -127,7 +130,7 @@ export function GameRecord({
 
   return (
     <>
-      {live && <PastGameResults game={live as any} />}
+      {live && <PastGameResults game={live as any} resultColumns={resultColumns} />}
 
       {!live && resultRows.length > 0 && (
         <div className="mt-3 pt-3 border-t border-border/40 space-y-1">
@@ -224,11 +227,13 @@ function HistoryRow({
   onDelete,
   onReopen,
   loadGame,
+  resultColumns,
 }: {
   entry: CompletedTournament;
   onDelete: (id: string) => void;
   onReopen?: (entry: CompletedTournament, tournamentId: string) => void;
   loadGame: (id: string) => Promise<Record<string, any> | null>;
+  resultColumns?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const sym = currencyOf({ currency: entry.currency });
@@ -284,6 +289,7 @@ function HistoryRow({
           entry={entry}
           onReopen={onReopen ? id => onReopen(entry, id) : undefined}
           loadGame={loadGame}
+          resultColumns={resultColumns}
         />
       )}
     </Card>
@@ -294,12 +300,15 @@ export default function TournamentHistoryDialog({
   onReopen,
   currentGameInPlay = false,
   loadGame = loadLiveGame,
+  resultColumns,
 }: {
   /** Opens the game in the console. Absent where reopening is not offered. */
   onReopen?: (tournamentId: string) => void;
   /** The console holds a game that has not finished, so the confirm says it stays saved. */
   currentGameInPlay?: boolean;
   loadGame?: (id: string) => Promise<Record<string, any> | null>;
+  /** The console's current results columns, for every past night shown. */
+  resultColumns?: string[];
 } = {}) {
   const { history, isLoading, deleteCompletedTournament } = useCompletedTournaments();
   const [open, setOpen] = useState(false);
@@ -343,6 +352,7 @@ export default function TournamentHistoryDialog({
                 onDelete={id => setPendingDelete(id)}
                 onReopen={onReopen ? (e, id) => setPendingReopen({ entry: e, id }) : undefined}
                 loadGame={loadGame}
+                resultColumns={resultColumns}
               />
             ))}
           </div>

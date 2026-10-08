@@ -104,6 +104,45 @@ describe('the season game bar', () => {
     expect(capture.calls[0].node.props.title).toBe('Friday League');
   });
 
+  it('a past night draws with the console\'s CURRENT columns, on screen and in the export', async () => {
+    capture.calls.length = 0;
+    const live = {
+      players: [
+        { id: 'a', name: 'Amy', position: 2, isActive: false, knockouts: 0, rebuys: 1 },
+        { id: 'b', name: 'Bob', position: 1, isActive: false, knockouts: 1 },
+      ],
+      prizeStructure: { buyIn: 10, allowRebuys: true, manualPayouts: [{ position: 1, percentage: 100 }] },
+      // Last night's choice, stored on the night.
+      settings: { resultColumns: ['knockouts'] },
+    };
+    bar({ loadGame: async () => live, resultColumns: ['rebuys'] });
+    fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
+    const exportButton = await screen.findByRole('button', { name: /Export Results/ });
+    const headers = screen.getAllByRole('columnheader').map(h => h.textContent);
+    expect(headers).toContain('Rebuys');
+    expect(headers).not.toContain('Hits');
+    fireEvent.click(exportButton);
+    await waitFor(() => expect(capture.calls).toHaveLength(1));
+    expect(capture.calls[0].node.props.settings.resultColumns).toEqual(['rebuys']);
+  });
+
+  it('without a choice from the console, the night keeps its own columns', async () => {
+    const live = {
+      players: [
+        { id: 'a', name: 'Amy', position: 2, isActive: false, knockouts: 0 },
+        { id: 'b', name: 'Bob', position: 1, isActive: false, knockouts: 1 },
+      ],
+      prizeStructure: { buyIn: 10, allowRebuys: true },
+      settings: { resultColumns: ['knockouts'] },
+    };
+    bar({ loadGame: async () => live });
+    fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
+    await screen.findByRole('table');
+    const headers = screen.getAllByRole('columnheader').map(h => h.textContent);
+    expect(headers).toContain('Hits');
+    expect(headers).not.toContain('Rebuys');
+  });
+
   it('segments carry their game numbers, so a phone can see what it is tapping', () => {
     bar();
     expect(screen.getByRole('button', { name: /^Game 1/ }).textContent).toBe('1');

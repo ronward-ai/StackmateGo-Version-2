@@ -1697,6 +1697,7 @@ function PokerTimerInner({
                   <TournamentHistoryDialog
                     onReopen={openOtherGame}
                     currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
+                    resultColumns={tournament.state.settings.resultColumns}
                   />
                 )}
                 {/* Standalone only — a league game's copy lives in the league
@@ -1755,6 +1756,7 @@ function PokerTimerInner({
                   currency={currencyOf(tournament.state.settings)}
                   onReopen={openOtherGame}
                   currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
+                  resultColumns={tournament.state.settings.resultColumns}
                 />
               )}
               {/* Rewrite the night — places, hitmen, rebuys, re-entries. Not

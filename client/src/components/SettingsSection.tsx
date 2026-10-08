@@ -58,6 +58,9 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
   // it. There is nothing here worth batching, so the staging is gone.
 
   const [notesDirty, setNotesDirty] = useState(false);
+  // The columns save as they change, like every toggle here; this only says so.
+  const [columnsJustSaved, setColumnsJustSaved] = useState(false);
+  const columnsSavedTimer = useRef<ReturnType<typeof setTimeout>>();
   const [notesJustSaved, setNotesJustSaved] = useState(false);
 
   const saveNotes = () => {
@@ -205,10 +208,18 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                   leagueSettings document keyed on a leagueId, and a standalone
                   game has none. */}
               <div className="py-3">
-                <Label className="text-sm font-medium">Results columns</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Results columns</Label>
+                  {columnsJustSaved && (
+                    <span className="text-caption text-emerald-400 inline-flex items-center gap-1" role="status">
+                      <Check className="h-3 w-3" />Saved
+                    </span>
+                  )}
+                </div>
                 <p className="text-label text-muted-foreground mt-0.5 mb-3">
-                  What the results table shows, on screen and in the exported image. A column for
-                  something this game has switched off is not offered.
+                  What the results table shows, on screen and in the exported image — past nights
+                  included. Changes save as you make them. A column for something this game has
+                  switched off is not offered.
                 </p>
                 <ResultColumnsPicker
                   value={state.settings.resultColumns}
@@ -216,7 +227,12 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                     prizeStructure: state.prizeStructure,
                     isLeagueMode: isLeagueGame(state),
                   }}
-                  onChange={next => updateSettings({ resultColumns: next })}
+                  onChange={next => {
+                    updateSettings({ resultColumns: next });
+                    setColumnsJustSaved(true);
+                    clearTimeout(columnsSavedTimer.current);
+                    columnsSavedTimer.current = setTimeout(() => setColumnsJustSaved(false), 2000);
+                  }}
                 />
               </div>
             </SettingsGroup>

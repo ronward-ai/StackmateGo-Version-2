@@ -28,6 +28,7 @@ export default function SeasonGameBar({
   onReopen,
   currentGameInPlay = false,
   loadGame = loadLiveGame,
+  resultColumns,
 }: {
   season: { id?: unknown; name?: string; numberOfGames?: number | null } | null | undefined;
   leaguePlayers: any[] | null | undefined;
@@ -37,6 +38,8 @@ export default function SeasonGameBar({
   onReopen?: (tournamentId: string) => void;
   currentGameInPlay?: boolean;
   loadGame?: (id: string) => Promise<Record<string, any> | null>;
+  /** The console's current results columns — a past night draws with them. */
+  resultColumns?: string[];
 }) {
   const slots = useMemo(
     () => seasonGameSlots({
@@ -150,6 +153,7 @@ export default function SeasonGameBar({
             currency={currency}
             onReopen={onReopen ? id => setConfirming(id) : undefined}
             loadGame={loadGame}
+            resultColumns={resultColumns}
           />
         </div>
       )}

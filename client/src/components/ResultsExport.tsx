@@ -143,16 +143,24 @@ export function ResultsExportButtons({
 /**
  * A past night as the console shows it: the director's results table (no
  * controls — this is a record, not the game) with its two exports.
+ *
+ * `resultColumns` is the CONSOLE's current choice, and wins over the one stored
+ * on the night. Which columns to show is the director's display preference, not
+ * a fact about the night — reported as "I changed the stats in Settings and they
+ * didn't change", because last night's panel kept last night's columns. One
+ * `settings` value feeds the table and both exports, so they cannot differ. The
+ * currency, payouts and league stay the game's own.
  */
-export function PastGameResults({ game }: { game: ResultsGame }) {
+export function PastGameResults({ game, resultColumns }: { game: ResultsGame; resultColumns?: string[] }) {
   const { rows, columnContext, subtitle } = useGameResults(game);
   if (rows.length === 0) return null;
+  const settings = resultColumns ? { ...(game.settings ?? {}), resultColumns } : (game.settings ?? {});
   return (
     <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
       <div className="flex flex-wrap justify-end gap-2">
-        <ResultsExportButtons settings={game.settings ?? {}} rows={rows} columnContext={columnContext} subtitle={subtitle} />
+        <ResultsExportButtons settings={settings} rows={rows} columnContext={columnContext} subtitle={subtitle} />
       </div>
-      <ResultsTable rows={rows} settings={game.settings ?? {}} columnContext={columnContext} />
+      <ResultsTable rows={rows} settings={settings} columnContext={columnContext} />
     </div>
   );
 }

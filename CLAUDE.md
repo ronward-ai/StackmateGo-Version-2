@@ -3607,6 +3607,15 @@ make different pictures of one night. A game whose live record is gone falls bac
 Segments are **28px touch targets carrying their game number** (they were 8px tall), the row wraps for
 long seasons, and the opened panel scrolls itself into view.
 
+**A past night draws with the console's CURRENT result columns**, not the ones stored on that night.
+Reported as "I changed the stats in Settings and they didn't change" — the picker saved on every press,
+but the panel read `resultColumns` from last night's document. Which columns to show is the director's
+display preference, not a fact about the night, so `PastGameResults` takes `resultColumns` (passed down
+from `state.settings` through the bar, `GameRecord` and History) and feeds ONE merged `settings` to the
+table and both exports. Currency, payouts and league stay the game's own. Settings now says the columns
+save as they change, with a brief "Saved" — no Save button, for the reason `SettingsSection`'s comment on
+the removed Apply button gives.
+
 **One rendering of a past game:** `GameRecord` and `ReopenConfirm`, exported from
 `TournamentHistoryDialog.tsx`, draw both History's expanded row and the bar's panel. **History is
 standalone-only now** — a league night's history IS its season, and a standalone game has no season to
