@@ -64,12 +64,37 @@ export function alreadyRecorded(
   tournamentId: string | number,
   extraIds: readonly (string | number)[] = [],
 ): boolean {
-  const key = nameKey(name);
-  const ids = new Set([
-    ...playerDocs.filter(p => nameKey(p.name) === key).map(p => String(p.id)),
-    ...extraIds.map(String),
-  ]);
+  const ids = new Set([...playerIdsForName(playerDocs, name), ...extraIds.map(String)]);
   return results.some(r => ids.has(String(r.leaguePlayerId)) && String(r.tournamentId) === String(tournamentId));
+}
+
+/**
+ * Every player DOCUMENT that is this person — the merged row's primary id and
+ * any duplicate created by concurrent recording.
+ *
+ * Both halves of the recorder have to ask this: the dedupe above, and the
+ * REMOVAL a rebuy, re-entry or renumbering triggers. The removal found the
+ * player through the merged row and deleted results under that one id, so a
+ * result recorded against a duplicate document was never removed — the stale
+ * place stayed and counted twice. Found by the season scenario tests.
+ */
+export function playerIdsForName(
+  playerDocs: readonly { id: string | number; name?: string | null }[],
+  name: string,
+): string[] {
+  const key = nameKey(name);
+  return playerDocs.filter(p => nameKey(p.name) === key).map(p => String(p.id));
+}
+
+/** The results to delete when this person's result for this game is withdrawn. */
+export function resultsToWithdraw<R extends { leaguePlayerId?: string | number | null; tournamentId?: string | number | null }>(
+  playerDocs: readonly { id: string | number; name?: string | null }[],
+  results: readonly R[],
+  name: string,
+  tournamentId: string | number,
+): R[] {
+  const ids = new Set(playerIdsForName(playerDocs, name));
+  return results.filter(r => ids.has(String(r.leaguePlayerId)) && String(r.tournamentId) === String(tournamentId));
 }
 
 /** Each player's recorded position for this game, from the league's results. */

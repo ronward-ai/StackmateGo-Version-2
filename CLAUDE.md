@@ -4326,6 +4326,38 @@ season, so the screen and the database cannot disagree.
 
 ---
 
+## Scenario tests: whole nights, in sequence
+
+`client/src/scenarios/`. A new season's standings listed every past player on 0 games, and no test could
+see it: every function involved was right on its own, and the fault only exists once one season has
+ended and the next has begun. So these play NIGHTS through the real `useTournament` hook and push every
+roster change through the recorder's real decisions into an in-memory league (`leagueHarness.ts`), then
+assert what the standings — and `RealTimeLeagueTable` itself — say.
+
+**What is real and what is a stand-in is written at the top of `leagueHarness.ts`, and it matters.** Every
+decision is the real function. Firestore is two arrays, and the LOOP in `PokerTimer`'s
+`syncLeagueResults` plus `useLeague`'s two writers are mirrored line for line, because they live in a page
+effect and a Firebase hook. **Change the mirror when either changes shape**, or the scenarios test a
+recorder the app no longer has.
+
+**Each night starts with New Tournament** (`resetTournament`), exactly as a director's does — without it
+the local mirror correctly restores last night's finished roster and tonight's players are refused.
+
+Covered so far: a season ending and the next beginning (data and screen, old season unchanged); rebuys,
+a re-entry renumbering, an undo of the final hand; a reload mid-night (memory gone, the league is the
+record); a second console and a duplicate player document. Four real faults are each caught by putting
+them back: the empty-season rows, removal by the merged row's id only, a recorder that trusts memory
+over the league (H6), and a rebuy that leaves its old result.
+
+**Found while building them: a withdrawn result went from ONE document.** `removeTournamentResultForPlayer`
+found the player through the merged standings row and deleted under that id, so a result recorded
+against a duplicate document survived a rebuy and counted twice — the same hole `alreadyRecorded` had.
+`resultsToWithdraw` / `playerIdsForName` in `lib/leagueRecorder.ts` are the one answer to "every
+document that is this person", for both.
+
+**Worth adding next:** handover across two consoles on one game (control, takeover, the shared
+`rebuysAnswered`), and a season that runs past its scheduled count.
+
 ## Working style that has paid off here
 
 - **Measure before and after.** A `manualChunks` catch-all once silently cancelled a lazy import;

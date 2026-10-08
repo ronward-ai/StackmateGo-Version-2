@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { standingsFromDocs } from '@/lib/leagueStandings';
-import { nameKey, findPlayerByName, alreadyRecorded } from '@/lib/leagueRecorder';
+import { nameKey, findPlayerByName, alreadyRecorded, playerIdsForName, resultsToWithdraw } from '@/lib/leagueRecorder';
 import { buyInOf, investedIn } from '@/lib/resultStats';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
@@ -533,22 +533,24 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   const removeTournamentResultForPlayer = useCallback(async (playerName: string, tournamentId: string) => {
     if (!currentLeagueId) return;
     try {
-      // 1. Find the player
-      const player = leaguePlayers.find((p: any) => p.name.toLowerCase() === playerName.toLowerCase());
-      if (!player) return;
+      // 1. Every player DOCUMENT that is this person — duplicates included.
+      // This used to take the merged row's one id, so a result recorded under
+      // a duplicate document was never removed and counted twice. See
+      // resultsToWithdraw in lib/leagueRecorder.ts.
+      if (playerIdsForName(cloudPlayersRef.current, playerName).length === 0) return;
 
-      // 2. Query tournamentResults
+      // 2. This game's results, then only this person's.
       const q = query(
         collections.tournamentResults,
         where('leagueId', '==', String(currentLeagueId)),
-        where('leaguePlayerId', '==', String(player.id)),
         where('tournamentId', '==', String(tournamentId))
       );
       const snapshot = await getDocs(q);
-      
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+
       // 3. Delete them
-      const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, 'tournamentResults', docSnap.id)));
-      await Promise.all(deletePromises);
+      const doomed = resultsToWithdraw(cloudPlayersRef.current, docs, playerName, tournamentId);
+      await Promise.all(doomed.map(r => deleteDoc(doc(db, 'tournamentResults', r.id))));
 
       // 4. Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['leaguePlayers', currentLeagueId] });
@@ -562,7 +564,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       // one game. The caller decides how to report; it must be TOLD.
       throw error;
     }
-  }, [currentLeagueId, queryClient, leaguePlayers]);
+  }, [currentLeagueId, queryClient]);
 
   // Delete the currently active league and all its associated data
   const deleteLeague = useCallback(async (leagueId: string) => {
