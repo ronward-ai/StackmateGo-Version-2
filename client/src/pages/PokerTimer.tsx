@@ -25,10 +25,12 @@ import TournamentInfoCard from '@/components/TournamentInfoCard';
 import NextGameControl from '@/components/NextGameControl';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
+import NightSummaryDialog from '@/components/NightSummary';
 import PlayerSection from '@/components/PlayerSection';
 import TablesSection from '@/components/TablesSection';
 import FinalTablePrompt from '@/components/FinalTablePrompt';
 import RebuyOffer from '@/components/RebuyOffer';
+import { logFingerprint } from '@/lib/nightLog';
 import DirectorOnly from '@/components/DirectorOnly';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
@@ -52,7 +54,7 @@ import { LiveBanner } from '@/components/LiveBanner';
 import OtherLiveGameBanner from '@/components/OtherLiveGameBanner';
 import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
 import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
-import { gameIsOver, shouldReopen, winnerOf } from '@/lib/gameOver';
+import { gameIsOver, shouldReopen, winnerOf, shouldRecordCompletion, storedStatusOf } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
 import { markRosterWritten, markRosterIssued, markRosterSettled, rosterPayload } from '@/lib/pendingRoster';
@@ -391,6 +393,9 @@ function PokerTimerInner({
   // rather than duplicating; the ref just avoids pointless writes.
   const { saveCompletedTournament } = useCompletedTournaments();
   const savedHistoryRef = useRef<string | null>(null);
+  // This mount reopened a finished game (an undo of its ending), so its next
+  // ending is a CORRECTION — History keeps the original date.
+  const reopenedRef = useRef(false);
 
   useEffect(() => {
     const players = tournament.state.players || [];
@@ -410,7 +415,10 @@ function PokerTimerInner({
     const gameKey = String(
       details?.localGameId ?? details?.id ?? `anon:${players.length}:${winnerId}`
     );
-    if (savedHistoryRef.current === gameKey) return;
+    // Merely OPENING a finished game must not record it again — see
+    // shouldRecordCompletion. Only a game ending on this mount, or ending again
+    // after it was reopened to correct it, is written.
+    if (!shouldRecordCompletion(players, storedStatusOf(tournament.state), savedHistoryRef.current === gameKey)) return;
 
     // Signed-out directors have nowhere to save history to; saveCompletedTournament
     // returns null for that case just as it does for a real failure, so guard here
@@ -452,7 +460,9 @@ function PokerTimerInner({
     // Setting it before the call and never unsetting it meant a failed save was
     // never retried — and the failure toast tells the director to go and check
     // Tournament History, which is exactly what would be missing.
-    saveCompletedTournament(tournament.state)
+    // A game ending again after it was reopened keeps its place in History —
+    // its original end time — and says it was corrected.
+    saveCompletedTournament(tournament.state, { corrected: reopenedRef.current })
       .then(saved => {
         if (saved) return;
         savedHistoryRef.current = null;
@@ -467,7 +477,7 @@ function PokerTimerInner({
         savedHistoryRef.current = null;
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament.state.players, saveCompletedTournament, user?.id, readOnlyConsole]);
+  }, [tournament.state.players, saveCompletedTournament, user?.id, readOnlyConsole, storedStatusOf(tournament.state)]);
 
   // ...and the way back out of "finished" (October audit, M12). Undo bust-out is
   // the documented correction for a misrecorded final hand, but the game stayed
@@ -482,15 +492,13 @@ function PokerTimerInner({
     if (readOnlyConsole || !user?.id || reopeningRef.current) return;
 
     const details = tournament.state.details;
-    const stateAny = tournament.state as any;
-    // The snapshot spreads the document's `status` onto state; the first read
-    // puts it on details. The snapshot is the newer of the two.
-    const storedStatus = 'status' in stateAny ? stateAny.status : (details as any)?.status;
+    const storedStatus = storedStatusOf(tournament.state);
     const gameKey = String(details?.localGameId ?? details?.id ?? '');
     const finishedHere = !!gameKey && savedHistoryRef.current === gameKey;
     if (!shouldReopen(players, storedStatus, finishedHere)) return;
 
     reopeningRef.current = true;
+    reopenedRef.current = true;
     savedHistoryRef.current = null;
     if (details?.id) {
       writeLiveGame(String(details.id), { status: null, updatedAt: new Date().toISOString() })
@@ -522,6 +530,7 @@ function PokerTimerInner({
   const lastSyncedTimerRef = useRef<string>('');
   const lastSyncedSettingsRef = useRef<string>('');
   const lastSyncedAnsweredRef = useRef<string>('');
+  const lastSyncedNightLogRef = useRef<string>('');
 
   // Save the game to the director's account as soon as there IS one.
   //
@@ -813,6 +822,7 @@ function PokerTimerInner({
     lastSyncedTimerRef.current = '';
     lastSyncedSettingsRef.current = '';
     lastSyncedAnsweredRef.current = '';
+    lastSyncedNightLogRef.current = '';
     // Null, not '': "nothing has been written for this game" is not the same as
     // "an empty roster was written", and only the first may let a snapshot seed.
     markRosterWritten(null);
@@ -992,6 +1002,29 @@ function PokerTimerInner({
     };
     sync();
   }, [rebuyOffer.answered, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The night's Summary (lib/nightLog.ts), shared so a reload, a takeover and
+  // History all keep it. Same shape as the answered set above, for the same
+  // reason: it only grows, so a stale snapshot is a subset and the snapshot
+  // handler's `mergeLog` union heals it — no echo guard needed. Through the one
+  // door, so a read-only console never writes it.
+  useEffect(() => {
+    if (!activeTournamentId || !user || isAnonymous) return;
+    if (!tournament.hasLoadedRemoteState) return;
+    const log = tournament.state.nightLog ?? [];
+    if (log.length === 0) return;
+    const fingerprint = logFingerprint(log);
+    if (fingerprint === lastSyncedNightLogRef.current) return;
+    const sync = async () => {
+      try {
+        const result = await writeLiveGame(activeTournamentId, { nightLog: log });
+        if (result === 'written') lastSyncedNightLogRef.current = fingerprint;
+      } catch (e) {
+        reportSyncFailure('Summary', e);
+      }
+    };
+    sync();
+  }, [tournament.state.nightLog, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {
@@ -1613,7 +1646,15 @@ function PokerTimerInner({
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
               </div>
               <div className="flex items-center gap-2">
-                <TournamentHistoryDialog />
+                <NightSummaryDialog log={tournament.state.nightLog} />
+                {/* Reopen to correct goes through the one way to open a game
+                    (useOpenLiveGame). The console then switches to the game's
+                    own league by itself — the handover effect above — so the
+                    recorder's league guard lets the correction through. */}
+                <TournamentHistoryDialog
+                  onReopen={openOtherGame}
+                  currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
+                />
                 {/* Standalone only — a league game's copy lives in the league
                     panel above. One mount either way. */}
                 {!isLeagueMode && !readOnlyConsole && <NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}

@@ -33,7 +33,8 @@ function repriceMovedFinishers<T extends Player>(before: T[], after: T[], struct
   return repricedForNewPlaces(before as any, after as any, payoutForPlace(after as any, structure), structure) as T[];
 }
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
-import { levelAnnouncement } from '@/lib/announcements';
+import { levelAnnouncement, blindLevelNumber } from '@/lib/announcements';
+import { appendEvent, eventsBetween, mergeLog, type NewLogEvent } from '@/lib/nightLog';
 import { speak } from '@/lib/speak';
 import { clearLocalProgress, loadLocalProgress, saveLocalProgress, restorableAtHome, peekLocalProgress, wouldClobberMirror } from '@/lib/localProgress';
 import { secondsLeftFrom, advanceClock, formatClock } from '@/lib/tournamentClock';
@@ -50,6 +51,28 @@ import {
 } from '@/lib/finalTable';
 
 // Default tournament settings with 15-minute durations (no pre-scheduled breaks)
+/**
+ * Wraps an ACTION's updater so what it did lands in the night's Summary —
+ * `lib/nightLog.ts`'s `eventsBetween`, read off the state before and after.
+ * Only the actions use it: the snapshot handler's changes are the other
+ * console's and arrive already logged, and a reset is not an event.
+ * Deterministic inside the updater (ids come from the log, not a counter), so
+ * React calling it twice cannot log twice.
+ */
+function logging(fn: (prev: TournamentState) => TournamentState) {
+  return (prev: TournamentState): TournamentState => {
+    const next = fn(prev);
+    if (next === prev) return prev;
+    const events = eventsBetween(prev, next, Date.now(), blindLevelNumber(prev.levels, prev.currentLevel));
+    if (events.length === 0) return next;
+    const consoleId = getConsoleId();
+    return {
+      ...next,
+      nightLog: events.reduce((log, e) => appendEvent(log, consoleId, e), next.nightLog ?? prev.nightLog ?? []),
+    };
+  };
+}
+
 const DEFAULT_LEVELS: BlindLevel[] = [
   { small: 25, big: 50, ante: 0, duration: 15 * 60 },
   { small: 50, big: 100, ante: 0, duration: 15 * 60 },
@@ -343,6 +366,7 @@ export function useTournament(tournamentId?: string) {
       settings: mergedSettings,
       prizeStructure: loadSavedPrizeStructure(storageUid),
       isFinalTable: restored?.isFinalTable ?? false,
+      nightLog: restored?.nightLog ?? [],
       // Through lib/localGameId.ts, because the standalone branch here used to
       // omit the localGameId — and the document id IS the localGameId, so
       // "a collision means JOIN" silently did not apply to standalone games.
@@ -489,6 +513,7 @@ export function useTournament(tournamentId?: string) {
               rebuysAnswered: Array.isArray(tournamentData.rebuysAnswered)
                 ? tournamentData.rebuysAnswered
                 : [],
+              nightLog: mergeLog(tournamentData.nightLog, []),
               details: {
                 type: 'database',
                 id: tournamentId,
@@ -581,6 +606,7 @@ export function useTournament(tournamentId?: string) {
       isRunning: state.isRunning,
       targetEndTime: state.targetEndTime,
       isFinalTable: state.isFinalTable,
+      nightLog: state.nightLog,
       dbTournamentId: state.details?.id?.toString(),
       updatedAt: new Date().toISOString(),
     }, storageUidRef.current);
@@ -591,6 +617,7 @@ export function useTournament(tournamentId?: string) {
     state.isRunning,
     state.targetEndTime,
     state.isFinalTable,
+    state.nightLog,
     state.details?.type,
     state.details?.localGameId,
     state.details?.id,
@@ -726,6 +753,12 @@ export function useTournament(tournamentId?: string) {
               // exists. `preFinalTableSeating` travels with the flag, so it is
               // held on the same condition — it is not written to the document,
               // and letting an echo blank it would cost the undo.
+              // The Summary is grow-only: the document's copy is unioned with
+              // ours, never spread over it — `...data` above would replace a log
+              // whose newest events are still on their way out with the echo of
+              // an older write. A takeover unions too: nothing in a log is stale.
+              updatedState.nightLog = mergeLog(currentState.nightLog, data.nightLog);
+
               if (keepLocal && !adopt) {
                 updatedState.isFinalTable = currentState.isFinalTable;
                 updatedState.preConsolidation = currentState.preConsolidation;
@@ -1050,7 +1083,7 @@ export function useTournament(tournamentId?: string) {
   const addPlayer = useCallback((name: string) => {
     if (name.trim() === '') return;
 
-    setState(prev => {
+    setState(logging(prev => {
       // A finished game takes no new entries — see lib/gameOver.ts's
       // `finishedGameNote`. One added player made the game read as unfinished
       // again on every screen after History was already written. Enforced HERE,
@@ -1092,12 +1125,12 @@ export function useTournament(tournamentId?: string) {
       broadcastTournamentAction('player_added', newState);
 
       return newState;
-    });
+    }));
   }, [broadcastTournamentAction]);
 
   // Remove player
   const removePlayer = useCallback((playerId: string) => {
-    setState(prev => {
+    setState(logging(prev => {
       // Everybody who finished below the removed player moves up one, so the
       // places stay a run from 1 to the field (October audit, H7).
       const shrunk = positionsAfterRemove(prev.players, playerId);
@@ -1110,7 +1143,7 @@ export function useTournament(tournamentId?: string) {
       broadcastTournamentAction('player_removed', newState);
 
       return newState;
-    });
+    }));
   }, [broadcastTournamentAction]);
 
   // Add a knockout to a player
@@ -1156,7 +1189,7 @@ export function useTournament(tournamentId?: string) {
 
   // Eliminate a player and assign their final position
   const eliminatePlayer = useCallback((playerId: string, eliminatedById?: string, seatInfo?: any) => {
-    setState(prev => {
+    setState(logging(prev => {
       const playerToEliminate = prev.players.find(p => p.id === playerId);
       if (!playerToEliminate || playerToEliminate.isActive === false) {
         return prev;
@@ -1318,7 +1351,7 @@ export function useTournament(tournamentId?: string) {
       }, 25);
 
       return newState;
-    });
+    }));
   }, [broadcastTournamentAction]);
 
   /**
@@ -1358,7 +1391,7 @@ export function useTournament(tournamentId?: string) {
 
   // Process a re-entry for an eliminated player
   const processReEntry = useCallback((playerId: string) => {
-    setState(prev => {
+    setState(logging(prev => {
       const player = prev.players.find(p => p.id === playerId);
       if (!player || player.isActive !== false) {
         return prev;
@@ -1438,12 +1471,12 @@ export function useTournament(tournamentId?: string) {
       broadcastTournamentAction('player_reentry', newState);
 
       return newState;
-    });
+    }));
   }, [broadcastTournamentAction]);
 
   // Process a rebuy for an eliminated player
   const processRebuy = useCallback((playerId: string) => {
-    setState(prev => {
+    setState(logging(prev => {
       const player = prev.players.find(p => p.id === playerId);
       if (!player || player.isActive !== false) {
         return prev;
@@ -1528,7 +1561,7 @@ export function useTournament(tournamentId?: string) {
       };
       broadcastTournamentAction('player_rebuy', newState);
       return newState;
-    });
+    }));
   }, [broadcastTournamentAction]);
 
   /**
@@ -1553,7 +1586,7 @@ export function useTournament(tournamentId?: string) {
     if (!rostersMatchForUndo(latestPlayersRef.current, snapshot.resulting)) return null;
 
     playerReturnUndoRef.current = null;
-    setState(prev => {
+    setState(logging(prev => {
       // Belt and braces: the state may have advanced between the check above and
       // the updater running.
       if (!rostersMatchForUndo(prev.players, snapshot.resulting)) return prev;
@@ -1569,14 +1602,14 @@ export function useTournament(tournamentId?: string) {
       };
       broadcastTournamentAction('undo_player_return', newState);
       return newState;
-    });
+    }));
 
     return snapshot.label;
   }, [broadcastTournamentAction]);
 
   // Process addon
   const processAddon = useCallback((playerId: string) => {
-    setState(prev => {
+    setState(logging(prev => {
       // The rule is at the action, not only the screen (October audit, Low):
       // the add-on window, a player still in, one add-on each — the three the
       // Add-on section shows — and no entries once the game is over.
@@ -1597,7 +1630,7 @@ export function useTournament(tournamentId?: string) {
       const newState = { ...prev, players: updatedPlayers };
       broadcastTournamentAction('player_addon', newState);
       return newState;
-    });
+    }));
   }, [broadcastTournamentAction]);
 
   // Reset entire tournament to initial state
@@ -1687,6 +1720,7 @@ export function useTournament(tournamentId?: string) {
     currentLevel: number;
     secondsLeft: number;
     isFinalTable?: boolean;
+    nightLog?: unknown;
   }) => {
     setState(prev => ({
       ...prev,
@@ -1696,7 +1730,29 @@ export function useTournament(tournamentId?: string) {
       isRunning: false,
       targetEndTime: undefined,
       isFinalTable: progress.isFinalTable ?? prev.isFinalTable,
+      nightLog: mergeLog(prev.nightLog, progress.nightLog),
     }));
+  }, []);
+
+  /**
+   * Log what did NOT change the roster — a rebuy declined at the pop-up, or one
+   * the rules refused. Those are exactly the events that explain a rebuy missing
+   * from a night afterwards, and no diff of the roster can see them. The player's
+   * name is looked up here so callers pass only the id.
+   */
+  const logEvent = useCallback((event: Omit<NewLogEvent, 'at' | 'level'> & { at?: number }) => {
+    setState(prev => {
+      const player = event.playerId ? prev.players.find(p => p.id === event.playerId) : undefined;
+      return {
+        ...prev,
+        nightLog: appendEvent(prev.nightLog, getConsoleId(), {
+          ...event,
+          at: event.at ?? Date.now(),
+          level: blindLevelNumber(prev.levels, prev.currentLevel),
+          playerName: event.playerName ?? player?.name,
+        }),
+      };
+    });
   }, []);
 
   // Update players with comprehensive validation and immediate broadcasting
@@ -2006,7 +2062,7 @@ export function useTournament(tournamentId?: string) {
    * felt with a full row of seats.
    */
   const goToFinalTable = useCallback(() => {
-    setState(prev => {
+    setState(logging(prev => {
       const activePlayers = prev.players.filter(p => p.isActive !== false);
       const seatsPerTable = tablesOf(prev.settings).seatsPerTable;
 
@@ -2060,7 +2116,7 @@ export function useTournament(tournamentId?: string) {
           tableBackgrounds: reindexToOne(prev.settings.tableBackgrounds),
         },
       };
-    });
+    }));
   }, []);
 
   /**
@@ -2074,7 +2130,7 @@ export function useTournament(tournamentId?: string) {
    * only applies the answer and keeps what it replaced, so it can be undone.
    */
   const breakTable = useCallback((brokenIndex?: number) => {
-    setState(prev => {
+    setState(logging(prev => {
       const seatsPerTable = tablesOf(prev.settings).seatsPerTable;
       const numberOfTables = tablesOf(prev.settings).numberOfTables;
       if (numberOfTables < 2) return prev;
@@ -2108,7 +2164,7 @@ export function useTournament(tournamentId?: string) {
           tableBackgrounds: reindexAfterBreak(prev.settings.tableBackgrounds, result.broken),
         },
       };
-    });
+    }));
   }, []);
 
   // `undoFinalTable` was here: exported, called by nothing. Undoing a
@@ -2243,7 +2299,7 @@ export function useTournament(tournamentId?: string) {
 
   // Undo last elimination (or specific player if ID provided)
   const undoBustOut = useCallback((playerId?: string) => {
-    setState(prev => {
+    setState(logging(prev => {
       const eliminatedPlayers = prev.players.filter(p => p.isActive === false && p.position);
       if (eliminatedPlayers.length === 0) return prev;
 
@@ -2364,7 +2420,7 @@ export function useTournament(tournamentId?: string) {
       broadcastTournamentAction('undo_bustout', newState);
 
       return newState;
-    });
+    }));
   }, [broadcastTournamentAction]);
 
   // Skip to next level
@@ -2471,6 +2527,7 @@ export function useTournament(tournamentId?: string) {
     skipToPreviousLevel,
     updateTimer,
     restoreLocalProgress,
+    logEvent,
 
     formatTime,
     calculateProgress,

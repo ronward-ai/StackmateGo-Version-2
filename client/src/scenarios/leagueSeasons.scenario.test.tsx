@@ -228,6 +228,46 @@ describe('a night with rebuys, a re-entry, a reload and an undo', () => {
   });
 });
 
+describe('a finished game reopened from History to correct it', () => {
+  const prize = { buyIn: 10, allowRebuys: true, rebuyAmount: 10, manualPayouts: [] };
+
+  // Reported: a rebuy taken at the table never reached the game. Reopening the
+  // game the next week is a fresh console — no recorder memory, the league is
+  // the record — and the correction must replace the stale results, not sit
+  // beside them, and must not touch the night played since.
+  it('corrects that night\'s results and leaves the next night alone', () => {
+    const league = createLeague();
+    const g1 = night(league, 'g1', 'spring', ['Amy', 'Bob', 'Cat', 'Dan'], prize);
+    g1.bust('Dan', 'Amy'); g1.bust('Cat', 'Amy'); g1.bust('Bob', 'Amy');
+    expectCleanGame(league, 'g1', 4);
+
+    const g2 = night(league, 'g2', 'spring', ['Amy', 'Bob', 'Eve'], prize);
+    g2.bust('Eve', 'Bob'); g2.bust('Amy', 'Bob');
+    const nightTwo = JSON.stringify(league.results.filter(r => r.tournamentId === 'g2'));
+    g2.done();
+
+    // Reopen g1: a new console, so nothing in memory.
+    league.forgetTab();
+    g1.sync();
+    expectCleanGame(league, 'g1', 4); // opening it recorded nothing twice
+
+    // Cat really rebought after her bust and went out later, in 2nd.
+    g1.undo('Bob'); g1.undo('Cat');
+    g1.bust('Cat', 'Amy'); g1.rebuy('Cat');
+    g1.bust('Bob', 'Cat'); g1.bust('Cat', 'Amy');
+
+    expectCleanGame(league, 'g1', 4);
+    const row = (name: string) => league.results.find(r =>
+      r.tournamentId === 'g1' && league.playerDocs.find(p => p.id === r.leaguePlayerId)!.name === name)!;
+    expect(row('Cat').rebuys).toBe(1);
+    expect(row('Cat').position).toBe(2);
+    expect(row('Bob').position).toBe(3);
+    expect(row('Amy').position).toBe(1);
+    expect(JSON.stringify(league.results.filter(r => r.tournamentId === 'g2'))).toBe(nightTwo);
+    g1.done();
+  });
+});
+
 describe('a second console records the same night', () => {
   it('writes nothing twice, even against a duplicate player document', () => {
     const league = createLeague();

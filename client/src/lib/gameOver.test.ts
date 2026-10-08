@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameIsOver, winnerOf, finishedGameNote, shouldReopen } from './gameOver';
+import { gameIsOver, winnerOf, finishedGameNote, shouldReopen, shouldRecordCompletion, storedStatusOf } from './gameOver';
 
 describe('gameIsOver', () => {
   /**
@@ -118,5 +118,38 @@ describe('shouldReopen', () => {
   it('leaves an ordinary game in progress alone', () => {
     expect(shouldReopen(reopened, undefined, false)).toBe(false);
     expect(shouldReopen(reopened, null, false)).toBe(false);
+  });
+});
+
+describe('shouldRecordCompletion', () => {
+  const over = [{ isActive: false, position: 1 }, { isActive: false, position: 2 }];
+  const inPlay = [{ isActive: true }, { isActive: false, position: 2 }];
+
+  it('records a game that has just ended', () => {
+    expect(shouldRecordCompletion(over, undefined, false)).toBe(true);
+    expect(shouldRecordCompletion(over, null, false)).toBe(true);
+  });
+
+  it('does NOT re-record a game merely opened after it finished', () => {
+    // Opening it re-saved History with a new end time and moved it to the top.
+    expect(shouldRecordCompletion(over, 'completed', false)).toBe(false);
+  });
+
+  it('records again once a reopened game ends again', () => {
+    // shouldReopen clears the status to null; the corrected ending must land.
+    expect(shouldRecordCompletion(over, null, false)).toBe(true);
+  });
+
+  it('never for a game in play, or one this mount already saved', () => {
+    expect(shouldRecordCompletion(inPlay, undefined, false)).toBe(false);
+    expect(shouldRecordCompletion(over, undefined, true)).toBe(false);
+  });
+});
+
+describe('storedStatusOf', () => {
+  it('prefers the snapshot-spread status over the first read', () => {
+    expect(storedStatusOf({ status: null, details: { status: 'completed' } } as any)).toBeNull();
+    expect(storedStatusOf({ details: { status: 'completed' } })).toBe('completed');
+    expect(storedStatusOf(undefined)).toBeUndefined();
   });
 });

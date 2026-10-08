@@ -272,6 +272,9 @@ export function useRebuyOffer(
       answeredHereRef.current.add(key);
     }
     if (rebuy && player) processRebuy(player.id);
+    // A "No" changes nothing on the roster, so the Summary's diff cannot see it;
+    // it is said here. A "Yes" is logged by the rebuy itself.
+    if (!rebuy && player) tournament.logEvent?.({ kind: 'rebuyDeclined', playerId: player.id });
     // The answer lives in a ref, so a decline would otherwise re-render nothing.
     bump(n => n + 1);
   };

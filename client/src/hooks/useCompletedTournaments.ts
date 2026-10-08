@@ -37,7 +37,7 @@ export function useCompletedTournaments() {
   // Newest first. Sorted client-side so no composite index is needed.
   const history = useMemo(
     () => [...tournaments].sort((a, b) =>
-      new Date(b.endTime || 0).getTime() - new Date(a.endTime || 0).getTime()
+      new Date(b.endTime || b.correctedAt || 0).getTime() - new Date(a.endTime || a.correctedAt || 0).getTime()
     ),
     [tournaments],
   );
@@ -49,7 +49,10 @@ export function useCompletedTournaments() {
    * or a late state sync arriving after completion — overwrites the record
    * rather than creating a duplicate.
    */
-  const saveCompletedTournament = useCallback(async (state: TournamentState) => {
+  const saveCompletedTournament = useCallback(async (
+    state: TournamentState,
+    options?: { corrected?: boolean },
+  ) => {
     if (!ownerId) return null;
     if (!state?.players?.length) return null;
 
@@ -72,6 +75,9 @@ export function useCompletedTournaments() {
       name: state.details?.name || undefined,
       type: (state.details?.type as CompletedTournament['type']) || 'standalone',
       localGameId: localGameId ? String(localGameId) : undefined,
+      // The live document, so History can reopen the game to correct it. The
+      // id is usually the localGameId as well, but said outright from now on.
+      tournamentId: state.details?.id ? String(state.details.id) : undefined,
       seasonId: (state.settings as any)?.seasonId,
       seasonName: (state.settings as any)?.seasonName,
       leagueId: (state.settings as any)?.leagueId,
@@ -98,7 +104,18 @@ export function useCompletedTournaments() {
           reEntries: p.reEntries || 0,
           addons: p.addons || 0,
         })),
+      // The night's Summary, kept with the record so History can show it even
+      // once the live document has gone.
+      summary: state.nightLog ?? [],
     };
+
+    // A CORRECTED ending — the game was reopened from History, or its final
+    // hand undone, and has finished again — keeps its place in History: the
+    // merge leaves the original end time and creation stamp alone.
+    const { endTime: _originalNight, ...keepingEndTime } = record;
+    const stamped = options?.corrected
+      ? { ...keepingEndTime, correctedAt: new Date().toISOString() }
+      : { ...record, createdAt: serverTimestamp() };
 
     try {
       // Deterministic id per owner+game keeps re-saves idempotent.
@@ -107,7 +124,7 @@ export function useCompletedTournaments() {
         : `${ownerId}_${Date.now()}`;
       await setDoc(
         doc(db, 'completedTournaments', docId),
-        sanitizeForFirestore({ ...record, createdAt: serverTimestamp() }),
+        sanitizeForFirestore(stamped),
         { merge: true },
       );
       return docId;

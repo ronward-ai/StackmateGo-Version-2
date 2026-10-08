@@ -12,7 +12,7 @@ React + TypeScript + Vite, Firestore for data, deployed on Railway.
 ```
 npm run dev         # local dev server
 npm run check       # tsc — MUST stay clean
-npm test            # vitest, ~1,330 unit tests
+npm test            # vitest, ~1,480 unit tests
 npm run test:rules  # Firestore rules tests against the emulator (needs Java)
 npm run build       # production build
 ```
@@ -3523,6 +3523,57 @@ predicate — `lib/rebuyOffer.ts` was right throughout. Three mutants are caught
 levelling reopens the dialog, folding watched into answered leaks a false answer, and keying the
 failsafe off watched instead of answered hands Dave a button.
 
+### The Summary is a grow-only log, read off the roster
+
+Asked for after rebuys went missing from a real night with nothing to say afterwards whether they were
+refused, declined, reverted or never pressed — and it is what the director's previous software calls a
+*summary*. `lib/nightLog.ts` owns it; `components/NightSummary.tsx` draws it beside History on the
+console and inside each History row. **Director only**: it is on the live document and the History
+record, and no player's screen renders it.
+
+**Events are DERIVED, not written at each door.** `eventsBetween(prev, next)` reads what one action did
+off the roster before and after it — added, removed, bust (with who and the place), undo, rebuy,
+re-entry, add-on, the toast's undo of a return, a final table, a break — and `useTournament` wraps the
+action updaters in `logging(...)`. Seven doors plus the consolidations each spelling their own log line
+is the "one door out of three" fault waiting to happen. Only the ACTIONS are wrapped: the snapshot
+handler's changes are the other console's and arrive already logged, and a reset is not an event.
+`logEvent` covers the two things no roster diff can see, and they are the two that would have explained
+the missing rebuys: **a "No" at the rebuy pop-up** (`useRebuyOffer`'s answer) and **a refused rebuy or
+re-entry** (`PlayerSection`'s refusal toast).
+
+**Grow-only, like `rebuysAnswered`, so no echo guard.** A stale snapshot is a subset; the snapshot handler
+UNIONS it (`mergeLog`) rather than letting `...data` spread it over the newer local copy, and a takeover
+unions too — nothing in a log is stale. Its own sync effect in `PokerTimer`, through the one door, guarded
+by `logFingerprint`. Ids are `<consoleId>:<n>` with `n` from the log itself, so an updater React calls
+twice logs once and two consoles either side of a takeover never collide. Capped at 1,000 (a long night
+is ~150). Carried in the local mirror; saved with History as `summary`. **No rules change** — the owner's
+update rule on `activeTournaments` has no field whitelist.
+
+Known limit: the whole array is written, so if two consoles both wrote in the same instant the later
+write would drop the other's newest event from the document. Only the console holding control writes,
+which is what makes that unreachable in practice.
+
+### Reopening a finished game from History
+
+History's **Reopen to correct** opens the game in the console exactly as it finished, through
+`useOpenLiveGame` — the one way to open a game. The correction tools are the ones the console already has:
+**Undo bust-out** (which reopens it through `shouldReopen`), then rebuy, re-enter and bust out as normal.
+The league recorder reads what is already recorded from the league (H6), so a fresh console corrects the
+night's results rather than adding beside them, and the game's own `settings.seasonId`/`leagueId` decide
+where they go — the console switches to the game's league by itself when it loads a database game. A row
+offers Reopen only once a `getDoc` has found the live record (`liveGameIdOf`: the record's
+`tournamentId`, else its `localGameId`, which is the document id); otherwise it says the record is gone.
+
+**Merely OPENING a finished game used to rewrite History.** `savedHistoryRef` starts empty on every mount,
+so the completion effect re-saved the record with a new `endTime` and the game jumped to the top of the
+list — every reload of a finished game did it. `shouldRecordCompletion` (`lib/gameOver.ts`) records only a
+game that has not already been stored as `completed`; one reopened by an undo has had its status cleared
+and records again when it ends. **A corrected ending keeps its place**: the save omits `endTime` (the
+merge keeps the original night) and stamps `correctedAt`, which History shows.
+
+`leagueSeasons.scenario.test.tsx` plays it: a night, the next night, then the first reopened with no
+recorder memory and corrected — that night's results right, the second night untouched.
+
 ### A player coming back has to meet the final table, whichever door they use
 
 Reported from a real game: nine players, bust one out, collapse to the final table via the prompt,
@@ -4273,6 +4324,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `numberField.ts` | What a half-typed number field commits to when it is left — the fallback when empty, and clamped, never rejected. |
 | `statusChip.ts` | Which one status chip the app bar shows, and why a blocked browser outranks a live game. |
 | `standingsOrder.ts` | The order of a league's standings — points, fewer games, best finish — shared by the table and its movement arrows. |
+| `nightLog.ts` | The night's Summary: what each action did (`eventsBetween`), the one sentence per event, and the grow-only union that keeps it whole across echoes and takeovers. |
 | `deadline.ts` | Stop waiting for a Firestore write that never settles (8s), for the actions that must not hang on a blocked browser. |
 
 **The same convention lives at `server/lib/`, for the same reason.** `subscriptionStatus.ts` (the

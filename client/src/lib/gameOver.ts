@@ -112,3 +112,36 @@ export function shouldReopen(
   if (!players || gameIsOver(players)) return false;
   return storedStatus === 'completed' || finishedHere;
 }
+
+/**
+ * Should the completion effect record this game as finished — the status write
+ * and the History record?
+ *
+ * Not merely because it IS finished. The effect's memory of what it has saved
+ * lives in a ref, which every mount starts empty, so OPENING a game that ended
+ * last week re-ran it: History was re-saved with a new end time and the game
+ * jumped to the top of the list. Reopening a game from History to correct it
+ * would have made that the common case. A game the document already says is
+ * completed has been recorded; it is recorded again only once it has been
+ * reopened (`shouldReopen` clears the status) and has ended again.
+ */
+export function shouldRecordCompletion(
+  players: readonly GameOverPlayerLike[] | null | undefined,
+  storedStatus: string | null | undefined,
+  alreadySavedHere: boolean,
+): boolean {
+  if (!gameIsOver(players)) return false;
+  if (alreadySavedHere) return false;
+  return storedStatus !== 'completed';
+}
+
+/**
+ * The status the game record holds, as this console last heard it. The snapshot
+ * spreads the document's `status` onto state; the first read puts it on
+ * details. The snapshot is the newer of the two.
+ */
+export function storedStatusOf(state: { details?: unknown } | null | undefined): string | null | undefined {
+  const s = state as any;
+  if (!s) return undefined;
+  return 'status' in s ? s.status : s.details?.status;
+}

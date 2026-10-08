@@ -1,3 +1,4 @@
+import type { LogEvent } from '@/lib/nightLog';
 export interface BlindLevel {
   small: number;
   big: number;
@@ -216,10 +217,16 @@ export interface CompletedTournament {
   type: 'standalone' | 'season' | 'database';
   /** Stable per-game id, so re-finishing the same game overwrites rather than duplicates. */
   localGameId?: string;
+  /** The live `activeTournaments` document, so History can reopen it. From October 2026. */
+  tournamentId?: string;
   seasonId?: string;
   seasonName?: string;
   leagueId?: string;
   endTime: string;
+  /** Set when a reopened game finished again; `endTime` keeps the original night. */
+  correctedAt?: string;
+  /** The night's Summary — `lib/nightLog.ts`. Absent on games played before it existed. */
+  summary?: LogEvent[];
   playerCount: number;
   winner?: string;
   buyIn: number;
@@ -319,6 +326,12 @@ export interface TournamentState {
    * guard where `isFinalTable` did.
    */
   rebuysAnswered?: string[];
+  /**
+   * The night's Summary — `lib/nightLog.ts`. Grow-only and shared through the
+   * tournament document, for the same reason as `rebuysAnswered`: a stale
+   * snapshot is a subset and `mergeLog`'s union heals it.
+   */
+  nightLog?: LogEvent[];
   details?: TournamentDetails;
   notes?: string;
 }

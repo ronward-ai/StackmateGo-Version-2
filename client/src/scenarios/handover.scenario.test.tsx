@@ -130,6 +130,8 @@ function write(c: Console): 'written' | 'skipped' {
   fs.doc.playerIds = playerIdsOf(s.players);
   fs.doc.isFinalTable = !!s.isFinalTable;
   fs.doc.rebuysAnswered = c.offer.answered;
+  // The Summary's own sync: written whole, only when there is something in it.
+  if ((s.nightLog ?? []).length) fs.doc.nightLog = clone(s.nightLog);
   markRosterWritten(rosterPayload({ players: s.players, isFinalTable: s.isFinalTable }));
   emit();
   return 'written';
@@ -207,6 +209,40 @@ describe('handing over between two consoles mid-game', () => {
     expect(rows.map(r => r.position).sort()).toEqual([1, 2, 3, 4, 5]);
     expect(rows.find(r => league.playerDocs.find(p => p.id === r.leaguePlayerId)!.name === 'Dan')!.rebuys).toBe(1);
 
+    laptop.h.unmount(); phone.h.unmount();
+  });
+
+  // The Summary follows the game across the handover: the laptop's half arrives
+  // on the phone by snapshot, the phone adds its own, and neither console's
+  // echo or stale copy can take an event away (it only grows).
+  it('the Summary keeps both halves of the night across a takeover', async () => {
+    seedGame(['Amy', 'Bob', 'Cat', 'Dan']);
+    const laptop = await openConsole('laptop');
+    const phone = await openConsole('phone');
+    const story = (c: Console) => (c.t.state.nightLog ?? []).map(e => `${e.kind}:${e.playerName}`);
+
+    act(() => { laptop.t.eliminatePlayer(laptop.id('Dan'), laptop.id('Amy')); });
+    act(() => { laptop.offer.answer(false); });
+    write(laptop);
+    expect(story(phone)).toEqual(['bust:Dan', 'rebuyDeclined:Dan']);
+
+    takeControl(phone);
+    act(() => { phone.t.eliminatePlayer(phone.id('Cat'), phone.id('Bob')); });
+    act(() => { phone.offer.answer(true); });
+    write(phone);
+    // An old copy of the document arriving late cannot shrink it.
+    const stale = clone(fs.doc); stale.nightLog = stale.nightLog.slice(0, 1);
+    for (const l of [...fs.listeners]) {
+      fs.current = l.console;
+      act(() => { l.cb({ exists: () => true, data: () => clone(stale) }); });
+    }
+
+    const expected = ['bust:Dan', 'rebuyDeclined:Dan', 'bust:Cat', 'rebuy:Cat'];
+    expect(story(phone)).toEqual(expected);
+    expect(story(laptop)).toEqual(expected);
+    // Each console numbered its own events: no collision across the handover.
+    const ids = phone.t.state.nightLog!.map(e => e.id);
+    expect(new Set(ids).size).toBe(4);
     laptop.h.unmount(); phone.h.unmount();
   });
 

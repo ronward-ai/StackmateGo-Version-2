@@ -1,3 +1,4 @@
+import type { LogEvent } from '@/lib/nightLog';
 import type { Player } from '@/types';
 import { readScoped, removeScoped, writeScoped } from './scopedStorage';
 
@@ -25,6 +26,8 @@ export interface LocalProgress {
   isRunning: boolean;
   targetEndTime?: number;
   isFinalTable?: boolean;
+  /** The night's Summary (`lib/nightLog.ts`) — a reload of a local game keeps it. */
+  nightLog?: LogEvent[];
   /** Which live game this mirrors, so it can never be offered for another. */
   dbTournamentId?: string;
   /** ISO, so the offer can say how old the copy is. */

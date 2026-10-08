@@ -62,6 +62,9 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
       ? (canRebuy(state.prizeStructure, player, level) ? null : rebuyUnavailableReason(state.prizeStructure, player, level) ?? 'Rebuy not allowed')
       : (canReEnter(state.prizeStructure, player, level) ? null : reEntryUnavailableReason(state.prizeStructure, player, level) ?? 'Re-entry not allowed');
     if (refused) {
+      // Into the Summary too: a refusal is the event that explains a rebuy
+      // missing from a night, and a toast is gone in five seconds.
+      tournament.logEvent?.({ kind: action === 'rebuy' ? 'rebuyRefused' : 'reEntryRefused', playerId, detail: refused });
       toast({
         title: action === 'rebuy' ? `${name} has NOT bought back in` : `${name} has NOT re-entered`,
         description: refused,
