@@ -86,6 +86,15 @@ describe('ResultsSheet', () => {
     expect(screen.getByText('StackMate Go')).toBeTruthy();
   });
 
+  it('draws the season line in the accent', () => {
+    render(results({ title: 'Thursday Night', subtitle: 'Spring · Game 4 of 13 · 3 players', rows }));
+    const n = parseInt(SHEET.accent.slice(1), 16);
+    const accent = `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+    const line = screen.getByText('Spring · Game 4 of 13 · 3 players') as HTMLElement;
+    expect(line.style.color).toBe(accent);
+    expect(line.style.lineHeight).toBe('');
+  });
+
   it('calls somebody still in Active rather than giving them a place', () => {
     const live = rowsFor([
       { id: '1', name: 'Zoe', isActive: true },

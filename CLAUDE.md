@@ -1712,6 +1712,9 @@ where the participant's card has always read them and where `PlayerSection` alre
 `gameNumber` — and `settings` is synced wholesale, so the picture a director exports and the line on
 a player's phone cannot disagree.
 
+**The line is drawn in the accent** (`SHEET.accent`, weight 600) — requested, and it is the frame's, so
+the standings image's `Season · N players` is orange too: the two exports stay a pair.
+
 **Every part is optional and the separator is never stranded**, which is the fault `seasonSubtitle()`
 in that same module exists for — a dateless season once read `· 12 games`, leading dot and all. A
 STANDALONE game has no season block, so `seasonLine` returns `''` and the exported subtitle is

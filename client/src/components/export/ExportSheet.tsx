@@ -67,8 +67,11 @@ export default function ExportSheet({ title, subtitle, width, children }: Export
           >
             {title}
           </div>
+          {/* In the accent, at 600 (requested): the season and game is what
+              dates the picture, and a dim grey line under the title was the
+              first thing lost to a group chat's recompression. */}
           {subtitle && (
-            <div style={{ fontSize: SHEET_TYPE.subtitle, color: SHEET.inkDim, marginTop: 4 }}>
+            <div style={{ fontSize: SHEET_TYPE.subtitle, color: SHEET.accent, fontWeight: 600, marginTop: 4 }}>
               {subtitle}
             </div>
           )}
