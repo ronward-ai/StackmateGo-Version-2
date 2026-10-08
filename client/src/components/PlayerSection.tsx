@@ -96,7 +96,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
    * season bar uses too, so the two cannot make different pictures of one game.
    * See `lib/resultRows.ts`.
    */
-  const { rows: resultRows, columnContext, subtitle: exportSubtitle } = useGameResults(state);
+  const { rows: resultRows, columnContext, subtitle: exportSubtitle, date: gameDate } = useGameResults(state);
   const [playerName, setPlayerName] = useState('');
   /** A player waiting on the late-entry confirmation. */
   const [pendingLateEntry, setPendingLateEntry] = useState<string | null>(null);
@@ -410,6 +410,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
               rows={resultRows}
               columnContext={columnContext}
               subtitle={exportSubtitle}
+              date={gameDate}
             />
           )}
         </div>

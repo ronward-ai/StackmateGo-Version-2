@@ -93,6 +93,7 @@ describe('the season game bar', () => {
       ],
       prizeStructure: { buyIn: 10, manualPayouts: [{ position: 1, percentage: 100 }] },
       settings: { branding: { eventName: 'Friday League' } },
+      createdAt: '2026-10-08T19:00:00Z',
     };
     bar({ loadGame: async () => live });
     fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
@@ -102,6 +103,8 @@ describe('the season game bar', () => {
     fireEvent.click(exportButton);
     await waitFor(() => expect(capture.calls).toHaveLength(1));
     expect(capture.calls[0].node.props.title).toBe('Friday League');
+    // Dated by the night it was played, not the day it was exported.
+    expect(capture.calls[0].node.props.date).toBe('2026-10-08T19:00:00Z');
   });
 
   it('a past night draws with the console\'s CURRENT columns, on screen and in the export', async () => {

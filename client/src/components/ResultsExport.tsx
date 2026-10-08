@@ -27,9 +27,11 @@ export interface ResultsGame {
   players: any[];
   prizeStructure?: any;
   settings?: any;
-  details?: { type?: string; ownerId?: string; leagueId?: string } | null;
+  details?: { type?: string; ownerId?: string; leagueId?: string; createdAt?: unknown; startTime?: unknown } | null;
   /** A stored document carries the owner at the top level. */
   ownerId?: string;
+  /** A stored document's creation time — the night it was played. */
+  createdAt?: unknown;
 }
 
 /** The rows, columns and caption for a game, scored with its own league's points. */
@@ -54,7 +56,11 @@ export function useGameResults(game: ResultsGame) {
     isLeagueMode ? seasonLine(settings) : '',
     `${count} player${count === 1 ? '' : 's'}`,
   ].filter(Boolean).join(' · ');
-  return { rows, columnContext, subtitle, isLeagueMode };
+  // The night it was played: the console mirrors the document's createdAt onto
+  // details; a past night's document carries it at the top level. A game never
+  // saved has neither, and the sheet says today.
+  const date = (game.details as any)?.createdAt ?? game.createdAt ?? (game.details as any)?.startTime;
+  return { rows, columnContext, subtitle, isLeagueMode, date };
 }
 
 export function ResultsExportButtons({
@@ -62,11 +68,13 @@ export function ResultsExportButtons({
   rows,
   columnContext,
   subtitle,
+  date,
 }: {
   settings: any;
   rows: ResultRow<any>[];
   columnContext: { prizeStructure?: any; isLeagueMode: boolean };
   subtitle: string;
+  date?: unknown;
 }) {
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
@@ -78,6 +86,7 @@ export function ResultsExportButtons({
         <ResultsSheet
           title={eventNameOf(settings) || 'Tournament results'}
           subtitle={subtitle}
+          date={date}
           rows={rows}
           settings={settings}
           columnContext={columnContext}
@@ -152,13 +161,13 @@ export function ResultsExportButtons({
  * currency, payouts and league stay the game's own.
  */
 export function PastGameResults({ game, resultColumns }: { game: ResultsGame; resultColumns?: string[] }) {
-  const { rows, columnContext, subtitle } = useGameResults(game);
+  const { rows, columnContext, subtitle, date } = useGameResults(game);
   if (rows.length === 0) return null;
   const settings = resultColumns ? { ...(game.settings ?? {}), resultColumns } : (game.settings ?? {});
   return (
     <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
       <div className="flex flex-wrap justify-end gap-2">
-        <ResultsExportButtons settings={settings} rows={rows} columnContext={columnContext} subtitle={subtitle} />
+        <ResultsExportButtons settings={settings} rows={rows} columnContext={columnContext} subtitle={subtitle} date={date} />
       </div>
       <ResultsTable rows={rows} settings={settings} columnContext={columnContext} />
     </div>

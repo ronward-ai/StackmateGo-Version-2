@@ -1439,7 +1439,12 @@ turns a test red. **Fonts are awaited**, because a sheet is measured in px rathe
 responsively and arriving a frame early captures the fallback stack. And the host is **off-screen at
 -10000px rather than `display:none`**, which has no layout for html2canvas to measure.
 
-**The footer carries the wordmark and stackmatego.com** (requested). The wordmark is
+**The layout, as requested: the wordmark top right** (where an accent rule used to sit), **the night's
+date after the title** (`Tournament results · 1 Oct 2026`) and **stackmatego.com centred in the footer**.
+The date is when the game was PLAYED — `useGameResults` reads the document's `createdAt` (mirrored onto
+`details` on the console, top level on a past night's document) through `sheetDate`, which takes every
+shape a timestamp arrives in and falls back to today; the standings export passes none, so it says today.
+The wordmark is
 `client/public/stackmate-wordmark.png` — 364×48, rendered from `stackmatelogo.svg` — **not the SVG**: the
 SVG has a viewBox and no width/height, and in a real html2canvas capture it drew as an empty space while
 the address beside it came out fine. `captureSheet` renders with `flushSync` and then waits (≤3s) for

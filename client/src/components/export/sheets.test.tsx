@@ -4,6 +4,7 @@ import ResultsSheet from './ResultsSheet';
 import StandingsSheet, { type StandingsSheetRow } from './StandingsSheet';
 import { resultRowsFor, type ResultPlayerLike } from '@/lib/resultRows';
 import { RANK_INK, SHEET, SHEET_TYPE, headCellStyle, rowStyle } from './exportStyle';
+import { sheetDate } from './ExportSheet';
 
 /**
  * What the two exported images actually say.
@@ -87,9 +88,20 @@ describe('ResultsSheet', () => {
     expect(screen.getByText(/stackmatego\.com/)).toBeTruthy();
   });
 
+  it('dates the sheet by the night the game was played, beside the title; logo top, address at the foot', () => {
+    const { container } = render(results({ title: 'Tournament results', rows, date: '2026-10-01T19:30:00Z' }));
+    const header = container.firstElementChild!.firstElementChild as HTMLElement;
+    const footer = container.firstElementChild!.lastElementChild as HTMLElement;
+    expect(header.textContent).toContain(`Tournament results · ${sheetDate('2026-10-01T19:30:00Z')}`);
+    expect(header.querySelector('img[alt="StackMate Go"]')).toBeTruthy();
+    expect(footer.textContent).toBe('stackmatego.com');
+    expect(footer.style.textAlign).toBe('center');
+    expect(footer.querySelector('img')).toBeNull();
+  });
+
   it('the footer wordmark falls back to the name as text if the logo cannot load', () => {
     render(results({ title: 'Thursday Night', rows }));
-    const logo = screen.getByRole('img', { name: 'StackMate Go' });
+    const logo = screen.getByRole('img', { name: 'StackMate Go' });  // top right
     expect(logo.getAttribute('src')).toBe('/stackmate-wordmark.png');
     fireEvent.error(logo);
     expect(screen.queryByRole('img', { name: 'StackMate Go' })).toBeNull();
@@ -343,5 +355,21 @@ describe('striped rows', () => {
     expect(rowStyle(0)).toEqual({});
     expect(rowStyle(1)).toEqual({ background: SHEET.rowAlt });
     expect(rowStyle(2)).toEqual({});
+  });
+});
+
+describe('sheetDate', () => {
+  const now = new Date('2026-10-08T12:00:00Z');
+  const fmt = (d: Date) => d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  it('reads every shape a game carries its date in', () => {
+    const night = new Date('2026-10-01T19:30:00Z');
+    expect(sheetDate('2026-10-01T19:30:00Z', now)).toBe(fmt(night));
+    expect(sheetDate(night.getTime(), now)).toBe(fmt(night));
+    expect(sheetDate({ seconds: night.getTime() / 1000 }, now)).toBe(fmt(night));
+    expect(sheetDate({ toDate: () => night }, now)).toBe(fmt(night));
+  });
+  it('a game with no date, or a broken one, says today', () => {
+    expect(sheetDate(undefined, now)).toBe(fmt(now));
+    expect(sheetDate('not a date', now)).toBe(fmt(now));
   });
 });

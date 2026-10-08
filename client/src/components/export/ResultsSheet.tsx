@@ -26,6 +26,8 @@ import { RANK_INK, SHEET, SHEET_TYPE, SHEET_WIDTH, headCellStyle, rowStyle } fro
 interface ResultsSheetProps {
   title: string;
   subtitle?: string;
+  /** When the game was played. */
+  date?: unknown;
   rows: ResultRow<ResultPlayerLike>[];
   /** The chosen columns and the currency, from `state.settings`. */
   settings?: { resultColumns?: string[]; currency?: string } | null;
@@ -34,7 +36,7 @@ interface ResultsSheetProps {
 }
 
 export default function ResultsSheet({
-  title, subtitle, rows, settings, columnContext, currencySymbol,
+  title, subtitle, date, rows, settings, columnContext, currencySymbol,
 }: ResultsSheetProps) {
   const columns = visibleResultColumns(settings?.resultColumns, columnContext);
 
@@ -53,7 +55,7 @@ export default function ResultsSheet({
   };
 
   return (
-    <ExportSheet title={title} subtitle={subtitle} width={width}>
+    <ExportSheet title={title} subtitle={subtitle} date={date} width={width}>
       <table
         style={{
           width: '100%',

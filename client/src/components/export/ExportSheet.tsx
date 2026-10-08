@@ -29,22 +29,38 @@ import { SHEET, SHEET_TYPE } from './exportStyle';
 export const SITE_ADDRESS = 'stackmatego.com';
 
 /** The wordmark's own aspect ratio (its viewBox is 1096.46 × 144.71). */
-const WORDMARK_HEIGHT = 16;
+const WORDMARK_HEIGHT = 20;
 const WORDMARK_WIDTH = Math.round(WORDMARK_HEIGHT * (1096.46 / 144.71));
 
 function Wordmark() {
   const [failed, setFailed] = useState(false);
-  if (failed) return <span>StackMate Go</span>;
+  if (failed) return <span style={{ fontWeight: 700, flexShrink: 0 }}>StackMate Go</span>;
   return (
     <img
       src="/stackmate-wordmark.png"
       alt="StackMate Go"
       width={WORDMARK_WIDTH}
       height={WORDMARK_HEIGHT}
-      style={{ display: 'block', width: WORDMARK_WIDTH, height: WORDMARK_HEIGHT }}
+      style={{ display: 'block', width: WORDMARK_WIDTH, height: WORDMARK_HEIGHT, flexShrink: 0 }}
       onError={() => setFailed(true)}
     />
   );
+}
+
+/**
+ * The date a sheet is OF — the night the game was played, not the day it was
+ * exported. Takes whatever the game carries (an ISO string, a number, a Date or
+ * a Firestore Timestamp) and falls back to today for a game with no date yet.
+ */
+export function sheetDate(value: unknown, now: Date = new Date()): string {
+  const v: any = value;
+  const d = v == null ? null
+    : v instanceof Date ? v
+    : typeof v?.toDate === 'function' ? v.toDate()
+    : typeof v?.seconds === 'number' ? new Date(v.seconds * 1000)
+    : new Date(v);
+  const when = d && !Number.isNaN(d.getTime()) ? d : now;
+  return when.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 interface ExportSheetProps {
@@ -52,11 +68,13 @@ interface ExportSheetProps {
   title: string;
   /** Season and game, or the date — the line that dates the picture. */
   subtitle?: string;
+  /** When the game was played; absent means today (the standings export). */
+  date?: unknown;
   width: number;
   children: ReactNode;
 }
 
-export default function ExportSheet({ title, subtitle, width, children }: ExportSheetProps) {
+export default function ExportSheet({ title, subtitle, date, width, children }: ExportSheetProps) {
   return (
     <div
       // `font-sans` rather than the inherited default: the builder this replaces
@@ -76,7 +94,7 @@ export default function ExportSheet({ title, subtitle, width, children }: Export
       <div
         style={{
           display: 'flex',
-          alignItems: 'flex-end',
+          alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
           paddingBottom: 14,
@@ -94,6 +112,10 @@ export default function ExportSheet({ title, subtitle, width, children }: Export
             }}
           >
             {title}
+            {/* The night, beside its name (requested): a picture posted to a
+                group chat a week later still says when. Lighter than the
+                title so the name stays the headline. */}
+            <span style={{ fontWeight: 400, color: SHEET.inkDim }}> · {sheetDate(date)}</span>
           </div>
           {/* In the accent, at 600 (requested): the season and game is what
               dates the picture, and a dim grey line under the title was the
@@ -104,9 +126,8 @@ export default function ExportSheet({ title, subtitle, width, children }: Export
             </div>
           )}
         </div>
-        {/* A rule in the accent, not a logo: it marks the sheet as this app's
-            without competing with the name of somebody's poker night. */}
-        <div style={{ width: 40, height: 3, background: SHEET.accent, flexShrink: 0 }} />
+        {/* The wordmark top right (requested), where the accent rule was. */}
+        <Wordmark />
       </div>
 
       {children}
@@ -118,13 +139,10 @@ export default function ExportSheet({ title, subtitle, width, children }: Export
           borderTop: `1px solid ${SHEET.rule}`,
           fontSize: SHEET_TYPE.foot,
           color: SHEET.inkDim,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          textAlign: 'center',
         }}
       >
-        <Wordmark />
-        <span>{SITE_ADDRESS} · {new Date().toLocaleDateString()}</span>
+        {SITE_ADDRESS}
       </div>
     </div>
   );
