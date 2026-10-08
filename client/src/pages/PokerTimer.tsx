@@ -1648,7 +1648,7 @@ function PokerTimerInner({
                 <span className="text-sm font-semibold text-foreground uppercase tracking-wide">Tournament Setup</span>
               </div>
               <div className="flex items-center gap-2">
-                <NightSummaryDialog log={tournament.state.nightLog} />
+                <NightSummaryDialog log={tournament.state.nightLog} hasPlayers={tournament.state.players.length > 0} />
                 {/* Reopen to correct goes through the one way to open a game
                     (useOpenLiveGame). The console then switches to the game's
                     own league by itself — the handover effect above — so the

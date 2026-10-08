@@ -84,3 +84,20 @@ describe('the season game bar', () => {
     expect(container.innerHTML).toBe('');
   });
 });
+
+import NightSummaryDialog from './NightSummary';
+
+describe('the Summary dialog', () => {
+  it('says a game older than the Summary has none, rather than that nothing has happened', () => {
+    render(<NightSummaryDialog log={[]} hasPlayers />);
+    fireEvent.click(screen.getByRole('button', { name: /Summary/ }));
+    expect(screen.getByText(/started before the Summary existed/)).toBeTruthy();
+    expect(screen.queryByText(/Nothing has happened yet/)).toBeNull();
+  });
+
+  it('a new game with nobody in it yet still says nothing has happened', () => {
+    render(<NightSummaryDialog log={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Summary/ }));
+    expect(screen.getByText(/Nothing has happened yet/)).toBeTruthy();
+  });
+});

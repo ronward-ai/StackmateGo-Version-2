@@ -41,7 +41,7 @@ export function NightSummaryList({ log, emptyText }: { log: unknown; emptyText?:
 }
 
 /** The console's Summary button and dialog. */
-export default function NightSummaryDialog({ log }: { log: unknown }) {
+export default function NightSummaryDialog({ log, hasPlayers = false }: { log: unknown; hasPlayers?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -59,7 +59,15 @@ export default function NightSummaryDialog({ log }: { log: unknown }) {
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto">
-          <NightSummaryList log={log} />
+          {/* An empty log on a game that already has players means the game began
+              before the Summary existed — "nothing has happened yet" said that about
+              a finished game (reported). */}
+          <NightSummaryList
+            log={log}
+            emptyText={hasPlayers
+              ? 'No summary was kept for this game — it was started before the Summary existed. Your next game will have one.'
+              : undefined}
+          />
         </div>
       </DialogContent>
     </Dialog>
