@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cashIn, hitsIn, seasonGames, seasonSummary, type SeasonGame } from './playerSeason';
+import { cashIn, hitsIn, seasonGames, seasonSummary, seasonRoster, type SeasonGame } from './playerSeason';
 
 const game = (over: Partial<SeasonGame> = {}): SeasonGame => ({
   position: 4, totalPlayers: 10, points: 20, playersEliminatedCount: 1,
@@ -121,5 +121,33 @@ describe('seasonSummary', () => {
     expect(summary.hits).toBe(rows.reduce((s, r) => s + r.hits, 0));
     expect(summary.cash).toBe(rows.reduce((s, r) => s + r.cash, 0));
     expect(summary.invested).toBe(rows.reduce((s, r) => s + r.invested, 0));
+  });
+});
+
+// Reported from a test night: a new season's table listed every player the
+// league had ever seen, at the bottom, on 0 games.
+describe('seasonRoster', () => {
+  const amy = { id: 'a', name: 'Amy', tournamentResults: [{ seasonId: 'spring', points: 10 }] };
+  const bob = { id: 'b', name: 'Bob', tournamentResults: [{ seasonId: 'spring', points: 5 }, { seasonId: 'summer', points: 8 }] };
+  const cat = { id: 'c', name: 'Cat', tournamentResults: [] as any[] };
+
+  it("leaves out anybody who has not played this season", () => {
+    expect(seasonRoster([amy, bob, cat], 'summer').map(p => p.name)).toEqual(['Bob']);
+  });
+
+  it("keeps only this season's results for those who have", () => {
+    const [b] = seasonRoster([bob], 'summer');
+    expect(b.tournamentResults).toEqual([{ seasonId: 'summer', points: 8 }]);
+  });
+
+  it('matches a season id stored as a number against a string', () => {
+    const dan = { id: 'd', name: 'Dan', tournamentResults: [{ seasonId: 7 as any }] };
+    expect(seasonRoster([dan], '7')).toHaveLength(1);
+  });
+
+  it('is empty, never a list of empty rows, without a real season', () => {
+    expect(seasonRoster([amy, bob], null)).toEqual([]);
+    expect(seasonRoster([amy, bob], 'default-season')).toEqual([]);
+    expect(seasonRoster(null, 'spring')).toEqual([]);
   });
 });

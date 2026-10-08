@@ -3,6 +3,7 @@ import { useSeasons } from '@/hooks/useSeasons';
 import { useLeague } from '@/hooks/useLeague';
 import EmptyState from '@/components/ui/empty-state';
 import { countGamesPlayed, isSeasonComplete, clampedGameNumber, seasonSubtitle } from '@/lib/seasonProgress';
+import { seasonRoster } from '@/lib/playerSeason';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { Badge } from "@/components/ui/badge";
 import { Calendar, History } from 'lucide-react';
@@ -61,17 +62,11 @@ export default function SeasonDashboard({
     [seasons, currentSeason?.id]
   );
 
-  const currentSeasonPlayers = useMemo(() => {
-    if (!currentSeason) return [];
-    return leaguePlayers
-      .map(player => ({
-        ...player,
-        tournamentResults: player.tournamentResults.filter(
-          r => String(r.seasonId) === String(currentSeason.id)
-        )
-      }))
-      .filter(player => player.tournamentResults.length > 0);
-  }, [leaguePlayers, currentSeason?.id]);
+  // The same roster the standings table draws — lib/playerSeason.ts.
+  const currentSeasonPlayers = useMemo(
+    () => seasonRoster(leaguePlayers, currentSeason?.id),
+    [leaguePlayers, currentSeason?.id],
+  );
 
   const seasonStats = useMemo(() => {
     const allResults = currentSeasonPlayers.flatMap(p => p.tournamentResults);

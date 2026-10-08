@@ -1,4 +1,5 @@
 import { buyInOf, investedIn, totalsAcross, type ResultCosts } from './resultStats';
+import { isRealSeasonId } from './seasonProgress';
 
 /**
  * One player's season, game by game.
@@ -140,3 +141,32 @@ export function seasonSummary(results: SeasonGame[] | null | undefined): SeasonS
 
 /** Kept so the buy-in fallback has exactly one owner. */
 export { buyInOf };
+
+/**
+ * Who is in a season's standings, and what each of them did in it.
+ *
+ * A player document belongs to the LEAGUE; a row in the standings belongs to
+ * the SEASON. The table filtered each player's results to the season but kept
+ * every player, so a new season opened with every name the league had ever
+ * seen sitting at the bottom on 0 games — reported from a real test night.
+ * The season panel had always asked this correctly, in its own inline copy,
+ * with a string comparison the table did not make: two answers to one question.
+ *
+ * Players are only ever created when a result is recorded, so "has a result in
+ * this season" is exactly "has played in it" — nobody genuine is left out.
+ * Not a real season (none yet, or the synthetic placeholder) is no rows at all,
+ * never a list of empty ones.
+ */
+export function seasonRoster<P extends { tournamentResults?: Array<{ seasonId?: string | number | null }> | null }>(
+  players: readonly P[] | null | undefined,
+  seasonId: string | number | null | undefined,
+): Array<P & { tournamentResults: NonNullable<P['tournamentResults']> }> {
+  if (!isRealSeasonId(seasonId) || !Array.isArray(players)) return [];
+  const id = String(seasonId);
+  return players
+    .map(player => ({
+      ...player,
+      tournamentResults: (player.tournamentResults || []).filter(r => r?.seasonId != null && String(r.seasonId) === id),
+    }) as P & { tournamentResults: NonNullable<P['tournamentResults']> })
+    .filter(player => player.tournamentResults.length > 0);
+}

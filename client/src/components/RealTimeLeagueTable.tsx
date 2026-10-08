@@ -19,6 +19,7 @@ import { countGamesPlayed, isRealLeagueId } from '@/lib/seasonProgress';
 import EmptyState from '@/components/ui/empty-state';
 import { totalsAcross, cashedIn } from '@/lib/resultStats';
 import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
+import { seasonRoster } from '@/lib/playerSeason';
 import { useAuth } from '@/hooks/useAuth';
 import { STAT_LABELS } from '@/types/leagueSettings';
 import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
@@ -112,19 +113,13 @@ function RealTimeLeagueTable({
   const rawSeasonId = currentSeason?.id ? String(currentSeason.id) : null;
   const baseSeasonId = rawSeasonId === 'default-season' ? null : rawSeasonId;
   const seasonId = seasonIdOverride ? String(seasonIdOverride) : baseSeasonId;
-  const seasonFilteredPlayers = useMemo(() => {
-    if (!Array.isArray(leaguePlayers)) return [];
-    if (!seasonId) {
-      // Season not yet confirmed from Firestore — show players with no results
-      return leaguePlayers.map(player => ({ ...player, tournamentResults: [] }));
-    }
-    return leaguePlayers.map(player => ({
-      ...player,
-      tournamentResults: (player.tournamentResults || []).filter(
-        (r: any) => r.seasonId === seasonId
-      )
-    }));
-  }, [leaguePlayers, seasonId]);
+  // Only the players who have played THIS season — lib/playerSeason.ts. It kept
+  // every league player and emptied their results, so a new season listed
+  // everybody from earlier seasons on 0 games.
+  const seasonFilteredPlayers = useMemo(
+    () => seasonRoster(leaguePlayers as any[], seasonId) as any[],
+    [leaguePlayers, seasonId],
+  );
 
   // Derive "previous rankings" from data: rankings before the most recent tournament.
   // This is always accurate regardless of component lifecycle / remounts.
@@ -601,7 +596,7 @@ function RealTimeLeagueTable({
               The race for the championship starts tonight!
             </p>
             <p className="text-sm text-muted-foreground mb-4">
-              {leaguePlayers.length} player{leaguePlayers.length !== 1 ? 's' : ''} registered
+              {leaguePlayers.length} player{leaguePlayers.length !== 1 ? 's' : ''} in the league
               {totalGames ? ` · ${totalGames}-game season` : ''}.
               Points will update as soon as the first player hits the rail.
             </p>

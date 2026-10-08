@@ -1218,6 +1218,14 @@ The figures are an inline strip now: mono numerals, caption labels, no boxes, th
 Payouts panel uses. Collapsed, `LeagueSection` shows a one-line summary so folding the panel away does
 not lose which season is running.
 
+**A player belongs to the LEAGUE; a row belongs to the SEASON.** `seasonRoster` in
+`lib/playerSeason.ts` is the one answer to "who is in this season's standings": results filtered to the
+season (ids compared as strings) and anyone left with none dropped. The table used to filter results but
+keep every player, so a new season opened with every name the league had ever seen at the bottom on 0
+games — reported from a test night — while the season panel, with its own inline copy, counted correctly.
+Players are only created when a result is recorded, so nobody genuine is left out; before the first
+bust-out the table shows its "starts tonight" state. `RealTimeLeagueTable.test.tsx` renders it.
+
 **Manage League's Danger Zone lives in the SEASONS tab.** It used to sit outside the tab strip, on
 the reasoning that deleting a league acts on the league — the dialog's scope, set by
 `LeagueScopeBar` — rather than on whichever tab is open. True, and it meant "Delete this league" was
@@ -4227,7 +4235,7 @@ Firebase imports so tests need no mocking. Follow this pattern rather than growi
 | `tableBalance.ts` | Whether the tables are uneven enough to say so, and what a dismissal remembers. |
 | `tableBreak.ts` | When the field fits fewer tables, which one breaks, and where its players sit. **Only the broken table moves**; the rest renumber, because the model stores a table COUNT, not a set. |
 | `csv.ts` | Turning a table into a spreadsheet file, without letting a player's name execute in Excel. |
-| `playerSeason.ts` | One player's season game by game, and its totals. |
+| `playerSeason.ts` | One player's season game by game, and its totals — and `seasonRoster`, who is in a season's standings at all. |
 | `recentPlayers.ts` | The names Add Player offers, and the ONLY list of them: newest first, one entry per person, fifty kept, each with an ×. Which copy wins when the account's and the device's differ — **never a union**. |
 | `gameOver.ts` | Whether the game being run has finished, and who won it. |
 | `resultRows.ts` | The finishing order of the game being run: the order, the ordinal, the named rank tone and every figure one night knows about a player. **One derivation for the console, the participant's phone and the exported image** — there were four, and only one spelled `21st` correctly. |
