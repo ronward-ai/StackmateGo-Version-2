@@ -53,11 +53,11 @@ describe('History reopens a game to correct it', () => {
 
   it('offers Reopen when the live record exists, confirms, then opens THAT game', async () => {
     const onReopen = vi.fn();
-    const checkGame = vi.fn(async () => true);
-    render(<TournamentHistoryDialog onReopen={onReopen} checkGame={checkGame} currentGameInPlay />);
+    const loadGame = vi.fn(async () => ({ players: [] }));
+    render(<TournamentHistoryDialog onReopen={onReopen} loadGame={loadGame} currentGameInPlay />);
     openRow();
     const button = await screen.findByRole('button', { name: /Reopen to correct/ });
-    expect(checkGame).toHaveBeenCalledWith('game_1');
+    expect(loadGame).toHaveBeenCalledWith('game_1');
     fireEvent.click(button);
     expect(screen.getByText(/Undo a bust-out to correct the result/)).toBeTruthy();
     expect(screen.getByText(/Your current game stays saved/)).toBeTruthy();
@@ -67,7 +67,7 @@ describe('History reopens a game to correct it', () => {
   });
 
   it('says why, and offers nothing, when the live record is gone', async () => {
-    render(<TournamentHistoryDialog onReopen={vi.fn()} checkGame={async () => false} />);
+    render(<TournamentHistoryDialog onReopen={vi.fn()} loadGame={async () => null} />);
     openRow();
     await waitFor(() => expect(screen.getByText(/live record no longer exists/)).toBeTruthy());
     expect(screen.queryByRole('button', { name: /Reopen to correct/ })).toBeNull();

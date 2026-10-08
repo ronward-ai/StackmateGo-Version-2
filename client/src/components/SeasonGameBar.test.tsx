@@ -1,8 +1,14 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({ doc: vi.fn(), getDoc: vi.fn() }));
+const capture = vi.hoisted(() => ({ calls: [] as any[] }));
+vi.mock('@/components/export/captureSheet', () => ({
+  captureSheet: async (node: any, opts: any) => { capture.calls.push({ node, opts }); },
+  sheetFilename: () => 'results.png',
+}));
+vi.mock('@/hooks/useLeagueSettings', () => ({ useLeagueSettings: () => ({ calculatePoints: () => 0 }) }));
 vi.mock('@/hooks/useCompletedTournaments', () => ({
   useCompletedTournaments: () => ({ history: [], isLoading: false, deleteCompletedTournament: vi.fn() }),
 }));
@@ -34,7 +40,7 @@ const bar = (over: Record<string, unknown> = {}) => render(
     leaguePlayers={leaguePlayers}
     currentGameId="tonight"
     history={history}
-    checkGame={async () => true}
+    loadGame={async () => ({ players: [] })}
     {...over}
   />,
 );
@@ -77,6 +83,30 @@ describe('the season game bar', () => {
     expect(screen.getByText(/No summary was kept/)).toBeTruthy();
     fireEvent.click(g1);
     expect(screen.queryByText(/No summary was kept/)).toBeNull();
+  });
+
+  it('a played night with its live record shows the console\'s results table and exports it the same way', async () => {
+    const live = {
+      players: [
+        { id: 'a', name: 'Amy', position: 2, isActive: false, knockouts: 0 },
+        { id: 'b', name: 'Bob', position: 1, isActive: false, knockouts: 1 },
+      ],
+      prizeStructure: { buyIn: 10, manualPayouts: [{ position: 1, percentage: 100 }] },
+      settings: { branding: { eventName: 'Friday League' } },
+    };
+    bar({ loadGame: async () => live });
+    fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
+    const exportButton = await screen.findByRole('button', { name: /Export Results/ });
+    expect(screen.getByRole('button', { name: /CSV/ })).toBeTruthy();
+    expect(screen.getByRole('table')).toBeTruthy();
+    fireEvent.click(exportButton);
+    await waitFor(() => expect(capture.calls).toHaveLength(1));
+    expect(capture.calls[0].node.props.title).toBe('Friday League');
+  });
+
+  it('segments carry their game numbers, so a phone can see what it is tapping', () => {
+    bar();
+    expect(screen.getByRole('button', { name: /^Game 1/ }).textContent).toBe('1');
   });
 
   it('draws nothing without a real season', () => {

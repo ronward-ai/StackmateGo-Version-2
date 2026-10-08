@@ -34,6 +34,7 @@ import TablesSection from '@/components/TablesSection';
 import FinalTablePrompt from '@/components/FinalTablePrompt';
 import RebuyOffer from '@/components/RebuyOffer';
 import { logFingerprint } from '@/lib/nightLog';
+import { reportToOverlay } from '@/lib/debugOverlay';
 import type { EditRow } from '@/lib/resultsEdit';
 import DirectorOnly from '@/components/DirectorOnly';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
@@ -58,11 +59,11 @@ import { LiveBanner } from '@/components/LiveBanner';
 import OtherLiveGameBanner from '@/components/OtherLiveGameBanner';
 import { useAccountLiveGame } from '@/hooks/useAccountLiveGame';
 import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
-import { gameIsOver, shouldReopen, winnerOf, shouldRecordCompletion, storedStatusOf } from '@/lib/gameOver';
+import { gameIsOver, shouldReopen, winnerOf, shouldRecordCompletion, storedStatusOf, completionFields } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
 import { markRosterWritten, markRosterIssued, markRosterSettled, rosterPayload } from '@/lib/pendingRoster';
-import { controlOf, mayDrive, shouldClaim, controlLockReason } from '@/lib/directorControl';
+import { controlOf, mayDrive, shouldClaimNow, controlLockReason, type Control } from '@/lib/directorControl';
 import { getConsoleId, subscribeConsoleId } from '@/lib/consoleId';
 import { recordedStatsFor } from '@/lib/resultStats';
 
@@ -453,17 +454,8 @@ function PokerTimerInner({
     if (details?.id) {
       (async () => {
         try {
-          await writeLiveGame(String(details.id), {
-            status: 'completed',
-            // Hand control back with it. Nothing used to release a claim, so a
-            // finished game stayed held by the device that ran it and opening it
-            // anywhere else read as "being run on another device" — about a game
-            // that was over. Safe here by construction: this effect returns above
-            // when `readOnlyConsole`, so only the holder reaches it.
-            controllingDeviceId: null,
-            controlClaimedAt: null,
-            updatedAt: new Date().toISOString(),
-          });
+          // Control is NOT released here any more — see completionFields.
+          await writeLiveGame(String(details.id), completionFields());
         } catch (err) {
           console.error('Could not mark the tournament finished:', err);
         }
@@ -706,22 +698,35 @@ function PokerTimerInner({
   // person standing there.
   //
   // Waits on hasLoadedRemoteState, because claiming a game this device has not
-  // read would be asserting control over something it knows nothing about. The
-  // ref makes it once per game rather than once per snapshot.
-  const claimedControlForRef = useRef<string | null>(null);
+  // read would be asserting control over something it knows nothing about.
+  //
+  // Claims on every TRANSITION into unclaimed (shouldClaimNow), not once per
+  // game: it used to be once, so a console whose claim was later cleared sat on
+  // an unclaimed game every device could drive — reported as no Take control
+  // anywhere and both devices taking input. The ref remembers the last control
+  // seen for THIS game, so an unchanged state never writes.
+  const lastControlSeenRef = useRef<{ game: string; control: Control } | null>(null);
   useEffect(() => {
     if (!activeTournamentId || !tournament.hasLoadedRemoteState) return;
-    if (!shouldClaim(control)) return;
-    if (claimedControlForRef.current === activeTournamentId) return;
-    claimedControlForRef.current = activeTournamentId;
+    const seen = lastControlSeenRef.current;
+    const previous = seen && seen.game === activeTournamentId ? seen.control : null;
+    lastControlSeenRef.current = { game: activeTournamentId, control };
+    if (!shouldClaimNow(previous, control)) return;
     void claimLiveGameControl(activeTournamentId, myDeviceId).catch(err => {
       // Not fatal and not reported to the director: an unclaimed game is one
-      // this device may already write to, so a failed claim costs nothing now
-      // and is retried the next time the game changes.
-      claimedControlForRef.current = null;
+      // this device may already write to. Forget what was seen so the next
+      // change of state tries again.
+      lastControlSeenRef.current = null;
       console.error('Could not claim control of the game:', err);
     });
   }, [activeTournamentId, tournament.hasLoadedRemoteState, control, myDeviceId]);
+
+  // `?debug=1` reports who holds the game whenever it changes, so a device
+  // that is driving when it should not be can be read off the screen.
+  useEffect(() => {
+    if (!activeTournamentId) return;
+    reportToOverlay(`control: ${control} · this console ${myDeviceId} · holder ${tournament.controllingDeviceId ?? 'none'} · game ${activeTournamentId}`);
+  }, [control, myDeviceId, tournament.controllingDeviceId, activeTournamentId]);
 
   const [takingControl, setTakingControl] = useState(false);
   const takeControl = async () => {
@@ -1596,6 +1601,16 @@ function PokerTimerInner({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Who holds the game, said on the device that holds it too. There was
+            no sign of it at all, so when two devices could both drive one game
+            nothing on either screen said so (reported). Quiet: nothing is wrong. */}
+        {activeTournamentId && tournament.hasLoadedRemoteState && control === 'mine' && (
+          <p className="mb-4 flex items-center gap-1.5 text-caption text-muted-foreground" data-testid="control-holder">
+            <MonitorSmartphone className="h-3.5 w-3.5" />
+            This device has control. Any other device on this game is read-only.
+          </p>
         )}
 
         {/* This device cannot save either.

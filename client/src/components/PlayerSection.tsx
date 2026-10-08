@@ -1,32 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
-import { isLeagueGame } from '@/lib/tournamentMode';
 import { blindLevelIndex } from '@/lib/entryLimits';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { X, Download, Users, Trophy, Plus, PlusCircle, Check, FileSpreadsheet } from 'lucide-react';
+import { X, Users, Trophy, Plus, PlusCircle, Check } from 'lucide-react';
 import { currencyOf } from '@/lib/currency';
 import EmptyState from '@/components/ui/empty-state';
-import { resultRowsFor } from '@/lib/resultRows';
-import { resultsCsvTable } from '@/lib/resultColumns';
-import { toCsv, csvFilename, downloadCsv } from '@/lib/csv';
 import { gameIsOver, finishedGameNote } from '@/lib/gameOver';
 import ResultsTable from '@/components/ResultsTable';
-import ResultsSheet from '@/components/export/ResultsSheet';
-import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
-import { eventNameOf } from '@/lib/eventName';
+import { useGameResults, ResultsExportButtons } from '@/components/ResultsExport';
 import { addOnsOpen, lateEntryClosedReason, canRebuy, canReEnter, rebuyUnavailableReason, reEntryUnavailableReason } from '@/lib/entryLimits';
 import BustOutDialog from '@/components/BustOutDialog';
 import { planSeating, assignSeats, tablesNeededFor, tableNamesFor, tablesOf, randomFreeSeat, tablesEmptiestFirst } from '@/lib/seating';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
-import { seasonLine } from '@/lib/seasonProgress';
 import { type RecentPlayer } from '@/lib/recentPlayers';
 import { useRecentPlayers } from '@/hooks/useRecentPlayers';
 import PlayerEntryActions from '@/components/PlayerEntryActions';
-import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 
@@ -98,51 +90,16 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
       ),
     });
   };
-  const tournamentLeagueId = (state.settings as any)?.leagueId
-    ?? (state.details as any)?.leagueId
-    ?? null;
-  const { calculatePoints } = useLeagueSettings(
-    (state.details as any)?.ownerId,
-    tournamentLeagueId ? String(tournamentLeagueId) : null
-  );
+  /**
+   * The finishing order, derived ONCE for the rows on screen and the exported
+   * image alike — through `ResultsExport`, which a past night opened from the
+   * season bar uses too, so the two cannot make different pictures of one game.
+   * See `lib/resultRows.ts`.
+   */
+  const { rows: resultRows, columnContext, subtitle: exportSubtitle } = useGameResults(state);
   const [playerName, setPlayerName] = useState('');
   /** A player waiting on the late-entry confirmation. */
   const [pendingLateEntry, setPendingLateEntry] = useState<string | null>(null);
-
-  const isLeagueMode = isLeagueGame(state);
-
-  /**
-   * The finishing order, derived ONCE for the rows on screen and the exported
-   * image alike. They each used to work it out, and they disagreed: this screen
-   * said "21th" past twentieth where the picture said "21st", the two spelled
-   * "is the game over" differently, and the points chip was fed a raw buy-in
-   * here and the `buyInOf` fallback there. See `lib/resultRows.ts`.
-   */
-  const resultRows = resultRowsFor(state.players, {
-    prizeStructure: state.prizeStructure,
-    settings: state.settings,
-    isLeagueMode,
-    calculatePoints,
-  });
-
-  /** Which columns this game can show at all — a feature switched off for the
-   *  whole tournament draws nothing, the rule the Busted strip already follows. */
-  const columnContext = { prizeStructure: state.prizeStructure, isLeagueMode };
-
-  /** Names and sizes the picture, so it still means something in a group chat
-   *  weeks later: `Spring 2026 · Game 4 of 13 · 9 players`.
-   *
-   *  The season block is read off `settings`, where `PokerTimer`'s one guarded
-   *  writer puts it in league mode — the same place the participant's own card
-   *  reads it. A standalone game has none, so `seasonLine` returns '' and the
-   *  subtitle is the player count alone, with no stranded separator.
-   *
-   *  The count stays beside the season because it is the one fact a picture
-   *  loses once the night is over; the standings sheet carries it too. */
-  const subtitleForExport = [
-    isLeagueMode ? seasonLine(state.settings as any) : '',
-    `${state.players.length} player${state.players.length === 1 ? '' : 's'}`,
-  ].filter(Boolean).join(' · ');
 
   // KO dialog state
   /** How many will not fit, when Seat Players has been pressed on too big a
@@ -158,7 +115,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentSearchTerm, setRecentSearchTerm] = useState('');
-  const [isExporting, setIsExporting] = useState(false);
 
   const autocompleteRef = useRef<HTMLDivElement>(null);
 
@@ -407,61 +363,6 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
 
   // Handle export image functionality — builds a fresh off-screen DOM from
   // state data so no scroll-container clipping can affect the output.
-  /**
-   * The results, as a picture.
-   *
-   * Was ~130 lines of `document.createElement` and `cssText` building a parallel
-   * DOM by hand — which is why its ordinal was right while the row on screen said
-   * "21th", why it fed the points formula a different buy-in, and why it needed
-   * `TONE_STYLES`, a hand-kept second copy of the badge palette. It renders the
-   * same rows the screen does now, through one capture.
-   */
-  const handleExportImage = async () => {
-    setIsExporting(true);
-    try {
-      await captureSheet(
-        <ResultsSheet
-          title={eventNameOf(state.settings) || 'Tournament results'}
-          subtitle={subtitleForExport}
-          rows={resultRows}
-          settings={state.settings}
-          columnContext={columnContext}
-          currencySymbol={currencyOf(state.settings)}
-        />,
-        { filename: sheetFilename(['tournament-results']) },
-      );
-    } catch (error) {
-      console.error('Error exporting players & rankings:', error);
-      toast({
-        title: 'Could not save the image',
-        description: 'The results image could not be created. Try again, or take a screenshot.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  /**
-   * The results, as a spreadsheet — the same rows and columns the table and the
-   * image draw, through `resultsCsvTable`, so a figure cannot read one way on
-   * screen and another in the file. Escaping and formula defusing are
-   * `lib/csv.ts`'s, as for the standings: player names are typed in.
-   */
-  const handleExportCsv = () => {
-    const { headers, rows } = resultsCsvTable(
-      resultRows, state.settings.resultColumns, columnContext, currencyOf(state.settings),
-    );
-    const name = csvFilename([eventNameOf(state.settings) || 'tournament', 'results']);
-    if (!downloadCsv(name, toCsv(headers, rows))) {
-      toast({
-        title: 'Could not save the file',
-        description: 'The download was blocked. Try again, or use a different browser.',
-        variant: 'destructive',
-      });
-    }
-  };
-
   // `isActive !== false`, not truthy: an ABSENT flag means active everywhere in
   // this app, and a player restored from a Firestore round-trip may carry none.
   const activePlayers = state.players.filter(p => p.isActive !== false);
@@ -500,40 +401,16 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
             : `Players & Rankings (${activePlayers.length})`}
         </h2>
         <div className="flex items-center gap-2">
-          {/* Export button — only shown once the tournament is finished.
-              Labelled rather than icon-only: a bare download arrow appearing in
-              the header gave no clue what it did, and read as detached from the
-              results it saves. */}
+          {/* Export — only once the tournament is finished. Labelled rather than
+              icon-only: a bare download arrow gave no clue what it did. The
+              buttons are ResultsExport's, shared with a past night's panel. */}
           {tournamentFinished && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleExportCsv();
-              }}
-              title="Download the results as a spreadsheet"
-              className="h-8 px-3 gap-1.5"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              <span className="text-xs">CSV</span>
-            </Button>
-          )}
-          {tournamentFinished && (
-            <Button
-              variant="success"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleExportImage();
-              }}
-              disabled={isExporting}
-              title="Save the final rankings as an image you can share"
-              className="h-8 px-3 gap-1.5"
-            >
-              <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
-              <span className="text-xs">{isExporting ? 'Saving…' : 'Export Results'}</span>
-            </Button>
+            <ResultsExportButtons
+              settings={state.settings}
+              rows={resultRows}
+              columnContext={columnContext}
+              subtitle={exportSubtitle}
+            />
           )}
         </div>
       </div>

@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { NightSummaryList } from '@/components/NightSummary';
+import { PastGameResults } from '@/components/ResultsExport';
+import { mergeLog } from '@/lib/nightLog';
 import { currencyOf } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -47,16 +49,21 @@ export function liveGameIdOf(entry: Pick<CompletedTournament, 'tournamentId' | '
   return entry.tournamentId || entry.localGameId || null;
 }
 
-/** Does the live document still exist? A read, once, when a row is opened. */
-export async function liveGameExists(id: string): Promise<boolean> {
+/**
+ * The game's live document, or null when it is gone — a read, once, when a row
+ * is opened. It carries the whole roster, which is what lets a past night be
+ * shown and exported exactly as the console shows it.
+ */
+export async function loadLiveGame(id: string): Promise<Record<string, any> | null> {
   try {
-    return (await getDoc(doc(db, 'activeTournaments', id))).exists();
+    const snap = await getDoc(doc(db, 'activeTournaments', id));
+    return snap.exists() ? (snap.data() as Record<string, any>) : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-type GameCheck = 'checking' | 'present' | 'missing';
+type GameCheck = { state: 'checking' } | { state: 'present'; data: Record<string, any> } | { state: 'missing' };
 
 /** One row of a game's results — a History record's, or the league's own for an older game. */
 export interface GameRecordRow {
@@ -85,16 +92,16 @@ export function GameRecord({
   rows,
   currency,
   onReopen,
-  checkGame = liveGameExists,
+  loadGame = loadLiveGame,
 }: {
   gameId: string | null;
   entry?: CompletedTournament | null;
   rows?: GameRecordRow[];
   currency?: string;
   onReopen?: (tournamentId: string) => void;
-  checkGame?: (id: string) => Promise<boolean>;
+  loadGame?: (id: string) => Promise<Record<string, any> | null>;
 }) {
-  const [game, setGame] = useState<GameCheck>('checking');
+  const [game, setGame] = useState<GameCheck>({ state: 'checking' });
   const sym = currencyOf({ currency: currency ?? entry?.currency });
   const resultRows: GameRecordRow[] = rows ?? (entry?.results ?? []).map(r => ({
     key: r.playerId, name: r.playerName, position: r.position, knockouts: r.knockouts,
@@ -102,17 +109,27 @@ export function GameRecord({
   }));
 
   useEffect(() => {
-    if (!onReopen) return;
-    if (!gameId) { setGame('missing'); return; }
+    if (!gameId) { setGame({ state: 'missing' }); return; }
     let cancelled = false;
-    setGame('checking');
-    checkGame(gameId).then(ok => { if (!cancelled) setGame(ok ? 'present' : 'missing'); });
+    setGame({ state: 'checking' });
+    loadGame(gameId).then(data => {
+      if (!cancelled) setGame(data ? { state: 'present', data } : { state: 'missing' });
+    });
     return () => { cancelled = true; };
-  }, [gameId, onReopen, checkGame]);
+  }, [gameId, loadGame]);
+
+  // With the live document, the night is drawn exactly as the console draws it
+  // — the director's table and both exports — instead of a plain list.
+  const live = game.state === 'present' && Array.isArray(game.data.players) && game.data.players.length > 0
+    ? game.data
+    : null;
+  const summary = live ? mergeLog(live.nightLog, entry?.summary) : entry?.summary;
 
   return (
     <>
-      {resultRows.length > 0 && (
+      {live && <PastGameResults game={live as any} />}
+
+      {!live && resultRows.length > 0 && (
         <div className="mt-3 pt-3 border-t border-border/40 space-y-1">
           {entry?.correctedAt && (
             <p className="text-caption text-muted-foreground pb-1">Corrected {formatDate(entry.correctedAt)}</p>
@@ -140,7 +157,7 @@ export function GameRecord({
       <div className="mt-3 pt-3 border-t border-border/40">
         <div className="text-caption uppercase tracking-wide text-muted-foreground mb-2">Summary</div>
         <NightSummaryList
-          log={entry?.summary}
+          log={summary}
           emptyText="No summary was kept for this game — it was played before the Summary existed."
         />
       </div>
@@ -150,13 +167,13 @@ export function GameRecord({
           than a line saying why it is not offered. */}
       {onReopen && (
         <div className="mt-3 pt-3 border-t border-border/40">
-          {game === 'present' && gameId && (
+          {game.state === 'present' && gameId && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onReopen(gameId)}>
               <RotateCcw className="h-3.5 w-3.5" />
               Reopen to correct
             </Button>
           )}
-          {game === 'missing' && (
+          {game.state === 'missing' && (
             <p className="text-caption text-muted-foreground">
               This game's live record no longer exists — only the summary is kept.
             </p>
@@ -206,12 +223,12 @@ function HistoryRow({
   entry,
   onDelete,
   onReopen,
-  checkGame,
+  loadGame,
 }: {
   entry: CompletedTournament;
   onDelete: (id: string) => void;
   onReopen?: (entry: CompletedTournament, tournamentId: string) => void;
-  checkGame: (id: string) => Promise<boolean>;
+  loadGame: (id: string) => Promise<Record<string, any> | null>;
 }) {
   const [open, setOpen] = useState(false);
   const sym = currencyOf({ currency: entry.currency });
@@ -266,7 +283,7 @@ function HistoryRow({
           gameId={liveGameIdOf(entry)}
           entry={entry}
           onReopen={onReopen ? id => onReopen(entry, id) : undefined}
-          checkGame={checkGame}
+          loadGame={loadGame}
         />
       )}
     </Card>
@@ -276,13 +293,13 @@ function HistoryRow({
 export default function TournamentHistoryDialog({
   onReopen,
   currentGameInPlay = false,
-  checkGame = liveGameExists,
+  loadGame = loadLiveGame,
 }: {
   /** Opens the game in the console. Absent where reopening is not offered. */
   onReopen?: (tournamentId: string) => void;
   /** The console holds a game that has not finished, so the confirm says it stays saved. */
   currentGameInPlay?: boolean;
-  checkGame?: (id: string) => Promise<boolean>;
+  loadGame?: (id: string) => Promise<Record<string, any> | null>;
 } = {}) {
   const { history, isLoading, deleteCompletedTournament } = useCompletedTournaments();
   const [open, setOpen] = useState(false);
@@ -325,7 +342,7 @@ export default function TournamentHistoryDialog({
                 entry={entry}
                 onDelete={id => setPendingDelete(id)}
                 onReopen={onReopen ? (e, id) => setPendingReopen({ entry: e, id }) : undefined}
-                checkGame={checkGame}
+                loadGame={loadGame}
               />
             ))}
           </div>

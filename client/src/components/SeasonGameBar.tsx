@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { seasonGameSlots, leagueResultsForGame, type GameSlot } from '@/lib/seasonGames';
-import { GameRecord, ReopenConfirm, liveGameIdOf, liveGameExists } from '@/components/TournamentHistoryDialog';
+import { GameRecord, ReopenConfirm, liveGameIdOf, loadLiveGame } from '@/components/TournamentHistoryDialog';
 import type { CompletedTournament } from '@/types';
 
 function shortDate(d: Date | null): string {
@@ -27,7 +27,7 @@ export default function SeasonGameBar({
   currency,
   onReopen,
   currentGameInPlay = false,
-  checkGame = liveGameExists,
+  loadGame = loadLiveGame,
 }: {
   season: { id?: unknown; name?: string; numberOfGames?: number | null } | null | undefined;
   leaguePlayers: any[] | null | undefined;
@@ -36,7 +36,7 @@ export default function SeasonGameBar({
   currency?: string;
   onReopen?: (tournamentId: string) => void;
   currentGameInPlay?: boolean;
-  checkGame?: (id: string) => Promise<boolean>;
+  loadGame?: (id: string) => Promise<Record<string, any> | null>;
 }) {
   const slots = useMemo(
     () => seasonGameSlots({
@@ -49,6 +49,13 @@ export default function SeasonGameBar({
   );
   const [selected, setSelected] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  // On a phone the panel opens below the fold; bring it into view.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selected) return;
+    const el = panelRef.current as (HTMLDivElement & { scrollIntoView?: (o: object) => void }) | null;
+    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selected]);
 
   if (slots.length === 0) return null;
 
@@ -66,9 +73,15 @@ export default function SeasonGameBar({
       ? `Tonight is game ${current.number}${scheduled ? (current.beyond ? ` — beyond the ${scheduled} scheduled` : ` of ${scheduled}`) : ''}`
       : `${slots.filter(s => s.state === 'played').length}${scheduled ? ` of ${scheduled}` : ''} played`;
 
+  /**
+   * Each segment is a 28px touch target with the bar drawn inside it — the bar
+   * itself was 8px tall and reported as clunky on a phone, which it was: too
+   * small to tap. Played and tonight's games carry their number; games still to
+   * come are unlabelled and are not controls at all.
+   */
   const segment = (s: GameSlot) => {
     const isSelected = s.gameId !== null && s.gameId === selected;
-    const base = 'h-2 flex-1 min-w-[6px] rounded-full transition-colors';
+    const box = 'h-7 flex-1 min-w-[20px] rounded-md flex items-center justify-center font-mono text-caption transition-colors';
     if (s.state === 'played') {
       const label = `Game ${s.number}${s.playedAt ? ` — ${shortDate(s.playedAt)}` : ''}`;
       return (
@@ -80,11 +93,13 @@ export default function SeasonGameBar({
           title={label}
           onClick={() => setSelected(isSelected ? null : s.gameId)}
           className={cn(
-            base,
-            'bg-primary hover:bg-primary/80 cursor-pointer',
+            box,
+            'bg-primary text-primary-foreground hover:bg-primary/85 cursor-pointer',
             isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
-        />
+        >
+          {s.number}
+        </button>
       );
     }
     if (s.state === 'current') {
@@ -93,11 +108,13 @@ export default function SeasonGameBar({
           key={`${s.number}-current`}
           data-slot="current"
           title={`Game ${s.number} — tonight`}
-          className={cn(base, 'bg-primary/30 ring-1 ring-primary')}
-        />
+          className={cn(box, 'bg-primary/20 ring-1 ring-primary text-primary')}
+        >
+          {s.number}
+        </div>
       );
     }
-    return <div key={`${s.number}-future`} data-slot="future" className={cn(base, 'bg-white/[0.07]')} />;
+    return <div key={`${s.number}-future`} data-slot="future" className={cn(box, 'bg-white/[0.07]')} />;
   };
 
   return (
@@ -106,12 +123,12 @@ export default function SeasonGameBar({
         <span className="font-mono">{caption}</span>
         {season?.name && <span className="truncate ml-3">{season.name}</span>}
       </div>
-      <div className="flex gap-1 items-center py-1" role="group" aria-label="Games this season">
+      <div className="flex flex-wrap gap-1 items-center py-1" role="group" aria-label="Games this season">
         {slots.map(segment)}
       </div>
 
       {slot && (
-        <div className="mt-3 rounded-lg border border-border/40 p-3">
+        <div ref={panelRef} className="mt-3 rounded-lg border border-border/40 p-3">
           <div className="flex items-center justify-between">
             <span className="text-label font-medium">
               Game {slot.number}{slot.playedAt ? ` · ${shortDate(slot.playedAt)}` : ''}
@@ -132,7 +149,7 @@ export default function SeasonGameBar({
             rows={fallback}
             currency={currency}
             onReopen={onReopen ? id => setConfirming(id) : undefined}
-            checkGame={checkGame}
+            loadGame={loadGame}
           />
         </div>
       )}

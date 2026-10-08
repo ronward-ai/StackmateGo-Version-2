@@ -1,0 +1,158 @@
+import { useState } from 'react';
+import { Download, FileSpreadsheet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { isLeagueGame } from '@/lib/tournamentMode';
+import { currencyOf } from '@/lib/currency';
+import { resultRowsFor, type ResultRow } from '@/lib/resultRows';
+import { resultsCsvTable } from '@/lib/resultColumns';
+import { toCsv, csvFilename, downloadCsv } from '@/lib/csv';
+import { eventNameOf } from '@/lib/eventName';
+import { seasonLine } from '@/lib/seasonProgress';
+import ResultsSheet from '@/components/export/ResultsSheet';
+import ResultsTable from '@/components/ResultsTable';
+import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
+import { useLeagueSettings } from '@/hooks/useLeagueSettings';
+import { useToast } from '@/hooks/use-toast';
+
+/**
+ * One game's results and their two exports — the image and the spreadsheet —
+ * for ANY game: the one on the console, or a past night opened from the season
+ * bar or History. It used to live inside `PlayerSection`, so a past night could
+ * only be listed, never exported; reported from a phone wanting last night's
+ * picture "exactly the same as the iPad". One implementation, so the two
+ * screens cannot make different pictures of one night.
+ */
+
+export interface ResultsGame {
+  players: any[];
+  prizeStructure?: any;
+  settings?: any;
+  details?: { type?: string; ownerId?: string; leagueId?: string } | null;
+  /** A stored document carries the owner at the top level. */
+  ownerId?: string;
+}
+
+/** The rows, columns and caption for a game, scored with its own league's points. */
+export function useGameResults(game: ResultsGame) {
+  const settings = game.settings ?? {};
+  const leagueId = settings.leagueId ?? (game.details as any)?.leagueId ?? null;
+  const { calculatePoints } = useLeagueSettings(
+    (game.details as any)?.ownerId ?? game.ownerId,
+    leagueId ? String(leagueId) : null,
+  );
+  const isLeagueMode = isLeagueGame({ details: game.details ?? undefined, settings });
+  const rows = resultRowsFor(game.players ?? [], {
+    prizeStructure: game.prizeStructure,
+    settings,
+    isLeagueMode,
+    calculatePoints,
+  });
+  const columnContext = { prizeStructure: game.prizeStructure, isLeagueMode };
+  const count = (game.players ?? []).length;
+  // `Spring 2026 · Game 4 of 13 · 9 players` — the facts a picture loses once the night is over.
+  const subtitle = [
+    isLeagueMode ? seasonLine(settings) : '',
+    `${count} player${count === 1 ? '' : 's'}`,
+  ].filter(Boolean).join(' · ');
+  return { rows, columnContext, subtitle, isLeagueMode };
+}
+
+export function ResultsExportButtons({
+  settings,
+  rows,
+  columnContext,
+  subtitle,
+}: {
+  settings: any;
+  rows: ResultRow<any>[];
+  columnContext: { prizeStructure?: any; isLeagueMode: boolean };
+  subtitle: string;
+}) {
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportImage = async () => {
+    setIsExporting(true);
+    try {
+      await captureSheet(
+        <ResultsSheet
+          title={eventNameOf(settings) || 'Tournament results'}
+          subtitle={subtitle}
+          rows={rows}
+          settings={settings}
+          columnContext={columnContext}
+          currencySymbol={currencyOf(settings)}
+        />,
+        { filename: sheetFilename(['tournament-results']) },
+      );
+    } catch (error) {
+      console.error('Error exporting results:', error);
+      toast({
+        title: 'Could not save the image',
+        description: 'The results image could not be created. Try again, or take a screenshot.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // The same rows and columns the table and the image draw, through
+  // `resultsCsvTable`; escaping and formula defusing are `lib/csv.ts`'s.
+  const exportCsv = () => {
+    const { headers, rows: cells } = resultsCsvTable(
+      rows, settings?.resultColumns, columnContext, currencyOf(settings),
+    );
+    const name = csvFilename([eventNameOf(settings) || 'tournament', 'results']);
+    if (!downloadCsv(name, toCsv(headers, cells))) {
+      toast({
+        title: 'Could not save the file',
+        description: 'The download was blocked. Try again, or use a different browser.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={e => { e.stopPropagation(); exportCsv(); }}
+        title="Download the results as a spreadsheet"
+        className="h-8 px-3 gap-1.5"
+      >
+        <FileSpreadsheet className="h-4 w-4" />
+        <span className="text-xs">CSV</span>
+      </Button>
+      <Button
+        variant="success"
+        size="sm"
+        onClick={e => { e.stopPropagation(); exportImage(); }}
+        disabled={isExporting}
+        title="Save the final rankings as an image you can share"
+        className="h-8 px-3 gap-1.5"
+      >
+        <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
+        <span className="text-xs">{isExporting ? 'Saving…' : 'Export Results'}</span>
+      </Button>
+    </>
+  );
+}
+
+/**
+ * A past night as the console shows it: the director's results table (no
+ * controls — this is a record, not the game) with its two exports.
+ */
+export function PastGameResults({ game }: { game: ResultsGame }) {
+  const { rows, columnContext, subtitle } = useGameResults(game);
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
+      <div className="flex flex-wrap justify-end gap-2">
+        <ResultsExportButtons settings={game.settings ?? {}} rows={rows} columnContext={columnContext} subtitle={subtitle} />
+      </div>
+      <ResultsTable rows={rows} settings={game.settings ?? {}} columnContext={columnContext} />
+    </div>
+  );
+}

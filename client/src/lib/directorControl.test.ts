@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { controlOf, mayDrive, shouldClaim, shouldAdoptRemote, controlLockReason, describeClaimTime, takesDocumentRoster } from './directorControl';
+import { controlOf, mayDrive, shouldClaim, shouldClaimNow, shouldAdoptRemote, controlLockReason, describeClaimTime, takesDocumentRoster } from './directorControl';
 
 describe('controlOf', () => {
   it('is mine when the holder is this device', () => {
@@ -143,5 +143,20 @@ describe('takesDocumentRoster', () => {
     expect(takesDocumentRoster('mine', 'mine')).toBe(false);
     expect(takesDocumentRoster('unclaimed', 'mine')).toBe(false);
     expect(takesDocumentRoster(null, 'unclaimed')).toBe(false);
+  });
+});
+
+describe('shouldClaimNow — a console claims on arriving at unclaimed, every time', () => {
+  it('claims when it first finds the game unclaimed', () => {
+    expect(shouldClaimNow(null, 'unclaimed')).toBe(true);
+  });
+  it('claims AGAIN when its own claim has been cleared — the reported both-devices-driving case', () => {
+    expect(shouldClaimNow('mine', 'unclaimed')).toBe(true);
+    expect(shouldClaimNow('other', 'unclaimed')).toBe(true);
+  });
+  it('never writes on an unchanged unclaimed snapshot, and never takes a held game', () => {
+    expect(shouldClaimNow('unclaimed', 'unclaimed')).toBe(false);
+    expect(shouldClaimNow(null, 'other')).toBe(false);
+    expect(shouldClaimNow('mine', 'mine')).toBe(false);
   });
 });

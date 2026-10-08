@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameIsOver, winnerOf, finishedGameNote, shouldReopen, shouldRecordCompletion, storedStatusOf } from './gameOver';
+import { gameIsOver, winnerOf, finishedGameNote, shouldReopen, shouldRecordCompletion, storedStatusOf, completionFields } from './gameOver';
 
 describe('gameIsOver', () => {
   /**
@@ -159,5 +159,13 @@ describe('shouldRecordCompletion after an edit', () => {
   it('an edited finished game is recorded again, however it was stored', () => {
     expect(shouldRecordCompletion(over, 'completed', true, true)).toBe(true);
     expect(shouldRecordCompletion([{ isActive: true }, { isActive: false, position: 2 }], 'completed', false, true)).toBe(false);
+  });
+});
+
+describe('completionFields', () => {
+  it('marks the game finished and does NOT hand control back — finishing a game is not leaving it', () => {
+    const f = completionFields(new Date('2026-10-09T22:00:00Z')) as Record<string, unknown>;
+    expect(f).toEqual({ status: 'completed', updatedAt: '2026-10-09T22:00:00.000Z' });
+    expect('controllingDeviceId' in f).toBe(false);
   });
 });

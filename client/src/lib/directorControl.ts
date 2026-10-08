@@ -69,6 +69,21 @@ export function shouldClaim(control: Control): boolean {
 }
 
 /**
+ * Should this console claim the game NOW — on arriving at `unclaimed`, from
+ * nothing yet seen or from any other state?
+ *
+ * The claim used to run once per game per mount. So a console whose own claim
+ * was later cleared (completion released it, and the results editor finishes a
+ * game again) sat on an unclaimed game for good, and every device could drive
+ * it — reported as two devices both taking input with no Take control anywhere.
+ * Claiming on every TRANSITION into unclaimed keeps one holder without writing
+ * on every snapshot, and still never takes a game another device holds.
+ */
+export function shouldClaimNow(previous: Control | null, next: Control): boolean {
+  return next === 'unclaimed' && previous !== 'unclaimed';
+}
+
+/**
  * Whether this snapshot should REPLACE the local roster rather than merge into
  * it — the clean slate the old handover got from a full page load on sign-out.
  *

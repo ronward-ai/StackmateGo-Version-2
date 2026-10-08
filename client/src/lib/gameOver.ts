@@ -148,3 +148,17 @@ export function storedStatusOf(state: { details?: unknown } | null | undefined):
   if (!s) return undefined;
   return 'status' in s ? s.status : s.details?.status;
 }
+
+/**
+ * What the completion effect writes onto the live game when it ends.
+ *
+ * It used to release control too (`controllingDeviceId: null`). The console
+ * that ended the game did not claim again — its claim ran once per game — so a
+ * finished night that was then corrected, or simply left open on two devices,
+ * had no holder and both could drive it. A console hands a game back when it
+ * moves OFF it (`useReleaseControlOnLeave`) or signs out; finishing it is not
+ * leaving it.
+ */
+export function completionFields(now: Date = new Date()): { status: 'completed'; updatedAt: string } {
+  return { status: 'completed', updatedAt: now.toISOString() };
+}

@@ -653,9 +653,17 @@ by a timer.**
 - **Sign-out releases**, because logging out IS the handover in this app. Side effect worth knowing:
   the receiving device now finds the game `unclaimed` and picks it up by itself, so a handover no
   longer needs Take control pressed.
-- **Completion releases**, one field added to the `status: 'completed'` write that already existed.
-  Safe by construction — that effect returns early when `readOnlyConsole`, so only the holder reaches
-  it.
+- ~~**Completion releases**~~ — **removed, and why is the lesson.** Completion used to write
+  `controllingDeviceId: null` with `status: 'completed'`, while the automatic claim ran ONCE per game
+  per mount. So the console that finished a game never claimed it again, and a finished night left open
+  — or corrected in the results editor, which finishes it again — had no holder at all: **two devices
+  both driving one game, with no Take control on either**, reported from an iPad and a phone.
+  `completionFields()` (`lib/gameOver.ts`) is the write now, without the release; finishing a game is
+  not leaving it. **And the claim runs on every TRANSITION into `unclaimed`** (`shouldClaimNow`), not
+  once per game, so a holder that is cleared by anything is replaced at once — still never on an
+  unchanged snapshot, and never over a holder. The console that holds the game says so in one quiet
+  line ("This device has control"), and `?debug=1` reports the holder, this console and the game on
+  every change of control.
 
 **A THIRD release, and it is the one that explains why two were not enough.** The automatic claim
 plants this device as the holder of **every** game it opens, while sign-out and completion each act
@@ -3589,6 +3597,15 @@ and "N of M played" cannot disagree. Ordered by each game's earliest result (dat
 numbers and Timestamps — `resultTime` reads all of them), undated last. The night's record is matched to
 History by `liveGameIdOf`; a game with no History record (played before History existed) shows the
 league's own results through `leagueResultsForGame`, and says no Summary was kept.
+
+**A past night is the console's table, exports and all.** Reported from a phone: the panel was a plain
+list and last night's PNG could not be exported "exactly the same as the iPad". The panel now reads the
+game's live document (`loadLiveGame`) and draws `PastGameResults` — the director's `ResultsTable` and the
+same **Export Results / CSV** — from `components/ResultsExport.tsx`, which is also what `PlayerSection`
+exports through now (`useGameResults`, `ResultsExportButtons`): one implementation, so the two cannot
+make different pictures of one night. A game whose live record is gone falls back to the plain list.
+Segments are **28px touch targets carrying their game number** (they were 8px tall), the row wraps for
+long seasons, and the opened panel scrolls itself into view.
 
 **One rendering of a past game:** `GameRecord` and `ReopenConfirm`, exported from
 `TournamentHistoryDialog.tsx`, draw both History's expanded row and the bar's panel. **History is
