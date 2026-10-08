@@ -95,6 +95,7 @@ export function useCompletedTournaments() {
           prizeMoney: p.prizeMoney || 0,
           knockouts: p.knockouts || 0,
           rebuys: p.rebuys || 0,
+          reEntries: p.reEntries || 0,
           addons: p.addons || 0,
         })),
     };

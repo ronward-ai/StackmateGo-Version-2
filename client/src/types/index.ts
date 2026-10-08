@@ -237,6 +237,8 @@ export interface CompletedTournament {
     knockouts?: number;
     rebuys?: number;
     addons?: number;
+    /** Saved from October 2026; older records carry only the game total. */
+    reEntries?: number;
   }>;
   createdAt?: any;
 }

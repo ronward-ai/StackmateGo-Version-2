@@ -22,6 +22,19 @@ function formatDate(iso?: string) {
   });
 }
 
+function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** "4 rebuys · 1 re-entry · 2 add-ons", leaving out whatever is zero. */
+export function entriesLine(entry: Pick<CompletedTournament, 'totalRebuys' | 'totalReEntries' | 'totalAddons'>): string {
+  return [
+    entry.totalRebuys ? plural(entry.totalRebuys, 'rebuy') : '',
+    entry.totalReEntries ? plural(entry.totalReEntries, 're-entry', 're-entries') : '',
+    entry.totalAddons ? plural(entry.totalAddons, 'add-on') : '',
+  ].filter(Boolean).join(' · ');
+}
+
 function HistoryRow({
   entry,
   onDelete,
@@ -57,6 +70,10 @@ function HistoryRow({
               </span>
             )}
             <span>{sym}{(entry.prizePool ?? 0).toLocaleString()} pool</span>
+            {/* What was bought back in. Saved on every record and never shown, so
+                a question like "how many rebuys did we have last night" could
+                not be answered from History (reported). */}
+            {entriesLine(entry) && <span>{entriesLine(entry)}</span>}
           </div>
         </button>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -83,6 +100,9 @@ function HistoryRow({
               </span>
               <span className="flex items-center gap-3 flex-shrink-0 text-muted-foreground">
                 {(r.knockouts ?? 0) > 0 && <span>{r.knockouts} KO</span>}
+                {(r.rebuys ?? 0) > 0 && <span>{plural(r.rebuys!, 'rebuy')}</span>}
+                {(r.reEntries ?? 0) > 0 && <span>{plural(r.reEntries!, 're-entry', 're-entries')}</span>}
+                {(r.addons ?? 0) > 0 && <span>{plural(r.addons!, 'add-on')}</span>}
                 {r.prizeMoney > 0 && (
                   <span className="text-green-400">{sym}{r.prizeMoney.toLocaleString()}</span>
                 )}
