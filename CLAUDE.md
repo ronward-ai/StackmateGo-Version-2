@@ -2500,9 +2500,10 @@ look inside the players array. A game written before `playerIds` existed keeps t
 until its next roster write; an unclaim is always allowed, so a removed player's seat can be released.
 Each clause has a rules test that goes red when the clause is removed.
 
-**`PlayerClaimView`'s `withRulesFallback` retries a refused check-in in the old shape.** The app ships
-on every push and the rules ship by hand, so one is always briefly ahead of the other; the fallback
-keeps check-in working in either order. **Remove it once the October rules are live.**
+**The October rules are live** (published by hand, October 2026), so `PlayerClaimView` writes only the
+new shape. A `withRulesFallback` that retried a refused check-in without `lastClaim` bridged the window
+while the app was ahead of the rules; it is removed. If a check-in is ever refused with
+`permission-denied`, check the published rules match `firestore.rules` before the code.
 
 **Normalised on read**, the same trade `payoutsOf()`/`bandsOf()` make: a tournament document written
 before this shipped may still carry `Player.claimedBy` from the old scheme, and no stored document is

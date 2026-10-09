@@ -21,26 +21,6 @@ interface TournamentPlayer {
 
 // One decoder for REST documents — lib/firestoreRest.ts.
 
-/**
- * A check-in now names its seat (`lastClaim`), which the October rules require
- * (audit M1) and the rules before them REFUSE — they admitted no field but
- * `claims`. The app deploys on every push while the rules are deployed by hand,
- * so for a while one of the two is always ahead of the other. Writing the new
- * shape and falling back to the old one on a permission denial keeps check-in
- * working through that window in either order.
- *
- * REMOVE once the October rules are live in the console: after that the old
- * shape is refused anyway, so the retry only costs a round trip.
- */
-async function withRulesFallback(write: (nameTheSeat: boolean) => Promise<unknown>): Promise<void> {
-  try {
-    await write(true);
-  } catch (e: any) {
-    if (e?.code !== 'permission-denied') throw e;
-    await write(false);
-  }
-}
-
 export default function PlayerClaimView() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = params.tournamentId;
@@ -189,7 +169,7 @@ export default function PlayerClaimView() {
       const { runTransaction, doc: firestoreDoc } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       const docRef = firestoreDoc(db, 'activeTournaments', tournamentId);
-      const claimOnce = (nameTheSeat: boolean) => runTransaction(db, async (tx) => {
+      await runTransaction(db, async (tx) => {
         const snap = await tx.get(docRef);
         if (!snap.exists()) throw new Error('Tournament not found.');
         const existing = claimedByFor(snap.data() as any, player.id);
@@ -198,11 +178,8 @@ export default function PlayerClaimView() {
         }
         // `lastClaim` names the one seat this write touches, which the rule
         // requires so it can bound the write to that seat (October audit, M1).
-        tx.update(docRef, nameTheSeat
-          ? { [claimFieldPath(player.id)]: deviceId, lastClaim: String(player.id) }
-          : { [claimFieldPath(player.id)]: deviceId });
+        tx.update(docRef, { [claimFieldPath(player.id)]: deviceId, lastClaim: String(player.id) });
       });
-      await withRulesFallback(claimOnce);
       localStorage.setItem(`claimedPlayer_${tournamentId}`, player.id);
       setClaimed(player.id);
     } catch (e: any) {
@@ -224,9 +201,7 @@ export default function PlayerClaimView() {
       const { updateDoc, doc: firestoreDoc, deleteField } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       const ref = firestoreDoc(db, 'activeTournaments', tournamentId);
-      await withRulesFallback(nameTheSeat => updateDoc(ref, nameTheSeat
-        ? { [claimFieldPath(claimed)]: deleteField(), lastClaim: String(claimed) }
-        : { [claimFieldPath(claimed)]: deleteField() }));
+      await updateDoc(ref, { [claimFieldPath(claimed)]: deleteField(), lastClaim: String(claimed) });
       localStorage.removeItem(`claimedPlayer_${tournamentId}`);
       setClaimed(null);
     } catch (e) {
