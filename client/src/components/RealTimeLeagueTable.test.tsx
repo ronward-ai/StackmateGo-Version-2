@@ -72,3 +72,16 @@ describe('Games counts games, not results', () => {
     expect(row.querySelectorAll('td')[gamesCol].textContent?.trim()).toBe('1');
   });
 });
+
+describe('the standings title on a phone', () => {
+  it('names the league and the season on separate lines, not as one sentence', () => {
+    league = { league: { id: 'L1', name: 'Fish & Chips League' }, leaguePlayers: players, isLoading: false };
+    seasons = seasonsFor('summer');
+    render(<RealTimeLeagueTable tournament={tournament} />);
+    const title = screen.getByTestId('standings-title');
+    expect(title.textContent).toContain('Fish & Chips League · Standings');
+    expect(screen.getByRole('heading', { name: 'summer' })).toBeTruthy();
+    expect(title.textContent).not.toMatch(/Standings - /);
+    expect(screen.getByText('1 player')).toBeTruthy();
+  });
+});

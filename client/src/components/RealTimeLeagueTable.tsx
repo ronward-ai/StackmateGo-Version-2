@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -542,10 +542,7 @@ function RealTimeLeagueTable({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="mr-3 h-5 w-5 text-primary" />
-            {leagueName || 'League'} Standings
-          </CardTitle>
+          <StandingsTitle league={leagueName} />
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
@@ -562,10 +559,7 @@ function RealTimeLeagueTable({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="mr-3 h-5 w-5 text-primary" />
-            {leagueName || 'League'} Standings - {currentSeasonName}
-          </CardTitle>
+          <StandingsTitle league={leagueName} season={currentSeasonName} />
         </CardHeader>
         <CardContent>
           <EmptyState icon={Trophy} title="No players in the league yet">
@@ -581,10 +575,7 @@ function RealTimeLeagueTable({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="mr-3 h-5 w-5 text-primary" />
-            {leagueName || 'League'} Standings - {currentSeasonName}
-          </CardTitle>
+          <StandingsTitle league={leagueName} season={currentSeasonName} />
         </CardHeader>
         <CardContent>
           <div className="text-center py-10">
@@ -622,12 +613,9 @@ function RealTimeLeagueTable({
     <Card className="w-full">
       <div>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Trophy className="mr-3 h-5 w-5 text-primary" />
-              {leagueName || 'League'} Standings - {currentSeasonName}
-            </div>
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <StandingsTitle league={leagueName} season={currentSeasonName} />
+            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
               {!isParticipantView && (
                 /* Labelled rather than a bare icon — the same unlabelled Download
                    arrow was reported as unclear on the end-of-game export. Kept
@@ -657,8 +645,8 @@ function RealTimeLeagueTable({
                   </Button>
                 </>
               )}
-              <div className="text-sm text-muted-foreground">
-                {displayPlayers.length} player(s)
+              <div className="text-label font-mono text-muted-foreground">
+                {playerCount(displayPlayers.length)}
               </div>
               {isParticipantView && (
                 <button onClick={() => setIsExpanded(v => !v)}>
@@ -666,7 +654,7 @@ function RealTimeLeagueTable({
                 </button>
               )}
             </div>
-          </CardTitle>
+          </div>
         </CardHeader>
 
       {(!isParticipantView || isExpanded) && <CardContent>
@@ -783,6 +771,38 @@ function RealTimeLeagueTable({
     </Card>
   );
 }
+
+/**
+ * The standings card's title — the LEAGUE as a quiet caption, the SEASON as the
+ * headline, on two lines.
+ *
+ * It was one sentence, "{league} Standings - {season}", in a 24px CardTitle that
+ * shared ONE row with the CSV and Image buttons and the player count. On a
+ * portrait phone that row left the title ~150px, so a name like "Fish & Chips
+ * League Standings - Autumn 2026" fell down the left edge a word or two per line
+ * (reported as "absolutely diabolical"). Two short lines and the actions moved
+ * underneath on a phone; the same caption treatment as the league panel's own
+ * header. Names wrap at word boundaries rather than truncating — a season's name
+ * is worth reading in full. One component, so the four places this title appears
+ * cannot drift.
+ */
+function StandingsTitle({ league, season }: { league: string; season?: string | null }) {
+  return (
+    <div className="min-w-0 flex-1" data-testid="standings-title">
+      <div className="flex items-center gap-2 min-w-0">
+        <Trophy className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+        <span className="text-caption uppercase tracking-[0.1em] text-muted-foreground break-words min-w-0">
+          {league || 'League'} · Standings
+        </span>
+      </div>
+      {season && (
+        <h3 className="text-title font-semibold leading-tight mt-1 break-words">{season}</h3>
+      )}
+    </div>
+  );
+}
+
+const playerCount = (n: number) => `${n} player${n === 1 ? '' : 's'}`;
 
 export default function WrappedRealTimeLeagueTable(props: RealTimeLeagueTableProps) {
   // Always render the inner component to maintain hook consistency

@@ -1513,6 +1513,13 @@ It also hard-coded `bg-[#2a2a2a]` for the header, `bg-[#1e1e1e]` for the stripe,
 gridline shades** — `border-slate-600` in the header against `border-slate-700` in the body — for one
 gridline. All now tokens, one shade, `text-caption`, and `font-mono` on every figure.
 
+**The title is two lines — `StandingsTitle`, used at all four of its sites.** It was one sentence,
+`{league} Standings - {season}`, in a 24px `CardTitle` sharing ONE row with CSV, Image and the player
+count, so on a portrait phone it fell down the left edge a word or two per line (reported as
+"absolutely diabolical"). The league is now a caption (`League · Standings`, the league panel's own header
+treatment), the season the headline, names wrap at word boundaries, and the actions sit under the title
+below `sm`. Checked at a 360px container in Chromium with a long league and season name.
+
 **The header's opaque background is still load-bearing** and `bg-muted` keeps it: `--muted` is a
 plain HSL with no alpha, and rows slide UNDER that header. Do not reach for a translucent card
 treatment there. The `wrapperClassName="max-h-[400px]"` placement and the sticky header are
