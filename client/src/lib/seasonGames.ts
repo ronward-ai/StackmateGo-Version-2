@@ -1,4 +1,4 @@
-import { isRealSeasonId } from './seasonProgress';
+import { isRealSeasonId, gameKeyOf, resultTime } from './seasonProgress';
 
 /**
  * The season's games, one slot per segment of the Players tab's game bar.
@@ -43,21 +43,7 @@ interface PlayerLike {
   tournamentResults?: ResultLike[] | null;
 }
 
-/** A result's time in ms — strings, numbers, Dates and Firestore Timestamps all occur. */
-export function resultTime(r: ResultLike): number | null {
-  for (const raw of [r?.tournamentDate, r?.date] as any[]) {
-    if (raw == null) continue;
-    let ms: number;
-    if (typeof raw === 'number') ms = raw;
-    else if (typeof raw === 'string') ms = Date.parse(raw);
-    else if (raw instanceof Date) ms = raw.getTime();
-    else if (typeof raw.toDate === 'function') ms = raw.toDate().getTime();
-    else if (typeof raw.seconds === 'number') ms = raw.seconds * 1000;
-    else continue;
-    if (Number.isFinite(ms)) return ms;
-  }
-  return null;
-}
+export { resultTime };
 
 export function seasonGameSlots({
   seasonId,
@@ -78,8 +64,10 @@ export function seasonGameSlots({
   const earliest = new Map<string, number | null>();
   for (const player of leaguePlayers ?? []) {
     for (const r of player?.tournamentResults ?? []) {
-      if (String(r?.seasonId) !== target || r?.tournamentId == null) continue;
-      const id = String(r.tournamentId);
+      if (String(r?.seasonId) !== target) continue;
+      // The same key every other game count uses, so the bar cannot disagree.
+      const id = gameKeyOf(r as any);
+      if (id === null) continue;
       const t = resultTime(r);
       const known = earliest.get(id);
       if (!earliest.has(id)) earliest.set(id, t);
@@ -135,7 +123,7 @@ export function leagueResultsForGame(leaguePlayers: PlayerLike[] | null | undefi
   const rows: GameResultRow[] = [];
   for (const player of leaguePlayers ?? []) {
     for (const r of player?.tournamentResults ?? []) {
-      if (String(r?.tournamentId) !== gameId) continue;
+      if (gameKeyOf(r as any) !== gameId) continue;
       rows.push({
         name: player.name ?? '',
         position: r.position ?? 0,
@@ -148,4 +136,36 @@ export function leagueResultsForGame(leaguePlayers: PlayerLike[] | null | undefi
     }
   }
   return rows.sort((a, b) => (a.position || Infinity) - (b.position || Infinity));
+}
+
+/**
+ * Which season the Players tab's bar shows, and whether tonight's game is on it.
+ *
+ * The season the League panel's standings show — a past season picked in its
+ * "Viewing" list, else the league's CURRENT season — never the open game's own
+ * season. They used to differ: after another season was made current in Manage
+ * League the table moved and the bar stayed put, two games long (reported).
+ * A viewed season that has since become current is just the current one.
+ * Tonight's game is marked only when it belongs to the season shown.
+ */
+export function barSeasonFor<S extends { id?: unknown }>({
+  viewedSeasonId,
+  currentSeason,
+  seasons,
+  gameSeasonId,
+  gameId,
+}: {
+  viewedSeasonId: string | null | undefined;
+  currentSeason: S | null | undefined;
+  seasons: readonly S[] | null | undefined;
+  /** The season the open game belongs to. */
+  gameSeasonId: unknown;
+  gameId: string | null | undefined;
+}): { season: S | null; viewedPast: S | null; currentGameId: string | null } {
+  const viewedPast = viewedSeasonId && String(viewedSeasonId) !== String(currentSeason?.id)
+    ? (seasons ?? []).find(s => String(s.id) === String(viewedSeasonId)) ?? null
+    : null;
+  const season = viewedPast ?? currentSeason ?? null;
+  const onIt = !!season && gameSeasonId != null && String(season.id) === String(gameSeasonId);
+  return { season, viewedPast, currentGameId: onIt ? gameId ?? null : null };
 }

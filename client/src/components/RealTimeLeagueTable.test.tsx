@@ -53,3 +53,22 @@ describe('RealTimeLeagueTable on a new season', () => {
     expect(screen.getByText(/starts tonight/)).toBeTruthy();
   });
 });
+
+describe('Games counts games, not results', () => {
+  it('a player recorded twice in one game has played one game', () => {
+    const twice = [
+      { id: 'x1', tournamentId: 'g1', seasonId: 'summer', position: 2, points: 5, date: '2026-10-01T20:00:00Z' },
+      { id: 'x2', tournamentId: 'g1', seasonId: 'summer', position: 2, points: 5, date: '2026-10-01T20:00:00Z' },
+    ];
+    league = { league: { id: 'L1', name: 'Test League' }, leaguePlayers: [{ id: 'd', name: 'Dan', tournamentResults: twice }], isLoading: false };
+    seasons = seasonsFor('summer');
+    settings.settings.statsToDisplay = { games: true } as any;
+    render(<RealTimeLeagueTable tournament={tournament} />);
+    settings.settings.statsToDisplay = {};
+    const headers = screen.getAllByRole('columnheader').map(h => h.textContent?.trim());
+    const gamesCol = headers.findIndex(h => h === 'Games');
+    expect(gamesCol).toBeGreaterThan(-1);
+    const row = screen.getAllByText('Dan')[0].closest('tr')!;
+    expect(row.querySelectorAll('td')[gamesCol].textContent?.trim()).toBe('1');
+  });
+});

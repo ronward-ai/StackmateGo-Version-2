@@ -15,7 +15,7 @@ import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
 import { isLeagueTournament } from '@/lib/tournamentMode';
 import { currencyOf, money } from '@/lib/currency';
-import { countGamesPlayed, isRealLeagueId } from '@/lib/seasonProgress';
+import { countGamesPlayed, isRealLeagueId, gameKeyOf } from '@/lib/seasonProgress';
 import EmptyState from '@/components/ui/empty-state';
 import { totalsAcross, cashedIn } from '@/lib/resultStats';
 import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
@@ -202,8 +202,10 @@ function RealTimeLeagueTable({
     return seasonFilteredPlayers.map(player => {
       const results = player.tournamentResults || [];
 
-      // Basic stats
-      const games = results.length;
+      // Basic stats. Games are distinct GAMES (`gameKeyOf`), not results: a
+      // player recorded twice in one night played one game, and the table's
+      // count must agree with the season bar and "N of M played".
+      const games = new Set(results.map((r: any) => gameKeyOf(r) ?? `row:${r.id}`)).size;
       const totalPoints = results.reduce((sum, result) => sum + (result.points || 0), 0);
       const averagePoints = games > 0 ? Math.round((totalPoints / games) * 10) / 10 : 0;
 

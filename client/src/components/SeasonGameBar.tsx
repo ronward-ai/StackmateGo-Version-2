@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { seasonGameSlots, leagueResultsForGame, type GameSlot } from '@/lib/seasonGames';
+import { isGameDocumentKey } from '@/lib/seasonProgress';
 import { GameRecord, ReopenConfirm, liveGameIdOf, loadLiveGame } from '@/components/TournamentHistoryDialog';
 import type { CompletedTournament } from '@/types';
 
@@ -64,7 +65,10 @@ export default function SeasonGameBar({
 
   const scheduled = season?.numberOfGames && season.numberOfGames > 0 ? season.numberOfGames : null;
   const slot = slots.find(s => s.gameId === selected && s.state === 'played') ?? null;
-  const record = slot ? history.find(h => liveGameIdOf(h) === slot.gameId) ?? null : null;
+  // A night recorded before results carried their game's id has no document to
+  // open and no History record to match — it shows the league's own rows.
+  const slotDoc = slot && isGameDocumentKey(slot.gameId) ? slot.gameId : null;
+  const record = slotDoc ? history.find(h => liveGameIdOf(h) === slotDoc) ?? null : null;
   const fallback = slot && !record
     ? leagueResultsForGame(leaguePlayers, slot.gameId!).map(r => ({ key: r.name, ...r }))
     : undefined;
@@ -147,7 +151,7 @@ export default function SeasonGameBar({
           </div>
           <GameRecord
             key={slot.gameId!}
-            gameId={slot.gameId}
+            gameId={slotDoc}
             entry={record}
             rows={fallback}
             currency={currency}

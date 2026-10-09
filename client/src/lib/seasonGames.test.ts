@@ -61,3 +61,66 @@ describe('leagueResultsForGame', () => {
     expect(leagueResultsForGame(players, 'g2').map(x => `${x.position}:${x.name}:${x.knockouts}`)).toEqual(['1:Amy:0', '2:Bob:1']);
   });
 });
+
+import { countGamesPlayed, gameKeyOf } from './seasonProgress';
+import { barSeasonFor } from './seasonGames';
+
+/**
+ * Reported from a test account: the season bar and the table's game counts
+ * could not be made to agree. Results recorded before `tournamentId` existed
+ * were each counted as a game of their own by `countGamesPlayed`, and skipped
+ * entirely by the bar. One key now, `gameKeyOf`: the game id, else the NIGHT.
+ */
+describe('one game key for every count', () => {
+  const legacy = (name: string, date: string) => ({ seasonId: 's', id: `${name}-${date}`, date });
+  const legacyPlayers = [
+    { id: 'a', name: 'Amy', tournamentResults: [legacy('a', '2026-03-04T20:00:00'), legacy('a', '2026-03-11T21:00:00')] },
+    { id: 'b', name: 'Bob', tournamentResults: [legacy('b', '2026-03-04T22:30:00'), legacy('b', '2026-03-12T00:40:00')] },
+    { id: 'c', name: 'Cat', tournamentResults: [legacy('c', '2026-03-04T23:10:00'), { seasonId: 's', tournamentId: 'g3', date: '2026-03-18T20:00:00' }] },
+  ];
+
+  it('legacy results group by night — a game past midnight stays one game', () => {
+    expect(countGamesPlayed('s', legacyPlayers)).toBe(3);
+    const slots = seasonGameSlots({ seasonId: 's', numberOfGames: 6, leaguePlayers: legacyPlayers });
+    expect(slots.filter(x => x.state === 'played')).toHaveLength(3);
+  });
+
+  it('the bar and the season count agree', () => {
+    const played = seasonGameSlots({ seasonId: 's', leaguePlayers: legacyPlayers }).length;
+    expect(played).toBe(countGamesPlayed('s', legacyPlayers));
+  });
+
+  it('a legacy night opens its own rows', () => {
+    const night = gameKeyOf(legacy('a', '2026-03-04T20:00:00'))!;
+    expect(leagueResultsForGame(legacyPlayers, night).map(r => r.name)).toEqual(['Amy', 'Bob', 'Cat']);
+  });
+
+  it('prefers the game id, and falls back to the result id only with no date', () => {
+    expect(gameKeyOf({ tournamentId: 'g1', date: '2026-03-04T20:00:00' })).toBe('g1');
+    expect(gameKeyOf({ id: 'r9' })).toBe('result:r9');
+    expect(gameKeyOf({})).toBeNull();
+  });
+});
+
+describe('barSeasonFor', () => {
+  const current = { id: 'summer' };
+  const seasons = [{ id: 'spring' }, current];
+
+  it('follows the league\'s current season, not the open game\'s', () => {
+    const r = barSeasonFor({ viewedSeasonId: null, currentSeason: current, seasons, gameSeasonId: 'spring', gameId: 'g9' });
+    expect(r.season).toBe(current);
+    expect(r.currentGameId).toBeNull();
+  });
+
+  it('follows a past season picked in Viewing', () => {
+    const r = barSeasonFor({ viewedSeasonId: 'spring', currentSeason: current, seasons, gameSeasonId: 'spring', gameId: 'g9' });
+    expect(r.season).toEqual({ id: 'spring' });
+    expect(r.currentGameId).toBe('g9');
+  });
+
+  it('a viewed season that became current is just current', () => {
+    const r = barSeasonFor({ viewedSeasonId: 'summer', currentSeason: current, seasons, gameSeasonId: 'summer', gameId: 'g9' });
+    expect(r.viewedPast).toBeNull();
+    expect(r.currentGameId).toBe('g9');
+  });
+});

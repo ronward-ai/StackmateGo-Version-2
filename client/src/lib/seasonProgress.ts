@@ -18,6 +18,55 @@ export interface ResultLike {
   tournamentId?: string | number | null;
   /** Legacy rows predating tournamentId. */
   id?: string | number | null;
+  date?: unknown;
+  tournamentDate?: unknown;
+}
+
+/** A result's time in ms — strings, numbers, Dates and Firestore Timestamps all occur. */
+export function resultTime(r: { date?: unknown; tournamentDate?: unknown } | null | undefined): number | null {
+  for (const raw of [r?.tournamentDate, r?.date] as any[]) {
+    if (raw == null) continue;
+    let ms: number;
+    if (typeof raw === 'number') ms = raw;
+    else if (typeof raw === 'string') ms = Date.parse(raw);
+    else if (raw instanceof Date) ms = raw.getTime();
+    else if (typeof raw.toDate === 'function') ms = raw.toDate().getTime();
+    else if (typeof raw.seconds === 'number') ms = raw.seconds * 1000;
+    else continue;
+    if (Number.isFinite(ms)) return ms;
+  }
+  return null;
+}
+
+/**
+ * Which game a league result belongs to — the ONE answer, for the season bar,
+ * "N of M played", attendance and every player's Games column.
+ *
+ * Its `tournamentId` (the game's document id) when it has one. A result written
+ * before that field existed is grouped by the NIGHT it was played — a league
+ * plays one game a night — rather than counted as a game of its own, which is
+ * what this used to do (`r.id`): every legacy result was a separate game, so a
+ * nine-player night read as nine games while the season bar, which skipped such
+ * results, showed none of them (reported from a test account: the bar and the
+ * table's game counts could not be made to agree). A night runs noon to noon,
+ * so a game that goes past midnight stays one game. Only a result with neither a
+ * game id nor a date falls back to its own id.
+ */
+export function gameKeyOf(r: ResultLike | null | undefined): string | null {
+  if (!r) return null;
+  if (r.tournamentId != null && r.tournamentId !== '') return String(r.tournamentId);
+  const t = resultTime(r);
+  if (t !== null) {
+    const night = new Date(t - 12 * 60 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `night:${night.getFullYear()}-${pad(night.getMonth() + 1)}-${pad(night.getDate())}`;
+  }
+  return r.id != null && r.id !== '' ? `result:${r.id}` : null;
+}
+
+/** True for a key that names a real game document, not a legacy night grouping. */
+export function isGameDocumentKey(key: string | null | undefined): key is string {
+  return !!key && !key.startsWith('night:') && !key.startsWith('result:');
 }
 
 export interface PlayerLike {
@@ -62,10 +111,8 @@ export function isRealSeasonId(seasonId: unknown): seasonId is string | number {
 }
 
 /**
- * Distinct tournaments recorded in a season.
- *
- * Falls back to a result's own id for legacy rows written before tournamentId
- * existed, matching what RealTimeLeagueTable already did.
+ * Distinct tournaments recorded in a season — distinct `gameKeyOf` keys, the
+ * same games the season bar draws.
  */
 export function countGamesPlayed(
   seasonId: string | number | null | undefined,
@@ -77,8 +124,8 @@ export function countGamesPlayed(
   for (const player of leaguePlayers) {
     for (const r of player?.tournamentResults ?? []) {
       if (String(r?.seasonId) !== target) continue;
-      if (r?.tournamentId) ids.add(String(r.tournamentId));
-      else if (r?.id) ids.add(String(r.id));
+      const key = gameKeyOf(r);
+      if (key) ids.add(key);
     }
   }
   return ids.size;
@@ -103,8 +150,8 @@ export function gameNumberFor(
   for (const player of leaguePlayers ?? []) {
     for (const r of player?.tournamentResults ?? []) {
       if (String(r?.seasonId) !== target) continue;
-      if (r?.tournamentId) ids.add(String(r.tournamentId));
-      else if (r?.id) ids.add(String(r.id));
+      const key = gameKeyOf(r);
+      if (key) ids.add(key);
     }
   }
   if (localGameId && ids.has(String(localGameId))) return ids.size;

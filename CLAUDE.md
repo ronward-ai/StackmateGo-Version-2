@@ -3632,6 +3632,22 @@ table and both exports. Currency, payouts and league stay the game's own. Settin
 save as they change, with a brief "Saved" — no Save button, for the reason `SettingsSection`'s comment on
 the removed Apply button gives.
 
+**The bar shows the season the League panel's standings show** — a past season picked in "Viewing", else
+the league's CURRENT season — never the open game's own season (`barSeasonFor`, `lib/seasonGames.ts`;
+the "Viewing" choice is owned by `PokerTimer` and passed down to `SeasonDashboard`). Reported: after
+making another season current in Manage League, the table moved and the bar stayed on the season
+tonight's game was played in, two games long. Tonight's segment appears only when the game is in the
+season shown; the header's "Game X of Y" still follows the game.
+
+**Every count of games uses ONE key, `gameKeyOf` (`lib/seasonProgress.ts`)** — the bar, "N of M played",
+attendance, the game number and each player's **Games** column. A result's `tournamentId`, else the NIGHT
+it was played (noon to noon, so a game past midnight is one game), else its own id. `countGamesPlayed`
+used to count every legacy result without a `tournamentId` as its own game while the bar skipped them,
+and Games was `results.length`, so a player recorded twice in one night played two — three answers to
+one question, reported as game counts that made no sense. A legacy night opens the league's own rows
+(it has no document to load). Points and money still sum every result; a duplicate result is a data
+problem to fix by hand, not one to hide in a sum.
+
 **One rendering of a past game:** `GameRecord` and `ReopenConfirm`, exported from
 `TournamentHistoryDialog.tsx`, draw both History's expanded row and the bar's panel. **History is
 standalone-only now** — a league night's history IS its season, and a standalone game has no season to

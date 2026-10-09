@@ -26,12 +26,20 @@ interface SeasonDashboardProps {
   season?: any;
   /** League players to display. When omitted, falls back to the hook's list. */
   leaguePlayers?: any[];
+  /**
+   * The past season being viewed, owned by the console so the Players tab's
+   * season bar shows the same season as this table. Uncontrolled when omitted.
+   */
+  viewedSeasonId?: string | null;
+  onViewSeason?: (seasonId: string | null) => void;
 }
 
 export default function SeasonDashboard({
   tournament,
   season,
   leaguePlayers: leaguePlayersProp,
+  viewedSeasonId,
+  onViewSeason,
 }: SeasonDashboardProps) {
   const { league, leaguePlayers: leaguePlayersFromHook } = useLeague();
   const {
@@ -49,7 +57,10 @@ export default function SeasonDashboard({
   const sym = currencyOf(tournament?.state?.settings);
   const leaguePlayers = leaguePlayersProp ?? leaguePlayersFromHook;
 
-  const [selectedPastSeasonId, setSelectedPastSeasonId] = useState<string | null>(null);
+  const [localPastSeasonId, setLocalPastSeasonId] = useState<string | null>(null);
+  const controlled = onViewSeason !== undefined;
+  const selectedPastSeasonId = controlled ? (viewedSeasonId ?? null) : localPastSeasonId;
+  const setSelectedPastSeasonId = controlled ? onViewSeason! : setLocalPastSeasonId;
   const {
     endCurrentSeason, busy: rolloverBusy, error: rolloverError,
   } = useSeasonRollover(currentSeason);

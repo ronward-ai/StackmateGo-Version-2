@@ -26,6 +26,9 @@ interface LeagueSectionProps {
    * does not take the night's next action with it.
    */
   nextGame?: React.ReactNode;
+  /** The past season the standings are showing — see SeasonDashboard. */
+  viewedSeasonId?: string | null;
+  onViewSeason?: (seasonId: string | null) => void;
 }
 
 /**
@@ -44,7 +47,7 @@ interface LeagueSectionProps {
  * buttons, one of which opened a menu titled "Season actions" that contained
  * Delete League.
  */
-export default function LeagueSection({ tournament, readOnly = false, nextGame }: LeagueSectionProps) {
+export default function LeagueSection({ tournament, readOnly = false, nextGame, viewedSeasonId, onViewSeason }: LeagueSectionProps) {
   // Remembered, because the panel is on the page now rather than behind a tab:
   // a director who wants the timer nearer the top on a phone should be able to
   // fold this once and have it stay folded. Open by default.
@@ -182,6 +185,8 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame }
               season={currentSeason}
               leaguePlayers={leaguePlayers}
               tournament={tournament}
+              viewedSeasonId={viewedSeasonId}
+              onViewSeason={onViewSeason}
             />
             </div>
           )}

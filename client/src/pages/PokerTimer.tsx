@@ -27,6 +27,7 @@ import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import NightSummaryDialog from '@/components/NightSummary';
 import SeasonGameBar from '@/components/SeasonGameBar';
+import { barSeasonFor } from '@/lib/seasonGames';
 import ResultsEditor from '@/components/ResultsEditor';
 import { currencyOf } from '@/lib/currency';
 import PlayerSection from '@/components/PlayerSection';
@@ -331,6 +332,20 @@ function PokerTimerInner({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [_isLeagueMode, _displaySeason?.id, leaguePlayers, tournament.state.details?.localGameId, tournament.state.details?.id]);
   useEffect(() => { displaySeasonRef.current = _displaySeason; }, [_displaySeason]);
+
+  // The season the League panel's standings are showing: a past season picked in
+  // its "Viewing" list, else the league's CURRENT season. The Players tab's game
+  // bar follows this, not the open game's own season — reported: after making
+  // another season current in Manage League, the table moved and the bar stayed
+  // on the season tonight's game was played in, two games long.
+  const [viewedSeasonId, setViewedSeasonId] = useState<string | null>(null);
+  const { season: barSeason, viewedPast: viewedPastSeason, currentGameId: barCurrentGameId } = barSeasonFor({
+    viewedSeasonId,
+    currentSeason,
+    seasons: seasons as any[],
+    gameSeasonId: _displaySeason?.id,
+    gameId: gameIdOf(tournament.state.details) ?? null,
+  });
 
   // The on-screen event name. Falls back to the league's own name in league mode
   // when no event name is set, so renaming the league is visible here — these
@@ -1505,6 +1520,8 @@ function PokerTimerInner({
             <LeagueSection
               readOnly={readOnlyConsole}
               tournament={tournament}
+              viewedSeasonId={viewedPastSeason ? String(viewedPastSeason.id) : null}
+              onViewSeason={setViewedSeasonId}
               nextGame={<NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
             />
           </div>
@@ -1749,9 +1766,9 @@ function PokerTimerInner({
                   read-only console too — it only reads, and Reopen navigates. */}
               {isLeagueMode && (
                 <SeasonGameBar
-                  season={_displaySeason}
+                  season={barSeason}
                   leaguePlayers={leaguePlayers}
-                  currentGameId={gameIdOf(tournament.state.details) ?? null}
+                  currentGameId={barCurrentGameId}
                   history={gameHistory}
                   currency={currencyOf(tournament.state.settings)}
                   onReopen={openOtherGame}
