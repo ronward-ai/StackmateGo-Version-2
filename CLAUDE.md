@@ -4071,7 +4071,13 @@ context, so no Start Next Season. Next Game closes its own dialog first, so two 
 stacked.
 
 Creating a season there makes it current but does **not** end the old one, exactly as the form always
-has. The old season's End button is beside it in the list, and the dashboard still offers End Season.
+has. The old season's End button is beside it in the list.
+
+**The "This season looks finished" box is gone** (removed on request: "the season pickers do this job").
+It sat in `SeasonDashboard` on a full or past-its-dates season not yet ended, with End Season and Start
+Next Season. Ending lives in Manage League → Seasons; Start next season is offered by Next Game once a
+season is full or ended, and by the dashboard's "{season} has ended" line. `useSeasonRollover`, used by
+nothing else, went with it.
 
 Verified in Chromium through the devstub: opened with `startNewSeason`, Manage League lands on Seasons
 with Season Name, Number of Games and Date Range showing; opened normally it shows the list. The

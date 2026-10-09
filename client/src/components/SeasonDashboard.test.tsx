@@ -7,18 +7,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
  * Game as the only thing to press, and it offered "Game 13 of 12" in the season
  * just closed. The way forward has to survive the act of ending.
  */
-const h = vi.hoisted(() => ({ openSetup: vi.fn(), endCurrentSeason: vi.fn() }));
+const h = vi.hoisted(() => ({ openSetup: vi.fn() }));
 
 vi.mock('@/hooks/useLeague', () => ({
   useLeague: () => ({ league: { id: 'L1', name: 'Fish & Chips' }, leaguePlayers: [] }),
 }));
 vi.mock('@/hooks/useSeasons', () => ({
   useSeasons: () => ({ currentSeason: null, seasons: [], formatSeasonDateRange: () => '' }),
-}));
-vi.mock('@/hooks/useSeasonRollover', () => ({
-  useSeasonRollover: () => ({
-    endCurrentSeason: h.endCurrentSeason, busy: false, error: null,
-  }),
 }));
 vi.mock('@/components/RealTimeLeagueTable', () => ({ default: () => null }));
 
@@ -53,19 +48,21 @@ describe('SeasonDashboard', () => {
   });
 
   /**
-   * Start Next Season used to create a copy of the season — same number of
-   * games — on the press. It leads to the existing season set-up now (Manage
-   * League → Seasons → New Season), where the director says how it runs.
+   * "This season looks finished" — an advisory box with End Season and Start
+   * Next Season on a full season not yet ended — was removed on request: the
+   * season pickers do that job (Next Game offers Start next season once a
+   * season is full; Manage League → Seasons has End). A full season shows no box.
    */
-  it('sends a finished season to the season set-up rather than creating one', () => {
+  it('a full season that has not been ended shows no box', () => {
     inPanel(
       <SeasonDashboard
         season={{ id: 's1', name: 'Spring 2026', numberOfGames: 12, status: 'active' } as any}
         leaguePlayers={played(12)}
       />,
     );
-    fireEvent.click(screen.getByText('Start Next Season'));
-    expect(h.openSetup).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/looks finished/)).toBeNull();
+    expect(screen.queryByText('End Season')).toBeNull();
+    expect(screen.queryByText('Start Next Season')).toBeNull();
   });
 
   it('says nothing about ending while the season is still running', () => {

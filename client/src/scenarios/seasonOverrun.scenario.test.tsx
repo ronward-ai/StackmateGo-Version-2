@@ -35,7 +35,6 @@ vi.mock('@/hooks/useLeagueSettings', () => {
   return { useLeagueSettings: () => s };
 });
 vi.mock('@/hooks/useNewGame', () => ({ useNewGame: () => ({ startNewGame: screens.startNewGame, newGameGuard: null }) }));
-vi.mock('@/hooks/useSeasonRollover', () => ({ useSeasonRollover: () => ({ endCurrentSeason: vi.fn(), busy: false, error: null }) }));
 vi.mock('@/components/export/captureSheet', () => ({ captureSheet: vi.fn(), sheetFilename: () => 'x.png' }));
 
 import { useTournament } from '@/hooks/useTournament';
@@ -114,7 +113,7 @@ describe('a two-game season that gets a third night, and is then ended', () => {
     expect(gameNumberFor('spring', league.standings(), 'g3')).toBe(3);
     expect(seasonLine({ seasonName: 'Spring', gameNumber: 3, numberOfGames: 2 })).toBe('Spring · Game 2 of 2');
 
-    // The season panel agrees: clamped, nothing remaining, and it looks finished.
+    // The season panel agrees: clamped, nothing remaining.
     render(
       <SeasonSetupContext.Provider value={screens.openSetup}>
         <SeasonDashboard tournament={{ ownerId: 'u1', settings: { isSeasonTournament: true, leagueId: 'L1' } } as any} />
@@ -122,7 +121,6 @@ describe('a two-game season that gets a third night, and is then ended', () => {
     );
     expect(screen.getByText('2 of 2 played')).toBeTruthy();
     expect(screen.getByText('0 remaining')).toBeTruthy();
-    expect(screen.getByText('This season looks finished')).toBeTruthy();
     cleanup();
 
     // The director ends it. No game can start in it any more.
