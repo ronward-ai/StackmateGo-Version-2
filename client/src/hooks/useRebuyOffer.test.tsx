@@ -24,6 +24,7 @@ type Harness = {
 };
 
 let rebought: string[] = [];
+let logged: any[] = [];
 
 /** Only what the hook touches. */
 const fakeTournament = (h: Harness & { gameId?: string }) => ({
@@ -35,6 +36,7 @@ const fakeTournament = (h: Harness & { gameId?: string }) => ({
     rebuysAnswered: h.rebuysAnswered,
   },
   processRebuy: (id: string) => rebought.push(id),
+  logEvent: (e: any) => logged.push(e),
 }) as any;
 
 let latest: ReturnType<typeof useRebuyOffer>;
@@ -137,6 +139,33 @@ describe('useRebuyOffer across a takeover', () => {
     act(() => { latest.answer(true); });
     expect(rebought).toEqual(['amy']);
     expect(latest.answered).toContain('amy:0');
+  });
+
+  /**
+   * Reported from a live night: "Rebuy declined" twice per decline in the
+   * Summary. The button's onClick answers, and Radix then closes the dialog,
+   * whose onOpenChange answers again as a decline — for BOTH buttons.
+   */
+  it('answers once: a dialog close after a button press logs nothing more', () => {
+    logged = [];
+    const h: Harness = { players: [active('amy'), active('dave')], readOnly: false };
+    const d = drive(h);
+    d.rerender({ ...h, players: [busted('amy', 3), active('dave')] });
+    const decline = latest.answer;
+    act(() => { decline(false); decline(false); });
+    expect(logged.filter(e => e.kind === 'rebuyDeclined')).toHaveLength(1);
+  });
+
+  it('a taken rebuy is never also logged as declined', () => {
+    logged = [];
+    rebought = [];
+    const h: Harness = { players: [active('amy'), active('dave')], readOnly: false };
+    const d = drive(h);
+    d.rerender({ ...h, players: [busted('amy', 3), active('dave')] });
+    const respond = latest.answer;
+    act(() => { respond(true); respond(false); });
+    expect(rebought).toEqual(['amy']);
+    expect(logged.filter(e => e.kind === 'rebuyDeclined')).toHaveLength(0);
   });
 });
 

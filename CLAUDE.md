@@ -2505,6 +2505,11 @@ new shape. A `withRulesFallback` that retried a refused check-in without `lastCl
 while the app was ahead of the rules; it is removed. If a check-in is ever refused with
 `permission-denied`, check the published rules match `firestore.rules` before the code.
 
+**A finished game has nobody to check in as**, and says so: the page keeps the whole roster beside the
+active list and, when `gameIsOver`, shows *This game has finished*, the winner, and **View results** (the
+participant view). It used to filter to active players only — and at the end of a game nobody is active —
+so a QR scanned after the final hand read "Your director has not added the roster".
+
 **Normalised on read**, the same trade `payoutsOf()`/`bandsOf()` make: a tournament document written
 before this shipped may still carry `Player.claimedBy` from the old scheme, and no stored document is
 rewritten to keep it working. `claimedByFor()` prefers `claims`, falling back to the deprecated
@@ -3580,6 +3585,11 @@ by `logFingerprint`. Ids are `<consoleId>:<n>` with `n` from the log itself, so 
 twice logs once and two consoles either side of a takeover never collide. Capped at 1,000 (a long night
 is ~150). Carried in the local mirror; saved with History as `summary`. **No rules change** — the owner's
 update rule on `activeTournaments` has no field whitelist.
+
+**A question is answered ONCE** — `useRebuyOffer`'s `answer` returns early for a key it has already
+answered. Radix's Cancel and Action both close the dialog, and its `onOpenChange` answers again as a
+decline, so every "No" was logged twice and every rebuy taken also logged "Rebuy declined" (reported
+from a live night). The close stays wired so Escape still declines.
 
 Known limit: the whole array is written, so if two consoles both wrote in the same instant the later
 write would drop the other's newest event from the document. Only the console holding control writes,

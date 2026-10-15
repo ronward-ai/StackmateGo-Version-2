@@ -4,7 +4,8 @@ import { useLeagueName } from '@/hooks/useLeagueName';
 import { useParams, useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UserCheck, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { UserCheck, ChevronRight, CheckCircle2, Trophy } from 'lucide-react';
+import { gameIsOver, winnerOf } from '@/lib/gameOver';
 import { getDeviceId } from '@/lib/deviceId';
 import { fromRestFields } from '@/lib/firestoreRest';
 import { claimedByFor, claimFieldPath, type ClaimsMap } from '@/lib/seatClaims';
@@ -28,6 +29,10 @@ export default function PlayerClaimView() {
 
   const deviceId = getDeviceId();
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+  // The WHOLE roster, busted players included. At the end of a game nobody is
+  // active — the winner neither — so the active list alone is empty, and this
+  // page used to say the director had not added the roster.
+  const [allPlayers, setAllPlayers] = useState<TournamentPlayer[]>([]);
   // Who has checked in as whom. See lib/seatClaims.ts — this used to live
   // INSIDE each player entry, which is what let a check-in write touch
   // anything else in the players array too. It is its own top-level document
@@ -68,6 +73,7 @@ export default function PlayerClaimView() {
           const raw = await restRes.json();
           const fields: any = {};
           Object.assign(fields, fromRestFields(raw.fields));
+          setAllPlayers(fields.players || []);
           setPlayers((fields.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
           setClaims(fields.claims || {});
           // Same resolver as everywhere else. `name` is written once at
@@ -91,6 +97,7 @@ export default function PlayerClaimView() {
         unsubscribe = onSnapshot(docRef, (snap) => {
           if (snap.exists()) {
             const data = snap.data();
+            setAllPlayers(data.players || []);
             setPlayers((data.players || []).filter((p: TournamentPlayer) => p.isActive !== false));
             setClaims(data.claims || {});
             setNamingDoc(data);
@@ -232,6 +239,27 @@ export default function PlayerClaimView() {
           <p className="text-destructive mb-4">{error}</p>
           <Button variant="outline" onClick={() => setLocation(`/tournament/${tournamentId}`)}>
             View as spectator
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // A finished game has nobody left to check in as. Say so, and send them to the
+  // results — before the claimed branch, since a claimed seat is over too.
+  if (gameIsOver(allPlayers as any)) {
+    const winner = winnerOf(allPlayers as any);
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <Card className="p-6 max-w-sm w-full text-center space-y-4">
+          <Trophy className="h-12 w-12 text-yellow-400 mx-auto" />
+          <h1 className="text-xl font-bold">This game has finished</h1>
+          <p className="text-muted-foreground text-sm">
+            {tournamentName}{winner ? ` · Won by ${winner.name}` : ''}
+          </p>
+          <Button className="w-full" onClick={() => setLocation(`/tournament/${tournamentId}`)}>
+            <ChevronRight className="mr-2 h-4 w-4" />
+            View results
           </Button>
         </Card>
       </div>

@@ -267,6 +267,11 @@ export function useRebuyOffer(
    */
   const answer = (rebuy: boolean) => {
     const key = offerKey(player);
+    // ONE answer per bust-out. Radix's Cancel and Action both close the dialog
+    // too, and the close calls this again as a decline — which logged every "No"
+    // twice in the Summary, and a "Rebuy declined" under every rebuy taken. The
+    // close stays wired so Escape still declines; a second call is a no-op.
+    if (key && answeredHereRef.current.has(key)) return;
     if (key) {
       seenRef.current?.add(key);
       answeredHereRef.current.add(key);
