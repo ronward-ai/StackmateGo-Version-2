@@ -51,6 +51,8 @@ describe('PlayerClaimView', () => {
     expect(screen.getByText('Won by', { exact: false }).textContent).toBe('Won by Amy');
     expect(screen.getByRole('button', { name: /View results/ })).toBeTruthy();
     expect(screen.queryByText('Nobody registered yet')).toBeNull();
+    // The page says which build is running, so "nothing changed" can be checked from a phone.
+    expect(screen.getByTestId('build-tag').textContent).toMatch(/^build /);
   });
 
   it('a game with no roster yet still says so', async () => {

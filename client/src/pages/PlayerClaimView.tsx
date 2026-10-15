@@ -24,6 +24,14 @@ interface TournamentPlayer {
 
 // One decoder for REST documents — lib/firestoreRest.ts.
 
+/** Which build this phone is running — the console's footer has it, and a player's
+ *  screen is where "nothing changed" gets reported from. `typeof` because tests do
+ *  not define the constant. */
+const BUILD = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev';
+const BuildTag = () => (
+  <p className="text-caption text-muted-foreground/60 text-center mt-4" data-testid="build-tag">build {BUILD}</p>
+);
+
 export default function PlayerClaimView() {
   const params = useParams<{ tournamentId: string }>();
   const tournamentId = params.tournamentId;
@@ -278,6 +286,7 @@ export default function PlayerClaimView() {
             <ChevronRight className="mr-2 h-4 w-4" />
             View results
           </Button>
+          <BuildTag />
         </Card>
       </div>
     );
@@ -310,6 +319,7 @@ export default function PlayerClaimView() {
           >
             Not you? Unclaim
           </button>
+          <BuildTag />
         </Card>
       </div>
     );
@@ -420,6 +430,7 @@ export default function PlayerClaimView() {
         >
           Watch as spectator instead
         </button>
+        <BuildTag />
       </div>
     </div>
   );

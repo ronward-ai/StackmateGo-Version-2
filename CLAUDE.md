@@ -2517,6 +2517,9 @@ registers a player (adds them to the roster); the player checks in by tapping th
 "Registered with the tournament director? Tap your name below to check in", and someone missing from the
 list is told to register with the TD first.
 
+**It shows the build** (`build {__BUILD_ID__}`, a quiet line on every screen), like the console's footer —
+asked after a change looked like it had not arrived, and this page is where players report from.
+
 **Normalised on read**, the same trade `payoutsOf()`/`bandsOf()` make: a tournament document written
 before this shipped may still carry `Player.claimedBy` from the old scheme, and no stored document is
 rewritten to keep it working. `claimedByFor()` prefers `claims`, falling back to the deprecated
