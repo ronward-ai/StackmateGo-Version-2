@@ -20,11 +20,34 @@ describe('isLeagueTournament', () => {
     })).toBe(false);
   });
 
-  it('respects an explicit false on the document over settings and leagueId', () => {
+  /**
+   * Reversed, and why. This used to assert the document's top-level `false` beat
+   * everything. But the console wrote that field as `settings.isSeasonTournament ||
+   * false`, so `false` there meant "the settings never said" — and a league night
+   * reached every player's phone as standalone (reported: no "Game 2 of 13" on the
+   * check-in page). The settings flag is the director's actual choice.
+   */
+  it('a top-level false on the document does not override the settings or the league', () => {
     expect(isLeagueTournament({
       isSeasonTournament: false,
       settings: { isSeasonTournament: true, leagueId: 'league-1' },
+    })).toBe(true);
+    // The reported document: no settings flag, a linked league, top-level false.
+    expect(isLeagueTournament({
+      isSeasonTournament: false,
+      settings: { leagueId: 'league-1' },
+    })).toBe(true);
+  });
+
+  it('the settings flag still decides standalone, whatever the document says', () => {
+    expect(isLeagueTournament({
+      isSeasonTournament: true,
+      settings: { isSeasonTournament: false, leagueId: 'league-1' },
     })).toBe(false);
+  });
+
+  it('a top-level true still counts when the settings say nothing', () => {
+    expect(isLeagueTournament({ isSeasonTournament: true, settings: {} })).toBe(true);
   });
 
   it('infers a league game from leagueId when no flag has arrived yet', () => {

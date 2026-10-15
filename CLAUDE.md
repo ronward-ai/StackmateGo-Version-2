@@ -2520,6 +2520,17 @@ list is told to register with the TD first.
 **It shows the build** (`build {__BUILD_ID__}`, a quiet line on every screen), like the console's footer —
 asked after a change looked like it had not arrived, and this page is where players report from.
 
+**A league night reached players' phones as STANDALONE**, and the build tag is how that was told apart
+from a deploy problem. The console's settings sync wrote the document's top-level flag as
+`settings.isSeasonTournament || false` — and a league game's settings need not carry the flag at all,
+since `isLeagueGame` also reads the game type and the linked league. So the top level said `false`,
+`isLeagueTournament` let a top-level flag win, and every participant screen read the night as standalone:
+no season line on the check-in page (reported, on game 2 of 13), and very likely no "Game X of Y" or live
+standings on players' phones either. Two halves: the sync now writes `isLeagueGame(state)`, and
+`isLeagueTournament` lets the SETTINGS flag decide, trusts the top level only when it says `true`, and
+otherwise falls back to `leagueId` — which is what reads the documents already written. A test that
+asserted the top-level `false` won was asserting the bug, and says so.
+
 **Normalised on read**, the same trade `payoutsOf()`/`bandsOf()` make: a tournament document written
 before this shipped may still carry `Player.claimedBy` from the old scheme, and no stored document is
 rewritten to keep it working. `claimedByFor()` prefers `claims`, falling back to the deprecated

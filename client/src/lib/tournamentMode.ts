@@ -33,12 +33,22 @@ export interface TournamentModeInput {
 }
 
 export function isLeagueTournament(tournament?: TournamentModeInput | null): boolean {
-  const explicit = tournament?.isSeasonTournament ?? tournament?.settings?.isSeasonTournament;
-
+  // The SETTINGS flag is the director's choice — the Standalone toggle and
+  // standaloneSettings() write it explicitly — so it decides, either way.
+  const explicit = tournament?.settings?.isSeasonTournament;
   if (explicit === true) return true;
   if (explicit === false) return false;
 
-  // No explicit flag — fall back to the presence of a linked league.
+  // The DOCUMENT's top-level flag is only trusted when it says TRUE. The
+  // console's settings sync wrote it as `settings.isSeasonTournament || false`,
+  // so a league game whose settings never carried the flag (league-ness came from
+  // the game type or a linked league) was stored `false` — "unknown", not
+  // "standalone" — and every player's phone read the night as standalone: no
+  // season line, no "Game X of Y", no live standings. Documents written before
+  // the fix still say false; the leagueId below is what reads them correctly.
+  if (tournament?.isSeasonTournament === true) return true;
+
+  // No usable flag — fall back to the presence of a linked league.
   return !!tournament?.settings?.leagueId;
 }
 

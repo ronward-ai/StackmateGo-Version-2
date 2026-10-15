@@ -89,6 +89,25 @@ describe('PlayerClaimView', () => {
     expect(screen.getByTestId('season-line').textContent).toBe('Spring 2026 · Game 2 of 13');
   });
 
+  /**
+   * The reported document. A league night whose settings never carried the flag
+   * was saved with a top-level `isSeasonTournament: false`, so the season line
+   * never showed — on the finished card the director scanned after the game.
+   */
+  it('names the season on a league game saved with a top-level false flag', async () => {
+    snapshot = {
+      isSeasonTournament: false,
+      settings: { leagueId: 'L1', seasonName: 'Spring 2026', gameNumber: 2, numberOfGames: 13 },
+      players: [
+        { id: 'a', name: 'Amy', isActive: false, position: 1 },
+        { id: 'b', name: 'Bob', isActive: false, position: 2 },
+      ],
+    };
+    open();
+    await waitFor(() => expect(screen.getByText('This game has finished')).toBeTruthy());
+    expect(screen.getByTestId('season-line').textContent).toBe('Spring 2026 · Game 2 of 13');
+  });
+
   it('a standalone game shows no season line', async () => {
     snapshot = { settings: { isSeasonTournament: false, gameNumber: 2 }, players: [{ id: 'a', name: 'Amy', isActive: true }] };
     open();

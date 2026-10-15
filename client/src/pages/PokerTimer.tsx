@@ -1114,7 +1114,10 @@ function PokerTimerInner({
       // Keep top-level league fields in sync so handover always works
       leagueId: tournament.state.settings?.leagueId || null,
       seasonId: tournament.state.settings?.seasonId || null,
-      isSeasonTournament: tournament.state.settings?.isSeasonTournament || false,
+      // The console's own answer, not `settings.isSeasonTournament || false`: a
+      // league game whose settings never carried the flag was written as false
+      // here, and every player's phone then read it as standalone.
+      isSeasonTournament: isLeagueGame(tournament.state),
     };
     const serialised = JSON.stringify(payload);
     if (serialised === lastSyncedSettingsRef.current) return;
@@ -1131,7 +1134,7 @@ function PokerTimerInner({
       }
     };
     sync();
-  }, [tournament.state.prizeStructure, tournament.state.settings, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournament.state.prizeStructure, tournament.state.settings, tournament.state.details?.type, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Setup Socket.IO connection for real-time updates removed
 
