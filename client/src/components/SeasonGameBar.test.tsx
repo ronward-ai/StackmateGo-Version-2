@@ -79,7 +79,12 @@ describe('the season game bar', () => {
     bar({ onReopen });
     fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
     expect(screen.getByText('Bob')).toBeTruthy();
+    // The Summary is folded away under the results until asked for.
+    expect(screen.queryByText('Amy rebought (1st)')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Show summary \(1\)/ }));
     expect(screen.getByText('Amy rebought (1st)')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Hide summary/ }));
+    expect(screen.queryByText('Amy rebought (1st)')).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: /Reopen to correct/ }));
     expect(onReopen).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Reopen' }));
@@ -90,6 +95,7 @@ describe('the season game bar', () => {
     bar();
     fireEvent.click(screen.getByRole('button', { name: /^Game 1/ }));
     expect(screen.getByText('1 KO')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Show summary/ }));
     expect(screen.getByText(/No summary was kept/)).toBeTruthy();
   });
 
@@ -97,9 +103,9 @@ describe('the season game bar', () => {
     bar();
     const g1 = screen.getByRole('button', { name: /^Game 1/ });
     fireEvent.click(g1);
-    expect(screen.getByText(/No summary was kept/)).toBeTruthy();
+    expect(screen.getByText('1 KO')).toBeTruthy();
     fireEvent.click(g1);
-    expect(screen.queryByText(/No summary was kept/)).toBeNull();
+    expect(screen.queryByText('1 KO')).toBeNull();
   });
 
   it('a played night with its live record shows the console\'s results table and exports it the same way', async () => {

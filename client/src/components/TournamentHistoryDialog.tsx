@@ -105,6 +105,9 @@ export function GameRecord({
   resultColumns?: string[];
 }) {
   const [game, setGame] = useState<GameCheck>({ state: 'checking' });
+  // The Summary folds away under the results: the results are what a past night
+  // is opened for, and the log is the follow-up question (requested).
+  const [showSummary, setShowSummary] = useState(false);
   const sym = currencyOf({ currency: currency ?? entry?.currency });
   const resultRows: GameRecordRow[] = rows ?? (entry?.results ?? []).map(r => ({
     key: r.playerId, name: r.playerName, position: r.position, knockouts: r.knockouts,
@@ -158,11 +161,24 @@ export function GameRecord({
       )}
 
       <div className="mt-3 pt-3 border-t border-border/40">
-        <div className="text-caption uppercase tracking-wide text-muted-foreground mb-2">Summary</div>
-        <NightSummaryList
-          log={summary}
-          emptyText="No summary was kept for this game — it was played before the Summary existed."
-        />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 px-2 -ml-2 text-muted-foreground"
+          aria-expanded={showSummary}
+          onClick={() => setShowSummary(v => !v)}
+        >
+          {showSummary ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {showSummary ? 'Hide summary' : `Show summary${summary?.length ? ` (${summary.length})` : ''}`}
+        </Button>
+        {showSummary && (
+          <div className="mt-2">
+            <NightSummaryList
+              log={summary}
+              emptyText="No summary was kept for this game — it was played before the Summary existed."
+            />
+          </div>
+        )}
       </div>
 
       {/* Reopen to correct: only for a game whose live record is still there.

@@ -82,6 +82,7 @@ describe('History reopens a game to correct it', () => {
   it('shows the Summary kept with the record', () => {
     render(<TournamentHistoryDialog />);
     openRow();
+    fireEvent.click(screen.getByRole('button', { name: /Show summary/ }));
     expect(screen.getByText('Bob busted by Amy — 2nd')).toBeTruthy();
     expect(screen.getByText('Rebuy refused for Bob: the rebuy period has ended')).toBeTruthy();
     expect(screen.getByText('20:06')).toBeTruthy();

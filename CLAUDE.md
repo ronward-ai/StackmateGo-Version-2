@@ -3693,6 +3693,10 @@ one question, reported as game counts that made no sense. A legacy night opens t
 (it has no document to load). Points and money still sum every result; a duplicate result is a data
 problem to fix by hand, not one to hide in a sum.
 
+**The Summary folds away under a past night's results** — **Show summary (N)** opens it in place
+(requested: the results are what the night is opened for). `GameRecord` owns the toggle, so the bar's panel
+and History's row behave alike; the console's own Summary button beside History is unchanged.
+
 **One rendering of a past game:** `GameRecord` and `ReopenConfirm`, exported from
 `TournamentHistoryDialog.tsx`, draw both History's expanded row and the bar's panel. **History is
 standalone-only now** — a league night's history IS its season, and a standalone game has no season to
