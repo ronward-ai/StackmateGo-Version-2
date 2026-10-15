@@ -2510,6 +2510,13 @@ active list and, when `gameIsOver`, shows *This game has finished*, the winner, 
 participant view). It used to filter to active players only — and at the end of a game nobody is active —
 so a QR scanned after the final hand read "Your director has not added the roster".
 
+**The page names the season and the game** (`Spring 2026 · Game 2 of 13`, through `seasonLine` and
+`isLeagueTournament`, as the player's info card does) on the list, the checked-in card and the finished
+card. **Its copy keeps REGISTERING and CHECKING IN apart**, as requested: the tournament director
+registers a player (adds them to the roster); the player checks in by tapping their name. So it reads
+"Registered with the tournament director? Tap your name below to check in", and someone missing from the
+list is told to register with the TD first.
+
 **Normalised on read**, the same trade `payoutsOf()`/`bandsOf()` make: a tournament document written
 before this shipped may still carry `Player.claimedBy` from the old scheme, and no stored document is
 rewritten to keep it working. `claimedByFor()` prefers `claims`, falling back to the deprecated

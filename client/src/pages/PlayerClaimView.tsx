@@ -6,6 +6,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserCheck, ChevronRight, CheckCircle2, Trophy } from 'lucide-react';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
+import { isLeagueTournament } from '@/lib/tournamentMode';
+import { seasonLine } from '@/lib/seasonProgress';
 import { getDeviceId } from '@/lib/deviceId';
 import { fromRestFields } from '@/lib/firestoreRest';
 import { claimedByFor, claimFieldPath, type ClaimsMap } from '@/lib/seatClaims';
@@ -43,6 +45,19 @@ export default function PlayerClaimView() {
   const [namingDoc, setNamingDoc] = useState<any>(null);
   const leagueName = useLeagueName(namingDoc?.settings?.leagueId);
   const tournamentName = eventNameOfTournament(namingDoc, leagueName) || 'Tournament';
+  // `Spring 2026 · Game 2 of 13` — the same fields and helper the player's own
+  // info card reads. A standalone game has none and gets ''.
+  const seasonSettings = namingDoc?.settings ?? {};
+  const season = isLeagueTournament(namingDoc)
+    ? seasonLine({
+        seasonName: seasonSettings.seasonName,
+        gameNumber: seasonSettings.gameNumber,
+        numberOfGames: seasonSettings.numberOfGames,
+      })
+    : '';
+  const seasonText = season ? (
+    <p className="text-label font-medium text-primary" data-testid="season-line">{season}</p>
+  ) : null;
   const [claiming, setClaiming] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -254,9 +269,11 @@ export default function PlayerClaimView() {
         <Card className="p-6 max-w-sm w-full text-center space-y-4">
           <Trophy className="h-12 w-12 text-yellow-400 mx-auto" />
           <h1 className="text-xl font-bold">This game has finished</h1>
-          <p className="text-muted-foreground text-sm">
-            {tournamentName}{winner ? ` · Won by ${winner.name}` : ''}
-          </p>
+          <div className="space-y-1">
+            <p className="text-muted-foreground text-sm">{tournamentName}</p>
+            {seasonText}
+          </div>
+          {winner && <p className="text-sm">Won by <span className="font-semibold">{winner.name}</span></p>}
           <Button className="w-full" onClick={() => setLocation(`/tournament/${tournamentId}`)}>
             <ChevronRight className="mr-2 h-4 w-4" />
             View results
@@ -274,6 +291,7 @@ export default function PlayerClaimView() {
         <Card className="p-6 max-w-sm w-full text-center space-y-4">
           <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
           <h1 className="text-xl font-bold">{claimedPlayer.name}</h1>
+          {seasonText}
           <p className="text-muted-foreground text-sm">You're checked in!</p>
           {seat && (
             <div className="bg-muted/30 rounded-lg p-3">
@@ -314,7 +332,12 @@ export default function PlayerClaimView() {
           </span>
         </div>
         <h1 className="text-xl font-bold">{tournamentName}</h1>
-        <p className="text-muted-foreground text-sm mt-1">Tap your name to check in</p>
+        {seasonText && <div className="mt-1">{seasonText}</div>}
+        {/* Registering and checking in are two steps, and the copy keeps them
+            apart: the director registers you; you check in by tapping. */}
+        <p className="text-muted-foreground text-sm mt-2">
+          Registered with the tournament director? Tap your name below to check in.
+        </p>
       </div>
 
       {/* Inline claim error */}
@@ -363,8 +386,8 @@ export default function PlayerClaimView() {
       ) : (
         players.length === 0 && (
           <Card>
-            <EmptyState icon={UserCheck} title="No players yet">
-              Your director has not added the roster. Ask them to add you, then refresh.
+            <EmptyState icon={UserCheck} title="Nobody registered yet">
+              Register with the tournament director, then refresh this page to check in.
             </EmptyState>
           </Card>
         )
@@ -385,14 +408,10 @@ export default function PlayerClaimView() {
 
       {/* Bottom actions */}
       <div className="mt-8 text-center space-y-2">
-        {players.length > 0 && unclaimed.length === 0 && (
+        {players.length > 0 && (
           <p className="text-xs text-muted-foreground mb-2">
-            Not in the list? Ask your director to add you.
-          </p>
-        )}
-        {unclaimed.length > 0 && (
-          <p className="text-xs text-muted-foreground mb-2">
-            Not in the list? Ask your director to add you.
+            Not in the list? Register with the tournament director first — your name appears here once
+            you're registered.
           </p>
         )}
         <button

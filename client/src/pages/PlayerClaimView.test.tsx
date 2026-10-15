@@ -48,16 +48,50 @@ describe('PlayerClaimView', () => {
     };
     open();
     await waitFor(() => expect(screen.getByText('This game has finished')).toBeTruthy());
-    expect(screen.getByText(/Won by Amy/)).toBeTruthy();
+    expect(screen.getByText('Won by', { exact: false }).textContent).toBe('Won by Amy');
     expect(screen.getByRole('button', { name: /View results/ })).toBeTruthy();
-    expect(screen.queryByText(/has not added the roster/)).toBeNull();
+    expect(screen.queryByText('Nobody registered yet')).toBeNull();
   });
 
   it('a game with no roster yet still says so', async () => {
     snapshot = { players: [] };
     open();
-    await waitFor(() => expect(screen.getByText(/has not added the roster/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Nobody registered yet')).toBeTruthy());
     expect(screen.queryByText('This game has finished')).toBeNull();
+  });
+
+  const league = { isSeasonTournament: true, leagueId: 'L1', seasonName: 'Spring 2026', gameNumber: 2, numberOfGames: 13 };
+
+  it('a league game names the season and the game, and says register before check-in', async () => {
+    snapshot = {
+      settings: league,
+      players: [{ id: 'a', name: 'Amy', isActive: true }, { id: 'b', name: 'Bob', isActive: true }],
+    };
+    open();
+    await waitFor(() => expect(screen.getByText('Amy')).toBeTruthy());
+    expect(screen.getByTestId('season-line').textContent).toBe('Spring 2026 · Game 2 of 13');
+    expect(screen.getByText(/Registered with the tournament director\? Tap your name below to check in/)).toBeTruthy();
+    expect(screen.getByText(/Register with the tournament director first/)).toBeTruthy();
+  });
+
+  it('a finished league game names the season on the finished card', async () => {
+    snapshot = {
+      settings: league,
+      players: [
+        { id: 'a', name: 'Amy', isActive: false, position: 1 },
+        { id: 'b', name: 'Bob', isActive: false, position: 2 },
+      ],
+    };
+    open();
+    await waitFor(() => expect(screen.getByText('This game has finished')).toBeTruthy());
+    expect(screen.getByTestId('season-line').textContent).toBe('Spring 2026 · Game 2 of 13');
+  });
+
+  it('a standalone game shows no season line', async () => {
+    snapshot = { settings: { isSeasonTournament: false, gameNumber: 2 }, players: [{ id: 'a', name: 'Amy', isActive: true }] };
+    open();
+    await waitFor(() => expect(screen.getByText('Amy')).toBeTruthy());
+    expect(screen.queryByTestId('season-line')).toBeNull();
   });
 
   it('a game in progress lists the players still in', async () => {
