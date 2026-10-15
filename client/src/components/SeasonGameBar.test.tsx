@@ -62,16 +62,36 @@ describe('the season game bar', () => {
    * console, only game 1 could be pressed. Game 2 was drawn as tonight's outline,
    * which is not a control. A game with results is a button, open or not.
    */
-  it('the finished game open on the console is still a button, and offers no Reopen', async () => {
-    const onReopen = vi.fn();
-    const { container } = bar({ currentGameId: 'g2', onReopen });
-    expect(screen.getAllByRole('button', { name: /^Game \d/ })).toHaveLength(2);
-    expect(container.querySelector('[data-slot="current"]')).toBeNull();
-    expect(container.querySelector('[data-slot="tonight-played"]')!.tagName).toBe('BUTTON');
-    fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
-    expect(screen.getByText('Bob')).toBeTruthy();
-    // Reopening the game already on screen means nothing, so it is not offered.
-    await waitFor(() => expect(screen.queryByRole('button', { name: /Reopen to correct/ })).toBeNull());
+  /**
+   * Reported from a live season: game 1 opened with game 2 — tonight's game,
+   * the console's own table — underneath, and game 2 opened showed it twice.
+   * Tonight's box is teal, opens nothing (its results are the table below) and
+   * closes any past game; the page is told when a past game is open so it can
+   * step tonight's table aside.
+   */
+  it('tonight is teal, opens no second copy, and closes a past game', () => {
+    const changes: boolean[] = [];
+    const { container } = bar({ currentGameId: 'g2', onSelectedChange: (o: boolean) => changes.push(o) });
+    const tonight = container.querySelector('[data-slot="tonight-played"]')!;
+    expect(tonight.tagName).toBe('BUTTON');
+    expect(tonight.className).toContain('ring-teal-400');
+    expect(screen.getByRole('button', { name: /^Game 1/ }).className).not.toContain('teal');
+    // Tonight opens nothing.
+    fireEvent.click(tonight);
+    expect(screen.queryByText('Bob')).toBeNull();
+    // A past game opens, and the page hears about it.
+    fireEvent.click(screen.getByRole('button', { name: /^Game 1/ }));
+    expect(screen.getByText('1 KO')).toBeTruthy();
+    expect(changes[changes.length - 1]).toBe(true);
+    // Tonight's box takes us back.
+    fireEvent.click(tonight);
+    expect(screen.queryByText('1 KO')).toBeNull();
+    expect(changes[changes.length - 1]).toBe(false);
+  });
+
+  it('tonight before its first result is teal too', () => {
+    const { container } = bar();
+    expect(container.querySelector('[data-slot="current"]')!.className).toContain('teal');
   });
 
   it('a played game opens its results, Summary and Reopen — and Reopen asks first', async () => {

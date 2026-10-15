@@ -3642,7 +3642,7 @@ recorder memory and corrected — that night's results right, the second night u
 Requested: a game selector like the season panel's orange progress bar. `components/SeasonGameBar.tsx`
 sits at the top of the **Players** tab in league mode — one segment per game of the displayed season.
 **Played** games are orange buttons that open the night underneath: results, Summary and Reopen to
-correct. **Tonight's** game is outlined. **Games still to come** are uncoloured `div`s — not mounted as
+correct. **Tonight's** game is teal. **Games still to come** are uncoloured `div`s — not mounted as
 controls at all, the `DirectorOnly` rule. A season played past its schedule grows extra segments; one
 with no game count shows only what has been played.
 
@@ -3678,11 +3678,13 @@ making another season current in Manage League, the table moved and the bar stay
 tonight's game was played in, two games long. Tonight's segment appears only when the game is in the
 season shown; the header's "Game X of Y" still follows the game.
 
-**A played game is a button even when it is the one open on the console.** `state: 'current'` (the
-outline, not a control) is only tonight's game BEFORE its first result; once a game has results it is
-`played`, with `tonight: true` keeping its outline. Reported from a live season: with the finished game 2
-still open, game 2 was drawn as tonight's outline and only game 1 could be pressed. Its panel offers no
-Reopen — the game is already on screen.
+**One game's results on screen at a time, and tonight's box is TEAL.** Reported: game 1 opened with
+game 2 — tonight's game, the console's own Players table — underneath, and game 2 opened showed it twice
+(the long Summary used to push the console's table out of sight). Tonight's segment wears the clock's teal,
+before and after its first result (`tonight: true`), and is a button that opens NO panel — its results ARE
+the table below — and closes any past game. A past game's panel tells the page through
+`onSelectedChange`, and `PokerTimer` steps tonight's Players section and Edit results aside while it is
+open, with one line saying how to come back. Nothing else unmounts; the prompts are page-level.
 
 **Every count of games uses ONE key, `gameKeyOf` (`lib/seasonProgress.ts`)** — the bar, "N of M played",
 attendance, the game number and each player's **Games** column. A result's `tournamentId`, else the NIGHT

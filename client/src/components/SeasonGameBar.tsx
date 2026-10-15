@@ -30,6 +30,7 @@ export default function SeasonGameBar({
   currentGameInPlay = false,
   loadGame = loadLiveGame,
   resultColumns,
+  onSelectedChange,
 }: {
   season: { id?: unknown; name?: string; numberOfGames?: number | null } | null | undefined;
   leaguePlayers: any[] | null | undefined;
@@ -41,6 +42,12 @@ export default function SeasonGameBar({
   loadGame?: (id: string) => Promise<Record<string, any> | null>;
   /** The console's current results columns — a past night draws with them. */
   resultColumns?: string[];
+  /**
+   * Told whether a past game's panel is open, so the page can step tonight's
+   * own table aside: one game's results on screen at a time (reported: game 1
+   * opened with game 2 underneath read as two results).
+   */
+  onSelectedChange?: (open: boolean) => void;
 }) {
   const slots = useMemo(
     () => seasonGameSlots({
@@ -61,10 +68,16 @@ export default function SeasonGameBar({
     if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [selected]);
 
+  // Open means a PAST game's panel is showing. Tonight's game never opens one —
+  // its results are the console's own table — so pressing it clears this.
+  const panelOpen = !!slots.find(s => s.gameId === selected && s.state === 'played' && !s.tonight);
+  useEffect(() => { onSelectedChange?.(panelOpen); }, [panelOpen, onSelectedChange]);
+  useEffect(() => () => onSelectedChange?.(false), [onSelectedChange]);
+
   if (slots.length === 0) return null;
 
   const scheduled = season?.numberOfGames && season.numberOfGames > 0 ? season.numberOfGames : null;
-  const slot = slots.find(s => s.gameId === selected && s.state === 'played') ?? null;
+  const slot = slots.find(s => s.gameId === selected && s.state === 'played' && !s.tonight) ?? null;
   // A night recorded before results carried their game's id has no document to
   // open and no History record to match — it shows the league's own rows.
   const slotDoc = slot && isGameDocumentKey(slot.gameId) ? slot.gameId : null;
@@ -87,8 +100,28 @@ export default function SeasonGameBar({
    * come are unlabelled and are not controls at all.
    */
   const segment = (s: GameSlot) => {
-    const isSelected = s.gameId !== null && s.gameId === selected;
+    const isSelected = s.gameId !== null && s.gameId === selected && !s.tonight;
+    // Tonight's game wears the clock's teal, so the number box of the night on
+    // the console reads apart from the season's played (orange) games — asked
+    // for once one game's results became one table at a time.
     const box = 'h-7 flex-1 min-w-[20px] rounded-md flex items-center justify-center font-mono text-caption transition-colors';
+    if (s.state === 'played' && s.tonight) {
+      return (
+        <button
+          key={`${s.number}-${s.gameId}`}
+          type="button"
+          data-slot="tonight-played"
+          aria-label={`Game ${s.number} — tonight`}
+          title={`Game ${s.number} — tonight, shown below`}
+          // Its results are the console's own table under the bar, so pressing
+          // it closes any past game rather than opening a second copy.
+          onClick={() => setSelected(null)}
+          className={cn(box, 'bg-teal-500/20 ring-1 ring-teal-400 text-teal-300 cursor-pointer hover:bg-teal-500/30')}
+        >
+          {s.number}
+        </button>
+      );
+    }
     if (s.state === 'played') {
       const label = `Game ${s.number}${s.playedAt ? ` — ${shortDate(s.playedAt)}` : ''}`;
       return (
@@ -99,13 +132,9 @@ export default function SeasonGameBar({
           aria-pressed={isSelected}
           title={label}
           onClick={() => setSelected(isSelected ? null : s.gameId)}
-          data-slot={s.tonight ? 'tonight-played' : undefined}
           className={cn(
             box,
             'bg-primary text-primary-foreground hover:bg-primary/85 cursor-pointer',
-            // The game open on the console keeps its outline, so "this is the
-            // one on screen" still reads — but it is a button like the rest.
-            s.tonight && !isSelected && 'ring-1 ring-primary ring-offset-2 ring-offset-background',
             isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
         >
@@ -119,7 +148,7 @@ export default function SeasonGameBar({
           key={`${s.number}-current`}
           data-slot="current"
           title={`Game ${s.number} — tonight`}
-          className={cn(box, 'bg-primary/20 ring-1 ring-primary text-primary')}
+          className={cn(box, 'bg-teal-500/20 ring-1 ring-teal-400 text-teal-300')}
         >
           {s.number}
         </div>
@@ -159,8 +188,7 @@ export default function SeasonGameBar({
             entry={record}
             rows={fallback}
             currency={currency}
-            // Reopening the game already open on the console means nothing.
-            onReopen={onReopen && !slot.tonight ? id => setConfirming(id) : undefined}
+            onReopen={onReopen ? id => setConfirming(id) : undefined}
             loadGame={loadGame}
             resultColumns={resultColumns}
           />

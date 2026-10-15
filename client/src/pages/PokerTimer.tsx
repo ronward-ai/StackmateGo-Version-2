@@ -339,6 +339,10 @@ function PokerTimerInner({
   // another season current in Manage League, the table moved and the bar stayed
   // on the season tonight's game was played in, two games long.
   const [viewedSeasonId, setViewedSeasonId] = useState<string | null>(null);
+  // A past game opened from the season bar takes the Players tab's place, so
+  // one game's results are on screen at a time (reported: game 1 opened with
+  // tonight's game 2 underneath read as two results).
+  const [pastGameOpen, setPastGameOpen] = useState(false);
   const { season: barSeason, viewedPast: viewedPastSeason, currentGameId: barCurrentGameId } = barSeasonFor({
     viewedSeasonId,
     currentSeason,
@@ -1777,11 +1781,17 @@ function PokerTimerInner({
                   onReopen={openOtherGame}
                   currentGameInPlay={tournament.state.players.length > 0 && !gameIsOver(tournament.state.players)}
                   resultColumns={tournament.state.settings.resultColumns}
+                  onSelectedChange={setPastGameOpen}
                 />
+              )}
+              {isLeagueMode && pastGameOpen && (
+                <p className="text-caption text-muted-foreground mt-2">
+                  Tap tonight's game (in teal) or × to return to tonight's players.
+                </p>
               )}
               {/* Rewrite the night — places, hitmen, rebuys, re-entries. Not
                   mounted on a read-only console (the DirectorOnly rule). */}
-              {!readOnlyConsole && tournament.state.players.length > 1 && (
+              {!(isLeagueMode && pastGameOpen) && !readOnlyConsole && tournament.state.players.length > 1 && (
                 <div className="flex justify-end mb-3">
                   <ResultsEditor
                     players={tournament.state.players}
@@ -1791,12 +1801,14 @@ function PokerTimerInner({
                   />
                 </div>
               )}
-              <DirectorOnly
-                readOnly={readOnlyConsole}
-                instead={<PlayerSectionReadOnly tournament={tournament} />}
-              >
-                <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} />
-              </DirectorOnly>
+              {!(isLeagueMode && pastGameOpen) && (
+                <DirectorOnly
+                  readOnly={readOnlyConsole}
+                  instead={<PlayerSectionReadOnly tournament={tournament} />}
+                >
+                  <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} />
+                </DirectorOnly>
+              )}
             </TabsContent>
 
             {/* The four tabs below exist only to edit, so they carry the bare
