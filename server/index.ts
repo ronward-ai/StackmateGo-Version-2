@@ -1,8 +1,9 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express from "express";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { installBodyParsers } from "./bodyParsers";
 import { installSecurityHeaders } from "./securityHeaders";
+import { installErrorHandler } from "./errorHandler";
 import { log } from "./vite";
 
 // Set Vite allowed hosts to fix "Blocked request" error
@@ -108,17 +109,7 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-
-      console.error('Server error:', message);
-      
-      // Always send response, never throw to prevent crashes
-      if (!res.headersSent) {
-        res.status(status).json({ message });
-      }
-    });
+    installErrorHandler(app);
 
 
     // Cloud Run sets PORT env var; fall back to 3000 for local dev

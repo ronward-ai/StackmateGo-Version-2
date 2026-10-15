@@ -26,6 +26,9 @@ export const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export function installSecurityHeaders(app: Express): void {
+  // Express announces itself on every response by default. Telling a scanner
+  // which framework (and so which advisories) to try costs us and helps them.
+  app.disable("x-powered-by");
   app.use((_req, res, next) => {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     next();

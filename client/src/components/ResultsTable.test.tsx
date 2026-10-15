@@ -72,3 +72,18 @@ describe('ResultsTable', () => {
     expect(live.style.fontWeight).toBe('500');
   });
 });
+
+// A rogue director's player names reach every phone through this table.
+describe('attack: hostile player names in the results', () => {
+  it('draws markup in a name as text', () => {
+    const XSS = '<img src=x onerror="window.__pwned=1">';
+    const { container } = render(<ResultsTable rows={rows([
+      { id: '1', name: XSS, isActive: false, position: 1 },
+      { id: '2', name: '<a href="javascript:alert(1)">x</a>', isActive: false, position: 2 },
+    ])} />);
+    expect(container.textContent).toContain(XSS);
+    expect(container.querySelector('img[src="x"]')).toBeNull();
+    expect(container.querySelector('[onerror]')).toBeNull();
+    expect(container.querySelector('a[href^="javascript"]')).toBeNull();
+  });
+});

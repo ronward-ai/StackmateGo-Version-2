@@ -310,3 +310,52 @@ describe('checkFormula tries every place (Oct Low)', () => {
     expect(r.ok === false && r.position === undefined).toBe(true);
   });
 });
+
+/**
+ * A ROGUE DIRECTOR'S FORMULA, run on a player's phone.
+ *
+ * A league's points formula is the director's, and `PlayerSectionReadOnly`
+ * evaluates it in the browser of everyone who scanned the QR code. So every
+ * string here is what an attacker would save as their formula: each must be
+ * refused (or be harmless arithmetic), never reach a JS engine, and never hang
+ * or crash the page.
+ */
+describe('attack: a hostile formula on a participant\'s phone', () => {
+  const v = { position: 1, totalPlayers: 9, knockouts: 0, buyIn: 10, totalCost: 10, prizepool: 90 };
+  const refused = (f: string) => expect(evaluateFormula(f, v).ok).toBe(false);
+
+  it('cannot reach a constructor, prototype or global', () => {
+    for (const f of [
+      'constructor', '__proto__', 'this', 'globalThis', 'window', 'document', 'eval', 'Function',
+      'Math.constructor', 'Math.constructor.constructor', "Math.constructor.constructor('alert(1)')()",
+      'Math.__proto__', 'Math.toString()', 'Math.valueOf()', 'f.constructor', 'p.__proto__',
+      '(1).constructor', 'Math["constructor"]', 'Math[0]', '[].constructor', '{}', '`x`',
+      "'alert(1)'", '"x"', 'alert(1)', 'fetch("//evil")', 'f = 1', 'f++', 'new Math.max(1)',
+      'Math.max.call(0, 1)', 'Math.max.apply(0, [1])', 'Math.max.bind(0)', '(() => 1)()', 'f; alert(1)',
+    ]) refused(f);
+  });
+
+  it('runs no code even via a crafted unicode or escape spelling', () => {
+    for (const f of ['\\u0061lert(1)', 'Ｍath.max(1)', 'constru\\u0063tor', '/*x*/1', '// x\n1']) refused(f);
+  });
+
+  it('50,000 nested brackets are refused, not a crash', () => {
+    const deep = '('.repeat(50_000) + '1' + ')'.repeat(50_000);
+    expect(() => evaluateFormula(deep, v)).not.toThrow();
+    refused(deep);
+  });
+
+  it('a 1 MB formula returns promptly', () => {
+    const huge = Array.from({ length: 200_000 }, () => 'f').join('+');
+    const start = Date.now();
+    expect(() => evaluateFormula(huge, v)).not.toThrow();
+    expect(Date.now() - start).toBeLessThan(2_000);
+  });
+
+  it('exploding numbers are refused rather than scored as Infinity', () => {
+    refused('9**9**9');
+    refused('1/(f-1)');
+    refused('Math.pow(10, 400)');
+    refused('0/0');
+  });
+});

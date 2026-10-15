@@ -129,3 +129,29 @@ describe('PlayerClaimView', () => {
     expect(screen.queryByText('This game has finished')).toBeNull();
   });
 });
+
+/**
+ * A ROGUE DIRECTOR'S DOCUMENT. Everything on this page comes from a tournament
+ * document the director wrote, and every player who scans the QR renders it.
+ * Names that are HTML or script must arrive as inert text.
+ */
+describe('attack: hostile names on the check-in page', () => {
+  const XSS = '<img src=x onerror="window.__pwned=1">';
+  it('renders HTML in event, season and player names as text, never as markup', async () => {
+    (window as any).__pwned = undefined;
+    snapshot = {
+      settings: {
+        isSeasonTournament: true, seasonName: XSS, gameNumber: 1, numberOfGames: 2,
+        branding: { eventName: `<script>window.__pwned=1</script>` },
+      },
+      players: [{ id: 'a', name: XSS, isActive: true }, { id: 'b', name: 'javascript:alert(1)', isActive: true }],
+    };
+    const { container } = open();
+    await waitFor(() => expect(screen.getAllByText(XSS, { exact: false }).length).toBeGreaterThan(0));
+    expect(container.querySelector('img[src="x"]')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('[onerror]')).toBeNull();
+    expect(container.querySelector('a[href^="javascript"]')).toBeNull();
+    expect((window as any).__pwned).toBeUndefined();
+  });
+});

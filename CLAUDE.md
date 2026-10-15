@@ -4627,6 +4627,35 @@ the season panel, the header line and the standings, read at each step: the extr
 next season defaulting to Game 1. Four mutants caught: an ended season still open, "Game 3 of 2" in the
 dialog, an unclamped header, and Next Game defaulting to the ended season.
 
+## Attack tests: one attacker at a time, every move must fail
+
+Asked for as "serious safety tests" (October 2026). The feature suites test a rule where the feature that
+needed it was built, which is how gaps hide; these list ATTACKERS and try everything each one could.
+
+- **`tests/rules/attacks.rules.test.ts`** (in `npm run test:rules`, its own emulator project): signed out,
+  an anonymous QR visitor, another director, and the owner overreaching — across every collection: lists,
+  private reads, self-granted Pro, every field of a live game, check-ins smuggling other fields or junk
+  claims, writing into or moving results into another league, squatting deterministic ids, re-owning.
+  **Each attacker has a positive CONTROL** (the legitimate version succeeds), or a block of `assertFails`
+  passes when the harness is simply broken. Five rule mutants (drop `staysInLeague`, games listable,
+  `ownerId` unpinned, check-in `hasAny`, `users` writable) each turn it red.
+- **`tests/server/attacks.test.ts`** assembles the app as `server/index.ts` does, with **Stripe REAL**
+  (genuine HMAC via `generateTestHeaderString`) — `routes.test.ts` mocks `constructEvent`, which accepts
+  any forgery by construction. Forged, wrong-secret, tampered, replayed and stale webhooks; checkout with
+  no, forged or anonymous tokens and a flood; path traversal against a fake deployment holding `.env` and
+  source beside `dist/public`; error bodies; headers on every response.
+- **Hostile director data on a phone**: `formulaEval.test.ts` (prototype escapes, 50k nested brackets,
+  1 MB formula, exploding numbers), and hostile names in `PlayerClaimView.test.tsx` / `ResultsTable.test.tsx`.
+
+**What got through, and is fixed:** `X-Powered-By: Express` on every response (`securityHeaders.ts`
+disables it); the error handler echoed any thrown error's message, 500s included
+(`server/errorHandler.ts`, extracted from `index.ts` so it can be tested: a 4xx the library marked
+`expose` keeps its message, anything else is a fixed sentence and the detail goes to the log); and
+checkout echoed Stripe's own error text. Nothing in the rules got through.
+
+**The published rules were probed too** — unauthenticated, read-only GETs against production: every
+collection's list and every private get is 403. Re-run that after any hand deploy.
+
 ## Working style that has paid off here
 
 - **Measure before and after.** A `manualChunks` catch-all once silently cancelled a lazy import;

@@ -190,7 +190,10 @@ export async function registerRoutes(app: Express, server: HTTPServer): Promise<
       });
       res.json({ url: session.url });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      // Stripe's own wording (an unknown price, a key problem) is configuration
+      // detail, not something to hand a browser. Logged here, generic there.
+      console.error('Checkout session failed:', err?.message);
+      res.status(500).json({ error: 'Could not start checkout. Please try again.' });
     }
   });
 
