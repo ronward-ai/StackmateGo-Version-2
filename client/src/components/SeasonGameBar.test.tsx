@@ -57,6 +57,23 @@ describe('the season game bar', () => {
     expect(screen.getByText('Tonight is game 3 of 6')).toBeTruthy();
   });
 
+  /**
+   * Reported from a live season: with the finished game 2 still open on the
+   * console, only game 1 could be pressed. Game 2 was drawn as tonight's outline,
+   * which is not a control. A game with results is a button, open or not.
+   */
+  it('the finished game open on the console is still a button, and offers no Reopen', async () => {
+    const onReopen = vi.fn();
+    const { container } = bar({ currentGameId: 'g2', onReopen });
+    expect(screen.getAllByRole('button', { name: /^Game \d/ })).toHaveLength(2);
+    expect(container.querySelector('[data-slot="current"]')).toBeNull();
+    expect(container.querySelector('[data-slot="tonight-played"]')!.tagName).toBe('BUTTON');
+    fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
+    expect(screen.getByText('Bob')).toBeTruthy();
+    // Reopening the game already on screen means nothing, so it is not offered.
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Reopen to correct/ })).toBeNull());
+  });
+
   it('a played game opens its results, Summary and Reopen — and Reopen asks first', async () => {
     const onReopen = vi.fn();
     bar({ onReopen });

@@ -72,7 +72,7 @@ export default function SeasonGameBar({
   const fallback = slot && !record
     ? leagueResultsForGame(leaguePlayers, slot.gameId!).map(r => ({ key: r.name, ...r }))
     : undefined;
-  const current = slots.find(s => s.state === 'current');
+  const current = slots.find(s => s.tonight);
 
   const caption = slot
     ? `Game ${slot.number}${scheduled ? ` of ${scheduled}` : ''}${slot.playedAt ? ` · ${shortDate(slot.playedAt)}` : ''}`
@@ -99,9 +99,13 @@ export default function SeasonGameBar({
           aria-pressed={isSelected}
           title={label}
           onClick={() => setSelected(isSelected ? null : s.gameId)}
+          data-slot={s.tonight ? 'tonight-played' : undefined}
           className={cn(
             box,
             'bg-primary text-primary-foreground hover:bg-primary/85 cursor-pointer',
+            // The game open on the console keeps its outline, so "this is the
+            // one on screen" still reads — but it is a button like the rest.
+            s.tonight && !isSelected && 'ring-1 ring-primary ring-offset-2 ring-offset-background',
             isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
         >
@@ -155,7 +159,8 @@ export default function SeasonGameBar({
             entry={record}
             rows={fallback}
             currency={currency}
-            onReopen={onReopen ? id => setConfirming(id) : undefined}
+            // Reopening the game already open on the console means nothing.
+            onReopen={onReopen && !slot.tonight ? id => setConfirming(id) : undefined}
             loadGame={loadGame}
             resultColumns={resultColumns}
           />

@@ -3678,6 +3678,12 @@ making another season current in Manage League, the table moved and the bar stay
 tonight's game was played in, two games long. Tonight's segment appears only when the game is in the
 season shown; the header's "Game X of Y" still follows the game.
 
+**A played game is a button even when it is the one open on the console.** `state: 'current'` (the
+outline, not a control) is only tonight's game BEFORE its first result; once a game has results it is
+`played`, with `tonight: true` keeping its outline. Reported from a live season: with the finished game 2
+still open, game 2 was drawn as tonight's outline and only game 1 could be pressed. Its panel offers no
+Reopen — the game is already on screen.
+
 **Every count of games uses ONE key, `gameKeyOf` (`lib/seasonProgress.ts`)** — the bar, "N of M played",
 attendance, the game number and each player's **Games** column. A result's `tournamentId`, else the NIGHT
 it was played (noon to noon, so a game past midnight is one game), else its own id. `countGamesPlayed`

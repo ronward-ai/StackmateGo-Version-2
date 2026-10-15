@@ -20,7 +20,11 @@ describe('seasonGameSlots', () => {
 
   it('marks tonight\'s game where it is, or as the next slot before its first result', () => {
     expect(shape(seasonGameSlots({ seasonId: 'spring', numberOfGames: 5, leaguePlayers: players, currentGameId: 'g2' })))
-      .toEqual(['1:g1:played', '2:g2:current', '3:gx:played', '4:-:future', '5:-:future']);
+      // g2 has results, so it is PLAYED even while it is the game on the console —
+      // it used to read 'current', which the bar draws as a non-button outline.
+      .toEqual(['1:g1:played', '2:g2:played', '3:gx:played', '4:-:future', '5:-:future']);
+    expect(seasonGameSlots({ seasonId: 'spring', numberOfGames: 5, leaguePlayers: players, currentGameId: 'g2' })
+      .map(x => !!x.tonight)).toEqual([false, true, false, false, false]);
     expect(shape(seasonGameSlots({ seasonId: 'spring', numberOfGames: 5, leaguePlayers: players, currentGameId: 'new' })))
       .toEqual(['1:g1:played', '2:g2:played', '3:gx:played', '4:new:current', '5:-:future']);
   });

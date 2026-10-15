@@ -21,6 +21,10 @@ export interface GameSlot {
   playedAt: Date | null;
   /** Past the season's scheduled number of games. */
   beyond: boolean;
+  /** The game open on the console. A PLAYED game can be tonight's too — the
+   *  finished game still on screen — and it stays a played game: it has results
+   *  to open. 'current' is only tonight's game before its first result. */
+  tonight?: boolean;
 }
 
 interface ResultLike {
@@ -84,17 +88,21 @@ export function seasonGameSlots({
   });
 
   const current = currentGameId ? String(currentGameId) : null;
+  // The game on the console stays PLAYED once it has results. It was drawn as
+  // tonight's outline, which is not a control — so with a finished game 2 open,
+  // only game 1 could be pressed (reported from a live season).
   const slots: GameSlot[] = played.map(([id, t], i) => ({
     number: i + 1,
     gameId: id,
-    state: id === current ? 'current' : 'played',
+    state: 'played',
     playedAt: t === null ? null : new Date(t),
     beyond: false,
+    tonight: id === current,
   }));
 
   // Tonight's game before its first result is the next slot.
   if (current && !earliest.has(current)) {
-    slots.push({ number: slots.length + 1, gameId: current, state: 'current', playedAt: null, beyond: false });
+    slots.push({ number: slots.length + 1, gameId: current, state: 'current', playedAt: null, beyond: false, tonight: true });
   }
 
   const scheduled = numberOfGames && numberOfGames > 0 ? numberOfGames : 0;
