@@ -942,6 +942,27 @@ straight back out, rebuy count and all, and the sync then wrote that. `rosterEch
 plays it through the real hooks. A write that never settles (a blocked browser) keeps the roster
 pending for good — right for the device driving, and a read-only console is not gated by it.
 
+**Pending is asked PER GAME, and one slot for the tab emptied a real league night** (October 2026,
+game 3 of a league). The state was module scope with no game attached, reset only by the home route's
+New Tournament — but opening another game inside the app (History's Reopen, the season bar, the
+other-live-game banner) is a client-side navigation, so the module survived it. The newly mounted
+console's first snapshot was judged against the PREVIOUS game's last write, read as pending, and
+`keepLocal` kept its empty mount-time roster; the players sync then wrote `players: []` over the night,
+0.4s after the console claimed it. The league results survived — they are another collection — so the
+season bar lost the game while the standings kept it. Three things close it, each mutation-tested in
+`openAnotherGame.scenario.test.tsx` and `pendingRoster.test.ts`:
+
+- **Keyed by tournament id**: `rosterIsPending(gameId, …)` answers for that game only.
+- **Forgotten when a console starts listening** (`useTournament`'s listener effect), and a settle
+  carries the GENERATION `markRosterIssued` returned, so a write from the console before cannot land on
+  the fresh slate. Without the forget, reopening the same game after the phone changed it stuck on the
+  old roster.
+- **`mayWriteRoster`**: the players sync never sends an empty roster from a console that has not
+  written a real one for this game — on a fresh mount `[]` means "not read yet". Removing the last
+  player is still written, because the sync writes the loaded roster on its first pass.
+
+The emptied document is not repaired by this; its results were removed by hand and the night re-run.
+
 Four things are load-bearing:
 
 - **Nothing pending before the first write** — and nothing in flight. Answering `true` there would stop the first snapshot

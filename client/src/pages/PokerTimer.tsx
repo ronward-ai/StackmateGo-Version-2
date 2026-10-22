@@ -63,7 +63,7 @@ import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, shouldReopen, winnerOf, shouldRecordCompletion, storedStatusOf, completionFields } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
-import { markRosterWritten, markRosterIssued, markRosterSettled, rosterPayload } from '@/lib/pendingRoster';
+import { markRosterWritten, markRosterIssued, markRosterSettled, rosterPayload, mayWriteRoster } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaimNow, controlLockReason, type Control } from '@/lib/directorControl';
 import { getConsoleId, subscribeConsoleId } from '@/lib/consoleId';
 import { recordedStatsFor } from '@/lib/resultStats';
@@ -868,7 +868,7 @@ function PokerTimerInner({
     lastSyncedNightLogRef.current = '';
     // Null, not '': "nothing has been written for this game" is not the same as
     // "an empty roster was written", and only the first may let a snapshot seed.
-    markRosterWritten(null);
+    if (dbTournamentId) markRosterWritten(String(dbTournamentId), null);
     setRecoverable(null);
     setRecoveryDismissed(false);
   }, [tournamentId, tournament.state.details?.type, dbTournamentId]);
@@ -969,9 +969,14 @@ function PokerTimerInner({
         isFinalTable: tournament.state.isFinalTable,
       });
       if (serialised === lastSyncedPlayersRef.current) return;
+      // Never an empty roster from a console that has not yet written a real
+      // one for this game — that is "not read yet", and writing it emptied a
+      // finished league night (lib/pendingRoster.ts's mayWriteRoster).
+      if (!mayWriteRoster(tournament.state.players, lastSyncedPlayersRef.current)) return;
       // In flight until it settles — a snapshot meanwhile must not apply an
       // older roster over this one (lib/pendingRoster.ts).
-      markRosterIssued();
+      const gameId = String(activeTournamentId);
+      const generation = markRosterIssued(gameId);
       let landed = false;
       try {
         const result = await writeLiveGame(activeTournamentId, {
@@ -1004,14 +1009,14 @@ function PokerTimerInner({
           // The same fact, where the snapshot handler can reach it. It gates the
           // merge so an in-flight write's echo cannot revert the change that
           // produced it — see lib/pendingRoster.ts.
-          markRosterWritten(serialised);
+          markRosterWritten(gameId, serialised, generation);
           landed = true;
           reportSyncSuccess();
         }
       } catch (e) {
         reportSyncFailure('Players', e);
       } finally {
-        if (!landed) markRosterSettled();
+        if (!landed) markRosterSettled(gameId, generation);
       }
     };
     sync();

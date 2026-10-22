@@ -32,7 +32,7 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => authState }));
 
 import { useTournament } from '@/hooks/useTournament';
 import { useRebuyOffer } from '@/hooks/useRebuyOffer';
-import { rosterPayload, markRosterWritten, markRosterIssued } from '@/lib/pendingRoster';
+import { rosterPayload, markRosterWritten, markRosterIssued, forgetRosters } from '@/lib/pendingRoster';
 
 const emit = () => { for (const cb of fs.listeners) act(() => { cb({ exists: () => true, data: () => clone(fs.doc) }); }); };
 
@@ -52,10 +52,10 @@ async function openConsole() {
       const s = h.result.current.t.state;
       const ser = rosterPayload({ players: s.players, isFinalTable: s.isFinalTable });
       if (ser === lastPlayers) return;
-      markRosterIssued();
+      markRosterIssued('G');
       fs.doc.players = clone(s.players);
       emit();
-      const done = () => { lastPlayers = ser; markRosterWritten(ser); };
+      const done = () => { lastPlayers = ser; markRosterWritten('G', ser); };
       if (ack) done(); else unacked.push(done);
     },
     /** Any OTHER write whose echo carries the document's current roster. */
@@ -68,7 +68,7 @@ async function openConsole() {
 
 beforeEach(() => {
   localStorage.clear(); localStorage.setItem('lastSignedInUid', 'u1');
-  markRosterWritten(null);
+  forgetRosters();
   fs.listeners = [];
   fs.doc = {
     ownerId: 'u1', currentLevel: 0, secondsLeft: 900, isRunning: false, controllingDeviceId: 'dev#tab',

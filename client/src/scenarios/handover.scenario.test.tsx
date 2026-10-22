@@ -51,7 +51,7 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => authState }));
 import { useTournament } from '@/hooks/useTournament';
 import { useRebuyOffer } from '@/hooks/useRebuyOffer';
 import { controlOf, mayDrive, shouldClaim } from '@/lib/directorControl';
-import { rosterPayload, markRosterWritten } from '@/lib/pendingRoster';
+import { rosterPayload, markRosterWritten, forgetRosters } from '@/lib/pendingRoster';
 import { playerIdsOf } from '@/lib/seatClaims';
 import { createLeague } from './leagueHarness';
 
@@ -132,7 +132,7 @@ function write(c: Console): 'written' | 'skipped' {
   fs.doc.rebuysAnswered = c.offer.answered;
   // The Summary's own sync: written whole, only when there is something in it.
   if ((s.nightLog ?? []).length) fs.doc.nightLog = clone(s.nightLog);
-  markRosterWritten(rosterPayload({ players: s.players, isFinalTable: s.isFinalTable }));
+  markRosterWritten('G', rosterPayload({ players: s.players, isFinalTable: s.isFinalTable }));
   emit();
   return 'written';
 }
@@ -140,7 +140,7 @@ function write(c: Console): 'written' | 'skipped' {
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('lastSignedInUid', 'u1');
-  markRosterWritten(null);
+  forgetRosters();
 });
 
 describe('handing over between two consoles mid-game', () => {

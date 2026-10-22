@@ -14,7 +14,7 @@ import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { initialDetails, needsLocalGameId, gameIdOf } from '@/lib/localGameId';
 import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
 import { controlOf, mayDrive, takesDocumentRoster, type Control } from '@/lib/directorControl';
-import { rosterIsPending } from '@/lib/pendingRoster';
+import { rosterIsPending, markRosterWritten } from '@/lib/pendingRoster';
 import { breakTable as doBreakTable, consolidationDue, reindexAfterBreak, tableToBreak } from '@/lib/tableBreak';
 import { getConsoleId } from '@/lib/consoleId';
 
@@ -648,7 +648,13 @@ export function useTournament(tournamentId?: string) {
     // 'season' or 'standalone' over it — tore the listener down on a saved game,
     // and with it hasLoadedRemoteState and every write that waits on the latch.
     if (state.details?.id) {
-      const docRef = doc(db, 'activeTournaments', state.details.id.toString());
+      // The game this listener belongs to — pending writes are asked about
+      // THIS game only (lib/pendingRoster.ts).
+      const listenedId = state.details.id.toString();
+      // This console has written nothing for it yet, whatever an earlier
+      // console in this tab left behind — the module outlives the route.
+      markRosterWritten(listenedId, null);
+      const docRef = doc(db, 'activeTournaments', listenedId);
       
       const unsubscribe = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -715,7 +721,7 @@ export function useTournament(tournamentId?: string) {
               // `isFinalTable` below — because the two are written in one
               // payload, so they are pending under exactly the same condition.
               // One question, one answer; a second check could only disagree.
-              const keepLocal = mayDrive(nextControl) && rosterIsPending({
+              const keepLocal = mayDrive(nextControl) && rosterIsPending(listenedId, {
                 players: currentState.players,
                 isFinalTable: currentState.isFinalTable,
               });

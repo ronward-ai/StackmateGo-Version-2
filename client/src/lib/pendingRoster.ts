@@ -65,47 +65,89 @@ export function rosterPayload(payload: RosterPayload): string {
 }
 
 /**
- * The payload last SUCCESSFULLY written, from `rosterPayload`. `null` means
- * nothing has been written yet this game.
+ * Per GAME, keyed by tournament id — never one slot for the tab (October 2026,
+ * a real league's game 3).
+ *
+ * It was module scope with no game attached, reset only by the home route's
+ * New Tournament. But opening another game inside the app — History, the
+ * season bar, the other-live-game banner — is a client-side navigation: the
+ * director route remounts the console and nothing reloads this module. So the
+ * new game's first snapshot was judged against the PREVIOUS game's roster,
+ * read as "a change not yet written", and the merge kept the console's empty
+ * roster; the players sync then wrote `players: []` over a finished night. A
+ * late settle from the game just left did the same through `inFlight`.
+ *
+ * Each game answers only for itself now, so neither can reach another.
  */
-let lastWritten: string | null = null;
+interface GameRoster {
+  /** The payload last SUCCESSFULLY written, from `rosterPayload`. */
+  lastWritten: string | null;
+  /**
+   * Roster writes ISSUED and not yet settled.
+   *
+   * "Nothing pending before the first write" assumed the first write had either
+   * not happened or had landed. Between the two — a write sent, not yet
+   * acknowledged — the document is behind the screen exactly as it is after any
+   * other write, and a snapshot in that window applied it: a player rebought
+   * while their bust-out's write was still in flight was put straight back out,
+   * rebuy count and all (found reproducing a report of rebuys missing from a
+   * night). In flight therefore counts as pending, whatever has landed before.
+   */
+  inFlight: number;
+}
+
+const games = new Map<string, GameRoster & { generation: number }>();
+let generations = 0;
+
+function entry(gameId: string) {
+  let g = games.get(gameId);
+  if (!g) { g = { lastWritten: null, inFlight: 0, generation: ++generations }; games.set(gameId, g); }
+  return g;
+}
 
 /**
- * Roster writes ISSUED and not yet settled.
- *
- * "Nothing pending before the first write" assumed the first write had either
- * not happened or had landed. Between the two — a write sent, not yet
- * acknowledged — the document is behind the screen exactly as it is after any
- * other write, and a snapshot in that window applied it: a player rebought
- * while their bust-out's write was still in flight was put straight back out,
- * rebuy count and all (found reproducing a report of rebuys missing from a
- * night). In flight therefore counts as pending, whatever has landed before.
+ * Call just before a roster write is sent. Returns the game's GENERATION, to
+ * hand back when the write settles: a game forgotten meanwhile (a new console
+ * mounting on it) must not have its fresh slate written over by a settle from
+ * the console before.
  */
-let inFlight = 0;
+export function markRosterIssued(gameId: string): number {
+  const g = entry(gameId);
+  g.inFlight += 1;
+  return g.generation;
+}
 
-/** Call just before a roster write is sent. */
-export function markRosterIssued(): void {
-  inFlight += 1;
+function current(gameId: string, generation?: number) {
+  const g = entry(gameId);
+  return generation === undefined || generation === g.generation ? g : null;
 }
 
 /** Call when a write ends WITHOUT landing — skipped by the door, or failed. */
-export function markRosterSettled(): void {
-  inFlight = Math.max(0, inFlight - 1);
+export function markRosterSettled(gameId: string, generation?: number): void {
+  const g = current(gameId, generation);
+  if (g) g.inFlight = Math.max(0, g.inFlight - 1);
 }
 
 /**
  * Called where the sync effect records a payload as synced — which is only ever
- * on `'written'`, never on a skipped or failed write. Passing null forgets it,
- * for a new game.
+ * on `'written'`, never on a skipped or failed write. Passing null forgets the
+ * game: a new game, or a console starting to listen to one afresh.
  */
-export function markRosterWritten(serialised: string | null): void {
-  if (serialised === null) inFlight = 0; // a new game: nothing of the old one is in flight for it
-  else inFlight = Math.max(0, inFlight - 1);
-  lastWritten = serialised;
+export function markRosterWritten(gameId: string, serialised: string | null, generation?: number): void {
+  if (serialised === null) { games.delete(gameId); return; }
+  const g = current(gameId, generation);
+  if (!g) return;
+  g.inFlight = Math.max(0, g.inFlight - 1);
+  g.lastWritten = serialised;
+}
+
+/** Forget every game — a test's clean slate. */
+export function forgetRosters(): void {
+  games.clear();
 }
 
 /**
- * Is there a local roster change still waiting on Firestore?
+ * Is there a local roster change for THIS game still waiting on Firestore?
  *
  * **False when nothing has been written yet, and that default is load-bearing.**
  * Before the first write there is no local change to protect, and answering
@@ -116,8 +158,30 @@ export function markRosterWritten(serialised: string | null): void {
  * Self-clearing: the moment the write lands the payloads match again, so the
  * window is exactly as long as the hazard and not one snapshot longer.
  */
-export function rosterIsPending(payload: RosterPayload): boolean {
-  if (inFlight > 0) return true;
-  if (lastWritten === null) return false;
-  return rosterPayload(payload) !== lastWritten;
+export function rosterIsPending(gameId: string, payload: RosterPayload): boolean {
+  const g = games.get(gameId);
+  if (!g) return false;
+  if (g.inFlight > 0) return true;
+  if (g.lastWritten === null) return false;
+  return rosterPayload(payload) !== g.lastWritten;
+}
+
+/**
+ * May the players sync send this roster? Not an EMPTY one from a console that
+ * has never written a non-empty one for this game.
+ *
+ * Belt and braces for the fault above, and for any other route to it: a console
+ * holds `players: []` from the moment it mounts until a read fills it, so an
+ * empty roster from a console that has written nothing yet is far more likely
+ * to be "not read yet" than "every player removed". A director who genuinely
+ * removes the last player has written the roster before (the sync writes the
+ * loaded roster on its first pass), so that is still allowed.
+ */
+export function mayWriteRoster(players: unknown, lastSynced: string): boolean {
+  if (Array.isArray(players) && players.length > 0) return true;
+  if (!lastSynced) return false;
+  try {
+    const prev = JSON.parse(lastSynced);
+    return Array.isArray(prev.players) && prev.players.length > 0;
+  } catch { return false; }
 }
