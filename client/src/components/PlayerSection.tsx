@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { blindLevelIndex } from '@/lib/entryLimits';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import { planSeating, assignSeats, tablesNeededFor, tableNamesFor, tablesOf, ran
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
 // imported dynamically at the call site rather than loaded on every page.
 import { Player } from '@/types';
-import { type RecentPlayer } from '@/lib/recentPlayers';
+import { type RecentPlayer, leagueSuggestions } from '@/lib/recentPlayers';
 import { useRecentPlayers } from '@/hooks/useRecentPlayers';
 import PlayerEntryActions from '@/components/PlayerEntryActions';
 import { useToast } from '@/hooks/use-toast';
@@ -26,9 +26,15 @@ interface PlayerSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
   /** Who holds the failsafe Rebuy, from `useRebuyOffer` on the page. */
   failsafeFor?: string | null;
+  /**
+   * In a league game, the league's players: the names Add Player offers instead
+   * of the account's Recent Players (`lib/recentPlayers.ts`'s `leagueSuggestions`).
+   */
+  isLeagueMode?: boolean;
+  leaguePlayers?: readonly { name?: string | null; tournamentResults?: readonly unknown[] | null }[] | null;
 }
 
-export default function PlayerSection({ tournament, failsafeFor = null }: PlayerSectionProps) {
+export default function PlayerSection({ tournament, failsafeFor = null, isLeagueMode = false, leaguePlayers = null }: PlayerSectionProps) {
   const { state, addPlayer, removePlayer, processRebuy, eliminatePlayer, undoPlayerReturn } = tournament;
   const { toast } = useToast();
 
@@ -110,7 +116,12 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
   const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
 
   // Follows the account — see hooks/useRecentPlayers.ts.
-  const { recentPlayers, add: saveRecentPlayer, remove: removeRecentPlayer } = useRecentPlayers();
+  const { recentPlayers: accountRecent, add: saveRecentPlayer, remove: removeRecentPlayer } = useRecentPlayers();
+  // In a league game the league's own players are the list — their names are the
+  // ones the league files results under. Until the league has any, the account's.
+  const leagueNames = useMemo(() => (isLeagueMode ? leagueSuggestions(leaguePlayers) : []), [isLeagueMode, leaguePlayers]);
+  const fromLeague = leagueNames.length > 0;
+  const recentPlayers = fromLeague ? leagueNames : accountRecent;
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [filteredNames, setFilteredNames] = useState<RecentPlayer[]>([]);
   const [showAllRecent, setShowAllRecent] = useState(false);
@@ -475,7 +486,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                   onClick={() => setShowAllRecent(!showAllRecent)}
                   className="text-label text-muted-foreground hover:text-foreground h-6 px-0 font-medium"
                 >
-                  Recent Players ({recentPlayers.length})
+                  {fromLeague ? 'League players' : 'Recent Players'} ({recentPlayers.length})
                 </Button>
                 {showAllRecent && (
                   <Button
@@ -494,7 +505,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                 <div className="space-y-3">
                   <Input
                     type="text"
-                    placeholder="Search recent players..."
+                    placeholder={fromLeague ? 'Search league players...' : 'Search recent players...'}
                     value={recentSearchTerm}
                     onChange={(e) => setRecentSearchTerm(e.target.value)}
                     className="h-8 text-label"
@@ -512,7 +523,8 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                         >
                           {player.name}
                         </button>
-                        <button
+                        {/* The league's players are its records, not a list to prune. */}
+                        {!fromLeague && <button
                           type="button"
                           aria-label={`Remove ${player.name} from recent players`}
                           title="Remove from this list"
@@ -520,7 +532,7 @@ export default function PlayerSection({ tournament, failsafeFor = null }: Player
                           onClick={() => removeRecentPlayer(player.name)}
                         >
                           <X className="h-3.5 w-3.5" />
-                        </button>
+                        </button>}
                       </div>
                     ))}
                     {getFilteredRecentPlayers().length === 0 && recentSearchTerm && (

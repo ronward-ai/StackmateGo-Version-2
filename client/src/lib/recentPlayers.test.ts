@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  addRecent, removeRecent, sanitiseRecent, resolveRecent, RECENT_PLAYER_LIMIT, type RecentPlayer,
+  addRecent, removeRecent, leagueSuggestions, sanitiseRecent, resolveRecent, RECENT_PLAYER_LIMIT, type RecentPlayer,
 } from './recentPlayers';
 
 const list = (...names: string[]): RecentPlayer[] =>
@@ -163,5 +163,23 @@ describe('a reset elsewhere reaches a device still holding names', () => {
   });
   it('whereas an absent field would push the names straight back up', () => {
     expect(resolveRecent(null, cached).pushLocal).toBe(true);
+  });
+});
+
+describe('leagueSuggestions', () => {
+  it('the league players, most recently seen first, one entry per person', () => {
+    const out = leagueSuggestions([
+      { name: 'Dave Smith', tournamentResults: [{ tournamentDate: '2026-10-01T19:00:00Z' }] },
+      { name: 'Amy Jones', tournamentResults: [{ tournamentDate: '2026-10-15T19:00:00Z' }, { tournamentDate: '2026-09-01T19:00:00Z' }] },
+      { name: 'dave smith', tournamentResults: [{ tournamentDate: '2026-10-08T19:00:00Z' }] },
+      { name: '  ', tournamentResults: [] },
+      { name: 'Newcomer', tournamentResults: [] },
+    ]);
+    expect(out.map(p => p.name)).toEqual(['Amy Jones', 'Dave Smith', 'Newcomer']);
+    expect(out[1].lastUsed).toBe(Date.parse('2026-10-08T19:00:00Z'));
+  });
+
+  it('nothing for no league', () => {
+    expect(leagueSuggestions(null)).toEqual([]);
   });
 });

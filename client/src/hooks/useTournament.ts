@@ -1749,15 +1749,19 @@ export function useTournament(tournamentId?: string) {
     setState(prev => {
       const players = applyEdit(prev.players, rows, prev.prizeStructure as any) as Player[];
       const over = gameIsOver(players);
+      const at = Date.now();
+      const level = blindLevelNumber(prev.levels, prev.currentLevel);
+      let nightLog = appendEvent(prev.nightLog, getConsoleId(), { at, level, kind: 'resultsEdited' });
+      // A corrected name says so in the Summary — the one roster change an edit
+      // makes that its own "Results edited" line would otherwise hide.
+      for (const e of eventsBetween(prev as any, { ...prev, players } as any, at, level)) {
+        if (e.kind === 'renamed') nightLog = appendEvent(nightLog, getConsoleId(), e);
+      }
       return {
         ...prev,
         players,
         ...(over ? {} : { isFinalTable: false, preConsolidation: undefined }),
-        nightLog: appendEvent(prev.nightLog, getConsoleId(), {
-          at: Date.now(),
-          level: blindLevelNumber(prev.levels, prev.currentLevel),
-          kind: 'resultsEdited',
-        }),
+        nightLog,
       };
     });
   }, []);

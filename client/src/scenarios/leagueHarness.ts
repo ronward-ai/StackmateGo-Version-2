@@ -17,7 +17,7 @@
  * mirrored below line for line because they live inside a page effect and a
  * Firebase hook. If either of those changes shape, change this with it.
  */
-import { removalsDue, recordsDue, recordedForGame, recordedStatsForGame, statsOfPlayer, type RecordedStats, findPlayerByName, alreadyRecorded, resultsToWithdraw } from '@/lib/leagueRecorder';
+import { removalsDue, renamesDue, renameKey, recordsDue, recordedForGame, recordedStatsForGame, statsOfPlayer, type RecordedStats, findPlayerByName, alreadyRecorded, resultsToWithdraw } from '@/lib/leagueRecorder';
 import { standingsFromDocs } from '@/lib/leagueStandings';
 import { seasonRoster } from '@/lib/playerSeason';
 import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
@@ -53,6 +53,7 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
   /** This tab's memory (PokerTimer's processedEliminationsRef). A new tab, or a reload, starts empty. */
   let memory = new Map<string, number>();
   let statsMemory = new Map<string, RecordedStats>();
+  let withdrawnRenames = new Set<string>();
 
   const standings = () => standingsFromDocs(playerDocs, results);
 
@@ -96,6 +97,11 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
     const active = players.filter(p => p.isActive !== false);
     const isFinished = active.length <= 1 && players.length > 1;
     const cloud = recordedForGame(standings(), gameId);
+    for (const { player, formerName } of renamesDue(players, cloud, withdrawnRenames)) {
+      removeResultForPlayer(formerName, gameId);
+      withdrawnRenames.add(renameKey(player.id, formerName));
+      memory.set(player.id, 0); statsMemory.delete(player.id);
+    }
     const { back, moved, changed } = removalsDue(players, memory, cloud,
       { memory: statsMemory, cloud: recordedStatsForGame(standings(), gameId) });
     for (const p of [...back, ...moved, ...changed]) {
@@ -112,7 +118,7 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
   }
 
   /** A reload or a second tab: the page's in-memory claims are gone. */
-  function forgetTab() { memory = new Map(); statsMemory = new Map(); }
+  function forgetTab() { memory = new Map(); statsMemory = new Map(); withdrawnRenames = new Set(); }
 
   /** The standings table for a season, in the order the screen draws it. */
   function table(seasonId: string) {

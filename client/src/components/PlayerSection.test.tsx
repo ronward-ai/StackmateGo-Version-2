@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Stable values: a fresh array per render re-runs PlayerSection's effects for
 // ever, which is a fault of the mock, not of the component.
-const recent = { recentPlayers: [], add: () => {}, remove: () => {} };
+const recent = { recentPlayers: [] as { name: string; lastUsed: number }[], add: () => {}, remove: () => {} };
 const scoring = { calculatePoints: () => 0 };
 vi.mock('@/hooks/useRecentPlayers', () => ({ useRecentPlayers: () => recent }));
 vi.mock('@/hooks/useLeagueSettings', () => ({ useLeagueSettings: () => scoring }));
@@ -23,7 +23,7 @@ import PlayerSection from './PlayerSection';
  */
 const p = (id: string, over: Record<string, unknown> = {}) => ({ id, name: id.toUpperCase(), isActive: true, knockouts: 0, ...over });
 
-function harness(players: any[], prizeStructure: any = { buyIn: 10, manualPayouts: [] }, currentLevel = 0, failsafeFor: string | null = null) {
+function harness(players: any[], prizeStructure: any = { buyIn: 10, manualPayouts: [] }, currentLevel = 0, failsafeFor: string | null = null, league: { isLeagueMode?: boolean; leaguePlayers?: any[] } = {}) {
   const addPlayer = vi.fn();
   const updatePlayers = vi.fn();
   const updateSettings = vi.fn();
@@ -38,7 +38,7 @@ function harness(players: any[], prizeStructure: any = { buyIn: 10, manualPayout
     removePlayer: vi.fn(), eliminatePlayer: vi.fn(), processRebuy: vi.fn(), processReEntry: vi.fn(),
     processAddon: vi.fn(), undoBustOut: vi.fn(), undoPlayerReturn: vi.fn(),
   };
-  render(<PlayerSection tournament={tournament} failsafeFor={failsafeFor} />);
+  render(<PlayerSection tournament={tournament} failsafeFor={failsafeFor} {...league} />);
   return { addPlayer, updatePlayers, updateSettings, processRebuy: tournament.processRebuy };
 }
 
@@ -94,5 +94,42 @@ describe('PlayerSection', () => {
     expect(h.processRebuy).not.toHaveBeenCalled();
     expect(toasts.at(-1)).toMatchObject({ title: 'AMY has NOT bought back in', variant: 'destructive' });
     expect(toasts.some(t => /bought back in/.test(t.title) && !/NOT/.test(t.title))).toBe(false);
+  });
+});
+
+/**
+ * Reported from game 3 of 13: the account's list held first names from testing,
+ * a regular was typed from memory, misspelt, and showed up in the standings as a
+ * stranger. In a league game the list is the LEAGUE's players.
+ */
+describe('the names Add Player offers', () => {
+  const league = [
+    { name: 'Dave Smith', tournamentResults: [{ tournamentDate: '2026-10-08T19:00:00Z' }] },
+    { name: 'Amy Jones', tournamentResults: [{ tournamentDate: '2026-10-15T19:00:00Z' }] },
+  ];
+
+  it('in a league game, offers the league players by their full names, with no remove button', () => {
+    recent.recentPlayers = [{ name: 'Dave', lastUsed: 1 }];
+    harness([p('bob')], undefined, 0, null, { isLeagueMode: true, leaguePlayers: league });
+    fireEvent.click(screen.getByRole('button', { name: 'League players (2)' }));
+    expect(screen.getByRole('button', { name: 'Dave Smith' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Dave' })).toBeNull();
+    expect(screen.queryByLabelText(/Remove .* from recent players/)).toBeNull();
+    recent.recentPlayers = [];
+  });
+
+  it('suggests the league spelling as the director types', () => {
+    harness([p('bob')], undefined, 0, null, { isLeagueMode: true, leaguePlayers: league });
+    fireEvent.change(screen.getByPlaceholderText('Enter player name...'), { target: { value: 'dav' } });
+    expect(screen.getByText('Dave Smith')).toBeTruthy();
+  });
+
+  it('a standalone game keeps the account\'s Recent Players', () => {
+    recent.recentPlayers = [{ name: 'Dave', lastUsed: 1 }];
+    harness([p('bob')], undefined, 0, null, { isLeagueMode: false, leaguePlayers: league });
+    fireEvent.click(screen.getByRole('button', { name: 'Recent Players (1)' }));
+    expect(screen.getByRole('button', { name: 'Dave' })).toBeTruthy();
+    expect(screen.getByLabelText('Remove Dave from recent players')).toBeTruthy();
+    recent.recentPlayers = [];
   });
 });

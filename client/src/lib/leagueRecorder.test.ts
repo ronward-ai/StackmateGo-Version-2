@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recordedForGame, recordedPosition, removalsDue, recordsDue, nameKey, findPlayerByName, alreadyRecorded } from './leagueRecorder';
+import { recordedForGame, recordedPosition, removalsDue, recordsDue, nameKey, findPlayerByName, alreadyRecorded, renamesDue, renameKey } from './leagueRecorder';
 
 const league = (rows: Array<[string, string, number]>) => {
   const byName = new Map<string, any>();
@@ -126,5 +126,24 @@ describe('an edited night: same place, different counts', () => {
     expect(statsDiffer({ knockouts: 3 }, { knockouts: 3, rebuys: 2, reEntries: 1 })).toBe(false);
     expect(statsDiffer({ knockouts: 2 }, { knockouts: 3, rebuys: 0, reEntries: 0 })).toBe(true);
     expect(statsDiffer(undefined, { knockouts: 3 })).toBe(false);
+  });
+});
+
+describe('renamesDue — a result still filed under a name the player was renamed from', () => {
+  const dave = { id: 'p2', name: 'Dave Smith', isActive: false, position: 2, formerNames: ['Dave Smyth'] };
+
+  it('finds the old-name result for this game', () => {
+    const cloud = new Map([['dave smyth', 2], ['amy', 1]]);
+    expect(renamesDue([dave], cloud)).toEqual([{ player: dave, formerName: 'Dave Smyth' }]);
+  });
+
+  it('nothing once it is gone, or once this tab has withdrawn it', () => {
+    expect(renamesDue([dave], new Map([['dave smith', 2]]))).toEqual([]);
+    expect(renamesDue([dave], new Map([['dave smyth', 2]]), new Set([renameKey('p2', 'Dave Smyth')]))).toEqual([]);
+  });
+
+  it('never withdraws a result belonging to a player still in the game under that name', () => {
+    const other = { id: 'p3', name: 'Dave Smyth', isActive: false, position: 3 };
+    expect(renamesDue([dave, other], new Map([['dave smyth', 3]]))).toEqual([]);
   });
 });

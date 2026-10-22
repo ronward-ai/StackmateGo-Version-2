@@ -39,6 +39,7 @@ import { useTournament } from '@/hooks/useTournament';
 import RealTimeLeagueTable from '@/components/RealTimeLeagueTable';
 import { gameNumberFor, nextGameNumber, countGamesPlayed } from '@/lib/seasonProgress';
 import { createLeague } from './leagueHarness';
+import { editRowsFrom } from '@/lib/resultsEdit';
 
 beforeEach(() => {
   localStorage.clear();
@@ -329,5 +330,72 @@ describe('a second console records the same night', () => {
     );
     league.removeResultForPlayer('Amy', 'g1');
     expect(league.results).toEqual([]);
+  });
+});
+
+/**
+ * Reported from game 3 of 13: Recent Players offered no full names, a regular was
+ * added misspelt, and the standings showed a stranger with one game while the
+ * regular showed two. The fix is to correct the name in Edit results — and the
+ * league has to follow, on the tab that made the edit AND after a reload, with
+ * the night recorded once.
+ */
+describe('a misspelt regular corrected in the results editor', () => {
+  function threeNights(league: ReturnType<typeof createLeague>) {
+    for (const g of ['g1', 'g2']) {
+      const n = night(league, g, 'spring', ['Amy', 'Dave Smith', 'Cat']);
+      n.bust('Cat', 'Amy'); n.bust('Dave Smith', 'Amy');
+      n.done();
+    }
+    const n3 = night(league, 'g3', 'spring', ['Amy', 'Dave Smyth', 'Cat']);
+    n3.bust('Cat', 'Dave Smyth'); n3.bust('Dave Smyth', 'Amy');
+    return n3;
+  }
+  const rename = (n: ReturnType<typeof night>, from: string, to: string) => act(() => {
+    n.h.result.current.applyResultsEdit(
+      editRowsFrom(n.s().players as any).map(r => (r.name === from ? { ...r, name: to } : r)),
+    );
+  });
+  const games = (league: ReturnType<typeof createLeague>, name: string) =>
+    league.table('spring').find((r: any) => r.name === name)?.games;
+
+  it('on the same tab: the result moves to the regular, once', () => {
+    const league = createLeague();
+    const n3 = threeNights(league);
+    expect(games(league, 'Dave Smyth')).toBe(1);
+
+    rename(n3, 'Dave Smyth', 'Dave Smith');
+    n3.sync();
+    n3.sync(); // the page runs again on the next change — nothing more may move
+
+    expect(games(league, 'Dave Smith')).toBe(3);
+    expect(games(league, 'Dave Smyth')).toBeUndefined();
+    expectCleanGame(league, 'g3', 3);
+    expect(n3.s().players.find(p => p.name === 'Dave Smith')!.formerNames).toEqual(['Dave Smyth']);
+    n3.done();
+  });
+
+  it('after a reload: the old name is withdrawn, not recorded beside', () => {
+    const league = createLeague();
+    const n3 = threeNights(league);
+    rename(n3, 'Dave Smyth', 'Dave Smith');
+    league.forgetTab(); // the edit reached the document; this console starts afresh
+    n3.sync();
+    n3.sync();
+
+    expect(games(league, 'Dave Smith')).toBe(3);
+    expect(games(league, 'Dave Smyth')).toBeUndefined();
+    expectCleanGame(league, 'g3', 3);
+    n3.done();
+  });
+
+  it('the Summary says who was renamed', () => {
+    const league = createLeague();
+    const n3 = threeNights(league);
+    rename(n3, 'Dave Smyth', 'Dave Smith');
+    const renamed = (n3.s() as any).nightLog.filter((e: any) => e.kind === 'renamed');
+    expect(renamed).toHaveLength(1);
+    expect(renamed[0]).toMatchObject({ playerName: 'Dave Smith', detail: 'Dave Smyth' });
+    n3.done();
   });
 });

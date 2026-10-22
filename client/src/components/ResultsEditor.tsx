@@ -23,11 +23,18 @@ export default function ResultsEditor({
   players,
   prizeStructure,
   isRunning = false,
+  nameSuggestions = [],
   onSave,
 }: {
   players: EditablePlayer[];
   prizeStructure?: { enableBounties?: boolean; bountyType?: string } | null;
   isRunning?: boolean;
+  /**
+   * Names the director can pick when correcting one — in a league game, the
+   * league's players, so a regular's exact spelling is one tap away. Reported:
+   * a regular added misspelt showed up as a stranger in the standings.
+   */
+  nameSuggestions?: readonly string[];
   onSave: (rows: EditRow[]) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -70,7 +77,8 @@ export default function ResultsEditor({
           <DialogTitle>Edit results</DialogTitle>
           <DialogDescription>
             Set each player's place and every time they were knocked out — who did it, and whether
-            they rebought, re-entered or were out. Knockouts are counted from these.
+            they rebought, re-entered or were out. Knockouts are counted from these. A misspelt name
+            can be corrected here too; in a league game the result moves with it.
           </DialogDescription>
         </DialogHeader>
 
@@ -80,11 +88,23 @@ export default function ResultsEditor({
           </p>
         )}
 
+        {nameSuggestions.length > 0 && (
+          <datalist id="results-editor-names">
+            {nameSuggestions.map(n => <option key={n} value={n} />)}
+          </datalist>
+        )}
+
         <div className="max-h-[55vh] overflow-y-auto space-y-2 pr-1">
           {rows.map(r => (
             <div key={r.id} className="rounded-lg border border-border/40 p-3" data-row={r.name}>
               <div className="flex items-center justify-between gap-3">
-                <span className="font-medium truncate">{r.name}</span>
+                <input
+                  aria-label={`Name of ${r.name || 'player'}`}
+                  className="min-w-0 flex-1 bg-transparent font-medium rounded-md border border-transparent px-1.5 py-1 hover:border-border focus:border-primary focus:outline-none"
+                  value={r.name}
+                  list={nameSuggestions.length ? 'results-editor-names' : undefined}
+                  onChange={e => { const name = e.target.value; update(r.id, row => ({ ...row, name })); }}
+                />
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <span className="text-caption text-muted-foreground font-mono">{kos.get(r.id) ?? 0} KO</span>
                   <select

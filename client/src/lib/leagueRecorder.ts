@@ -217,3 +217,41 @@ export function recordsDue<P extends RecorderPlayer>(
     return recordedPosition(memory, cloud, p) === null;
   });
 }
+
+/**
+ * Results still filed under a name a player has been RENAMED from (the results
+ * editor, `lib/resultsEdit.ts`), for this game.
+ *
+ * The recorder finds what is already recorded by NAME, and its tab memory by
+ * player id — so a rename alone was invisible on the tab that made it (memory
+ * still held the place) and, after a reload, recorded the new name BESIDE the old
+ * one: the night counted twice, under two names. Reported from a real league game,
+ * where a regular was added misspelt and the standings showed a stranger.
+ *
+ * The old name travels on the player (`formerNames`) in the game document, so this
+ * answers the same after a reload. A former name another player in the game still
+ * goes by is never withdrawn — that result is theirs. `done` holds the
+ * `playerId:formerName` pairs this tab has already withdrawn: the results snapshot
+ * LAGS this tab's own deletes, and acting on the stale copy would tombstone the
+ * player again and record the night a second time.
+ */
+export function renamesDue<P extends RecorderPlayer & { formerNames?: readonly string[] | null }>(
+  players: readonly P[],
+  cloud: ReadonlyMap<string, number>,
+  done: ReadonlySet<string> = new Set(),
+): { player: P; formerName: string }[] {
+  const current = new Set(players.map(p => nameKey(p.name)));
+  const out: { player: P; formerName: string }[] = [];
+  for (const p of players) {
+    for (const former of p.formerNames ?? []) {
+      const key = nameKey(former);
+      if (!key || current.has(key)) continue;
+      if (!cloud.has(key)) continue;
+      if (done.has(renameKey(p.id, former))) continue;
+      out.push({ player: p, formerName: former });
+    }
+  }
+  return out;
+}
+
+export const renameKey = (playerId: string, formerName: string) => `${playerId}:${nameKey(formerName)}`;

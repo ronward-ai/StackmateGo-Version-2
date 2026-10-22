@@ -2181,6 +2181,13 @@ is possible if it is ever worth doing.
 
 Reported as tedious rather than broken: a name typed wrong once sat in the pickers for good.
 
+**In a LEAGUE game the list is the league's players** (`leagueSuggestions`), not the account's —
+reported after the account list held first names from testing and a regular was added misspelt. The
+league already knows its regulars, in the cloud, by the exact spelling its results are filed under; a
+standalone game (or a league with no players yet) keeps the account list below. League names carry no ×:
+they are the league's records. The heading says which it is, "League players" or "Recent Players".
+`PokerTimer` passes `leaguePlayers` in — no second subscription.
+
 **What answers it is the × on each row of Recent Players**, which shipped in the first round and was
 not spotted — the expanded list is searchable and every name has its own remove control.
 `lib/recentPlayers.ts` owns the list: newest first, one entry per person (case-insensitive), **fifty**
@@ -3740,6 +3747,21 @@ The Summary records **Results edited**.
 
 `leagueSeasons.scenario.test.tsx` plays it: a night recorded, then edited on a fresh console to add the
 missed rebuy and move the pre-rebuy knockout — hits, rebuys and places right in the league, recorded once.
+
+**A name is corrected here too, and the league result moves with it.** Reported from game 3 of 13: a
+regular was added misspelt, and the standings showed a stranger on one game while the regular showed two.
+The recorder finds what is already recorded by NAME while its tab memory is keyed by ID, so a rename alone
+did nothing on the tab that made it (memory still held the place) and, after a reload, recorded the new
+name BESIDE the old one — the night counted twice. `applyEdit` now writes the name and pushes the old one
+onto `Player.formerNames`, which travels in the game document; `leagueRecorder.ts`'s `renamesDue` finds a
+result for this game still filed under a former name, and `syncLeagueResults` withdraws it by that name
+and tombstones the id, so step 3 records the player afresh. Two guards: a former name another player in
+the game still goes by is never withdrawn, and `withdrawnRenamesRef` stops a LAGGING snapshot (which
+still shows the old result) from tombstoning and recording the night a second time. `validateEdit`
+refuses a blank name or one another player has. The misspelt league player is left with no results, so
+`seasonRoster` drops them — nothing is deleted. The editor offers the league's names (a `datalist`), and
+the Summary logs `renamed`. Five mutants caught; `leagueSeasons.scenario.test.tsx` plays it on the same
+tab and across a reload.
 
 ### A player coming back has to meet the final table, whichever door they use
 

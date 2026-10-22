@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { prizePoolFor } from '@/lib/prizePool';
 import { isLeagueGame } from '@/lib/tournamentMode';
-import { recordedForGame, removalsDue, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats } from '@/lib/leagueRecorder';
+import { recordedForGame, removalsDue, renamesDue, renameKey, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats } from '@/lib/leagueRecorder';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
 import { gameIdOf } from '@/lib/localGameId';
@@ -387,6 +387,9 @@ function PokerTimerInner({
   // The counts this tab recorded beside each position, so an edited night is
   // corrected once and a lagging snapshot cannot trigger it again.
   const recordedStatsRef = useRef(new Map<string, RecordedStats>());
+  // Renames this tab has already withdrawn (`playerId:formerName`) — the results
+  // snapshot lags this tab's deletes, see lib/leagueRecorder.ts's renamesDue.
+  const withdrawnRenamesRef = useRef(new Set<string>());
 
   // The league sync runs one at a time. It awaits Firestore writes, and the
   // effect re-fires on every players change, so overlapping runs could record a
@@ -1207,6 +1210,21 @@ function PokerTimerInner({
         const { back, moved, changed } = removalsDue(players, memory, cloud,
           { memory: statsMemory, cloud: recordedStatsForGame(leaguePlayers, gameId) });
 
+        // 0. Renamed in the results editor: the night's result is still filed
+        //    under the old name. Withdraw it and forget this tab's claim, so the
+        //    player is recorded afresh under the name they have now (step 3).
+        for (const { player, formerName } of renamesDue(players, cloud, withdrawnRenamesRef.current)) {
+          if (!gameId) break;
+          try {
+            await removeTournamentResultForPlayer(formerName, gameId);
+            withdrawnRenamesRef.current.add(renameKey(player.id, formerName));
+            memory.set(player.id, 0);
+            statsMemory.delete(player.id);
+          } catch (renameError) {
+            reportWriteFailure(`${player.name}'s corrected name`, renameError);
+          }
+        }
+
         // 1. Back in the game (rebuy, re-entry, undo) but still recorded: drop
         //    it. They will be recorded again when they are out for good.
         //
@@ -1378,6 +1396,7 @@ function PokerTimerInner({
     if (allActive && noPositions) {
       processedEliminationsRef.current = new Map();
       recordedStatsRef.current = new Map();
+      withdrawnRenamesRef.current = new Set();
     }
   }, [tournament?.state?.players]);
 
@@ -1797,6 +1816,7 @@ function PokerTimerInner({
                     players={tournament.state.players}
                     prizeStructure={tournament.state.prizeStructure}
                     isRunning={tournament.state.isRunning}
+                    nameSuggestions={isLeagueMode ? (leaguePlayers || []).map(p => p.name).filter(Boolean) : []}
                     onSave={applyResultsEdit}
                   />
                 </div>
@@ -1806,7 +1826,7 @@ function PokerTimerInner({
                   readOnly={readOnlyConsole}
                   instead={<PlayerSectionReadOnly tournament={tournament} />}
                 >
-                  <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} />
+                  <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} isLeagueMode={isLeagueMode} leaguePlayers={leaguePlayers} />
                 </DirectorOnly>
               )}
             </TabsContent>

@@ -37,6 +37,8 @@ export interface Player {
    * so the results editor can show and correct it. `by` is null when unknown.
    */
   earlierBustsBy?: { by?: string | null; then: 'rebuy' | 'reEntry' }[];
+  /** Names this player was recorded under before a rename in the results editor (lib/resultsEdit.ts). */
+  formerNames?: string[];
   prizeMoney?: number;
   isActive?: boolean;
   seatInfo?: { tableIndex: number; seatIndex: number; totalSeatedPlayers: number };

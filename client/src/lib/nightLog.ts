@@ -32,7 +32,8 @@ export type LogKind =
   | 'reEntryRefused'
   | 'finalTable'
   | 'tableBreak'
-  | 'resultsEdited';
+  | 'resultsEdited'
+  | 'renamed';
 
 export interface LogEvent {
   id: string;
@@ -131,6 +132,8 @@ export function describeEvent(e: LogEvent): string {
       return 'Final table';
     case 'resultsEdited':
       return 'Results edited';
+    case 'renamed':
+      return `${e.detail || 'A player'} renamed to ${who}`;
     case 'tableBreak':
       return e.detail ? `${e.detail} broken` : 'A table was broken';
     default:
@@ -209,6 +212,8 @@ export function eventsBetween(prev: LoggedState, next: LoggedState, at: number, 
       else events.push({ ...base(n), kind: 'undoBust', position: o.position });
     }
     if ((n.addons || 0) > (o.addons || 0)) events.push({ ...base(n), kind: 'addon' });
+    // A correction in the results editor; `detail` carries the old name.
+    if (o.name && n.name && o.name !== n.name) events.push({ ...base(n), kind: 'renamed', detail: o.name });
   }
   events.push(...winners);
 

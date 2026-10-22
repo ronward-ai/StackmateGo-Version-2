@@ -60,7 +60,16 @@ export interface EditablePlayer {
   bustCount?: number;
   currentBounty?: number;
   bountyWinnings?: number;
+  /**
+   * Names this player was recorded under before a rename in this editor, so the
+   * league recorder can withdraw a result filed under one of them
+   * (`leagueRecorder.ts`'s `renamesDue`). It travels in the game document, which
+   * is what makes the correction survive a reload.
+   */
+  formerNames?: string[];
 }
+
+const nameKey = (name: string) => name.trim().toLowerCase();
 
 const placeOf = (p: EditablePlayer): number | null =>
   p.position && p.position > 0 && (p.isActive === false || p.position === 1) ? p.position : null;
@@ -106,6 +115,17 @@ export function validateEdit(rows: readonly EditRow[]): string[] {
     errors.push(`Every place from ${lowest} to ${n} must be given.`);
   }
   if (stillIn === 1) errors.push('One player cannot be the only one still in — give them 1st.');
+
+  // A name can be corrected here — the league recorder moves the night's result
+  // with it — but two players cannot share one, because the league tells players
+  // apart by name.
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const key = nameKey(r.name ?? '');
+    if (!key) { errors.push('Every player needs a name.'); continue; }
+    if (seen.has(key)) errors.push(`Two players are called ${r.name.trim()}.`);
+    seen.add(key);
+  }
 
   for (const r of rows) {
     const outs = r.busts.filter(b => b.then === 'out').length;
@@ -161,8 +181,15 @@ export function applyEdit<P extends EditablePlayer>(
       .map(b => ({ by: b.by, then: b.then }));
     const knockouts = kos.get(p.id) ?? 0;
     const placed = row.place !== null;
+    const name = (row.name ?? p.name).trim() || p.name;
+    const renamed = nameKey(name) !== nameKey(p.name) || name !== p.name;
+    const formerNames = renamed && nameKey(name) !== nameKey(p.name)
+      ? Array.from(new Set([...(p.formerNames ?? []), p.name])).filter(n => nameKey(n) !== nameKey(name))
+      : p.formerNames;
     const next: P = {
       ...p,
+      name,
+      ...(formerNames ? { formerNames } : {}),
       position: placed ? row.place : undefined,
       isActive: !placed,
       eliminatedBy: out?.by ?? undefined,

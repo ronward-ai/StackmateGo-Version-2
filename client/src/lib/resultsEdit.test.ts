@@ -131,3 +131,34 @@ describe('validateEdit', () => {
     expect(validateEdit(rows).join(' ')).toMatch(/give them 1st/);
   });
 });
+
+// Reported: a regular added misspelt in a league game. The editor corrects the
+// name, and remembers the old one so the league recorder can move the result.
+describe('correcting a name', () => {
+  const players: EditablePlayer[] = [
+    { id: 'a', name: 'Amy', isActive: false, position: 1 },
+    { id: 'd', name: 'Dave Smyth', isActive: false, position: 2, eliminatedBy: 'a' },
+  ];
+  const rows = () => editRowsFrom(players);
+
+  it('writes the new name and keeps the old one as a former name', () => {
+    const edited = rows().map(r => (r.id === 'd' ? { ...r, name: '  Dave Smith ' } : r));
+    const out = applyEdit(players, edited, {} as any);
+    const dave = out.find(p => p.id === 'd')!;
+    expect(dave.name).toBe('Dave Smith');
+    expect(dave.formerNames).toEqual(['Dave Smyth']);
+    expect(out.find(p => p.id === 'a')!.formerNames).toBeUndefined();
+  });
+
+  it('a second correction keeps every name the player was recorded under, and not the current one', () => {
+    const once = applyEdit(players, rows().map(r => (r.id === 'd' ? { ...r, name: 'Dave Smithe' } : r)), {} as any);
+    const twice = applyEdit(once, editRowsFrom(once).map(r => (r.id === 'd' ? { ...r, name: 'Dave Smyth' } : r)), {} as any);
+    expect(twice.find(p => p.id === 'd')!.formerNames).toEqual(['Dave Smithe']);
+  });
+
+  it('refuses an empty name or a name another player has', () => {
+    expect(validateEdit(rows().map(r => (r.id === 'd' ? { ...r, name: '  ' } : r)))).toContain('Every player needs a name.');
+    expect(validateEdit(rows().map(r => (r.id === 'd' ? { ...r, name: 'amy' } : r)))).toContain('Two players are called amy.');
+    expect(validateEdit(rows())).toEqual([]);
+  });
+});

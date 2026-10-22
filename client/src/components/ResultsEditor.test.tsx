@@ -66,3 +66,27 @@ describe('the results editor', () => {
     expect(screen.getByText(/1 bust has no hitman/)).toBeTruthy();
   });
 });
+
+// Reported: a regular added misspelt. The name is corrected in the editor, with
+// the league's own spellings offered as the director types.
+describe('correcting a name in the editor', () => {
+  it('saves the corrected name, and offers the league players to pick from', () => {
+    const onSave = open({ nameSuggestions: ['Dave Smith', 'Amy Jones'] });
+    const options = Array.from(document.querySelectorAll('#results-editor-names option')).map(o => (o as HTMLOptionElement).value);
+    expect(options).toEqual(['Dave Smith', 'Amy Jones']);
+
+    fireEvent.change(screen.getByLabelText('Name of Dan'), { target: { value: 'Dan Smith' } });
+    place('Dan Smith', '4'); place('Cat', '3'); place('Bob', '2'); place('Amy', '1');
+    hitman('Dan Smith', 1, 'a'); hitman('Cat', 1, 'b'); hitman('Cat', 2, 'b'); hitman('Bob', 1, 'a');
+    fireEvent.click(screen.getByRole('button', { name: 'Save results' }));
+    const rows = onSave.mock.calls[0][0];
+    expect(rows.find((r: any) => r.id === 'd').name).toBe('Dan Smith');
+  });
+
+  it('will not save a blank name', () => {
+    open();
+    fireEvent.change(screen.getByLabelText('Name of Dan'), { target: { value: '' } });
+    expect(screen.getByText('Every player needs a name.')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Save results' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});

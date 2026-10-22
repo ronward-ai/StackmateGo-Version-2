@@ -11,6 +11,8 @@
  * had no test by construction — the argument `lib/tableBalance.ts` and
  * `lib/seating.ts` were extracted on. The behaviour is unchanged.
  */
+import { resultTime } from './seasonProgress';
+
 export interface RecentPlayer {
   name: string;
   lastUsed: number;
@@ -101,4 +103,30 @@ export function resolveRecent(
 ): { list: RecentPlayer[]; pushLocal: boolean } {
   if (remote !== null) return { list: remote, pushLocal: false };
   return { list: [...local], pushLocal: local.length > 0 };
+}
+
+/**
+ * The names to offer in a LEAGUE game: the league's own players — the spelling
+ * every result is already filed under — most recently seen first.
+ *
+ * Reported from game 3 of a 13-game season: the account's Recent Players held
+ * first names left over from testing, so a regular was typed from memory,
+ * misspelt, and the standings showed a stranger. In a league game the league
+ * already knows who its regulars are, in the cloud, by their full names; it is
+ * the list that knows which game is loaded. A standalone game has no league and
+ * keeps the account's Recent Players.
+ */
+export function leagueSuggestions(
+  leaguePlayers: readonly { name?: string | null; tournamentResults?: readonly unknown[] | null }[] | null | undefined,
+): RecentPlayer[] {
+  const out: RecentPlayer[] = [];
+  for (const lp of leaguePlayers ?? []) {
+    const name = (lp.name ?? '').trim();
+    if (!name) continue;
+    const lastUsed = Math.max(0, ...(lp.tournamentResults ?? []).map(r => resultTime(r as any) ?? 0));
+    const seen = out.find(p => sameName(p.name, name));
+    if (seen) { seen.lastUsed = Math.max(seen.lastUsed, lastUsed); continue; }
+    out.push({ name, lastUsed });
+  }
+  return out.sort((a, b) => b.lastUsed - a.lastUsed || a.name.localeCompare(b.name));
 }
