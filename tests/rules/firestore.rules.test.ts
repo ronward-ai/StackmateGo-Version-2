@@ -6,7 +6,7 @@ import {
   assertFails,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
  * Rules tests for firestore.rules.
@@ -775,4 +775,85 @@ describe('October audit: rules coverage for fields added since September', () =>
       await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { [field]: value }));
     });
   }
+});
+
+/**
+ * THE DATABASE ENFORCES THE DEVICE LOCK (October 2026). Asked for after a night
+ * run on two devices: a second device must not be able to change or wipe a game
+ * unless it took control. The app's door stands a non-driving console down; these
+ * assert the rules refuse the write even if a tab got past the door.
+ */
+describe('one device drives a game, and the database says so', () => {
+  const LAPTOP = 'd_laptop#t_1';
+  const PHONE = 'd_phone#t_9';
+  const g = () => doc(director(), 'activeTournaments', TOURNAMENT);
+  const holdBy = (holder: string | null) => testEnv.withSecurityRulesDisabled(async ctx => {
+    await updateDoc(doc(ctx.firestore(), 'activeTournaments', TOURNAMENT), { controllingDeviceId: holder });
+  });
+  const stamp = (by: string) => ({ writtenBy: by, writtenAt: serverTimestamp() });
+
+  it('CONTROL: the holder writes, stamped', async () => {
+    await holdBy(LAPTOP);
+    await assertSucceeds(updateDoc(g(), { isRunning: true, ...stamp(LAPTOP) }));
+  });
+
+  it('refuses another console on the same account', async () => {
+    await holdBy(LAPTOP);
+    await assertFails(updateDoc(g(), { isRunning: true, ...stamp(PHONE) }));
+  });
+
+  it('refuses an unstamped write — an old build, or a write round the door', async () => {
+    await holdBy(LAPTOP);
+    await assertFails(updateDoc(g(), { isRunning: true }));
+  });
+
+  // The stamp alone persists from the last write, so a stale tab would inherit
+  // it; only this write can carry its own server time.
+  it('refuses a write that leans on the previous writer\'s stamp', async () => {
+    await holdBy(LAPTOP);
+    await assertSucceeds(updateDoc(g(), { isRunning: true, ...stamp(LAPTOP) }));
+    await assertFails(updateDoc(g(), { currentLevel: 3 }));
+    await assertFails(updateDoc(g(), { currentLevel: 3, writtenBy: LAPTOP }));
+  });
+
+  it('a claim made before control named the tab still lets its device write', async () => {
+    await holdBy('d_laptop');
+    await assertSucceeds(updateDoc(g(), { isRunning: true, ...stamp(LAPTOP) }));
+    await assertFails(updateDoc(g(), { isRunning: true, ...stamp('d_laptop_other#t_1') }));
+  });
+
+  it('an unheld game takes any write (every game before the lock)', async () => {
+    await holdBy(null);
+    await assertSucceeds(updateDoc(g(), { isRunning: true }));
+  });
+
+  it('claiming, Take control and release are always allowed to the owner', async () => {
+    await holdBy(LAPTOP);
+    await assertSucceeds(updateDoc(g(), { controllingDeviceId: PHONE, controlClaimedAt: 'now' }));
+    await assertSucceeds(updateDoc(g(), { controllingDeviceId: null, controlClaimedAt: null }));
+    await assertFails(updateDoc(doc(stranger(), 'activeTournaments', TOURNAMENT), { controllingDeviceId: 'x' }));
+  });
+
+  it('never empties a roster that has players, even from the holder', async () => {
+    await holdBy(LAPTOP);
+    await assertFails(updateDoc(g(), { players: [], ...stamp(LAPTOP) }));
+    await holdBy(null);
+    await assertFails(updateDoc(g(), { players: [] }));
+    await assertSucceeds(updateDoc(g(), { players: [{ id: 'p1', name: 'Alice', isActive: false }] }));
+  });
+
+  it('an empty game may stay empty', async () => {
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await updateDoc(doc(ctx.firestore(), 'activeTournaments', TOURNAMENT), { players: [] });
+    });
+    await assertSucceeds(updateDoc(g(), { players: [], isRunning: true }));
+  });
+
+  it('a player checking in is not held to the lock', async () => {
+    await holdBy(LAPTOP);
+    await testEnv.withSecurityRulesDisabled(async ctx => {
+      await updateDoc(doc(ctx.firestore(), 'activeTournaments', TOURNAMENT), { playerIds: ['p1', 'p2'], claims: {} });
+    });
+    await assertSucceeds(updateDoc(doc(anonAuth(), 'activeTournaments', TOURNAMENT), { 'claims.p1': 'device-a', lastClaim: 'p1' }));
+  });
 });

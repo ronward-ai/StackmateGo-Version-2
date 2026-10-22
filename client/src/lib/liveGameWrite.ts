@@ -50,6 +50,7 @@
  */
 
 import { controlOf, mayDrive, type Control } from '@/lib/directorControl';
+import { getConsoleId } from '@/lib/consoleId';
 
 /**
  * `written` means it reached Firestore. `skipped` means it deliberately did
@@ -100,6 +101,30 @@ export function liveGameControl(tournamentId: string | number | null | undefined
 }
 
 /**
+ * Who is writing, for the DATABASE to check — `firestore.rules` refuses an owner
+ * write to a held game unless `writtenBy` names the holder and `writtenAt` is
+ * this very write's server time (October 2026, asked for after a night run on
+ * two devices: "we can't have different devices buggering up the saves").
+ *
+ * The door above already stands a non-driving console down; this makes the
+ * database say the same, so a tab on an old build, or any write that ever finds
+ * a way round the door, is refused rather than trusted. `writtenAt` is what makes
+ * the stamp mean anything: an update that does not set `writtenBy` keeps the
+ * previous writer's value, so the rule also needs a field that only THIS write
+ * can have — the server's own clock.
+ *
+ * Guards against bugs and stale tabs on one account, not against a liar: the
+ * owner can stamp anything, and Take control is allowed to win by design.
+ */
+export function writerStamp(
+  tournamentId: string | number,
+  now: unknown,
+): { writtenBy: string; writtenAt: unknown } {
+  const me = control && control.tournamentId === String(tournamentId) ? control.myDeviceId : getConsoleId();
+  return { writtenBy: me, writtenAt: now };
+}
+
+/**
  * Writes `fields` onto the live tournament document.
  *
  * Throws on a Firestore failure rather than swallowing it — the callers differ
@@ -121,13 +146,13 @@ export async function writeLiveGame(
   // first removed lock silently reverted a director's rebuys.
   if (!mayDrive(liveGameControl(tournamentId))) return 'skipped';
 
-  const { doc, updateDoc } = await import('firebase/firestore');
+  const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
   const { db } = await import('@/lib/firebase');
   const { sanitizeForFirestore } = await import('@/lib/utils');
 
   await updateDoc(
     doc(db, 'activeTournaments', String(tournamentId)),
-    sanitizeForFirestore(fields),
+    { ...sanitizeForFirestore(fields), ...writerStamp(tournamentId, serverTimestamp()) },
   );
   return 'written';
 }

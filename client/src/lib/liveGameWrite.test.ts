@@ -26,10 +26,11 @@ vi.mock('firebase/firestore', () => ({
   get updateDoc() { return updateDoc; },
   get doc() { return doc; },
   get runTransaction() { return runTransaction; },
+  serverTimestamp: () => ({ _methodName: 'serverTimestamp' }),
 }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 
-import { writeLiveGame, setLiveGameControl, liveGameControl, claimLiveGameControl, releaseLiveGameControl } from './liveGameWrite';
+import { writeLiveGame, writerStamp, setLiveGameControl, liveGameControl, claimLiveGameControl, releaseLiveGameControl } from './liveGameWrite';
 
 beforeEach(() => {
   updateDoc.mockClear();
@@ -64,7 +65,7 @@ describe('writeLiveGame', () => {
   // let BuyInSection drop its own import of it.
   it('sanitises the payload', async () => {
     await writeLiveGame('abc123', { a: 1, b: undefined });
-    expect(updateDoc.mock.calls[0][1]).toEqual({ a: 1, b: null });
+    expect(updateDoc.mock.calls[0][1]).toMatchObject({ a: 1, b: null });
   });
 
   // A failure must reach the caller: they differ in how they report it (the
@@ -191,5 +192,32 @@ describe('releaseLiveGameControl', () => {
       expect(await releaseLiveGameControl(id, 'd_me')).toBe('not-mine');
     }
     expect(runTransaction).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE STAMP the database checks (October 2026): the rules refuse a write to a
+ * held game unless `writtenBy` names the holder and `writtenAt` is this write's
+ * own server time.
+ */
+describe('every write says who sent it', () => {
+  it('stamps the console that holds control, with the server time', async () => {
+    setLiveGameControl({ tournamentId: 'g1', holder: 'd_me#t_1', myDeviceId: 'd_me#t_1' });
+    await writeLiveGame('g1', { isRunning: true });
+    const fields = updateDoc.mock.calls[0][1];
+    expect(fields.writtenBy).toBe('d_me#t_1');
+    expect(fields.writtenAt).toEqual({ _methodName: 'serverTimestamp' });
+    expect(fields.isRunning).toBe(true);
+  });
+
+  it('a caller cannot leave the stamp out — it is added after the fields', async () => {
+    setLiveGameControl({ tournamentId: 'g1', holder: null, myDeviceId: 'd_me#t_1' });
+    await writeLiveGame('g1', { writtenBy: 'someone-else' });
+    expect(updateDoc.mock.calls[0][1].writtenBy).toBe('d_me#t_1');
+  });
+
+  it("names this console, not another game's control fact", () => {
+    setLiveGameControl({ tournamentId: 'other', holder: 'x', myDeviceId: 'd_me#t_1' });
+    expect(writerStamp('g1', 0).writtenBy).not.toBe('');
   });
 });

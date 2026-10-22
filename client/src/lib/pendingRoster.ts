@@ -167,21 +167,18 @@ export function rosterIsPending(gameId: string, payload: RosterPayload): boolean
 }
 
 /**
- * May the players sync send this roster? Not an EMPTY one from a console that
- * has never written a non-empty one for this game.
+ * May the players sync send this roster? Never an EMPTY one.
  *
  * Belt and braces for the fault above, and for any other route to it: a console
  * holds `players: []` from the moment it mounts until a read fills it, so an
- * empty roster from a console that has written nothing yet is far more likely
- * to be "not read yet" than "every player removed". A director who genuinely
- * removes the last player has written the roster before (the sync writes the
- * loaded roster on its first pass), so that is still allowed.
+ * empty roster is far more likely to be "not read yet" than "every player
+ * removed". `firestore.rules` refuses the same write — a roster going from
+ * players to none — so the app does not attempt one it would only be refused.
+ * The way to empty a game is New Tournament.
+ *
+ * `lastSynced` is kept in the signature for the call site's sake; it no longer
+ * changes the answer.
  */
-export function mayWriteRoster(players: unknown, lastSynced: string): boolean {
-  if (Array.isArray(players) && players.length > 0) return true;
-  if (!lastSynced) return false;
-  try {
-    const prev = JSON.parse(lastSynced);
-    return Array.isArray(prev.players) && prev.players.length > 0;
-  } catch { return false; }
+export function mayWriteRoster(players: unknown, _lastSynced?: string): boolean {
+  return Array.isArray(players) && players.length > 0;
 }

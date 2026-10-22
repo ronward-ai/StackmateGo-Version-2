@@ -291,7 +291,7 @@ describe('attacker: another director (a real account, not the owner)', () => {
 
 describe('attacker: the owner, overreaching', () => {
   it('CONTROL: changes their own game and league', async () => {
-    await assertSucceeds(updateDoc(doc(victim(), 'activeTournaments', GAME), { isRunning: false, players: [] }));
+    await assertSucceeds(updateDoc(doc(victim(), 'activeTournaments', GAME), { isRunning: false, players: [{ id: 'p1', name: 'Alice', isActive: true }] }));
     await assertSucceeds(updateDoc(doc(victim(), 'leagues', LEAGUE), { name: 'Renamed' }));
   });
 

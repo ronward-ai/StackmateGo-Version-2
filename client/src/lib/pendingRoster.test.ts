@@ -148,15 +148,12 @@ describe('each game answers only for itself (a real league night emptied, Octobe
 
 describe('mayWriteRoster', () => {
   const some = [{ id: 'a' }];
-  it('never sends an empty roster from a console that has written nothing', () => {
+  it('never sends an empty roster — the database refuses one too', () => {
     expect(mayWriteRoster([], '')).toBe(false);
     expect(mayWriteRoster(undefined, '')).toBe(false);
-  });
-  it('sends an empty roster when this console last wrote a real one (the last player removed)', () => {
-    expect(mayWriteRoster([], rosterPayload({ players: some }))).toBe(true);
-  });
-  it('does not send an empty roster on top of an empty one', () => {
-    expect(mayWriteRoster([], rosterPayload({ players: [] }))).toBe(false);
+    // It used to allow this (the last player removed); the rules now refuse a
+    // roster going from players to none, so the app does not attempt it.
+    expect(mayWriteRoster([], rosterPayload({ players: some }))).toBe(false);
   });
   it('always sends a roster with players in it', () => {
     expect(mayWriteRoster(some, '')).toBe(true);

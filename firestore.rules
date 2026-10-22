@@ -182,6 +182,46 @@ service cloud.firestore {
     //   handing a game over is now done by logging out so the next director
     //   signs in with the same account, which keeps the league, season and
     //   points system correct by construction.
+    // ONE DEVICE DRIVES A GAME, and the DATABASE says so as well as the app
+    // (October 2026). lib/liveGameWrite.ts's door already stands a non-driving
+    // console down; this refuses an owner write to a HELD game unless it comes
+    // from the holder, so a stale tab, an old build or a write that finds a way
+    // round the door cannot change a game another device is running.
+    //
+    // Allowed when:
+    //   - nobody holds the game (every game written before the lock, and the
+    //     moment between creation and the automatic claim);
+    //   - the write changes who holds it — the claim, Take control (which must
+    //     always win) and the release;
+    //   - the write is stamped by the holder: `writtenBy` names it (or, for a
+    //     claim written before control named the tab, `<deviceId>#…`) AND
+    //     `writtenAt` is this very request's time. The time is what makes the
+    //     stamp mean anything — an update that does not set `writtenBy` keeps
+    //     the previous writer's value, and only this write can carry its own
+    //     server timestamp.
+    //
+    // A bug guard, not a defence against a liar: the owner can stamp anything.
+    function writerHoldsControl() {
+      let holder = resource.data.get('controllingDeviceId', null);
+      let by = request.resource.data.get('writtenBy', null);
+      return holder == null
+        || request.resource.data.get('controllingDeviceId', null) != holder
+        || (
+          by is string
+          && (by == holder || by.matches(holder + '#.*'))
+          && request.resource.data.get('writtenAt', null) == request.time
+        );
+    }
+
+    // A roster that has players is never emptied by a write. Two in-app paths
+    // once did exactly that over a finished league night (a console that had not
+    // read the game yet); lib/pendingRoster.ts's mayWriteRoster refuses it in the
+    // app and this refuses it for every client. New Tournament empties a game.
+    function keepsRoster() {
+      return !(resource.data.get('players', []).size() > 0
+        && request.resource.data.get('players', []).size() == 0);
+    }
+
     match /activeTournaments/{tournamentId} {
       // get vs list, split like leagues above. A participant arriving by QR knows
       // the tournament id and must be able to read that one document. Listing is
@@ -208,6 +248,8 @@ service cloud.firestore {
         // same pin, spelled explicitly because this branch is a disjunction.
         isAuthenticated() && isExistingDocOwner()
         && request.resource.data.ownerId == resource.data.ownerId
+        && writerHoldsControl()
+        && keepsRoster()
       ) || (
         // Player check-in (PlayerClaimView, reached from the QR code).
         //

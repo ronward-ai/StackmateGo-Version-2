@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ExportButtons from '@/components/ExportButtons';
 import { isLeagueGame } from '@/lib/tournamentMode';
+import { gameIsOver } from '@/lib/gameOver';
 import { currencyOf } from '@/lib/currency';
 import { resultRowsFor, type ResultRow } from '@/lib/resultRows';
 import { resultsCsvTable } from '@/lib/resultColumns';
@@ -129,6 +130,24 @@ export function ResultsExportButtons({
       imageTitle="Save the results as an image you can share"
       csvTitle="Download the results as a spreadsheet"
     />
+  );
+}
+
+/**
+ * The finished game's two exports, on their own — for a console that is only
+ * WATCHING (October 2026). A read-only console mounts the viewer in place of
+ * `PlayerSection`, and the exports went with it, so a director on a second
+ * device had to press Take control just to get the night's picture. Exporting
+ * only reads, like the Chop calculator, so a watcher may do it. Shown once the
+ * game is over, exactly as the console's own Players tab shows it.
+ */
+export function FinishedGameExports({ game }: { game: ResultsGame }) {
+  const { rows, columnContext, subtitle, date } = useGameResults(game);
+  if (rows.length === 0 || !gameIsOver(game.players ?? [])) return null;
+  return (
+    <div className="flex flex-wrap justify-end gap-2 mb-3">
+      <ResultsExportButtons settings={game.settings ?? {}} rows={rows} columnContext={columnContext} subtitle={subtitle} date={date} />
+    </div>
   );
 }
 

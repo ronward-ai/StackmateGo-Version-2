@@ -746,6 +746,34 @@ through the devstub with control forced behind a `FORCED_CONTROL_MARKER_REMOVE_M
 by `git grep` afterwards — the procedure this file prescribes, because the patch that once made every
 console read-only shipped by being removed from memory instead.
 
+### The lock is enforced by the database, not only by the door
+
+Asked for after a night run on two devices: "we can't have different devices buggering up the saves".
+The door (`lib/liveGameWrite.ts`) stands a non-driving console down, but a door is only as good as the
+code that goes through it — a tab still open on an old build, or any future write that finds a way
+round, would be trusted. So **`firestore.rules` checks it too**: `writerHoldsControl()` refuses an
+owner update to a HELD game unless one of these is true:
+
+- **nobody holds it** — every game written before the lock, and the moment before the automatic claim;
+- **the write changes who holds it** — the claim, Take control (which must always win) and the release;
+- **the holder sent it** — `writtenBy` names the holder (or `<deviceId>#…` for a claim made before
+  control named the tab) **and `writtenAt` is this request's own time**.
+
+The time is load-bearing. An update that does not set `writtenBy` keeps the PREVIOUS writer's value, so
+a stale tab would inherit the holder's stamp; only this write can carry its own `serverTimestamp()`.
+`writerStamp` in the door adds both, AFTER the caller's fields so no caller can override them.
+
+**`keepsRoster()`** sits beside it: a roster with players is never emptied by a write, from any client —
+the failure that emptied a finished league night, refused at the server.
+
+A bug guard, not a defence against a liar: the owner can stamp anything, and Take control is allowed by
+design. The check-in branch is untouched. Rules tests cover each case and four rule mutants (no lock,
+no `writtenAt`, no `keepsRoster`, no legacy match) each turn them red.
+
+**Deploy order: app first, rules second.** The app stamps harmlessly before the rules exist. Once every
+device shows the new build, the rules are published by hand. After that a tab on an older build has its
+writes refused and shows *Not syncing* — which is correct: it tells that device to reload.
+
 ### A read-only console shows the game, it does not offer to change it
 
 `components/DirectorOnly.tsx`, and the rule is **not mounted, not disabled**.
@@ -800,7 +828,9 @@ only the hole where a control was.
 
 **Measured, not eyeballed**, through the devstub with control forced and a `git grep` marker (the patch
 that shipped once and made every console read-only is why the marker is not optional). Read-only: **0
-enabled buttons and 0 inputs on all six tabs**. Driving: Structure 15 buttons / 11 inputs, Levels 21 /
+enabled buttons and 0 inputs on all six tabs** — except, since October 2026, the finished game's
+**Image / CSV** on the Players tab (`FinishedGameExports`): exporting only reads, and without it a
+director on a second device pressed Take control just to get the night's picture. Driving: Structure 15 buttons / 11 inputs, Levels 21 /
 36, Settings 12 / 3, Seating 4 / 2, and the slider back. The contrast is the proof; a screenshot is
 not, because a disabled-looking button and an absent one photograph the same.
 
@@ -957,9 +987,10 @@ season bar lost the game while the standings kept it. Three things close it, eac
   carries the GENERATION `markRosterIssued` returned, so a write from the console before cannot land on
   the fresh slate. Without the forget, reopening the same game after the phone changed it stuck on the
   old roster.
-- **`mayWriteRoster`**: the players sync never sends an empty roster from a console that has not
-  written a real one for this game — on a fresh mount `[]` means "not read yet". Removing the last
-  player is still written, because the sync writes the loaded roster on its first pass.
+- **`mayWriteRoster`**: the players sync never sends an EMPTY roster — on a fresh mount `[]` means
+  "not read yet" — and `firestore.rules`' `keepsRoster()` refuses a roster going from players to none
+  for every client. Removing the very last player of a saved game therefore does not reach the
+  document; New Tournament is how a game is emptied.
 
 The emptied document is not repaired by this; its results were removed by hand and the night re-run.
 

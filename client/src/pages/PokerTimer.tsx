@@ -39,6 +39,7 @@ import { reportToOverlay } from '@/lib/debugOverlay';
 import type { EditRow } from '@/lib/resultsEdit';
 import DirectorOnly from '@/components/DirectorOnly';
 import PlayerSectionReadOnly from '@/components/PlayerSectionReadOnly';
+import { FinishedGameExports } from '@/components/ResultsExport';
 import TablesSectionReadOnly from '@/components/TablesSectionReadOnly';
 import { useRebuyOffer } from '@/hooks/useRebuyOffer';
 import BlindLevelsSection from '@/components/BlindLevelsSection';
@@ -1829,7 +1830,12 @@ function PokerTimerInner({
               {!(isLeagueMode && pastGameOpen) && (
                 <DirectorOnly
                   readOnly={readOnlyConsole}
-                  instead={<PlayerSectionReadOnly tournament={tournament} />}
+                  instead={<>
+                    {/* Exporting only reads, so a watching device may do it —
+                        nobody should press Take control just to get a picture. */}
+                    <FinishedGameExports game={tournament.state} />
+                    <PlayerSectionReadOnly tournament={tournament} />
+                  </>}
                 >
                   <PlayerSection tournament={tournament} failsafeFor={rebuyOffer.failsafeFor} isLeagueMode={isLeagueMode} leaguePlayers={leaguePlayers} />
                 </DirectorOnly>
