@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  addRecent, removeRecent, leagueSuggestions, sanitiseRecent, resolveRecent, RECENT_PLAYER_LIMIT, type RecentPlayer,
+  addRecent, removeRecent, leagueSuggestions, hideName, unhideName, sanitiseHidden, HIDDEN_NAME_LIMIT, sanitiseRecent, resolveRecent, RECENT_PLAYER_LIMIT, type RecentPlayer,
 } from './recentPlayers';
 
 const list = (...names: string[]): RecentPlayer[] =>
@@ -175,11 +175,41 @@ describe('leagueSuggestions', () => {
       { name: '  ', tournamentResults: [] },
       { name: 'Newcomer', tournamentResults: [] },
     ]);
-    expect(out.map(p => p.name)).toEqual(['Amy Jones', 'Dave Smith', 'Newcomer']);
+    // Newcomer has no results: a test name or a misspelling a rename left
+    // behind, so it no longer offers itself (this used to assert it did).
+    expect(out.map(p => p.name)).toEqual(['Amy Jones', 'Dave Smith']);
     expect(out[1].lastUsed).toBe(Date.parse('2026-10-08T19:00:00Z'));
   });
 
   it('nothing for no league', () => {
     expect(leagueSuggestions(null)).toEqual([]);
+  });
+});
+
+describe('hiding a league name from the suggestions', () => {
+  const league = [
+    { name: 'Dave Smith', tournamentResults: [{ tournamentDate: '2026-10-01T19:00:00Z' }] },
+    { name: 'Dave', tournamentResults: [{ tournamentDate: '2026-09-01T19:00:00Z' }] },
+    { name: 'Amy Jones', tournamentResults: [{ tournamentDate: '2026-10-15T19:00:00Z' }] },
+  ];
+
+  it('a hidden name is not offered, matched without regard to case', () => {
+    expect(leagueSuggestions(league, ['dave']).map(p => p.name)).toEqual(['Amy Jones', 'Dave Smith']);
+  });
+
+  it('hideName keeps one entry per person, newest first', () => {
+    expect(hideName(['Dave'], 'dave ')).toEqual(['dave']);
+    expect(hideName(['Dave'], 'Amy')).toEqual(['Amy', 'Dave']);
+    expect(hideName(['Dave'], '  ')).toEqual(['Dave']);
+  });
+
+  it('unhideName brings a name back, whatever its case', () => {
+    expect(unhideName(['Dave', 'Amy'], 'DAVE')).toEqual(['Amy']);
+  });
+
+  it('a stored list is made safe; a missing one reads as none', () => {
+    expect(sanitiseHidden(undefined)).toBeNull();
+    expect(sanitiseHidden([' Dave ', 3, '', 'x'.repeat(101)])).toEqual(['Dave']);
+    expect(sanitiseHidden(Array.from({ length: 500 }, (_, i) => `p${i}`))).toHaveLength(HIDDEN_NAME_LIMIT);
   });
 });

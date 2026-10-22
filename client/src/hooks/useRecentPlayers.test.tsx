@@ -191,3 +191,44 @@ describe('useRecentPlayers, not signed in for real', () => {
     expect(h.onSnapshot).not.toHaveBeenCalled();
   });
 });
+
+describe('hidden league names', () => {
+  const withHidden = (hidden: unknown, recent = entries('Amy')) => ({
+    exists: () => true, data: () => ({ recentPlayers: recent, hiddenLeagueNames: hidden }),
+  });
+
+  it('reads the account list from the snapshot, and writes nothing for it', async () => {
+    const { result } = renderHook(() => useRecentPlayers());
+    act(() => h.emit!(withHidden(['Dave'])));
+    expect(result.current.hiddenLeagueNames).toEqual(['Dave']);
+    await Promise.resolve();
+    expect(h.setDoc).not.toHaveBeenCalled();
+  });
+
+  it('hiding a name is one merged write of that field alone', () => {
+    const { result } = renderHook(() => useRecentPlayers());
+    act(() => h.emit!(withHidden([])));
+    act(() => result.current.hideLeagueName('Jonh Smith'));
+    expect(result.current.hiddenLeagueNames).toEqual(['Jonh Smith']);
+    expect(h.setDoc).toHaveBeenCalledTimes(1);
+    expect(h.setDoc.mock.calls[0][1]).toEqual({ hiddenLeagueNames: ['Jonh Smith'] });
+    expect(h.setDoc.mock.calls[0][2]).toEqual({ merge: true });
+  });
+
+  // The way back: adding a player by a hidden name shows it again.
+  it('adding a player by a hidden name un-hides it', () => {
+    const { result } = renderHook(() => useRecentPlayers());
+    act(() => h.emit!(withHidden(['Dave', 'Amy'])));
+    act(() => result.current.add('dave'));
+    expect(result.current.hiddenLeagueNames).toEqual(['Amy']);
+    const hiddenWrites = h.setDoc.mock.calls.filter(c => 'hiddenLeagueNames' in c[1]);
+    expect(hiddenWrites.map(c => c[1].hiddenLeagueNames)).toEqual([['Amy']]);
+  });
+
+  it('adding a name that was not hidden writes no hidden list', () => {
+    const { result } = renderHook(() => useRecentPlayers());
+    act(() => h.emit!(withHidden(['Dave'])));
+    act(() => result.current.add('Cass'));
+    expect(h.setDoc.mock.calls.some(c => 'hiddenLeagueNames' in c[1])).toBe(false);
+  });
+});

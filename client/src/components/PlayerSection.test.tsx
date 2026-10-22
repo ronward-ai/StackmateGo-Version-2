@@ -3,7 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Stable values: a fresh array per render re-runs PlayerSection's effects for
 // ever, which is a fault of the mock, not of the component.
-const recent = { recentPlayers: [] as { name: string; lastUsed: number }[], add: () => {}, remove: () => {} };
+const recent = {
+  recentPlayers: [] as { name: string; lastUsed: number }[], add: () => {}, remove: () => {},
+  hiddenLeagueNames: [] as string[], hideLeagueName: vi.fn(),
+};
 const scoring = { calculatePoints: () => 0 };
 vi.mock('@/hooks/useRecentPlayers', () => ({ useRecentPlayers: () => recent }));
 vi.mock('@/hooks/useLeagueSettings', () => ({ useLeagueSettings: () => scoring }));
@@ -108,14 +111,34 @@ describe('the names Add Player offers', () => {
     { name: 'Amy Jones', tournamentResults: [{ tournamentDate: '2026-10-15T19:00:00Z' }] },
   ];
 
-  it('in a league game, offers the league players by their full names, with no remove button', () => {
+  it('in a league game, offers the league players by their full names', () => {
     recent.recentPlayers = [{ name: 'Dave', lastUsed: 1 }];
     harness([p('bob')], undefined, 0, null, { isLeagueMode: true, leaguePlayers: league });
     fireEvent.click(screen.getByRole('button', { name: 'League players (2)' }));
     expect(screen.getByRole('button', { name: 'Dave Smith' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Dave' })).toBeNull();
-    expect(screen.queryByLabelText(/Remove .* from recent players/)).toBeNull();
     recent.recentPlayers = [];
+  });
+
+  // Requested after game 3: a name can be taken off the list. In a league it is
+  // HIDDEN from the suggestions — the league player and their results stay.
+  it('the × on a league name hides it from the suggestions, and does not remove a recent player', () => {
+    recent.hideLeagueName.mockClear();
+    const remove = vi.fn(); const before = recent.remove; recent.remove = remove;
+    harness([p('bob')], undefined, 0, null, { isLeagueMode: true, leaguePlayers: league });
+    fireEvent.click(screen.getByRole('button', { name: 'League players (2)' }));
+    fireEvent.click(screen.getByLabelText('Hide Dave Smith from league player suggestions'));
+    expect(recent.hideLeagueName).toHaveBeenCalledWith('Dave Smith');
+    expect(remove).not.toHaveBeenCalled();
+    recent.remove = before;
+  });
+
+  it('a hidden name is not offered', () => {
+    recent.hiddenLeagueNames = ['dave smith'];
+    harness([p('bob')], undefined, 0, null, { isLeagueMode: true, leaguePlayers: league });
+    fireEvent.click(screen.getByRole('button', { name: 'League players (1)' }));
+    expect(screen.queryByRole('button', { name: 'Dave Smith' })).toBeNull();
+    recent.hiddenLeagueNames = [];
   });
 
   it('suggests the league spelling as the director types', () => {

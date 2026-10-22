@@ -5,9 +5,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import {
   addRecent,
+  hideName,
   removeRecent,
   resolveRecent,
+  sanitiseHidden,
   sanitiseRecent,
+  unhideName,
   type RecentPlayer,
 } from '@/lib/recentPlayers';
 
@@ -53,6 +56,15 @@ import {
  * browser that is blocking writes already carries the standing "Not syncing"
  * chip from the preflight; a toast about a list of names would be noise on top of
  * the condition already on screen.
+ *
+ * ## The hidden league names ride beside it, on the same rules
+ *
+ * `hiddenLeagueNames` is the × on a League players row: names taken out of the
+ * SUGGESTIONS, never out of the league (see `leagueSuggestions`). Same document,
+ * same listener, written only by `hideLeagueName` and by `add` — adding a player
+ * by a hidden name un-hides it. The cloud copy wins whenever it exists; there is
+ * nothing to adopt, because a device that has never hidden anything has nothing
+ * worth pushing.
  */
 export function useRecentPlayers() {
   const { user, isAnonymous, isLoading } = useAuth();
@@ -62,12 +74,15 @@ export function useRecentPlayers() {
   const cacheUid = isAnonymous ? null : (user?.id != null ? String(user.id) : lastSignedInUid());
 
   const [recentPlayers, setRecentPlayers] = useState<RecentPlayer[]>(() => readCache(cacheUid));
+  const [hiddenLeagueNames, setHidden] = useState<string[]>(() => readHiddenCache(cacheUid));
 
   // Callbacks read these through refs, never a captured value — the rule
   // `lib/scopedStorage.ts` records, so a save after a switch of account cannot
   // land in the previous director's bucket or document.
   const listRef = useRef(recentPlayers);
   listRef.current = recentPlayers;
+  const hiddenRef = useRef(hiddenLeagueNames);
+  hiddenRef.current = hiddenLeagueNames;
   const cloudUidRef = useRef(cloudUid);
   cloudUidRef.current = cloudUid;
   const cacheUidRef = useRef(cacheUid);
@@ -79,6 +94,7 @@ export function useRecentPlayers() {
   // A different bucket — signing in or out — means a different list.
   useEffect(() => {
     setRecentPlayers(readCache(cacheUid));
+    setHidden(readHiddenCache(cacheUid));
   }, [cacheUid]);
 
   useEffect(() => {
@@ -86,7 +102,13 @@ export function useRecentPlayers() {
     return onSnapshot(
       doc(db, 'userSettings', cloudUid),
       snap => {
-        const remote = sanitiseRecent(snap.exists() ? snap.data()?.recentPlayers : undefined);
+        const data = snap.exists() ? snap.data() : undefined;
+        const remoteHidden = sanitiseHidden(data?.hiddenLeagueNames);
+        if (remoteHidden) {
+          setHidden(remoteHidden);
+          writeHiddenCache(remoteHidden, cloudUid);
+        }
+        const remote = sanitiseRecent(data?.recentPlayers);
         const { list, pushLocal } = resolveRecent(remote, readCache(cloudUid));
         setRecentPlayers(list);
         writeCache(list, cloudUid);
@@ -107,10 +129,27 @@ export function useRecentPlayers() {
     if (uid) pushCloud(uid, next);
   }, []);
 
-  const add = useCallback((name: string) => commit(addRecent(listRef.current, name)), [commit]);
-  const remove = useCallback((name: string) => commit(removeRecent(listRef.current, name)), [commit]);
+  const commitHidden = useCallback((next: string[]) => {
+    hiddenRef.current = next;
+    setHidden(next);
+    writeHiddenCache(next, cacheUidRef.current);
+    const uid = cloudUidRef.current;
+    if (uid) pushHidden(uid, next);
+  }, []);
 
-  return { recentPlayers, add, remove };
+  const add = useCallback((name: string) => {
+    commit(addRecent(listRef.current, name));
+    // Adding a player by a hidden name is the way back — no separate control.
+    const shown = unhideName(hiddenRef.current, name);
+    if (shown.length !== hiddenRef.current.length) commitHidden(shown);
+  }, [commit, commitHidden]);
+  const remove = useCallback((name: string) => commit(removeRecent(listRef.current, name)), [commit]);
+  const hideLeagueName = useCallback(
+    (name: string) => commitHidden(hideName(hiddenRef.current, name)),
+    [commitHidden],
+  );
+
+  return { recentPlayers, add, remove, hiddenLeagueNames, hideLeagueName };
 }
 
 function readCache(uid: string | null): RecentPlayer[] {
@@ -133,4 +172,22 @@ function writeCache(list: RecentPlayer[], uid: string | null) {
 function pushCloud(uid: string, list: RecentPlayer[]) {
   setDoc(doc(db, 'userSettings', uid), { recentPlayers: list }, { merge: true })
     .catch(error => console.warn('Could not save recent players to this account:', error));
+}
+
+function readHiddenCache(uid: string | null): string[] {
+  try {
+    return sanitiseHidden(JSON.parse(readScoped('hiddenLeagueNames', uid) || 'null')) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHiddenCache(list: string[], uid: string | null) {
+  writeScoped('hiddenLeagueNames', JSON.stringify(list), uid);
+}
+
+/** Merged, so it touches this one field and nothing else on the document. */
+function pushHidden(uid: string, list: string[]) {
+  setDoc(doc(db, 'userSettings', uid), { hiddenLeagueNames: list }, { merge: true })
+    .catch(error => console.warn('Could not save hidden league names to this account:', error));
 }

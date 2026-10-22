@@ -71,7 +71,7 @@ describe('resetDevice', () => {
     // terms — or the next sign-in pulls every name straight back.
     // recentPlayers is EMPTIED, not deleted: an absent field reads as "no cloud
     // list" to every other device, which then pushed its own names back (Oct M2).
-    expect(h.updateDoc.mock.calls[0][1]).toEqual({ setup: '__deleted__', recentPlayers: [] });
+    expect(h.updateDoc.mock.calls[0][1]).toEqual({ setup: '__deleted__', recentPlayers: [], hiddenLeagueNames: [] });
   });
 
   it('still clears this device when the cloud write fails', async () => {

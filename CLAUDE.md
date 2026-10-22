@@ -2211,9 +2211,18 @@ Reported as tedious rather than broken: a name typed wrong once sat in the picke
 **In a LEAGUE game the list is the league's players** (`leagueSuggestions`), not the account's —
 reported after the account list held first names from testing and a regular was added misspelt. The
 league already knows its regulars, in the cloud, by the exact spelling its results are filed under; a
-standalone game (or a league with no players yet) keeps the account list below. League names carry no ×:
-they are the league's records. The heading says which it is, "League players" or "Recent Players".
-`PokerTimer` passes `leaguePlayers` in — no second subscription.
+standalone game (or a league with no players yet) keeps the account list below. The heading says which
+it is, "League players" or "Recent Players". `PokerTimer` passes `leaguePlayers` in — no second
+subscription.
+
+**A league name is HIDDEN from the suggestions, never removed from the league** (requested after game 3).
+Two ways, both in `leagueSuggestions`: a league player with **no results** is not offered at all — a test
+name, or the misspelling a results-editor rename left behind — and the **×** on a League players row adds
+the name to `userSettings/{uid}.hiddenLeagueNames` (same document, listener and write rules as the recent
+list, no rules deploy). `leaguePlayers` and `tournamentResults` are never written, so the standings cannot
+move. **Adding a player by a hidden name un-hides it**, the way typing a removed recent name brings it
+back, so the × costs nothing. Reset and Delete empty the list beside `recentPlayers`. Three mutants are
+caught: offering no-result names, ignoring the hidden list, and never un-hiding.
 
 **What answers it is the × on each row of Recent Players**, which shipped in the first round and was
 not spotted — the expanded list is searchable and every name has its own remove control.

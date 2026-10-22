@@ -116,10 +116,13 @@ export default function PlayerSection({ tournament, failsafeFor = null, isLeague
   const [playerToBustOut, setPlayerToBustOut] = useState<Player | null>(null);
 
   // Follows the account — see hooks/useRecentPlayers.ts.
-  const { recentPlayers: accountRecent, add: saveRecentPlayer, remove: removeRecentPlayer } = useRecentPlayers();
+  const {
+    recentPlayers: accountRecent, add: saveRecentPlayer, remove: removeRecentPlayer,
+    hiddenLeagueNames, hideLeagueName,
+  } = useRecentPlayers();
   // In a league game the league's own players are the list — their names are the
   // ones the league files results under. Until the league has any, the account's.
-  const leagueNames = useMemo(() => (isLeagueMode ? leagueSuggestions(leaguePlayers) : []), [isLeagueMode, leaguePlayers]);
+  const leagueNames = useMemo(() => (isLeagueMode ? leagueSuggestions(leaguePlayers, hiddenLeagueNames) : []), [isLeagueMode, leaguePlayers, hiddenLeagueNames]);
   const fromLeague = leagueNames.length > 0;
   const recentPlayers = fromLeague ? leagueNames : accountRecent;
   const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -523,16 +526,20 @@ export default function PlayerSection({ tournament, failsafeFor = null, isLeague
                         >
                           {player.name}
                         </button>
-                        {/* The league's players are its records, not a list to prune. */}
-                        {!fromLeague && <button
+                        {/* A league name is HIDDEN from these suggestions, never
+                            removed from the league: its results and standings
+                            stay exactly as they are. Adding the name un-hides it. */}
+                        <button
                           type="button"
-                          aria-label={`Remove ${player.name} from recent players`}
-                          title="Remove from this list"
+                          aria-label={fromLeague
+                            ? `Hide ${player.name} from league player suggestions`
+                            : `Remove ${player.name} from recent players`}
+                          title={fromLeague ? 'Hide from suggestions — their results are kept' : 'Remove from this list'}
                           className="text-muted-foreground hover:text-destructive p-1 rounded"
-                          onClick={() => removeRecentPlayer(player.name)}
+                          onClick={() => (fromLeague ? hideLeagueName(player.name) : removeRecentPlayer(player.name))}
                         >
                           <X className="h-3.5 w-3.5" />
-                        </button>}
+                        </button>
                       </div>
                     ))}
                     {getFilteredRecentPlayers().length === 0 && recentSearchTerm && (

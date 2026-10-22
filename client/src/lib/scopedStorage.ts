@@ -33,6 +33,7 @@ export const SCOPED_KEYS = [
   'tournamentLocalProgress',
   'activeLeagueId',
   'recentPlayers',
+  'hiddenLeagueNames',
   'setupUpdatedAt',
 ] as const;
 

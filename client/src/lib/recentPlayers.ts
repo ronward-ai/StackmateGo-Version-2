@@ -118,15 +118,55 @@ export function resolveRecent(
  */
 export function leagueSuggestions(
   leaguePlayers: readonly { name?: string | null; tournamentResults?: readonly unknown[] | null }[] | null | undefined,
+  hidden: readonly string[] = [],
 ): RecentPlayer[] {
   const out: RecentPlayer[] = [];
   for (const lp of leaguePlayers ?? []) {
     const name = (lp.name ?? '').trim();
     if (!name) continue;
-    const lastUsed = Math.max(0, ...(lp.tournamentResults ?? []).map(r => resultTime(r as any) ?? 0));
+    // A league player with NO results is a name nobody plays under: a test
+    // entry, or the misspelling a rename in the results editor left behind
+    // (its result moved to the corrected name). Players are only created when a
+    // result is recorded, so nobody genuine is left out — and a name nobody
+    // plays under is exactly what was reported cluttering the list.
+    const results = lp.tournamentResults ?? [];
+    if (results.length === 0) continue;
+    // Hidden with the × — from the SUGGESTIONS only. The league player and every
+    // result stay exactly as they are (deleting one is unsafe: the results join
+    // is roster-outer, see CLAUDE.md).
+    if (hidden.some(h => sameName(h, name))) continue;
+    const lastUsed = Math.max(0, ...results.map(r => resultTime(r as any) ?? 0));
     const seen = out.find(p => sameName(p.name, name));
     if (seen) { seen.lastUsed = Math.max(seen.lastUsed, lastUsed); continue; }
     out.push({ name, lastUsed });
   }
   return out.sort((a, b) => b.lastUsed - a.lastUsed || a.name.localeCompare(b.name));
+}
+
+/** How many hidden names are kept — far more than any league has. */
+export const HIDDEN_NAME_LIMIT = 200;
+
+/** Hide a name from the league suggestions. One entry per person. */
+export function hideName(hidden: readonly string[], name: string): string[] {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return [...hidden];
+  return [trimmed, ...hidden.filter(h => !sameName(h, trimmed))].slice(0, HIDDEN_NAME_LIMIT);
+}
+
+/**
+ * Show a hidden name again. Adding a player by that name does this — the same
+ * way typing a removed recent name brings it back — so the × costs nothing.
+ */
+export function unhideName(hidden: readonly string[], name: string): string[] {
+  const trimmed = (name || '').trim();
+  return hidden.filter(h => !sameName(h, trimmed));
+}
+
+/** A stored hidden list made safe, or null when there is none to read. */
+export function sanitiseHidden(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= 100)
+    .map(v => v.trim())
+    .slice(0, HIDDEN_NAME_LIMIT);
 }

@@ -93,6 +93,7 @@ export function useAccountReset() {
             // cache straight back up. An empty list is still a list, and every
             // device adopts it.
             recentPlayers: [],
+            hiddenLeagueNames: [],
           }), undefined, 'clearing the saved setup');
         } catch (err) {
           // No document yet, or offline. The local clear below is the part the
@@ -174,6 +175,7 @@ export function useAccountReset() {
           // Empty, not deleted, or another device re-pushes its cached names —
           // and Delete must mean delete (October audit, M2).
           recentPlayers: [],
+          hiddenLeagueNames: [],
         }), undefined, 'clearing the saved setup');
       } catch (err) {
         // The results are gone, which is what was asked; say so if the setup
