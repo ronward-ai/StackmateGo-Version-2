@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -9,7 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trophy, RefreshCw, Download, Minus, ArrowUp, ArrowDown, ChevronUp, ChevronDown, FileSpreadsheet } from "lucide-react";
+import ExportButtons from "@/components/ExportButtons";
+import { Trophy, RefreshCw, Minus, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from "lucide-react";
 import { useLeague } from '@/hooks/useLeague';
 import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -617,33 +617,15 @@ function RealTimeLeagueTable({
             <StandingsTitle league={leagueName} season={currentSeasonName} />
             <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
               {!isParticipantView && (
-                /* Labelled rather than a bare icon — the same unlabelled Download
-                   arrow was reported as unclear on the end-of-game export. Kept
-                   understated here: this is an always-available utility, not the
-                   headline action the way it is when a tournament finishes. */
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportCsv}
-                    title="Download the standings as a spreadsheet"
-                    className="h-8 px-3 gap-1.5"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    <span className="text-xs">CSV</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportImage}
-                    disabled={isExporting}
-                    title="Save the standings table as an image you can share"
-                    className="h-8 px-3 gap-1.5"
-                  >
-                    <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
-                    <span className="text-xs">{isExporting ? 'Saving…' : 'Image'}</span>
-                  </Button>
-                </>
+                /* The same Image / CSV pair as the game's results — one
+                   component, so the two cannot read differently again. */
+                <ExportButtons
+                  onImage={handleExportImage}
+                  onCsv={handleExportCsv}
+                  busy={isExporting}
+                  imageTitle="Save the standings table as an image you can share"
+                  csvTitle="Download the standings as a spreadsheet"
+                />
               )}
               <div className="text-label font-mono text-muted-foreground">
                 {playerCount(displayPlayers.length)}

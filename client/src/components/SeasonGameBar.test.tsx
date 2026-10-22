@@ -140,7 +140,7 @@ describe('the season game bar', () => {
     };
     bar({ loadGame: async () => live });
     fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
-    const exportButton = await screen.findByRole('button', { name: /Export Results/ });
+    const exportButton = await screen.findByRole('button', { name: /^Image$/ });
     expect(screen.getByRole('button', { name: /CSV/ })).toBeTruthy();
     expect(screen.getByRole('table')).toBeTruthy();
     fireEvent.click(exportButton);
@@ -163,7 +163,7 @@ describe('the season game bar', () => {
     };
     bar({ loadGame: async () => live, resultColumns: ['rebuys'] });
     fireEvent.click(screen.getByRole('button', { name: /^Game 2/ }));
-    const exportButton = await screen.findByRole('button', { name: /Export Results/ });
+    const exportButton = await screen.findByRole('button', { name: /^Image$/ });
     const headers = screen.getAllByRole('columnheader').map(h => h.textContent);
     expect(headers).toContain('Rebuys');
     expect(headers).not.toContain('Hits');

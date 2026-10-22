@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Download, FileSpreadsheet } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import ExportButtons from '@/components/ExportButtons';
 import { isLeagueGame } from '@/lib/tournamentMode';
 import { currencyOf } from '@/lib/currency';
 import { resultRowsFor, type ResultRow } from '@/lib/resultRows';
@@ -123,29 +122,13 @@ export function ResultsExportButtons({
   };
 
   return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={e => { e.stopPropagation(); exportCsv(); }}
-        title="Download the results as a spreadsheet"
-        className="h-8 px-3 gap-1.5"
-      >
-        <FileSpreadsheet className="h-4 w-4" />
-        <span className="text-xs">CSV</span>
-      </Button>
-      <Button
-        variant="success"
-        size="sm"
-        onClick={e => { e.stopPropagation(); exportImage(); }}
-        disabled={isExporting}
-        title="Save the final rankings as an image you can share"
-        className="h-8 px-3 gap-1.5"
-      >
-        <Download className={`h-4 w-4 ${isExporting ? 'animate-pulse' : ''}`} />
-        <span className="text-xs">{isExporting ? 'Saving…' : 'Export Results'}</span>
-      </Button>
-    </>
+    <ExportButtons
+      onImage={exportImage}
+      onCsv={exportCsv}
+      busy={isExporting}
+      imageTitle="Save the results as an image you can share"
+      csvTitle="Download the results as a spreadsheet"
+    />
   );
 }
 

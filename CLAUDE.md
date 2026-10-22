@@ -2141,6 +2141,12 @@ file exactly as it is from the screen. **One rule is the file's own: the screen'
 cell**, because a dash is text and a column with text in it will not sum. The landing page promises
 both exports in both formats, which is why it exists — do not remove one without changing that copy.
 
+**Every export is the same pair: Image, then CSV** — `components/ExportButtons.tsx`, used by the game's
+results (`ResultsExportButtons`) and the league table. They read "Export Results" in green beside the
+standings' outline "Image", reported as messy: two pairs doing the same two things looked like two
+features. The card says what is exported; the buttons say only how. A test asserts the order and that
+both share one style.
+
 The download writes a **UTF-8 BOM**: without it Excel reads the file as its local codepage and mangles
 any non-ASCII player name. `downloadCsv` returns false rather than throwing so the caller can say a
 download was blocked, instead of a button that silently does nothing.
@@ -3684,7 +3690,7 @@ league's own results through `leagueResultsForGame`, and says no Summary was kep
 **A past night is the console's table, exports and all.** Reported from a phone: the panel was a plain
 list and last night's PNG could not be exported "exactly the same as the iPad". The panel now reads the
 game's live document (`loadLiveGame`) and draws `PastGameResults` — the director's `ResultsTable` and the
-same **Export Results / CSV** — from `components/ResultsExport.tsx`, which is also what `PlayerSection`
+same **Image / CSV** — from `components/ResultsExport.tsx`, which is also what `PlayerSection`
 exports through now (`useGameResults`, `ResultsExportButtons`): one implementation, so the two cannot
 make different pictures of one night. A game whose live record is gone falls back to the plain list.
 Segments are **28px touch targets carrying their game number** (they were 8px tall), the row wraps for
