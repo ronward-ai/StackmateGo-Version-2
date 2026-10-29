@@ -1075,6 +1075,17 @@ function PokerTimerInner({
     sync();
   }, [tournament.state.nightLog, activeTournamentId, user?.id, isAnonymous, tournament.hasLoadedRemoteState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The blind structure as a value, not a reference. Every snapshot hands state a
+  // NEW levels array, and with `levels` itself in the deps below every snapshot
+  // re-ran the clock sync — whose payload carries the ticking `secondsLeft`, so it
+  // always differed and always wrote, and that write's own snapshot came back to
+  // start it again. Once every write carried a server timestamp (writerStamp in
+  // lib/liveGameWrite.ts), each write produced a second snapshot a moment later,
+  // after the clock had ticked, and the loop never settled: a write a second, a
+  // redraw a second on every device — reported live as lag, flashing, levels
+  // jumping and number boxes that would not keep a value.
+  const levelsKey = JSON.stringify(tournament.state.levels ?? []);
+
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {
     if (!activeTournamentId || !user || isAnonymous) return;
@@ -1109,7 +1120,7 @@ function PokerTimerInner({
     tournament.state.isRunning,       // start / pause
     tournament.state.currentLevel,    // level skip
     tournament.state.targetEndTime,   // set on start, cleared on pause
-    tournament.state.levels,
+    levelsKey,                        // the structure's CONTENT — see levelsKey
     tournament.state.notes,
     activeTournamentId,
     user?.id,
