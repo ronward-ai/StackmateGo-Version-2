@@ -15,6 +15,7 @@ import { initialDetails, needsLocalGameId, gameIdOf } from '@/lib/localGameId';
 import { mergePlayersFromSnapshot } from '@/lib/snapshotMerge';
 import { controlOf, mayDrive, takesDocumentRoster, type Control } from '@/lib/directorControl';
 import { rosterIsPending, markRosterWritten } from '@/lib/pendingRoster';
+import { stableStringify } from '@/lib/stableJson';
 import { breakTable as doBreakTable, consolidationDue, reindexAfterBreak, tableToBreak } from '@/lib/tableBreak';
 import { getConsoleId } from '@/lib/consoleId';
 
@@ -1961,7 +1962,7 @@ export function useTournament(tournamentId?: string) {
    */
   const lastSavedSettingsRef = useRef<string | null>(null);
   useEffect(() => {
-    const serialised = JSON.stringify(state.settings);
+    const serialised = stableStringify(state.settings);
     if (serialised === lastSavedSettingsRef.current) return;
     lastSavedSettingsRef.current = serialised;
     saveSettings(state.settings, storageUidRef.current);

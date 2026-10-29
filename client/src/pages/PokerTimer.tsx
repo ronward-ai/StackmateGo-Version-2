@@ -64,6 +64,7 @@ import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, shouldReopen, winnerOf, shouldRecordCompletion, storedStatusOf, completionFields } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
+import { stableStringify } from '@/lib/stableJson';
 import { markRosterWritten, markRosterIssued, markRosterSettled, rosterPayload, mayWriteRoster } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaimNow, controlLockReason, type Control } from '@/lib/directorControl';
 import { getConsoleId, subscribeConsoleId } from '@/lib/consoleId';
@@ -1037,7 +1038,7 @@ function PokerTimerInner({
     if (!activeTournamentId || !user || isAnonymous) return;
     if (!tournament.hasLoadedRemoteState) return;
     const sync = async () => {
-      const serialised = JSON.stringify(rebuyOffer.answered);
+      const serialised = stableStringify(rebuyOffer.answered);
       if (serialised === lastSyncedAnsweredRef.current) return;
       // Nothing to say yet. Writing an empty array on every fresh game would be a
       // write per mount for no information.
@@ -1084,7 +1085,7 @@ function PokerTimerInner({
   // after the clock had ticked, and the loop never settled: a write a second, a
   // redraw a second on every device — reported live as lag, flashing, levels
   // jumping and number boxes that would not keep a value.
-  const levelsKey = JSON.stringify(tournament.state.levels ?? []);
+  const levelsKey = stableStringify(tournament.state.levels ?? []);
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {
@@ -1101,7 +1102,7 @@ function PokerTimerInner({
       blindLevels: tournament.state.levels,
       notes: tournament.state.notes || '',
     };
-    const serialised = JSON.stringify(payload);
+    const serialised = stableStringify(payload);
     if (serialised === lastSyncedTimerRef.current) return;
 
     const sync = async () => {
@@ -1143,7 +1144,7 @@ function PokerTimerInner({
       // here, and every player's phone then read it as standalone.
       isSeasonTournament: isLeagueGame(tournament.state),
     };
-    const serialised = JSON.stringify(payload);
+    const serialised = stableStringify(payload);
     if (serialised === lastSyncedSettingsRef.current) return;
 
     const sync = async () => {

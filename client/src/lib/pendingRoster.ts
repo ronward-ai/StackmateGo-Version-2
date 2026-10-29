@@ -1,3 +1,4 @@
+import { stableStringify } from './stableJson';
 /**
  * Whether this device is sitting on a roster change it has not had written yet.
  *
@@ -58,7 +59,7 @@ export interface RosterPayload {
 }
 
 export function rosterPayload(payload: RosterPayload): string {
-  return JSON.stringify({
+  return stableStringify({
     players: payload.players ?? [],
     isFinalTable: !!payload.isFinalTable,
   });

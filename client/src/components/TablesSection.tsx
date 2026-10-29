@@ -25,6 +25,7 @@ import { seatablePlayers, allSeated, planSeating, assignSeats, occupiedChairs, t
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { imbalance, imbalanceKey, shouldAskToBalance } from '@/lib/tableBalance';
 import { cn } from "@/lib/utils";
+import { stableStringify } from '@/lib/stableJson';
 
 interface TablesSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -132,6 +133,7 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
   const [tableToBreak, setTableToBreak]                 = useState<number | null>(null);
 
   // Sync from state
+  const storedTablesKey = stableStringify([state.settings.tables ?? null, state.settings.tableBackgrounds ?? null]);
   useEffect(() => {
     if (state.settings.tables) {
       const c = state.settings.tables;
@@ -150,7 +152,10 @@ export default function TablesSection({ tournament, finalTablePromptOpen = false
           : Array(c.numberOfTables).fill('felt-green')
       );
     }
-  }, [state.settings.tables, state.settings.tableBackgrounds]);
+  // Keyed on the stored VALUES: every snapshot hands settings a new object, and
+  // keying on the object reset the Tables and Seats boxes mid-typing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedTablesKey]);
 
   // Table balance check — see lib/tableBalance.ts for why this is shaped the
   // way it is.
