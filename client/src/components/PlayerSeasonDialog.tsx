@@ -2,10 +2,13 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { seasonGames, seasonSummary, type SeasonGame } from '@/lib/playerSeason';
+import { useEffect, useState } from 'react';
+import { seasonGames, seasonSummary, type SeasonGame, type GamePrices } from '@/lib/playerSeason';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { money } from '@/lib/currency';
 import { ordinal } from '@/lib/ordinal';
-import { Trophy } from 'lucide-react';
+import { Trophy, Pencil } from 'lucide-react';
 
 /**
  * One player's season, game by game.
@@ -27,13 +30,44 @@ interface PlayerSeasonDialogProps {
   seasonName?: string;
   results: SeasonGame[];
   currencySymbol: string;
+  /** What each game charged in rake and bounty per entry — see hooks/useGamePrices. */
+  prices?: GamePrices;
+  /**
+   * Rename this player. Passed ONLY on a director's console that holds control —
+   * absent, the pencil is not rendered at all (the DirectorOnly rule). Rejects
+   * with the reason to show.
+   */
+  onRename?: (next: string) => Promise<void>;
+  /** Why a rename to `next` is refused, or null — lib/leaguePlayerRename.ts. */
+  renameRefusal?: (next: string) => string | null;
 }
 
 export default function PlayerSeasonDialog({
-  isOpen, onClose, playerName, seasonName, results, currencySymbol,
+  isOpen, onClose, playerName, seasonName, results, currencySymbol, prices, onRename, renameRefusal,
 }: PlayerSeasonDialogProps) {
-  const rows = seasonGames(results);
-  const summary = seasonSummary(results);
+  const rows = seasonGames(results, prices);
+  const summary = seasonSummary(results, prices);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(playerName);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setEditing(false); setError(null); setDraft(playerName); }, [playerName, isOpen]);
+
+  const save = async () => {
+    if (!onRename) return;
+    const refusal = renameRefusal?.(draft) ?? (draft.trim() ? null : 'A name cannot be empty.');
+    if (refusal) { setError(refusal); return; }
+    setSaving(true);
+    try {
+      await onRename(draft.trim());
+      setEditing(false);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || 'Could not rename this player.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const figure = (label: string, value: string) => (
     <div className="flex flex-col">
@@ -48,8 +82,37 @@ export default function PlayerSeasonDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trophy className="h-4 w-4 text-primary" />
-            {playerName}
+            {editing ? (
+              <form className="flex items-center gap-2" onSubmit={e => { e.preventDefault(); void save(); }}>
+                <Input
+                  aria-label="Player name"
+                  value={draft}
+                  autoFocus
+                  onChange={e => { setDraft(e.target.value); setError(null); }}
+                  className="h-8 w-48"
+                />
+                <Button type="submit" size="sm" disabled={saving}>Save</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => { setEditing(false); setError(null); setDraft(playerName); }}>
+                  Cancel
+                </Button>
+              </form>
+            ) : (
+              <>
+                {playerName}
+                {onRename && (
+                  <button
+                    type="button"
+                    aria-label={`Rename ${playerName}`}
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </>
+            )}
           </DialogTitle>
+          {error && <p role="alert" className="text-caption text-destructive">{error}</p>}
           <DialogDescription>
             {seasonName ? `${seasonName} · ` : ''}
             {summary.games} game{summary.games === 1 ? '' : 's'} played
@@ -64,10 +127,13 @@ export default function PlayerSeasonDialog({
           {figure('Wins', String(summary.wins))}
           {figure('Best', summary.bestFinish ? ordinal(summary.bestFinish) : '—')}
           {figure('Average', summary.averagePosition !== null ? ordinal(Math.round(summary.averagePosition)) : '—')}
-          {figure('In', money(summary.invested, currencySymbol))}
+          {figure('Paid in', money(summary.paid, currencySymbol))}
           {figure('Out', money(summary.cash, currencySymbol))}
           {figure('Net', `${summary.net >= 0 ? '+' : '−'}${money(Math.abs(summary.net), currencySymbol)}`)}
         </div>
+        <p className="text-caption text-muted-foreground -mt-1">
+          Paid in includes the rake and bounty paid on every entry, rebuy and re-entry.
+        </p>
 
         <div className="overflow-y-auto -mx-1 px-1">
           {rows.length === 0 ? (

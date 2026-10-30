@@ -1,4 +1,4 @@
-import { buyInOf, investedIn, totalsAcross, type ResultCosts } from './resultStats';
+import { buyInOf, investedIn, paidIn, totalsAcross, type EntryPrices, type ResultCosts } from './resultStats';
 import { isRealSeasonId } from './seasonProgress';
 
 /**
@@ -18,6 +18,8 @@ import { isRealSeasonId } from './seasonProgress';
 
 export interface SeasonGame extends ResultCosts {
   id?: string;
+  /** The game this result belongs to — what its rake and bounty prices are looked up by. */
+  tournamentId?: string | number;
   position?: number;
   totalPlayers?: number;
   points?: number;
@@ -37,8 +39,10 @@ export interface SeasonGameRow {
   points: number;
   hits: number;
   invested: number;
+  /** Everything handed over: `invested` plus the rake and bounty on every entry. */
+  paid: number;
   cash: number;
-  /** Cash minus what they put in, for this game alone. */
+  /** Cash minus everything they paid, for this game alone. */
   net: number;
   playedAt: Date | null;
 }
@@ -48,6 +52,7 @@ export interface SeasonSummary {
   points: number;
   hits: number;
   invested: number;
+  paid: number;
   cash: number;
   net: number;
   wins: number;
@@ -84,10 +89,19 @@ function playedAtOf(game: SeasonGame): Date | null {
  * still a real result, and losing it from the list would quietly disagree with
  * the totals below.
  */
-export function seasonGames(results: SeasonGame[] | null | undefined): SeasonGameRow[] {
+/** Each game's rake and bounty prices, by tournament id; a missing game means pool money only. */
+export type GamePrices = Record<string, EntryPrices | null | undefined>;
+
+export function pricesFor(game: SeasonGame, prices: GamePrices | undefined): EntryPrices | null {
+  if (!prices || game.tournamentId === undefined || game.tournamentId === null) return null;
+  return prices[String(game.tournamentId)] ?? null;
+}
+
+export function seasonGames(results: SeasonGame[] | null | undefined, prices?: GamePrices): SeasonGameRow[] {
   return (results ?? [])
     .map((game, index) => {
       const invested = investedIn(game);
+      const paid = paidIn(game, pricesFor(game, prices));
       // NOT `+ bountyWinningsIn(game)`. The recorded `prizeMoney` is the TOTAL
       // the player collected — `eliminatePlayer` folds the bounty money into it
       // at the bust-out — and `bountyWinnings` says how much of that total was
@@ -103,8 +117,9 @@ export function seasonGames(results: SeasonGame[] | null | undefined): SeasonGam
         points: game.points ?? 0,
         hits: hitsIn(game),
         invested,
+        paid,
         cash,
-        net: cash - invested,
+        net: cash - paid,
         playedAt: playedAtOf(game),
       };
     })
@@ -117,9 +132,9 @@ export function seasonGames(results: SeasonGame[] | null | undefined): SeasonGam
 }
 
 /** The season totals, from the same rows the list shows. */
-export function seasonSummary(results: SeasonGame[] | null | undefined): SeasonSummary {
+export function seasonSummary(results: SeasonGame[] | null | undefined, prices?: GamePrices): SeasonSummary {
   const games = results ?? [];
-  const rows = seasonGames(games);
+  const rows = seasonGames(games, prices);
   const totals = totalsAcross(games);
 
   const placed = rows.map(r => r.position).filter((p): p is number => typeof p === 'number' && p > 0);
@@ -129,8 +144,9 @@ export function seasonSummary(results: SeasonGame[] | null | undefined): SeasonS
     points: rows.reduce((sum, r) => sum + r.points, 0),
     hits: rows.reduce((sum, r) => sum + r.hits, 0),
     invested: totals.invested,
+    paid: rows.reduce((sum, r) => sum + r.paid, 0),
     cash: rows.reduce((sum, r) => sum + r.cash, 0),
-    net: rows.reduce((sum, r) => sum + r.cash, 0) - totals.invested,
+    net: rows.reduce((sum, r) => sum + r.net, 0),
     wins: placed.filter(p => p === 1).length,
     averagePosition: placed.length
       ? Math.round((placed.reduce((sum, p) => sum + p, 0) / placed.length) * 10) / 10

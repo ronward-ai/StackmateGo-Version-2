@@ -187,6 +187,7 @@ export default function LeagueSection({ tournament, readOnly = false, nextGame, 
               tournament={tournament}
               viewedSeasonId={viewedSeasonId}
               onViewSeason={onViewSeason}
+              readOnly={readOnly}
             />
             </div>
           )}

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { cashIn, hitsIn, seasonGames, seasonSummary, seasonRoster, type SeasonGame } from './playerSeason';
+import { entryPricesOf } from './resultStats';
 
 const game = (over: Partial<SeasonGame> = {}): SeasonGame => ({
   position: 4, totalPlayers: 10, points: 20, playersEliminatedCount: 1,
@@ -149,5 +150,27 @@ describe('seasonRoster', () => {
     expect(seasonRoster([amy, bob], null)).toEqual([]);
     expect(seasonRoster([amy, bob], 'default-season')).toEqual([]);
     expect(seasonRoster(null, 'spring')).toEqual([]);
+  });
+});
+
+describe('Net counts everything the player paid', () => {
+  it('the reported night: one game, a rebuy, nothing won — Net is minus the whole outlay', () => {
+    const prices = { g1: entryPricesOf({
+      buyIn: 10, rebuyAmount: 10, rakeType: 'fixed', rakeAmount: 2,
+      rebuyRake: true, enableBounties: true, bountyAmount: 3, rebuyBounty: true,
+    }) };
+    const results = [{ tournamentId: 'g1', buyIn: 10, rebuys: 1, rebuyAmount: 10, prizeMoney: 0, position: 5 }];
+    const [row] = seasonGames(results, prices);
+    expect(row.invested).toBe(20);
+    expect(row.paid).toBe(30);
+    expect(row.net).toBe(-30);
+    expect(seasonSummary(results, prices).net).toBe(-30);
+    expect(seasonSummary(results, prices).paid).toBe(30);
+  });
+
+  it('a game with no known prices nets against the pool money, as before', () => {
+    const results = [{ tournamentId: 'gone', buyIn: 10, prizeMoney: 25 }];
+    expect(seasonGames(results, {})[0].net).toBe(15);
+    expect(seasonGames(results)[0].net).toBe(15);
   });
 });

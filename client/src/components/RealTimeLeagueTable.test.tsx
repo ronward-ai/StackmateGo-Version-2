@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 /**
@@ -25,6 +25,8 @@ vi.mock('@/hooks/useLeague', () => ({ useLeague: () => league }));
 vi.mock('@/hooks/useLeagueSettings', () => ({ useLeagueSettings: () => settings }));
 vi.mock('@/hooks/useSeasons', () => ({ useSeasons: () => seasons }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => auth }));
+let gamePrices: any = {};
+vi.mock('@/hooks/useGamePrices', () => ({ useGamePrices: () => gamePrices }));
 vi.mock('@/components/export/captureSheet', () => ({ captureSheet: vi.fn(), sheetFilename: () => 'x.png' }));
 
 import RealTimeLeagueTable from './RealTimeLeagueTable';
@@ -83,5 +85,57 @@ describe('the standings title on a phone', () => {
     expect(screen.getByRole('heading', { name: 'summer' })).toBeTruthy();
     expect(title.textContent).not.toMatch(/Standings - /);
     expect(screen.getByText('1 player')).toBeTruthy();
+  });
+});
+
+describe('Profit counts everything a player paid', () => {
+  it('a rebuy with its own rake and bounty is charged in full', async () => {
+    const { entryPricesOf } = await import('@/lib/resultStats');
+    gamePrices = { g1: entryPricesOf({
+      buyIn: 10, rakeType: 'fixed', rakeAmount: 2, enableBounties: true, bountyAmount: 3,
+      rebuyRake: true, rebuyBounty: true,
+    } as any) };
+    settings.settings.statsToDisplay = { profit: true } as any;
+    league = { league: { id: 'L1', name: 'Test League' }, isLoading: false, leaguePlayers: [
+      { id: 'd', name: 'Dave', tournamentResults: [{
+        id: 'r', tournamentId: 'g1', seasonId: 'summer', position: 7, totalPlayers: 9, points: 3,
+        buyIn: 10, rebuys: 1, rebuyAmount: 10, prizeMoney: 0, date: '2026-10-29T20:00:00Z',
+      }] },
+    ] };
+    seasons = seasonsFor('summer');
+    render(<RealTimeLeagueTable tournament={tournament} />);
+    expect(screen.getAllByText(/-£30/).length).toBeGreaterThan(0);
+    gamePrices = {};
+    settings.settings.statsToDisplay = {} as any;
+  });
+});
+
+describe('Rename is offered on the director console only', () => {
+  const withDave = () => {
+    league = { league: { id: 'L1', name: 'Test League' }, isLoading: false, renameLeaguePlayer: async () => {},
+      leaguePlayers: [{ id: 'd', name: 'Dave', tournamentResults: results('summer', 1) }] };
+    seasons = seasonsFor('summer');
+  };
+  const openDave = () => fireEvent.click(screen.getByTitle("See Dave's season game by game"));
+
+  it('on a console that holds control', () => {
+    withDave();
+    render(<RealTimeLeagueTable tournament={tournament} allowRename />);
+    openDave();
+    expect(screen.getByLabelText('Rename Dave')).toBeTruthy();
+  });
+
+  it('not on a read-only console', () => {
+    withDave();
+    render(<RealTimeLeagueTable tournament={tournament} />);
+    openDave();
+    expect(screen.queryByLabelText('Rename Dave')).toBeNull();
+  });
+
+  it("not on a player's phone, whatever is passed", () => {
+    withDave();
+    render(<RealTimeLeagueTable tournament={tournament} isParticipantView allowRename />);
+    openDave();
+    expect(screen.queryByLabelText('Rename Dave')).toBeNull();
   });
 });

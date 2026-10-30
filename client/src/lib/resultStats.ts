@@ -1,3 +1,4 @@
+import { entryCosts, type RakeStructure } from "./prizePool";
 /**
  * What a league result says a player spent and collected.
  *
@@ -69,6 +70,56 @@ export function investedIn(result: ResultCosts): number {
   // both re-entries.
   const reEntries = (result.reEntries || 0) * buyIn;
   return buyIn + rebuys + addons + reEntries;
+}
+
+/**
+ * What one game charged per entry ON TOP of the prize-pool money: the rake and
+ * the bounty, for the first entry, a rebuy and a re-entry. From the game's own
+ * prize structure, through `lib/prizePool.ts`'s `entryCosts`, the one place
+ * the defaults live (a re-entry is raked by default, a rebuy is not).
+ */
+export interface EntryPrices {
+  entryRake: number;
+  entryBounty: number;
+  rebuyRake: number;
+  rebuyBounty: number;
+  reEntryRake: number;
+  reEntryBounty: number;
+}
+
+export function entryPricesOf(structure: RakeStructure | null | undefined): EntryPrices | null {
+  if (!structure) return null;
+  const costs = entryCosts(structure);
+  return {
+    entryRake: costs.perEntryRake,
+    entryBounty: structure.enableBounties ? (structure.bountyAmount || 0) : 0,
+    rebuyRake: costs.rebuyRake,
+    rebuyBounty: costs.rebuyBounty,
+    reEntryRake: costs.reEntryRake,
+    reEntryBounty: costs.reEntryBounty,
+  };
+}
+
+/**
+ * EVERYTHING a player handed over for one game: `investedIn` (the prize-pool
+ * money) plus the rake and the bounty on every entry. Reported from a real night:
+ * a player who rebought, paying another rake and bounty, showed Net −£10 when
+ * they had paid far more.
+ *
+ * `investedIn` is deliberately left as it is — it is the `c` a points formula
+ * scores with, and changing it would rescore leagues. This is for money shown
+ * to people: Net, Profit, ROI and Paid in. With no prices (a game whose record is
+ * gone) it is `investedIn`, so nothing reads worse than before.
+ */
+export function paidIn(result: ResultCosts, prices: EntryPrices | null | undefined): number {
+  const base = investedIn(result);
+  if (!prices) return base;
+  const rebuys = result.rebuys || 0;
+  const reEntries = result.reEntries || 0;
+  return base
+    + prices.entryRake + prices.entryBounty
+    + rebuys * (prices.rebuyRake + prices.rebuyBounty)
+    + reEntries * (prices.reEntryRake + prices.reEntryBounty);
 }
 
 /** Bounty money this result credits the player with. */

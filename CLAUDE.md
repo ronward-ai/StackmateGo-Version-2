@@ -2238,6 +2238,28 @@ Knockouts and prize money are each read under both names they are stored under (
 the read whitelist renames `knockouts` to `playersEliminatedCount`, so both shapes exist in real
 documents.
 
+**Net counts everything a player PAID; points still count the pool** (`paidIn` beside `investedIn` in
+`lib/resultStats.ts`). Reported: a card read Net −£10 after one game in which the player had rebought,
+paying a second rake and bounty. `investedIn` is prize-pool money only — buy-in, rebuys, re-entries,
+add-ons — and league results store neither the rake nor the bounty. `paidIn` adds the entry's rake and
+bounty and each rebuy's and re-entry's, priced by `entryPricesOf` from `entryCosts` (the one home of the
+defaults: a re-entry raked by default, a rebuy not). The card's **Paid in** and **Net**, and the table's
+**Paid in** (`totalInvested`, relabelled), **Profit** and **ROI**, all use it. **`investedIn` stays the
+points formula's `c`** — changing it would rescore every league.
+
+**Past games are priced from their own documents**, not migrated: `hooks/useGamePrices.ts` reads each
+game's `activeTournaments/{id}.prizeStructure` once (module cache, publicly gettable, so phones agree).
+A game whose document is gone nets against pool money alone — as before, never worse.
+
+**A league player can be renamed from their season card — director only, narrowly.** The pencil is
+passed only on a console with control (`LeagueSection` → `SeasonDashboard` → `allowRename`); the
+participant view never gets it. Safe because a result carries `leaguePlayerId` and no name;
+`renameLeaguePlayer` renames EVERY document under that name, since `useLeague` merges them into one row.
+`lib/leaguePlayerRename.ts` refuses a blank name, **a name another league player has** (the recorder and
+the merge match by name), and **a player in tonight's roster** — the recorder files their next bust-out
+by name, so that rename belongs in Edit results. Mutants on the refusals, the gate and the prices are
+caught; `renameLeaguePlayer` itself has no test (`useLeague` has no test file).
+
 ### A league result is written once, from a whitelist, and read through another
 
 `tournamentResults` has exactly one writer — `addResultMutation` in `useLeague.ts` — and the read

@@ -30,6 +30,8 @@ interface SeasonDashboardProps {
    */
   viewedSeasonId?: string | null;
   onViewSeason?: (seasonId: string | null) => void;
+  /** A console that is not driving — no rename on a player's card. */
+  readOnly?: boolean;
 }
 
 export default function SeasonDashboard({
@@ -38,6 +40,7 @@ export default function SeasonDashboard({
   leaguePlayers: leaguePlayersProp,
   viewedSeasonId,
   onViewSeason,
+  readOnly = false,
 }: SeasonDashboardProps) {
   const { league, leaguePlayers: leaguePlayersFromHook } = useLeague();
   const {
@@ -238,6 +241,7 @@ export default function SeasonDashboard({
       <RealTimeLeagueTable
         tournament={tournament}
         seasonIdOverride={selectedPastSeasonId}
+        allowRename={!readOnly}
       />
 
     </div>

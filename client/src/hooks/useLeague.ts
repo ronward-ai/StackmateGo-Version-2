@@ -162,6 +162,24 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     queryClient.invalidateQueries({ queryKey: ['leagues', targetOwnerId] });
   }, [currentLeagueId, queryClient, targetOwnerId]);
 
+  /**
+   * Rename a league player — EVERY document under that name, since useLeague
+   * merges duplicate-named documents into one row and renaming one would split it
+   * back out. Results carry `leaguePlayerId` and no name, so they follow. The
+   * refusals (a taken name, a player in tonight's game) are
+   * lib/leaguePlayerRename.ts's, asked by the screen before this is called.
+   */
+  const renameLeaguePlayer = useCallback(async (current: string, next: string) => {
+    const trimmed = next.trim();
+    if (!trimmed) throw new Error('A name cannot be empty.');
+    const ids = playerIdsForName(cloudPlayersRef.current, current);
+    if (ids.length === 0) throw new Error(`No league player called ${current}.`);
+    await Promise.all(ids.map(id => updateDoc(doc(db, 'leaguePlayers', id), {
+      name: trimmed,
+      updatedAt: serverTimestamp(),
+    })));
+  }, []);
+
   /** Point the league at a season. One write, replacing the old N+1 status loop. */
   const setActiveSeason = useCallback(async (seasonId: string) => {
     if (!currentLeagueId) return;
@@ -647,6 +665,7 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     switchLeague,
     createLeague,
     renameLeague,
+    renameLeaguePlayer,
     deleteLeague,
     leaguePlayers,
     recordResultByName,

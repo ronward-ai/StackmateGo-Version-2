@@ -139,7 +139,7 @@ export const STAT_LABELS: Record<string, string> = {
   reEntries: 'Re-entries',
   itmPercentage: 'ITM %',
   addOns: 'Add-ons',
-  totalInvested: 'Invested',
+  totalInvested: 'Paid in',
   // Not 'Bounty £': the cells carry the league's own currency symbol, and a
   // pound sign over dollar figures was the label disagreeing with its column
   // (October audit, Low).

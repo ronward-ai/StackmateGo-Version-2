@@ -17,7 +17,9 @@ import { isLeagueTournament } from '@/lib/tournamentMode';
 import { currencyOf, money } from '@/lib/currency';
 import { countGamesPlayed, isRealLeagueId, gameKeyOf } from '@/lib/seasonProgress';
 import EmptyState from '@/components/ui/empty-state';
-import { totalsAcross, cashedIn } from '@/lib/resultStats';
+import { totalsAcross, cashedIn, paidIn } from '@/lib/resultStats';
+import { pricesFor } from '@/lib/playerSeason';
+import { useGamePrices } from '@/hooks/useGamePrices';
 import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
 import { seasonRoster } from '@/lib/playerSeason';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,6 +27,7 @@ import { STAT_LABELS } from '@/types/leagueSettings';
 import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
 import { useToast } from '@/hooks/use-toast';
 import PlayerSeasonDialog from '@/components/PlayerSeasonDialog';
+import { renameRefusal } from '@/lib/leaguePlayerRename';
 import StandingsSheet, { type StandingsSheetRow } from '@/components/export/StandingsSheet';
 import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
@@ -35,12 +38,18 @@ interface RealTimeLeagueTableProps {
   tournament?: any;
   isParticipantView?: boolean;
   seasonIdOverride?: string | null;
+  /**
+   * Offer Rename on a player's season card. The console passes it only while it
+   * holds control; the participant view never does. See lib/leaguePlayerRename.ts.
+   */
+  allowRename?: boolean;
 }
 
 function RealTimeLeagueTable({
   tournament,
   isParticipantView = false,
   seasonIdOverride = null,
+  allowRename = false,
 }: RealTimeLeagueTableProps) {
   // ALWAYS call ALL hooks first - never conditionally
   const [isExporting, setIsExporting] = useState(false);
@@ -197,6 +206,15 @@ function RealTimeLeagueTable({
     });
   }, [leagueSettings?.statsToDisplay, leagueSettings?.statsOrder]);
 
+  // Each game's rake and bounty, read once per game — so Profit, ROI and Paid in
+  // count everything a player handed over, past games included (hooks/useGamePrices).
+  const gameIds = useMemo(
+    () => seasonFilteredPlayers.flatMap((p: any) => (p.tournamentResults || []).map((r: any) => r.tournamentId)),
+    [seasonFilteredPlayers],
+  );
+  const gamePrices = useGamePrices(gameIds);
+  const canRename = allowRename && !isParticipantView && typeof (leagueData as any)?.renameLeaguePlayer === 'function';
+
   // Calculate stats for each player (season-filtered)
   const playersWithStats = useMemo(() => {
     return seasonFilteredPlayers.map(player => {
@@ -230,7 +248,10 @@ function RealTimeLeagueTable({
       // lib/resultStats.ts, which owns the fallbacks for results written before
       // any of this was recorded.
       const extras = totalsAcross(results);
-      const totalInvestment = extras.invested;
+      // EVERYTHING paid — the pool money plus the rake and bounty on every entry
+      // (lib/resultStats.ts's paidIn). Points still score with `investedIn`.
+      const totalInvestment = results.reduce(
+        (sum: number, r: any) => sum + paidIn(r, pricesFor(r, gamePrices)), 0);
 
       const buyInsSpent = totalInvestment;
 
@@ -334,7 +355,7 @@ function RealTimeLeagueTable({
         displayPoints: totalPoints
       };
     });
-  }, [seasonFilteredPlayers, totalTournaments]);
+  }, [seasonFilteredPlayers, totalTournaments, gamePrices]);
 
   // Calculate stats for a player
   const getPlayerStat = (player: any, stat: string) => {
@@ -749,6 +770,18 @@ function RealTimeLeagueTable({
         seasonName={currentSeasonName}
         results={openPlayer?.tournamentResults ?? []}
         currencySymbol={sym}
+        prices={gamePrices}
+        onRename={canRename ? async (next: string) => {
+          await (leagueData as any).renameLeaguePlayer(openPlayer.name, next);
+          setOpenPlayer((p: any) => (p ? { ...p, name: next } : p));
+          toast({ title: 'Player renamed', description: `${openPlayer.name} is now ${next}.` });
+        } : undefined}
+        renameRefusal={openPlayer ? (next: string) => renameRefusal(
+          openPlayer.name,
+          next,
+          (leaguePlayers as any[]).map(p => p?.name),
+          (tournament?.state?.players ?? []).map((p: any) => p?.name),
+        ) : undefined}
       />
     </Card>
   );

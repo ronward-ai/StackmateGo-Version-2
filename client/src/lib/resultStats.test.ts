@@ -8,8 +8,7 @@ import {
   bountyWinningsIn,
   totalsAcross,
   repricedForNewPlaces,
-  type ResultCosts,
-} from './resultStats';
+  type ResultCosts, paidIn, entryPricesOf } from './resultStats';
 
 describe('buyInOf', () => {
   it('reads the recorded buy-in', () => {
@@ -252,5 +251,43 @@ describe('cashedIn (Oct Low)', () => {
   });
   it('nothing collected is not', () => {
     expect(cashedIn({} as any)).toBe(false);
+  });
+});
+
+/**
+ * Reported from a real night: a player who rebought — paying another rake and
+ * another bounty — showed Net −£10. `investedIn` is prize-pool money only;
+ * `paidIn` is everything handed over.
+ */
+describe('paidIn — everything a player handed over', () => {
+  const structure = {
+    buyIn: 10, rebuyAmount: 10, rakeType: 'fixed' as const, rakeAmount: 2,
+    rebuyRake: true, enableBounties: true, bountyAmount: 3, rebuyBounty: true,
+  };
+
+  it('counts the rake and bounty on the first entry and on every rebuy', () => {
+    const prices = entryPricesOf(structure);
+    // £10 + £2 rake + £3 bounty, twice.
+    expect(paidIn({ buyIn: 10, rebuys: 1, rebuyAmount: 10 }, prices)).toBe(30);
+    // The pool money alone is unchanged — it is what points score with.
+    expect(investedIn({ buyIn: 10, rebuys: 1, rebuyAmount: 10 })).toBe(20);
+  });
+
+  it('a rebuy is not raked unless the game says so; a re-entry is by default', () => {
+    const prices = entryPricesOf({ buyIn: 10, rakeType: 'fixed', rakeAmount: 2 })!;
+    expect(prices.rebuyRake).toBe(0);
+    expect(prices.reEntryRake).toBe(2);
+    expect(paidIn({ buyIn: 10, reEntries: 1 }, prices)).toBe(10 + 10 + 2 + 2);
+  });
+
+  it('no bounty is charged when bounties are off', () => {
+    const prices = entryPricesOf({ buyIn: 10, bountyAmount: 5 })!;
+    expect(prices.entryBounty).toBe(0);
+    expect(paidIn({ buyIn: 10 }, prices)).toBe(10);
+  });
+
+  it('with no prices — a game whose record is gone — it is the pool money, never less', () => {
+    expect(paidIn({ buyIn: 10, rebuys: 1, rebuyAmount: 10 }, null)).toBe(20);
+    expect(entryPricesOf(null)).toBeNull();
   });
 });
