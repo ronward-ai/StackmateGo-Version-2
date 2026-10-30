@@ -9,8 +9,9 @@ describe('stableStringify', () => {
     expect(JSON.stringify(a)).not.toBe(JSON.stringify(b)); // the fault it replaces
   });
 
-  it('undefined and null are the same — a write turns one into the other', () => {
+  it('undefined, null and a missing key are the same — a write turns one into another', () => {
     expect(stableStringify({ position: undefined })).toBe(stableStringify({ position: null }));
+    expect(stableStringify({ a: 1, position: null })).toBe(stableStringify({ a: 1 }));
     expect(stableStringify([undefined])).toBe(stableStringify([null]));
   });
 

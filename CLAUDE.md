@@ -929,6 +929,38 @@ device keeps its local `true` and a second device will still ask once. Nothing i
 `TablesSectionReadOnly` renders `Table 1` and cannot even be passed the flag. Now possible for the first
 time, since the fact finally reaches those screens.
 
+### A saved payload is compared by content, never by key order
+
+Reported live, mid-tournament, from a phone and an iPad: lag, flashing, blind levels jumping, and the
+Tables and Seats boxes snapping back to the saved number as you typed. The driving device was saving the
+game **about once a second** while nothing changed, and every device redrew on every save. Watching the
+live document read-only is what showed it: `updateTime` moving every second with only `secondsLeft`,
+`updatedAt` and `writtenAt` differing. **The new database lock was NOT the cause** — those writes were
+all accepted. Reverting the rules would have fixed nothing; reading the document told the two apart.
+
+Two loops, both latent, and the commit that stamped every write with `serverTimestamp()` is what woke
+them: a server timestamp makes each write produce a SECOND snapshot a moment later, once the server
+fills the time in.
+
+- **The clock sync listed `state.levels` in its deps.** Every snapshot hands state a new levels array,
+  so every snapshot re-ran a sync whose payload carries the ticking `secondsLeft` — it always differed,
+  so it always wrote, and the timestamp's second snapshot arrived after the next tick. It keys on
+  `clockSyncKey(levels)` (`lib/stableJson.ts`) now: the structure's content.
+- **The write guards compared `JSON.stringify` output, which follows KEY ORDER** — and a Firestore map
+  has none, so an unchanged roster came back serialised differently (the merge builds each player as
+  `{ ...incoming }`) and was written again. **`stableStringify` is what every write guard compares now**
+  — sorted keys, and a key holding `undefined` or `null` treated as absent, since a write turns one into
+  another. `rosterPayload`, the clock, settings, answered-set and settings-save guards all use it.
+- **The Tables and Seats boxes resynced on the settings OBJECT**, so with a snapshot a second they reset
+  mid-typing. They follow the stored value (`storedTablesKey`).
+
+`writeStorm.scenario.test.tsx` plays it through the real `useTournament` with a fake Firestore that
+alternates key order and nulls `undefined` on every round trip: echoes of an unchanged game cause no
+write, a bust-out causes one, and reordered levels keep the clock key. Four mutants are caught —
+`rosterPayload` back to `JSON.stringify`, the clock key back to it, no null-dropping, no key sorting —
+plus the boxes keyed on the object again in `TablesSection.test.tsx`. **Any new write guard must
+compare through `stableStringify`.**
+
 ### A snapshot must not revert a change this device has not had written yet
 
 `lib/pendingRoster.ts`, gating `lib/snapshotMerge.ts`'s `keepLocal`. The mirror image of

@@ -73,4 +73,37 @@ describe('TablesSection', () => {
     fireEvent.blur(field);
     expect(h.updateSettings.mock.calls.at(-1)![0].tables.numberOfTables).toBe(2);
   });
+
+  // October 2026, live: every snapshot hands settings a NEW object, and the
+  // boxes resynced on the object — so a box being typed in snapped back to the
+  // saved number once a second. They follow the stored VALUE now.
+  it('keeps a half-typed Tables value through a snapshot that changes nothing', () => {
+    const base: any = {
+      players: [seated('a', 0, 0)], levels: [{ small: 1, big: 2, duration: 600 }], currentLevel: 0,
+      settings: { tables: { numberOfTables: 2, seatsPerTable: 8, tableNames: ['Table 1', 'Table 2'] } },
+      prizeStructure: { buyIn: 10, manualPayouts: [] }, details: {},
+    };
+    const t = (state: any): any => ({
+      state, updatePlayers: vi.fn(), updateSettings: vi.fn(),
+      addKnockout: vi.fn(), eliminatePlayer: vi.fn(), undoBustOut: vi.fn(),
+      processRebuy: vi.fn(), processReEntry: vi.fn(),
+      shouldPromptForFinalTable: () => false, goToFinalTable: vi.fn(), breakTable: vi.fn(), tableBreakDue: () => null,
+    });
+    const view = render(<TablesSection tournament={t(base)} />);
+    const field = screen.getByLabelText('Tables') as HTMLInputElement;
+    fireEvent.change(field, { target: { value: '' } });
+    expect(field.value).toBe('');
+
+    // The same settings, as a new object with its keys in another order.
+    view.rerender(<TablesSection tournament={t({
+      ...base, settings: { tables: { tableNames: ['Table 1', 'Table 2'], seatsPerTable: 8, numberOfTables: 2 } },
+    })} />);
+    expect((screen.getByLabelText('Tables') as HTMLInputElement).value).toBe('');
+
+    // A real change to the stored value still reaches the box.
+    view.rerender(<TablesSection tournament={t({
+      ...base, settings: { tables: { numberOfTables: 3, seatsPerTable: 8, tableNames: ['Table 1', 'Table 2', 'Table 3'] } },
+    })} />);
+    expect((screen.getByLabelText('Tables') as HTMLInputElement).value).toBe('3');
+  });
 });

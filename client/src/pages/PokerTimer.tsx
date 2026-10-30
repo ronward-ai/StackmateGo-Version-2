@@ -64,7 +64,7 @@ import { useOpenLiveGame } from '@/hooks/useOpenLiveGame';
 import { gameIsOver, shouldReopen, winnerOf, shouldRecordCompletion, storedStatusOf, completionFields } from '@/lib/gameOver';
 import { writeLiveGame, setLiveGameControl, claimLiveGameControl } from '@/lib/liveGameWrite';
 import { useReleaseControlOnLeave } from '@/hooks/useReleaseControlOnLeave';
-import { stableStringify } from '@/lib/stableJson';
+import { stableStringify, clockSyncKey } from '@/lib/stableJson';
 import { markRosterWritten, markRosterIssued, markRosterSettled, rosterPayload, mayWriteRoster } from '@/lib/pendingRoster';
 import { controlOf, mayDrive, shouldClaimNow, controlLockReason, type Control } from '@/lib/directorControl';
 import { getConsoleId, subscribeConsoleId } from '@/lib/consoleId';
@@ -1085,7 +1085,7 @@ function PokerTimerInner({
   // after the clock had ticked, and the loop never settled: a write a second, a
   // redraw a second on every device — reported live as lag, flashing, levels
   // jumping and number boxes that would not keep a value.
-  const levelsKey = stableStringify(tournament.state.levels ?? []);
+  const levelsKey = clockSyncKey(tournament.state.levels);
 
   // Directly sync timer state to Firestore whenever it changes.
   useEffect(() => {

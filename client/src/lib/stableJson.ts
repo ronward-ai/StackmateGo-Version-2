@@ -1,7 +1,7 @@
 /**
- * JSON with every object's keys in sorted order, and `undefined` written as
- * `null` — so two values that are the same to Firestore serialise to the same
- * string.
+ * JSON with every object's keys in sorted order, and a key holding `undefined`
+ * or `null` treated as absent — so two values that are the same to the app
+ * serialise to the same string.
  *
  * WHY (October 2026, a live league night): the sync effects decide "is this
  * already saved?" by comparing serialised payloads, and plain `JSON.stringify`
@@ -25,7 +25,21 @@ function normalise(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-    out[key] = normalise((value as Record<string, unknown>)[key]);
+    const v = (value as Record<string, unknown>)[key];
+    // A key holding nothing is the same as no key: the app writes `undefined` as
+    // `null`, and an echo may carry either or neither.
+    if (v === undefined || v === null) continue;
+    out[key] = normalise(v);
   }
   return out;
+}
+
+/**
+ * The clock sync's dependency on the blind structure, as a value. The effect
+ * listed `state.levels` itself, and every snapshot hands state a NEW levels
+ * array, so every snapshot re-ran a sync whose payload carries the ticking
+ * `secondsLeft` — it always differed and always wrote (October 2026, live).
+ */
+export function clockSyncKey(levels: unknown): string {
+  return stableStringify(levels ?? []);
 }
