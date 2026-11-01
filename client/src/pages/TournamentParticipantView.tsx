@@ -52,6 +52,7 @@ interface TournamentData {
     clockShowPlayers?: boolean;
     clockShowAverageStack?: boolean;
     clockShowPayouts?: boolean;
+    clockShowNextBreak?: boolean;
     chipSet?: import('@/lib/chipSet').Chip[];
     currency: string;
     /** The director's clock piping, synced with the rest of settings. */
@@ -585,7 +586,8 @@ function TournamentParticipantView() {
               <div className="flex flex-col items-center justify-center flex-1 min-w-0">
                 {(() => {
                   const nextBreakInfo = getNextBreakInfo();
-                  if (nextBreakInfo && !currentLevel?.isBreak) {
+                  // The director can switch the countdown off (Settings → Timer).
+                  if (nextBreakInfo && !currentLevel?.isBreak && tournament.settings?.clockShowNextBreak !== false) {
                     return (
                       <div className="text-primary font-medium text-center">
                         Next break: {nextBreakInfo.timeUntilBreak}

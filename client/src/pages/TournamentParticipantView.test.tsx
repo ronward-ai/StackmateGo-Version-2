@@ -55,7 +55,9 @@ describe('TournamentParticipantView', () => {
     snapshot = game();
     open();
     await waitFor(() => expect(screen.getAllByText('Amy').length).toBeGreaterThan(0));
-    expect(document.title).toContain('Friday Night');
+    // The tab title is set by an effect after the roster renders; waiting for it
+    // rather than asserting at once is what stopped this failing on a busy machine.
+    await waitFor(() => expect(document.title).toContain('Friday Night'));
     expect(screen.getAllByText(/10:00/).length).toBeGreaterThan(0);
   });
 
@@ -70,5 +72,25 @@ describe('TournamentParticipantView', () => {
     snapshot = game({ settings: { currency: '£', isSeasonTournament: true, leagueId: 'L1' } });
     open();
     await waitFor(() => expect(document.title).toContain('Fish & Chips League'));
+  });
+
+  describe('the next-break countdown follows the director\'s switch', () => {
+    const withBreak = (settings: Record<string, unknown>) => game({
+      blindLevels: [{ small: 25, big: 50, duration: 600 }, { small: 25, big: 50, duration: 600, isBreak: true }],
+      settings: { currency: '£', ...settings },
+    });
+
+    it('shows when the switch was never set', async () => {
+      snapshot = withBreak({});
+      open();
+      await waitFor(() => expect(screen.getByText(/Next break:/)).toBeTruthy());
+    });
+
+    it('hides when switched off', async () => {
+      snapshot = withBreak({ clockShowNextBreak: false });
+      open();
+      await waitFor(() => expect(screen.getAllByText('Amy').length).toBeGreaterThan(0));
+      expect(screen.queryByText(/Next break:/)).toBeNull();
+    });
   });
 });

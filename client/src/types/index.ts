@@ -132,6 +132,7 @@ export interface Settings {
   clockShowPlayers?: boolean;
   clockShowAverageStack?: boolean;
   clockShowPayouts?: boolean;
+  clockShowNextBreak?: boolean;
   /**
    * The director's chips — colour, value, how many owned. Their equipment, so it
    * lives with the settings and travels with them (lib/chipSet.ts). Absent means

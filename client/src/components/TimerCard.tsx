@@ -326,7 +326,7 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
       <div className="flex justify-between items-start text-muted-foreground text-sm w-full px-1 mb-2 sm:mb-3">
         <div className="flex-1 text-left">{getCurrentLevelTextModified()}</div>
         <div className="flex flex-col items-center justify-center flex-1">
-          {!currentBreak && nextBreakInfo ? (
+          {!currentBreak && nextBreakInfo && state.settings.clockShowNextBreak !== false ? (
             <div className="font-medium text-amber-500 text-center text-sm mb-2">Next Break In: {nextBreakInfo.timeUntilBreak}</div>
           ) : null}
           {/* Published, not merely saved. Every signed-in director's game has a

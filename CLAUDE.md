@@ -2054,8 +2054,9 @@ place pays** (`payouts`, from `clockPayouts`): `1st £60 · 2nd £30 · 3rd £10
 gold/silver/bronze. It first showed one prize-pool figure; the director asked for the breakdown, since
 "what does 2nd get?" is the question a table actually asks. It reads `payoutsOf` + `payoutAmount`, the
 Payouts panel's pair, so the two cannot name different money; a place paying nothing is left out.
-**Each of the three is a setting** — Settings → Timer: Players Left, Average Stack, Payouts
-(`clockShowPlayers`, `clockShowAverageStack`, `clockShowPayouts`). ABSENT means shown, the
+**Each is a setting** — Settings → Timer: Players Left, Average Stack, Payouts, and the Next Break
+Countdown under the clock (`clockShowPlayers`, `clockShowAverageStack`, `clockShowPayouts`,
+`clockShowNextBreak`). ABSENT means shown, the
 `showNextLevel` shape, so no stored game changes; they ride in `settings`, so players' phones follow
 the director's choice with no rule to publish. Asked for by a
 director coming from fifteen years of The Tournament Director, whose clock screen shows them, and

@@ -188,6 +188,13 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                 checked={state.settings.clockShowPayouts !== false}
                 onCheckedChange={(v) => updateSettings({ clockShowPayouts: v })}
               />
+              <SettingRow
+                id="clockShowNextBreak"
+                label="Next Break Countdown"
+                hint="Show how long until the next break on the clock"
+                checked={state.settings.clockShowNextBreak !== false}
+                onCheckedChange={(v) => updateSettings({ clockShowNextBreak: v })}
+              />
 
               <div className="py-3">
                 <Label className="text-sm font-medium">Clock Piping</Label>
