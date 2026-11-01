@@ -23,6 +23,7 @@ export interface Chip {
 export const CHIP_COLOURS: { name: string; hex: string }[] = [
   { name: 'White', hex: '#F1F5F9' },
   { name: 'Red', hex: '#DC2626' },
+  { name: 'Burgundy', hex: '#7F1D2D' },
   { name: 'Blue', hex: '#2563EB' },
   { name: 'Green', hex: '#16A34A' },
   { name: 'Black', hex: '#18181B' },

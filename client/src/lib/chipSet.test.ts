@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  chipsInPlay, smallestChip, stackBreakdown, stacksAvailable, shortageNote, colourUps, colourUpLabel, colourUpNotice, type Chip,
+  chipsInPlay, smallestChip, chipHex, CHIP_COLOURS, stackBreakdown, stacksAvailable, shortageNote, colourUps, colourUpLabel, colourUpNotice, type Chip,
 } from './chipSet';
 import type { BlindLevel } from '@/types';
 
@@ -116,5 +116,14 @@ describe('colourUpNotice — what the clock says', () => {
 
   it('says nothing without a chip set', () => {
     expect(colourUpNotice(levels, 1, undefined)).toBeNull();
+  });
+});
+
+describe('chip colours', () => {
+  it('offers Burgundy beside Red, with its own colour', () => {
+    const names = CHIP_COLOURS.map(c => c.name);
+    expect(names.indexOf('Burgundy')).toBe(names.indexOf('Red') + 1);
+    expect(chipHex('Burgundy')).toBe('#7F1D2D');
+    expect(chipHex('Burgundy')).not.toBe(chipHex('No such colour'));
   });
 });
