@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Play, Pause, SkipForward, SkipBack, Maximize2, Minimize2 } from 'lucide-react';
 import { gameIsOver } from '@/lib/gameOver';
+import { fieldStats, clockStats } from '@/lib/fieldStats';
+import { currencyOf } from '@/lib/currency';
 
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -194,6 +196,7 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
       // treatment that encodes the level progress.
       piping={state.settings.timerPiping ?? 'ring'}
       recentLevelChange={recentLevelChange}
+      stats={clockStats(fieldStats(state.players, state.prizeStructure as any), currencyOf(state.settings), isTournamentFinished)}
       topRight={<FullscreenButton />}
     >
       {/* Timer Controls with Previous/Next positioned at edges */}

@@ -15,6 +15,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { payoutsOf } from '@/lib/payoutTemplates';
+import { fieldStats, shortChips } from '@/lib/fieldStats';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { gameNumberFor, seasonLine } from "@/lib/seasonProgress";
 import ChipChopCalculator from './ChipChopCalculator';
@@ -274,23 +275,15 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
   );
 
   const startChips = p?.startingChips || 10000;
-  const rebuyChips = p?.rebuyChips || startChips;
-  const addonChips = p?.addonChips || startChips;
-  const totalChips = (startChips * state.players.length) + (rebuyChips * totalRebuys) + (addonChips * totalAddons)
-    // A re-entry is a fresh stack, so it is in the chips as well as the pool
-    // (October audit, M17).
-    + (startChips * totalReEntries);
-  const active = state.players.filter(pl => pl.isActive !== false);
-  const eliminated = state.players.filter(pl => pl.isActive === false);
-  const avg = active.length > 0 ? Math.floor(totalChips / active.length) : 0;
+  // Who is left, the average stack and the pool — one derivation, shared with
+  // the clock's strip (lib/fieldStats.ts).
+  const field = fieldStats(state.players, p);
   // At the true end of a game EVERY player is inactive, the winner included —
   // eliminatePlayer awards position 1 and isActive: false in the same update.
-  // So `active.length === 1` is zero exactly when this card should appear, and
+  // So `field.active === 1` is zero exactly when this card should appear, and
   // it never did. lib/gameOver.ts answers this once, for the three screens that
   // all had it wrong.
   const winner = gameIsOver(state.players) ? winnerOf(state.players) : null;
-
-  const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 
   // Raised: it sits directly under the timer and holds the money — the one card
   // on the console that earns the extra elevation.
@@ -353,9 +346,9 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
             {/* Stat tiles */}
             <div className="flex gap-2">
               <div className="flex-1 bg-background/30 rounded-lg px-3 py-2.5 text-center">
-                <div className="font-bold font-mono text-lg text-teal-400">{active.length}</div>
+                <div className="font-bold font-mono text-lg text-teal-400">{field.active}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {eliminated.length > 0 ? `of ${state.players.length} active` : 'players'}
+                  {field.eliminated > 0 ? `of ${state.players.length} active` : 'players'}
                 </div>
               </div>
               {pool > 0 && (
@@ -364,9 +357,9 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                   <div className="text-xs text-muted-foreground mt-0.5">prize pool</div>
                 </div>
               )}
-              {avg > 0 && (
+              {field.averageStack > 0 && (
                 <div className="flex-1 bg-background/30 rounded-lg px-3 py-2.5 text-center">
-                  <div className="font-bold font-mono text-lg text-orange-400">{fmt(avg)}</div>
+                  <div className="font-bold font-mono text-lg text-orange-400">{shortChips(field.averageStack)}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">avg stack</div>
                 </div>
               )}
@@ -380,7 +373,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                     <Trophy className="h-3.5 w-3.5 text-yellow-400" />
                     <span className="text-xs font-semibold uppercase tracking-wide text-yellow-400">Payouts</span>
                   </div>
-                  {active.length >= 2 && (
+                  {field.active >= 2 && (
                     <button
                       onClick={() => setShowChipChop(true)}
                       className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 px-2 py-1 rounded-md hover:bg-orange-500/10 transition-colors"
@@ -443,8 +436,8 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                     <span className="text-xs font-semibold uppercase tracking-wide text-teal-400">Players</span>
                   </div>
                   <DetailRow label="Registered" value={state.players.length} compact />
-                  <DetailRow label="Active" value={active.length} compact />
-                  {eliminated.length > 0 && <DetailRow label="Eliminated" value={eliminated.length} compact />}
+                  <DetailRow label="Active" value={field.active} compact />
+                  {field.eliminated > 0 && <DetailRow label="Eliminated" value={field.eliminated} compact />}
                 </div>
 
                 {/* Prize Pool */}
@@ -473,7 +466,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
                     <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Chips</span>
                   </div>
                   <DetailRow label="Starting Stack" value={startChips.toLocaleString()} compact />
-                  {avg > 0 && <DetailRow label="Average Stack" value={avg.toLocaleString()} highlight compact />}
+                  {field.averageStack > 0 && <DetailRow label="Average Stack" value={field.averageStack.toLocaleString()} highlight compact />}
                 </div>
 
                 {/* Rebuys */}
@@ -564,7 +557,7 @@ export default function TournamentInfoCard({ tournament, league, leaguePlayers =
       <ChipChopCalculator
         open={showChipChop}
         onClose={() => setShowChipChop(false)}
-        players={active}
+        players={state.players.filter(pl => pl.isActive !== false)}
         payouts={payoutAmounts}
         currencySymbol={sym}
       />

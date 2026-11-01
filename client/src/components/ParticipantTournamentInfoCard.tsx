@@ -7,12 +7,11 @@ import { ChevronDown, ChevronUp, Trophy, Users, Coins, RefreshCw, Zap, LogIn } f
 import { cn } from "@/lib/utils";
 import { isUnlimited } from '@/lib/entryLimits';
 import { gameIsOver, winnerOf } from '@/lib/gameOver';
+import { fieldStats, shortChips } from '@/lib/fieldStats';
 import { countEntries, payoutAmount, prizePoolFor } from '@/lib/prizePool';
 import { bountyTakeFor } from '@/lib/resultStats';
 import { withNormalisedPayouts } from '@/lib/payoutTemplates';
 import { seasonLine } from '@/lib/seasonProgress';
-
-const fmt = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
 
 function DetailRow({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
   return (
@@ -52,15 +51,9 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
   const { rake, net: pool } = prizePoolFor(players, p);
 
   const startChips = p.startingChips || 10000;
-  const rebuyChips = p.rebuyChips || startChips;
-  const addonChips = p.addonChips || startChips;
-  const totalChips = (startChips * players.length) + (rebuyChips * totalRebuys) + (addonChips * totalAddons)
-    // A re-entry is a fresh stack, so it is in the chips as well as the pool
-    // (October audit, M17).
-    + (startChips * totalReEntries);
-  const active = players.filter((pl: any) => pl.isActive !== false);
-  const eliminated = players.filter((pl: any) => pl.isActive === false);
-  const avg = active.length > 0 ? Math.floor(totalChips / active.length) : 0;
+  // Who is left, the average stack and the pool — one derivation, shared with
+  // the clock's strip (lib/fieldStats.ts).
+  const field = fieldStats(players, p);
   // The FOURTH copy of a check that could never be true: at the end of a game
   // every player is inactive, the winner included, so counting active players
   // gives zero and this card had never once appeared on a player's phone. Same
@@ -106,9 +99,9 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
             {/* Stat tiles */}
             <div className="flex gap-2">
               <div className="flex-1 bg-background/30 rounded-lg px-3 py-2.5 text-center">
-                <div className="font-bold font-mono text-lg text-teal-400">{active.length}</div>
+                <div className="font-bold font-mono text-lg text-teal-400">{field.active}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {eliminated.length > 0 ? `of ${players.length} active` : 'players'}
+                  {field.eliminated > 0 ? `of ${players.length} active` : 'players'}
                 </div>
               </div>
               {pool > 0 && (
@@ -117,9 +110,9 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                   <div className="text-xs text-muted-foreground mt-0.5">prize pool</div>
                 </div>
               )}
-              {avg > 0 && (
+              {field.averageStack > 0 && (
                 <div className="flex-1 bg-background/30 rounded-lg px-3 py-2.5 text-center">
-                  <div className="font-bold font-mono text-lg text-orange-400">{fmt(avg)}</div>
+                  <div className="font-bold font-mono text-lg text-orange-400">{shortChips(field.averageStack)}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">avg stack</div>
                 </div>
               )}
@@ -185,8 +178,8 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                     <span className="text-xs font-semibold uppercase tracking-wide text-teal-400">Players</span>
                   </div>
                   <DetailRow label="Registered" value={players.length} />
-                  <DetailRow label="Active" value={active.length} />
-                  {eliminated.length > 0 && <DetailRow label="Eliminated" value={eliminated.length} />}
+                  <DetailRow label="Active" value={field.active} />
+                  {field.eliminated > 0 && <DetailRow label="Eliminated" value={field.eliminated} />}
                 </div>
 
                 {/* Prize Pool */}
@@ -215,7 +208,7 @@ export default function ParticipantTournamentInfoCard({ tournament }: { tourname
                     <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Chips</span>
                   </div>
                   <DetailRow label="Starting Stack" value={startChips.toLocaleString()} />
-                  {avg > 0 && <DetailRow label="Average Stack" value={avg.toLocaleString()} highlight />}
+                  {field.averageStack > 0 && <DetailRow label="Average Stack" value={field.averageStack.toLocaleString()} highlight />}
                 </div>
 
                 {/* Rebuys */}

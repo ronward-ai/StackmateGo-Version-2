@@ -4,6 +4,7 @@ import { tablesOf } from '@/lib/seating';
 import { blindLevelNumber } from '@/lib/announcements';
 import { fromRestFields } from '@/lib/firestoreRest';
 import { gameIsOver } from '@/lib/gameOver';
+import { fieldStats, clockStats } from '@/lib/fieldStats';
 import { currencyOf } from '@/lib/currency';
 import { useParams } from 'wouter';
 import { UserCheck } from 'lucide-react';
@@ -528,6 +529,9 @@ function TournamentParticipantView() {
             // settings object is synced to the tournament document. Players saw
             // the ring whatever the director had picked.
             piping={tournament.settings?.timerPiping ?? 'ring'}
+            // The same strip as the director's clock, so a player sees who is
+            // left and the average stack without scrolling.
+            stats={clockStats(fieldStats(tournament.players || [], tournament.prizeStructure || {}), currencyOf(tournament.settings), tournamentFinished)}
           >
             {/* Live / paused, and whether this phone is still connected. */}
             <div className="flex justify-center items-center gap-3 mb-4 sm:mb-6">

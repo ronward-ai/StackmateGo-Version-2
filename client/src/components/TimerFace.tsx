@@ -2,6 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { TimerPiping } from '@/types';
+import type { ClockStat } from '@/lib/fieldStats';
 
 /**
  * The clock, and the piping round it.
@@ -64,6 +65,11 @@ export interface TimerFaceProps {
   piping?: TimerPiping;
   /** Flashes the headline when the level has just changed. */
   recentLevelChange?: boolean;
+  /**
+   * Players left, average stack, prize pool — the figures a table glances at,
+   * drawn on the clock so nobody has to scroll for them (lib/fieldStats.ts).
+   */
+  stats?: ClockStat[];
   /** Pinned to the card's top-right — the fullscreen control, on the console. */
   topRight?: React.ReactNode;
   /** Controls, status, level info: whatever this side puts under the clock. */
@@ -82,6 +88,7 @@ export default function TimerFace({
   anteLabel = 'Ante',
   piping = 'ring',
   recentLevelChange = false,
+  stats = [],
   topRight,
   children,
 }: TimerFaceProps) {
@@ -135,6 +142,20 @@ export default function TimerFace({
         {!isBreak && !!ante && ante > 0 && (
           <div className="text-xs sm:text-sm font-medium mb-3 sm:mb-5 text-amber-400/80 tracking-wide">
             {anteLabel}: {ante}
+          </div>
+        )}
+
+        {stats.length > 0 && (
+          /* The strip treatment the Payouts panel and the season dashboard use:
+             mono numerals over caption labels, no boxes. Big enough to read
+             from the table; quieter than the blinds, which stay the headline. */
+          <div className="flex justify-center gap-x-8 sm:gap-x-14 gap-y-3 flex-wrap mb-4 sm:mb-7" data-testid="clock-stats">
+            {stats.map(stat => (
+              <div key={stat.label} className="flex flex-col items-center">
+                <span className="font-mono font-semibold text-xl sm:text-3xl md:text-4xl leading-none">{stat.value}</span>
+                <span className="text-caption text-muted-foreground/60 tracking-[0.18em] uppercase mt-1.5">{stat.label}</span>
+              </div>
+            ))}
           </div>
         )}
 
