@@ -47,6 +47,10 @@ interface TournamentData {
     enableSounds: boolean;
     enableVoice: boolean;
     showNextLevel: boolean;
+    // The clock's strip and payouts row, as the director set them (absent = shown).
+    clockShowPlayers?: boolean;
+    clockShowAverageStack?: boolean;
+    clockShowPayouts?: boolean;
     currency: string;
     /** The director's clock piping, synced with the rest of settings. */
     timerPiping?: TimerPiping;
@@ -533,8 +537,8 @@ function TournamentParticipantView() {
             piping={tournament.settings?.timerPiping ?? 'ring'}
             // The same strip as the director's clock, so a player sees who is
             // left and the average stack without scrolling.
-            stats={clockStats(clockField, currencyOf(tournament.settings), tournamentFinished)}
-            payouts={clockPayouts(clockField, tournament.prizeStructure || {}, currencyOf(tournament.settings), tournamentFinished)}
+            stats={clockStats(clockField, currencyOf(tournament.settings), tournamentFinished, tournament.settings || {})}
+            payouts={clockPayouts(clockField, tournament.prizeStructure || {}, currencyOf(tournament.settings), tournamentFinished, tournament.settings || {})}
           >
             {/* Live / paused, and whether this phone is still connected. */}
             <div className="flex justify-center items-center gap-3 mb-4 sm:mb-6">

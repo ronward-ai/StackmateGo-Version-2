@@ -74,13 +74,21 @@ export interface ClockStat {
  * yet is left out rather than drawn as a zero, and a finished game shows none,
  * because the winner is the headline then.
  */
-export function clockStats(field: FieldStats, currencySymbol: string, finished: boolean): ClockStat[] {
+/** The director's Settings → On the clock choices. Absent means shown. */
+export interface ClockShows {
+  clockShowPlayers?: boolean;
+  clockShowAverageStack?: boolean;
+  clockShowPayouts?: boolean;
+}
+
+export function clockStats(field: FieldStats, currencySymbol: string, finished: boolean, show: ClockShows = {}): ClockStat[] {
   if (finished || field.entrants === 0) return [];
-  const out: ClockStat[] = [{
+  const out: ClockStat[] = [];
+  if (show.clockShowPlayers !== false) out.push({
     label: field.eliminated > 0 ? 'Players left' : 'Players',
     value: field.eliminated > 0 ? `${field.active}/${field.entrants}` : String(field.entrants),
-  }];
-  if (field.averageStack > 0) out.push({ label: 'Avg stack', value: shortChips(field.averageStack) });
+  });
+  if (show.clockShowAverageStack !== false && field.averageStack > 0) out.push({ label: 'Avg stack', value: shortChips(field.averageStack) });
   return out;
 }
 
@@ -95,8 +103,9 @@ export function clockPayouts(
   structure: ChipStructure,
   currencySymbol: string,
   finished: boolean,
+  show: ClockShows = {},
 ): ClockStat[] {
-  if (finished) return [];
+  if (finished || show.clockShowPayouts === false) return [];
   return payoutsOf(structure)
     .map((place, i) => ({ label: ordinal(i + 1), amount: payoutAmount(field.pool, place.percentage) }))
     .filter(p => p.amount > 0)

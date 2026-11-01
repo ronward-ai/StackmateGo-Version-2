@@ -69,3 +69,19 @@ describe('clockPayouts', () => {
     expect(clockPayouts(fieldStats(ten, paid), paid, '£', true)).toEqual([]);
   });
 });
+
+describe('the director\'s clock settings', () => {
+  const paid = { ...ps, manualPayouts: [{ position: 1, percentage: 100 }] };
+  const field = fieldStats([player(), player(), player({ isActive: false })], paid);
+
+  it('shows everything when nothing is set — every game stored before the settings', () => {
+    expect(clockStats(field, '£', false, {}).map(s => s.label)).toEqual(['Players left', 'Avg stack']);
+    expect(clockPayouts(field, paid, '£', false, {})).toHaveLength(1);
+  });
+
+  it('leaves out exactly what was switched off', () => {
+    expect(clockStats(field, '£', false, { clockShowPlayers: false }).map(s => s.label)).toEqual(['Avg stack']);
+    expect(clockStats(field, '£', false, { clockShowAverageStack: false }).map(s => s.label)).toEqual(['Players left']);
+    expect(clockPayouts(field, paid, '£', false, { clockShowPayouts: false })).toEqual([]);
+  });
+});

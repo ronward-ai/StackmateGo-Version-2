@@ -2053,7 +2053,11 @@ blinds (`stats` on `TimerFace`, from `lib/fieldStats.ts`'s `clockStats`), and be
 place pays** (`payouts`, from `clockPayouts`): `1st £60 · 2nd £30 · 3rd £10`, in the Payouts panel's own
 gold/silver/bronze. It first showed one prize-pool figure; the director asked for the breakdown, since
 "what does 2nd get?" is the question a table actually asks. It reads `payoutsOf` + `payoutAmount`, the
-Payouts panel's pair, so the two cannot name different money; a place paying nothing is left out. Asked for by a
+Payouts panel's pair, so the two cannot name different money; a place paying nothing is left out.
+**Each of the three is a setting** — Settings → Timer: Players Left, Average Stack, Payouts
+(`clockShowPlayers`, `clockShowAverageStack`, `clockShowPayouts`). ABSENT means shown, the
+`showNextLevel` shape, so no stored game changes; they ride in `settings`, so players' phones follow
+the director's choice with no rule to publish. Asked for by a
 director coming from fifteen years of The Tournament Director, whose clock screen shows them, and
 because the clock felt empty: a player should not have to scroll a phone to see who is left. Both
 screens get it through `TimerFace`, so they cannot differ. `fieldStats` is now the ONE chip

@@ -124,6 +124,14 @@ export interface Settings {
   pauseAfterBreak?: boolean;
   enableVoice?: boolean;
   showNextLevel: boolean;
+  /**
+   * What the clock shows beneath the blinds. Each is ABSENT-means-shown, so every
+   * game stored before these existed keeps the clock as it is. Synced with the
+   * rest of settings, so players' phones follow the director's choice.
+   */
+  clockShowPlayers?: boolean;
+  clockShowAverageStack?: boolean;
+  clockShowPayouts?: boolean;
   bigBlindAnte?: boolean;
   applyDurationToAll?: boolean;
   /**

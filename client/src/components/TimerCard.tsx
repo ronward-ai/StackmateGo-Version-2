@@ -198,8 +198,8 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
       // treatment that encodes the level progress.
       piping={state.settings.timerPiping ?? 'ring'}
       recentLevelChange={recentLevelChange}
-      stats={clockStats(field, sym, isTournamentFinished)}
-      payouts={clockPayouts(field, state.prizeStructure as any, sym, isTournamentFinished)}
+      stats={clockStats(field, sym, isTournamentFinished, state.settings)}
+      payouts={clockPayouts(field, state.prizeStructure as any, sym, isTournamentFinished, state.settings)}
       topRight={<FullscreenButton />}
     >
       {/* Timer Controls with Previous/Next positioned at edges */}

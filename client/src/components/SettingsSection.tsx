@@ -165,6 +165,29 @@ export default function SettingsSection({ tournament }: SettingsSectionProps) {
                 checked={state.settings.showNextLevel}
                 onCheckedChange={(v) => updateSettings({ showNextLevel: v })}
               />
+              {/* What sits under the blinds, on this clock and on players'
+                  phones — lib/fieldStats.ts. Absent means shown. */}
+              <SettingRow
+                id="clockShowPlayers"
+                label="Players Left"
+                hint="Show how many are still in on the clock"
+                checked={state.settings.clockShowPlayers !== false}
+                onCheckedChange={(v) => updateSettings({ clockShowPlayers: v })}
+              />
+              <SettingRow
+                id="clockShowAverageStack"
+                label="Average Stack"
+                hint="Show the average chip stack on the clock"
+                checked={state.settings.clockShowAverageStack !== false}
+                onCheckedChange={(v) => updateSettings({ clockShowAverageStack: v })}
+              />
+              <SettingRow
+                id="clockShowPayouts"
+                label="Payouts"
+                hint="Show what each place pays on the clock"
+                checked={state.settings.clockShowPayouts !== false}
+                onCheckedChange={(v) => updateSettings({ clockShowPayouts: v })}
+              />
 
               <div className="py-3">
                 <Label className="text-sm font-medium">Clock Piping</Label>
