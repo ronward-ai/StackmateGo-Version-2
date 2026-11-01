@@ -5,6 +5,7 @@ import { blindLevelNumber } from '@/lib/announcements';
 import { fromRestFields } from '@/lib/firestoreRest';
 import { gameIsOver } from '@/lib/gameOver';
 import { fieldStats, clockStats, clockPayouts } from '@/lib/fieldStats';
+import { colourUpNotice } from '@/lib/chipSet';
 import { currencyOf } from '@/lib/currency';
 import { useParams } from 'wouter';
 import { UserCheck } from 'lucide-react';
@@ -51,6 +52,7 @@ interface TournamentData {
     clockShowPlayers?: boolean;
     clockShowAverageStack?: boolean;
     clockShowPayouts?: boolean;
+    chipSet?: import('@/lib/chipSet').Chip[];
     currency: string;
     /** The director's clock piping, synced with the rest of settings. */
     timerPiping?: TimerPiping;
@@ -601,6 +603,12 @@ function TournamentParticipantView() {
                 {tournament.settings?.showNextLevel === false ? null : nextLevel ?
                   (nextLevel.isBreak ? "Next: Break" : `Next: ${nextLevel.smallBlind || nextLevel.small}/${nextLevel.bigBlind || nextLevel.big}`) :
                   "Tournament complete"}
+                {/* The same colour-up line as the director's clock. */}
+                {!tournamentFinished && colourUpNotice(tournament.blindLevels, tournament.currentLevel || 0, tournament.settings?.chipSet) && (
+                  <div className="text-caption text-amber-300 font-normal whitespace-normal mt-1">
+                    {colourUpNotice(tournament.blindLevels, tournament.currentLevel || 0, tournament.settings?.chipSet)}
+                  </div>
+                )}
               </div>
             </div>
           </TimerFace>

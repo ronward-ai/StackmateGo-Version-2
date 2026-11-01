@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import BlindGeneratorDialog from "@/components/BlindGeneratorDialog";
+import { colourUps, colourUpLabel } from "@/lib/chipSet";
+import type { BlindLevel } from "@/types";
 import { blindLevelNumber } from '@/lib/announcements';
 import { commitNumber, isDraftNumber } from '@/lib/numberField';
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +28,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from "@/components/ui/select";
-import { ListOrdered, Coffee, Coins, Plus, Clock, Save, BookmarkPlus, Layers } from "lucide-react";
+import { ListOrdered, Coffee, Coins, Plus, Clock, Save, BookmarkPlus, Layers, Wand2 } from "lucide-react";
 
 interface BlindLevelsSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -117,6 +120,23 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
 
   const nonBreakLevels = state.levels.filter(l => !l.isBreak);
 
+  // Where each small chip stops being needed — derived from the levels and the
+  // chip set every render, never stored (lib/chipSet.ts).
+  const ups = colourUps(state.levels, state.settings.chipSet);
+
+  // The generator. Applying it before the game is under way just replaces the
+  // levels; once it is (the clock has run, or anyone has busted) it asks first,
+  // because it changes the terms of a game being played.
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [pendingGenerated, setPendingGenerated] = useState<BlindLevel[] | null>(null);
+  const gameUnderWay = state.isRunning || state.currentLevel > 0 || state.players.some(p => p.isActive === false);
+  const applyGenerated = (levels: BlindLevel[]) => {
+    setGeneratorOpen(false);
+    if (gameUnderWay) { setPendingGenerated(levels); return; }
+    setBlindLevels(levels);
+    toast({ title: 'Blind structure applied', description: `${levels.filter(l => !l.isBreak).length} levels.` });
+  };
+
   return (
     <div className="space-y-4">
       {/* These options govern how blind levels behave, so they live with the
@@ -164,6 +184,10 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
             <div className="flex items-center gap-2">
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground hidden sm:inline">~{totalMinutes} min total</span>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setGeneratorOpen(true)}>
+                <Wand2 className="h-3.5 w-3.5" />
+                Generate
+              </Button>
               <Select onValueChange={setPendingTemplate}>
                 <SelectTrigger className="h-8 w-36 text-xs">
                   <SelectValue placeholder="Templates" />
@@ -286,6 +310,11 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                         <span className="text-xs text-amber-400 font-medium">
                           Break {isCurrentLevel && '← Current'}
                         </span>
+                        {ups.get(index) && (
+                          <span className="block text-caption text-muted-foreground" data-testid="colour-up">
+                            {colourUpLabel(ups.get(index)!)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex justify-center">
                         <LevelInput
@@ -325,8 +354,15 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                 }
 
                 return (
+                  <Fragment key={index}>
+                  {/* A colour-up that falls between two levels rather than on a
+                      break is said on its own line, before the level it is for. */}
+                  {ups.get(index) && (
+                    <div className="px-3 py-1 text-caption text-amber-300/90 bg-amber-500/5" data-testid="colour-up">
+                      {colourUpLabel(ups.get(index)!)} before this level
+                    </div>
+                  )}
                   <div
-                    key={index}
                     className={cn(
                       "grid gap-1 px-2 py-2 items-center min-w-[200px]",
                       showAnteCol ? "grid-cols-[28px_1fr_1fr_1fr_1fr_28px]" : "grid-cols-[28px_1fr_1fr_1fr_28px]",
@@ -431,6 +467,7 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
                       )}
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
             </div>
@@ -592,6 +629,31 @@ export default function BlindLevelsSection({ tournament }: BlindLevelsSectionPro
         </DialogContent>
       </Dialog>
 
+      <BlindGeneratorDialog
+        open={generatorOpen}
+        onOpenChange={setGeneratorOpen}
+        startingStack={state.prizeStructure?.startingChips || 10000}
+        players={state.players.length || 10}
+        chipSet={state.settings.chipSet}
+        bigBlindAnte={!!state.settings.bigBlindAnte}
+        onApply={applyGenerated}
+      />
+      <AlertDialog open={pendingGenerated !== null} onOpenChange={(o) => { if (!o) setPendingGenerated(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace the blinds of a game under way?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This game has already started. The new structure replaces every level, including the one being played.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (pendingGenerated) setBlindLevels(pendingGenerated); setPendingGenerated(null); }}>
+              Replace blinds
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

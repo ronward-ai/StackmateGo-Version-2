@@ -1,3 +1,4 @@
+import ChipSetEditor from '@/components/ChipSetEditor';
 import React, { useState, useEffect } from 'react';
 import { DEFAULT_CURRENCY } from '@/lib/currency';
 import { calculatePrizePool, payoutAmount } from '@/lib/prizePool';
@@ -341,6 +342,15 @@ export default function BuyInSection({ tournament, templateActions }: BuyInSecti
           )}
         </CardContent>
       </Card>
+
+      {/* The chips themselves. Saved as it changes, like a setting, and read
+          against the Starting Stack above as it is typed. */}
+      <ChipSetEditor
+        chipSet={state.settings.chipSet}
+        onChange={(chipSet) => updateSettings({ chipSet })}
+        startingStack={startingChips}
+        defaultPlayers={state.players.length || 10}
+      />
 
       {/* ── SECTION 2: Bounties ───────────────────────────── */}
       <Card className={cn('rounded-xl transition-all', enableBounties ? 'card-glass' : 'card-glass')}>

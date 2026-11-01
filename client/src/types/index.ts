@@ -132,6 +132,12 @@ export interface Settings {
   clockShowPlayers?: boolean;
   clockShowAverageStack?: boolean;
   clockShowPayouts?: boolean;
+  /**
+   * The director's chips — colour, value, how many owned. Their equipment, so it
+   * lives with the settings and travels with them (lib/chipSet.ts). Absent means
+   * no chip set: nothing warns or colours up, and the generator assumes 25s.
+   */
+  chipSet?: import('@/lib/chipSet').Chip[];
   bigBlindAnte?: boolean;
   applyDurationToAll?: boolean;
   /**

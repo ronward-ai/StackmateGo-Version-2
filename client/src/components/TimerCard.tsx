@@ -21,6 +21,7 @@ import { Play, Pause, SkipForward, SkipBack, Maximize2, Minimize2 } from 'lucide
 import { gameIsOver } from '@/lib/gameOver';
 import { fieldStats, clockStats, clockPayouts } from '@/lib/fieldStats';
 import { currencyOf } from '@/lib/currency';
+import { colourUpNotice } from '@/lib/chipSet';
 
 interface TimerCardProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -343,6 +344,12 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
             ticking it in Settings did nothing at all. */}
         <div className="flex-1 text-right font-medium">
           {state.settings.showNextLevel !== false ? getNextLevelPreview() : null}
+          {/* A colour-up due at the next break or level (lib/chipSet.ts). */}
+          {colourUpNotice(state.levels, state.currentLevel, state.settings.chipSet) && (
+            <div className="text-caption text-amber-300 font-normal mt-1" data-testid="clock-colour-up">
+              {colourUpNotice(state.levels, state.currentLevel, state.settings.chipSet)}
+            </div>
+          )}
         </div>
       </div>
     </TimerFace>

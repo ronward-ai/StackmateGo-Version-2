@@ -2066,6 +2066,39 @@ been a third. A figure that means nothing yet is left out rather than drawn as a
 game), "Players left 7/12" reads only once somebody has busted, and a finished game shows no strip,
 since the winner is the headline then. Eight mutants are caught.
 
+### The chip set and the blind generator
+
+Both chosen from the Tournament Director comparison by a director coming from fifteen years of it.
+
+**The chip set is a setting** — `settings.chipSet` (colour, value, how many owned), edited in the Buy-in
+tab's **Chip Set** card and saved as it changes. It is the director's equipment, so it travels with the
+setup and, through the settings sync, into the game document: no rule to publish. Absent means no chip
+set, and everything behaves as before. `lib/chipSet.ts` owns:
+
+- **`stackBreakdown`** — one starting stack made of these chips: change for two of the next colour up
+  (eight 25s beside the 100s), the rest in the biggest, the float dropped rather than the total wrong on
+  a small stack. **Null when the stack cannot be made exactly** — a gcd check is not enough (300s and 500s
+  cannot make 700), so the greedy remainder is checked too.
+- **`stacksAvailable` / `shortageNote`** — how many stacks the COUNTED chips make, and which colour runs
+  out first. Warns, never refuses. A blank count means "not counted", never zero.
+- **`colourUps`** — **derived, never stored**: the entry straight after the last blind or ante a chip is
+  needed for (which is the break, when a break follows). The Levels tab, the console's clock and players'
+  phones (`colourUpNotice`: "… at the break", "… now" during it) all work it out from the same two
+  inputs. The biggest chip is never coloured up. **It follows the blinds as they are**: a 750/1,500 level
+  keeps the 25s in play, so the generator's structures colour the 25s up late; editing that level moves it.
+
+**The generator** — `lib/blindGenerator.ts`, behind **Generate** in the Levels tab
+(`components/BlindGeneratorDialog.tsx`). Start ~100 big blinds deep, aim the expected finish at a big
+blind of about a twentieth of all the chips, climb by a steady ratio snapped to a recognisable ladder
+(1, 1.5, 2, 2.5, 3, 4, 5, 6, 8 × 10ⁿ). **Two ways in**: "finish around" a time (picks the level length
+whose climb is nearest 1.35 a level) or a level length (and optional opening big blind). Three spare
+levels past the finish so a long night does not run off the end. Breaks carry the previous level's
+blinds, as `addBreak` does; antes snap to the same ladder so they read 200 rather than 187.5. Every
+blind is a multiple of the chip set's smallest chip (25 without one). **Preview, then apply; a game
+under way asks first.** Tested across seven shapes including the slowest climb (24h heads-up), where a
+big blind could otherwise repeat; mutation-checked guarantees: makeable, rising, no break at either end,
+antes from the level asked.
+
 ### A running clock is an end time, not a countdown
 
 **And the digits are spelled once** — `formatClock` in `lib/tournamentClock.ts` (October audit, Low). The
