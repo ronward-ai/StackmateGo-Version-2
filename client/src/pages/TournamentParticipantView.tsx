@@ -4,7 +4,7 @@ import { tablesOf } from '@/lib/seating';
 import { blindLevelNumber } from '@/lib/announcements';
 import { fromRestFields } from '@/lib/firestoreRest';
 import { gameIsOver } from '@/lib/gameOver';
-import { fieldStats, clockStats } from '@/lib/fieldStats';
+import { fieldStats, clockStats, clockPayouts } from '@/lib/fieldStats';
 import { currencyOf } from '@/lib/currency';
 import { useParams } from 'wouter';
 import { UserCheck } from 'lucide-react';
@@ -369,6 +369,8 @@ function TournamentParticipantView() {
   // runner-up: the console said the game was on while every phone said
   // TOURNAMENT FINISHED.
   const tournamentFinished = gameIsOver(participantPlayers);
+  // The clock's strip and payouts row — the same derivation as the console's.
+  const clockField = fieldStats(participantPlayers, tournament.prizeStructure || {});
 
   const headline = tournamentFinished
     ? 'TOURNAMENT FINISHED'
@@ -531,7 +533,8 @@ function TournamentParticipantView() {
             piping={tournament.settings?.timerPiping ?? 'ring'}
             // The same strip as the director's clock, so a player sees who is
             // left and the average stack without scrolling.
-            stats={clockStats(fieldStats(tournament.players || [], tournament.prizeStructure || {}), currencyOf(tournament.settings), tournamentFinished)}
+            stats={clockStats(clockField, currencyOf(tournament.settings), tournamentFinished)}
+            payouts={clockPayouts(clockField, tournament.prizeStructure || {}, currencyOf(tournament.settings), tournamentFinished)}
           >
             {/* Live / paused, and whether this phone is still connected. */}
             <div className="flex justify-center items-center gap-3 mb-4 sm:mb-6">

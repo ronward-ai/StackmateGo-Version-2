@@ -17,4 +17,11 @@ describe('TimerFace stats strip', () => {
     render(<TimerFace {...base} />);
     expect(screen.queryByTestId('clock-stats')).toBeNull();
   });
+
+  it('draws each paid place, and no row when nothing is paid', () => {
+    const { rerender } = render(<TimerFace {...base} payouts={[{ label: '1st', value: '£60' }, { label: '2nd', value: '£30' }]} />);
+    expect(screen.getByTestId('clock-payouts').textContent).toBe('1st£602nd£30');
+    rerender(<TimerFace {...base} />);
+    expect(screen.queryByTestId('clock-payouts')).toBeNull();
+  });
 });

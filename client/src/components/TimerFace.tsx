@@ -70,6 +70,8 @@ export interface TimerFaceProps {
    * drawn on the clock so nobody has to scroll for them (lib/fieldStats.ts).
    */
   stats?: ClockStat[];
+  /** What each paid place is worth — `1st £60`, `2nd £30` (lib/fieldStats.ts). */
+  payouts?: ClockStat[];
   /** Pinned to the card's top-right — the fullscreen control, on the console. */
   topRight?: React.ReactNode;
   /** Controls, status, level info: whatever this side puts under the clock. */
@@ -89,6 +91,7 @@ export default function TimerFace({
   piping = 'ring',
   recentLevelChange = false,
   stats = [],
+  payouts = [],
   topRight,
   children,
 }: TimerFaceProps) {
@@ -154,6 +157,26 @@ export default function TimerFace({
               <div key={stat.label} className="flex flex-col items-center">
                 <span className="font-mono font-semibold text-xl sm:text-3xl md:text-4xl leading-none">{stat.value}</span>
                 <span className="text-caption text-muted-foreground/60 tracking-[0.18em] uppercase mt-1.5">{stat.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {payouts.length > 0 && (
+          /* The places in the Payouts panel's own colours — gold, silver,
+             bronze, then muted — so the clock and the panel read alike. Smaller
+             than the strip above: a long payout list wraps rather than
+             competing with the blinds. */
+          <div className="flex justify-center gap-x-5 sm:gap-x-8 gap-y-1.5 flex-wrap mb-4 sm:mb-7 px-2" data-testid="clock-payouts">
+            {payouts.map((place, i) => (
+              <div key={place.label} className="flex items-baseline gap-1.5">
+                <span className={cn(
+                  "text-label sm:text-body font-semibold",
+                  i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-amber-600" : "text-muted-foreground"
+                )}>
+                  {place.label}
+                </span>
+                <span className="font-mono font-semibold text-base sm:text-xl md:text-2xl">{place.value}</span>
               </div>
             ))}
           </div>

@@ -2048,15 +2048,19 @@ rest of `settings`, which `PokerTimer` syncs wholesale to the tournament documen
 already there — the participant view simply never read it. The progress-bar rule travels with it:
 both sides hide the bar for `ring` and show it for everything else.
 
-**The clock carries the field at a glance** — players left, average stack, prize pool, in a strip
-under the blinds (`stats` on `TimerFace`, from `lib/fieldStats.ts`'s `clockStats`). Asked for by a
+**The clock carries the field at a glance** — players left and average stack in a strip under the
+blinds (`stats` on `TimerFace`, from `lib/fieldStats.ts`'s `clockStats`), and beneath it **what each
+place pays** (`payouts`, from `clockPayouts`): `1st £60 · 2nd £30 · 3rd £10`, in the Payouts panel's own
+gold/silver/bronze. It first showed one prize-pool figure; the director asked for the breakdown, since
+"what does 2nd get?" is the question a table actually asks. It reads `payoutsOf` + `payoutAmount`, the
+Payouts panel's pair, so the two cannot name different money; a place paying nothing is left out. Asked for by a
 director coming from fifteen years of The Tournament Director, whose clock screen shows them, and
 because the clock felt empty: a player should not have to scroll a phone to see who is left. Both
 screens get it through `TimerFace`, so they cannot differ. `fieldStats` is now the ONE chip
 arithmetic — it was spelled out identically in both Tournament Info cards, and the strip would have
 been a third. A figure that means nothing yet is left out rather than drawn as a zero (no pool in a free
 game), "Players left 7/12" reads only once somebody has busted, and a finished game shows no strip,
-since the winner is the headline then. Five mutants are caught.
+since the winner is the headline then. Eight mutants are caught.
 
 ### A running clock is an end time, not a countdown
 

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Play, Pause, SkipForward, SkipBack, Maximize2, Minimize2 } from 'lucide-react';
 import { gameIsOver } from '@/lib/gameOver';
-import { fieldStats, clockStats } from '@/lib/fieldStats';
+import { fieldStats, clockStats, clockPayouts } from '@/lib/fieldStats';
 import { currencyOf } from '@/lib/currency';
 
 interface TimerCardProps {
@@ -181,6 +181,8 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
   // The director's choice, from Settings. Absent means the ring, which is the
   // only treatment that encodes the level progress.
   const pipingStyle = state.settings.timerPiping ?? 'ring';
+  const field = fieldStats(state.players, state.prizeStructure as any);
+  const sym = currencyOf(state.settings);
   return (
     <TimerFace
       clock={formatTime()}
@@ -196,7 +198,8 @@ function TimerCard({ tournament, recentLevelChange, readOnly }: TimerCardProps) 
       // treatment that encodes the level progress.
       piping={state.settings.timerPiping ?? 'ring'}
       recentLevelChange={recentLevelChange}
-      stats={clockStats(fieldStats(state.players, state.prizeStructure as any), currencyOf(state.settings), isTournamentFinished)}
+      stats={clockStats(field, sym, isTournamentFinished)}
+      payouts={clockPayouts(field, state.prizeStructure as any, sym, isTournamentFinished)}
       topRight={<FullscreenButton />}
     >
       {/* Timer Controls with Previous/Next positioned at edges */}

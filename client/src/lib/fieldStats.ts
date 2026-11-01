@@ -1,4 +1,6 @@
-import { countEntries, prizePoolFor, type CountedPlayer, type RakeStructure } from './prizePool';
+import { countEntries, payoutAmount, prizePoolFor, type CountedPlayer, type RakeStructure } from './prizePool';
+import { payoutsOf, type PayoutPlace } from './payoutTemplates';
+import { ordinal } from './ordinal';
 
 /**
  * The field at a glance — who is left, the average stack and what they are
@@ -13,6 +15,8 @@ export interface FieldPlayer extends CountedPlayer {
 }
 
 export interface ChipStructure extends RakeStructure {
+  manualPayouts?: PayoutPlace[];
+  structure?: PayoutPlace[];
   startingChips?: number;
   rebuyChips?: number;
   addonChips?: number;
@@ -64,10 +68,11 @@ export interface ClockStat {
 }
 
 /**
- * What the clock's strip says, read across a room: players left, the average
- * stack, the pool. A figure that means nothing yet is left out rather than
- * drawn as a zero — no pool in a free game, no average once nobody is left —
- * and a finished game shows none, because the winner is the headline then.
+ * What the clock's strip says, read across a room: players left and the average
+ * stack. The money is `clockPayouts` — what each place pays, which is what a
+ * table actually asks, rather than one pool figure. A figure that means nothing
+ * yet is left out rather than drawn as a zero, and a finished game shows none,
+ * because the winner is the headline then.
  */
 export function clockStats(field: FieldStats, currencySymbol: string, finished: boolean): ClockStat[] {
   if (finished || field.entrants === 0) return [];
@@ -76,6 +81,24 @@ export function clockStats(field: FieldStats, currencySymbol: string, finished: 
     value: field.eliminated > 0 ? `${field.active}/${field.entrants}` : String(field.entrants),
   }];
   if (field.averageStack > 0) out.push({ label: 'Avg stack', value: shortChips(field.averageStack) });
-  if (field.pool > 0) out.push({ label: 'Prize pool', value: `${currencySymbol}${field.pool.toLocaleString()}` });
   return out;
+}
+
+/**
+ * What each paid place is worth right now — `1st £60`, `2nd £30` — from the same
+ * `payoutsOf` + `payoutAmount` the Payouts panel uses, so the clock and the panel
+ * cannot name different money. A place paying nothing (a free game, an empty
+ * pool) is left out; a finished game shows none.
+ */
+export function clockPayouts(
+  field: FieldStats,
+  structure: ChipStructure,
+  currencySymbol: string,
+  finished: boolean,
+): ClockStat[] {
+  if (finished) return [];
+  return payoutsOf(structure)
+    .map((place, i) => ({ label: ordinal(i + 1), amount: payoutAmount(field.pool, place.percentage) }))
+    .filter(p => p.amount > 0)
+    .map(p => ({ label: p.label, value: `${currencySymbol}${p.amount.toLocaleString()}` }));
 }
