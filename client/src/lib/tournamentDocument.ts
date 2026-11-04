@@ -167,7 +167,12 @@ export async function createTournamentDocument(
   if (!currentUser) {
     throw new Error('Not signed in. Please log out and log back in, then try again.');
   }
-  const idToken = await currentUser.getIdToken(true);
+  // NOT forced. The token this device already holds is valid for an hour and
+  // just as accepted; forcing a refresh made every save and every Go Live call
+  // Google's sign-in servers, which a venue's Wi-Fi can block while the page
+  // itself loads — Go Live then failed with auth/network-request-failed on a
+  // live night. The SDK still refreshes an expired token by itself.
+  const idToken = await currentUser.getIdToken();
 
   // The document id IS the localGameId, and that is what makes a collision a
   // JOIN rather than an overwrite. Without one, createDocViaRest auto-generates

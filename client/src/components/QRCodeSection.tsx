@@ -11,6 +11,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { createTournamentDocument } from '@/lib/tournamentDocument';
 import { writeLiveGame } from '@/lib/liveGameWrite';
+import { friendlyNetworkError } from '@/lib/networkMessage';
 
 interface QRCodeSectionProps {
   tournament: ReturnType<typeof import('@/hooks/useTournament').useTournament>;
@@ -83,7 +84,9 @@ export default function QRCodeSection({ tournament, dbTournamentId, onGoLive, sy
       onGoLive?.(docId);
       toast({ title: "You're live!", description: "Share the QR code so players and spectators can join." });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      // A blocked network gets a sentence a director can act on, not the raw
+      // Firebase code (lib/networkMessage.ts).
+      toast({ title: "Could not go live", description: friendlyNetworkError(error), variant: "destructive" });
     } finally {
       setIsCreating(false);
     }

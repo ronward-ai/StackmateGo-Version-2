@@ -312,6 +312,15 @@ back if it lands late; a blocked write never lands, so a blocked browser is unaf
 `lib/deadline.ts`'s `withDeadline` — each awaited Firestore with no bound and spun for ever on a blocked
 browser, sign-out's release included, which this file promises never blocks.
 
+**A third shape: the venue blocks Google's SIGN-IN servers, not Firestore.** Reported from a live night:
+Go Live failed with `auth/network-request-failed` (and the iPad could not sign in at the same venue).
+`createTournamentDocument` called `getIdToken(true)` — a FORCED refresh from `securetoken.googleapis.com`
+on every save and every Go Live, though the token the device held was valid for an hour. It is
+`getIdToken()` now, so a device signed in within the hour can still save and publish; a test fails if the
+force comes back. Go Live's failure toast goes through `lib/networkMessage.ts`'s `friendlyNetworkError`,
+which turns that code into *switch to mobile data or a hotspot — your game is safe on this device*. QR
+visitors on such a network cannot get their anonymous session either; mobile data is the answer there too.
+
 `lib/syncHealth.ts` owns when a failure is worth saying. Both extremes were tried: reporting every
 failure re-fired three identical destructive toasts on every retry, and suppressing `unavailable`
 outright — an offline blip, self-healing — hid a blocked browser completely. The distinction is not
