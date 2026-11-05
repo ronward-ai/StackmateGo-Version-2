@@ -308,3 +308,18 @@ describe('leagueCheck — what the league holds for the game on screen', () => {
     expect(c.bySeason).toEqual(expect.arrayContaining([{ seasonId: 'S1', count: 2 }, { seasonId: null, count: 1 }]));
   });
 });
+
+describe('leagueCheck matches by standings row, as the table counts', () => {
+  it('a merged player: the alias on one document, the result on another of the same name', () => {
+    const docs = [
+      { id: 'old', name: 'Jarek Paletko', aliases: ['Jared Paletko'] },
+      { id: 'orig', name: 'Jarek Paletko' },
+    ];
+    const results = [{ id: 'r', leaguePlayerId: 'orig', tournamentId: 'G', seasonId: 'S', position: 6, t: 9 }];
+    const c = leagueCheck({ players: [{ name: 'Jared Paletko', position: 6 }], playerDocs: docs, results, gameId: 'G', timeOf: r => r.t });
+    expect(c.rows[0].playerIds.sort()).toEqual(['old', 'orig']);
+    expect(c.rows[0].thisGame.map(r => r.id)).toEqual(['r']);
+    expect(c.rows[0].thisGame[0].time).toBe(9);
+    expect(c.strays).toEqual([]);
+  });
+});

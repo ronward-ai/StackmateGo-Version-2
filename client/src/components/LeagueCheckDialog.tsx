@@ -22,12 +22,13 @@ export interface LeagueCheckDialogProps {
   seasonName: (id: string | null) => string;
 }
 
+const day = (t: number | null) => (t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'no date');
 const short = (id: string | null) => (id ? (id.length > 10 ? `${id.slice(0, 6)}…${id.slice(-3)}` : id) : '—');
 
 export default function LeagueCheckDialog({ open, onClose, players, playerDocs, results, gameId, facts, seasonName }: LeagueCheckDialogProps) {
   const check = leagueCheck({ players, playerDocs, results, gameId, timeOf: (r: any) => resultTime(r) ?? (r?.createdAt?.toMillis?.() ?? null) });
   const describe = (r: LeagueCheckResult) =>
-    `${r.position ? ordinal(r.position) : '?'} · ${seasonName(r.seasonId)} · as ${r.playerName}${r.pendingWrite ? ' · NOT SAVED YET' : ''}`;
+    `${r.position ? ordinal(r.position) : '?'} · ${day(r.time)} · ${seasonName(r.seasonId)} · as ${r.playerName}${r.pendingWrite ? ' · NOT SAVED YET' : ''}`;
 
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
@@ -62,7 +63,7 @@ export default function LeagueCheckDialog({ open, onClose, players, playerDocs, 
                 : row.thisGame.map(r => <div key={r.id} className="font-mono">{describe(r)}</div>)}
               {row.recentOther.length > 0 && (
                 <div className="text-muted-foreground font-mono">
-                  Other games: {row.recentOther.map(r => `${short(r.tournamentId)} (${seasonName(r.seasonId)})`).join(', ')}
+                  Other games: {row.recentOther.map(r => `${day(r.time)} ${short(r.tournamentId)}`).join(', ')}
                 </div>
               )}
             </div>

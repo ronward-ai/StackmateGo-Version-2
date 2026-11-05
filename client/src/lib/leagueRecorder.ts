@@ -472,7 +472,11 @@ export function leagueCheck(input: {
     .filter(p => typeof p.position === 'number' && p.position > 0)
     .sort((a, b) => (a.position as number) - (b.position as number))
     .map(p => {
-      const ids = playerIdsForName(playerDocs, p.name);
+      // By standings ROW, as the table counts: every document sharing a name
+      // with one that answers to this player's name. A merge leaves the old
+      // spelling as an alias on one document and the result on another.
+      const rowKeys = new Set(playerDocs.filter(d => answersTo(d, p.name)).map(d => nameKey(d.name)));
+      const ids = playerDocs.filter(d => rowKeys.has(nameKey(d.name)) || answersTo(d, p.name)).map(d => String(d.id));
       const idSet = new Set(ids);
       const thisGame = forGame.filter(r => idSet.has(String(r.leaguePlayerId))).map(view);
       thisGame.forEach(r => claimed.add(r.id));

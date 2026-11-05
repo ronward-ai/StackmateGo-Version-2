@@ -1717,7 +1717,14 @@ function PokerTimerInner({
                 seasonName={(id) => id ? `${seasonNameOf(id)} (${id})` : 'no season'}
                 facts={[
                   { label: 'Build', value: String(__BUILD_ID__) },
-                  { label: 'Game', value: String(gameIdOf(tournament.state.details) ?? '—') },
+                  { label: 'Game', value: (() => {
+                    const id = String(gameIdOf(tournament.state.details) ?? '—');
+                    const c: any = (tournament.state.details as any)?.createdAt;
+                    const ms = typeof c === 'string' || typeof c === 'number' ? new Date(c).getTime() : c?.toMillis?.() ?? (c?.seconds ? c.seconds * 1000 : NaN);
+                    const stamp = /^game_(\d{12,})/.exec(id)?.[1];
+                    const when = Number.isFinite(ms) ? ms : stamp ? Number(stamp) : NaN;
+                    return Number.isFinite(when) ? `${id} — started ${new Date(when).toLocaleString()}` : id;
+                  })() },
                   { label: "Game's season", value: String(tournament.state.settings?.seasonId ?? '—') },
                   { label: "League's current season", value: `${activeSeasonId ?? '—'}${currentSeasonConfirmed ? ' (confirmed)' : ' (not confirmed)'}` },
                   { label: 'Season shown', value: String(currentSeason?.id ?? '—') },
