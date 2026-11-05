@@ -362,6 +362,25 @@ to correct). `leagueSeasons.scenario.test.tsx` plays exactly that — one result
 a fresh console — and every player comes out counted once. Six mutants are caught. The deadline itself
 sits in the page effect and has no test by construction; `isDeadlineExceeded` does.
 
+### A game's season is never replaced by a guess
+
+Reported the night after the fixes above: several regulars' results for a game were missing from the
+table, with no "waiting to save" line, on a night spent switching networks. Their results existed — in
+ANOTHER season. `PokerTimer`'s display season took the game's stored `settings.seasonId` only when it could
+find it in the loaded seasons list, and otherwise fell back to `currentSeason`; while the seasons or the
+league document are loading (or their listener has failed) that is a guess — the newest season, a legacy
+`active` one, or the synthetic default — and the season block then WROTE the guess over the game's real
+season, mid-game. Everybody recorded after that went into the other season.
+
+**`gameSeasonFor` (`lib/seasonProgress.ts`)**: a game naming a real season keeps it, found in the list or
+not; only a game naming none takes the current season, and only once `useSeasons`'
+`currentSeasonConfirmed` says the league's own pointer is loaded. Until then it is null, so the season
+block writes nothing and the recorder waits. **A night already split is repaired by asking**:
+`seasonSplitOfGame` (`lib/leagueRecorder.ts`) spots a game whose results sit in more than one real season
+(or one that is not the game's), and an amber line above the League panel offers **Move all to {season}**
+for each — refiling this game's results (`resultsToMoveInto`, `seasonId` only) and setting the game's
+season. Which season is right cannot be told from the data, so it is never guessed. Seven mutants caught.
+
 ### Resume only reopens a game that is plausibly current
 
 Nothing deletes an `activeTournaments` document, so every game an account has ever taken live is a

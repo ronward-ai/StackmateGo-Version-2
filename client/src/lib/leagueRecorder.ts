@@ -376,3 +376,44 @@ export function pendingLeagueResults<P extends RecorderPlayer>(input: {
     : 0;
   return notRecorded + unsent;
 }
+
+/**
+ * Which seasons this game's league results are filed under, and how many in
+ * each — when they are not all in one place the director is asked which season
+ * the night belongs to (the "split" line above the League panel).
+ *
+ * Results for one game belong to one season. They were split by the fault
+ * `gameSeasonFor` in lib/seasonProgress.ts fixes: the game's season was
+ * overwritten by a guess while the seasons were loading, so players who busted
+ * before it went into one season and players after it into another. Which one is
+ * right cannot be known from the data, so it is asked rather than guessed.
+ * Results with no season are left to `misfiledDue`.
+ */
+export function seasonSplitOfGame(
+  results: readonly { tournamentId?: string | number | null; seasonId?: string | number | null }[] | null | undefined,
+  gameId: string | null | undefined,
+  gameSeasonId: unknown,
+): { seasons: { seasonId: string; count: number }[]; isSplit: boolean } {
+  const counts = new Map<string, number>();
+  if (gameId) {
+    for (const r of results ?? []) {
+      if (String(r.tournamentId) !== String(gameId) || !isRealSeasonId(r.seasonId)) continue;
+      counts.set(String(r.seasonId), (counts.get(String(r.seasonId)) ?? 0) + 1);
+    }
+  }
+  const seasons = Array.from(counts, ([seasonId, count]) => ({ seasonId, count }));
+  const game = isRealSeasonId(gameSeasonId) ? String(gameSeasonId) : null;
+  const isSplit = seasons.length > 1 || (seasons.length === 1 && !!game && seasons[0].seasonId !== game);
+  if (isSplit && game && !counts.has(game)) seasons.push({ seasonId: game, count: 0 });
+  return { seasons, isSplit };
+}
+
+/** This game's results NOT in `seasonId` — what "Move all to …" moves. */
+export function resultsToMoveInto<R extends { id?: string | number; tournamentId?: string | number | null; seasonId?: string | number | null }>(
+  results: readonly R[] | null | undefined,
+  gameId: string | null | undefined,
+  seasonId: string,
+): R[] {
+  if (!gameId) return [];
+  return (results ?? []).filter(r => r.id != null && String(r.tournamentId) === String(gameId) && String(r.seasonId) !== String(seasonId));
+}

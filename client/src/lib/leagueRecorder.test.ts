@@ -239,3 +239,31 @@ describe('a renamed player still answers to the old spelling (aliases)', () => {
     expect(renamesDue(roster, cloud, new Set(), (a, b) => samePerson([smith], a, b))).toEqual([]);
   });
 });
+
+import { seasonSplitOfGame, resultsToMoveInto } from './leagueRecorder';
+
+describe('seasonSplitOfGame — one game, more than one season', () => {
+  const rs = [
+    { id: '1', tournamentId: 'G', seasonId: 'autumn' },
+    { id: '2', tournamentId: 'G', seasonId: 'autumn' },
+    { id: '3', tournamentId: 'G', seasonId: 'spring' },
+    { id: '4', tournamentId: 'G', seasonId: null },
+    { id: '5', tournamentId: 'OTHER', seasonId: 'winter' },
+  ];
+  it('counts this game\'s results per real season and calls two a split', () => {
+    const s = seasonSplitOfGame(rs, 'G', 'spring');
+    expect(s.isSplit).toBe(true);
+    expect(s.seasons).toEqual([{ seasonId: 'autumn', count: 2 }, { seasonId: 'spring', count: 1 }]);
+  });
+  it('one season that is not the game\'s own is a split too, and offers the game\'s', () => {
+    const s = seasonSplitOfGame(rs.filter(r => r.seasonId !== 'spring'), 'G', 'spring');
+    expect(s.isSplit).toBe(true);
+    expect(s.seasons.map(x => x.seasonId)).toEqual(['autumn', 'spring']);
+  });
+  it('all in the game\'s season is no split; seasonless results are left to misfiledDue', () => {
+    expect(seasonSplitOfGame([rs[0], rs[1], rs[3]], 'G', 'autumn').isSplit).toBe(false);
+  });
+  it('resultsToMoveInto takes this game\'s results outside the chosen season, nobody else\'s', () => {
+    expect(resultsToMoveInto(rs, 'G', 'autumn').map(r => r.id)).toEqual(['3', '4']);
+  });
+});

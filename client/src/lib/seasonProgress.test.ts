@@ -533,3 +533,25 @@ describe('isRealLeagueId', () => {
     for (const v of [undefined, null, '', PLACEHOLDER_LEAGUE_ID]) expect(isRealLeagueId(v)).toBe(false);
   });
 });
+
+import { gameSeasonFor } from './seasonProgress';
+
+describe('gameSeasonFor — the game\'s season, never a guess (reported: one night split across seasons)', () => {
+  const autumn = { id: 'autumn', name: 'Autumn', numberOfGames: 13 };
+  const spring = { id: 'spring', name: 'Spring', numberOfGames: 12 };
+  it('a game naming a real season keeps it', () => {
+    expect(gameSeasonFor({ storedSeasonId: 'autumn', seasons: [autumn, spring], currentSeason: spring, currentSeasonConfirmed: true })).toBe(autumn);
+  });
+  it('keeps it even while the seasons list has not loaded — it does NOT fall back to the current season', () => {
+    const r = gameSeasonFor({ storedSeasonId: 'autumn', storedSeasonName: 'Autumn', storedNumberOfGames: 13,
+      seasons: [{ id: 'default-season' }], currentSeason: { id: 'default-season' }, currentSeasonConfirmed: false });
+    expect(r).toEqual({ id: 'autumn', name: 'Autumn', numberOfGames: 13 });
+  });
+  it('a game naming none takes the current season only once the league confirms it', () => {
+    expect(gameSeasonFor({ storedSeasonId: undefined, seasons: [autumn, spring], currentSeason: spring, currentSeasonConfirmed: false })).toBeNull();
+    expect(gameSeasonFor({ storedSeasonId: 'default-season', seasons: [autumn], currentSeason: autumn, currentSeasonConfirmed: true })).toBe(autumn);
+  });
+  it('never hands out the synthetic season', () => {
+    expect(gameSeasonFor({ storedSeasonId: null, seasons: [], currentSeason: { id: 'default-season' }, currentSeasonConfirmed: true })).toBeNull();
+  });
+});

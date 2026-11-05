@@ -369,9 +369,19 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     }
   }, [leagueId, deleteSeasonMutation, queryClient]);
 
+  /**
+   * True only when `currentSeason` is the league's own pointer, found among the
+   * loaded seasons. Before that, `currentSeason` is a guess — the newest season, a
+   * legacy 'active' one, or the synthetic default — and nothing may be WRITTEN on
+   * the strength of a guess (PokerTimer's season block, the league recorder).
+   */
+  const currentSeasonConfirmed = !!activeSeasonId
+    && seasons.some(s => String(s.id) === String(activeSeasonId));
+
   return {
     seasons,
     currentSeason,
+    currentSeasonConfirmed,
     isLoading,
     formatSeasonDateRange,
     addSeason,

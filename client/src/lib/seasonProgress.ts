@@ -456,3 +456,43 @@ export function nextGameLabel(
   if (total <= 0) return `Game ${n}`;
   return n <= total ? `Game ${n} of ${total}` : `Game ${n} — beyond the ${total} scheduled`;
 }
+
+export interface GameSeason { id: string | number; name?: string; numberOfGames?: number | null }
+
+/**
+ * The season a league game belongs to — or null when that is not known yet.
+ *
+ * Reported after a night on a patchy network: several players' results for the
+ * game landed in another season. The page used to take the game's stored
+ * season only when it could FIND it in the loaded seasons list, and otherwise
+ * fall back to `currentSeason` — which, while the seasons or the league
+ * document are still loading (or their listener has failed), is a guess: the
+ * newest season, a legacy 'active' one, or the synthetic default. The season
+ * block then WROTE that guess over the game's real season, mid-game, and every
+ * result recorded afterwards went with it.
+ *
+ * A game that names a real season keeps it, found in the list or not. Only a
+ * game naming none takes the current season, and only once the league's own
+ * pointer confirms it.
+ */
+export function gameSeasonFor(input: {
+  storedSeasonId: unknown;
+  storedSeasonName?: string | null;
+  storedNumberOfGames?: number | null;
+  seasons: readonly GameSeason[];
+  currentSeason: GameSeason | null | undefined;
+  currentSeasonConfirmed: boolean;
+}): GameSeason | null {
+  const { storedSeasonId, seasons, currentSeason } = input;
+  if (isRealSeasonId(storedSeasonId)) {
+    const found = seasons.find(s => String(s.id) === String(storedSeasonId));
+    if (found) return found;
+    return {
+      id: String(storedSeasonId),
+      name: input.storedSeasonName ?? undefined,
+      numberOfGames: input.storedNumberOfGames ?? undefined,
+    };
+  }
+  if (input.currentSeasonConfirmed && currentSeason && isRealSeasonId(currentSeason.id)) return currentSeason;
+  return null;
+}

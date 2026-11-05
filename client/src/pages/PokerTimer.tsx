@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { prizePoolFor } from '@/lib/prizePool';
 import { isLeagueGame } from '@/lib/tournamentMode';
-import { recordedForGame, removalsDue, renamesDue, renameKey, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats, seasonForRecording, misfiledDue, pendingLeagueResults, samePerson } from '@/lib/leagueRecorder';
+import { recordedForGame, removalsDue, renamesDue, renameKey, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats, seasonForRecording, misfiledDue, pendingLeagueResults, samePerson, seasonSplitOfGame, resultsToMoveInto } from '@/lib/leagueRecorder';
 import { withDeadline, isDeadlineExceeded } from '@/lib/deadline';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
@@ -12,7 +12,7 @@ import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useCompletedTournaments } from '@/hooks/useCompletedTournaments';
-import { gameNumberFor } from '@/lib/seasonProgress';
+import { gameNumberFor, gameSeasonFor } from '@/lib/seasonProgress';
 import { eventNameOf } from '@/lib/eventName';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
@@ -278,7 +278,7 @@ function PokerTimerInner({
 
 
   const { recordResultByName, removeTournamentResultForPlayer, refileResult, leagueResults, league, switchLeague, userLeagues, leaguePlayers, isLoading: leagueLoading } = useLeague();
-  const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
+  const { currentSeason, seasons, currentSeasonConfirmed } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);
   useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
   // The season the UI displays — settings.seasonId when set, else currentSeason.
@@ -325,9 +325,18 @@ function PokerTimerInner({
   // this one as props and ignored them, so the props went (October audit).
   const _isLeagueMode = isLeagueGame(tournament.state);
   const _storedSeasonId = tournament.state.settings?.seasonId;
-  const _displaySeason = _storedSeasonId
-    ? ((seasons as any[]).find((s: any) => String(s.id) === String(_storedSeasonId)) ?? currentSeason)
-    : currentSeason;
+  // The GAME's season, never a guess — lib/seasonProgress.ts, gameSeasonFor. It
+  // fell back to currentSeason whenever the stored one was not in the loaded
+  // list, and the season block below then wrote that guess over the game's real
+  // season mid-night, splitting one game's results across two seasons.
+  const _displaySeason: any = gameSeasonFor({
+    storedSeasonId: _storedSeasonId,
+    storedSeasonName: tournament.state.settings?.seasonName,
+    storedNumberOfGames: tournament.state.settings?.numberOfGames,
+    seasons: seasons as any[],
+    currentSeason: currentSeason as any,
+    currentSeasonConfirmed,
+  });
   const gameNumber = useMemo(
     () => (_isLeagueMode && _displaySeason
       ? gameNumberFor(_displaySeason.id, leaguePlayers, gameIdOf(tournament.state.details) ?? undefined)
@@ -1452,6 +1461,38 @@ function PokerTimerInner({
     });
   })();
 
+  // This game's league results filed under more than one season — the night
+  // the game's season was overwritten mid-game (lib/seasonProgress.ts,
+  // gameSeasonFor). Which season is right cannot be told from the data, so
+  // the director picks; see the line above the League panel.
+  const gameSeasonSplit = (readOnlyConsole || !isLeagueGame(tournament.state))
+    ? { seasons: [], isSplit: false }
+    : seasonSplitOfGame(leagueResults, gameIdOf(tournament.state.details) ?? null, tournament.state.settings?.seasonId);
+  const [movingSeason, setMovingSeason] = useState(false);
+  const seasonNameOf = (id: string) => (seasons as any[]).find((x: any) => String(x.id) === String(id))?.name ?? 'another season';
+  const moveGameToSeason = async (seasonId: string) => {
+    const gameId = gameIdOf(tournament.state.details) ?? null;
+    setMovingSeason(true);
+    try {
+      for (const r of resultsToMoveInto(leagueResults, gameId, seasonId)) {
+        await withDeadline(refileResult(String(r.id), seasonId), undefined, 'league re-file');
+      }
+      if (String(tournament.state.settings?.seasonId) !== String(seasonId)) {
+        const target = (seasons as any[]).find((x: any) => String(x.id) === String(seasonId));
+        tournament.updateSettings({
+          seasonId: String(seasonId),
+          ...(target ? { seasonName: target.name, numberOfGames: target.numberOfGames } : {}),
+        });
+      }
+      toast({ title: 'League results moved', description: `This game now counts in ${seasonNameOf(seasonId)}.` });
+    } catch (moveError) {
+      reportWriteFailure('moving this game\'s league results', moveError);
+      toast({ title: 'Could not move the results', description: 'Check the connection and try again.', variant: 'destructive' });
+    } finally {
+      setMovingSeason(false);
+    }
+  };
+
   // Reset processed eliminations only when it's a genuine tournament reset (all active, no positions).
   // Guarding on positions prevents mid-game Firestore snapshots during handover from wiping the set.
   useEffect(() => {
@@ -1611,6 +1652,23 @@ function PokerTimerInner({
                 network that blocked the league's reads, the standings simply
                 did not move and nothing said why. Amber, not red: the game is
                 open and the recorder retries, so nothing is lost yet. */}
+            {gameSeasonSplit.isSplit && (
+              <div className="mb-2 text-label text-amber-400 space-y-1.5" data-testid="league-season-split">
+                <p>
+                  This game's league results are filed under more than one season
+                  {' '}({gameSeasonSplit.seasons.map(x => `${seasonNameOf(x.seasonId)}: ${x.count}`).join(' · ')}),
+                  so some players are missing it from the table. Which season was it played in?
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {gameSeasonSplit.seasons.map(x => (
+                    <Button key={x.seasonId} size="sm" variant="outline" disabled={movingSeason}
+                      onClick={() => { void moveGameToSeason(x.seasonId); }}>
+                      Move all to {seasonNameOf(x.seasonId)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
             {leagueResultsWaiting > 0 && (
               <p className="mb-2 text-label text-amber-400" data-testid="league-results-waiting">
                 League results waiting to save — {leagueResultsWaiting} {leagueResultsWaiting === 1 ? 'player' : 'players'}.
