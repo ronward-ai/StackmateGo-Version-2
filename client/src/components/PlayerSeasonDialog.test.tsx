@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import PlayerSeasonDialog from './PlayerSeasonDialog';
 import { entryPricesOf } from '@/lib/resultStats';
-import { renameRefusal } from '@/lib/leaguePlayerRename';
+import { renameRefusal, renameMerges } from '@/lib/leaguePlayerRename';
 
 /**
  * Reported: a player's card read Net −£10 after one game in which they had
@@ -51,11 +51,25 @@ describe('PlayerSeasonDialog', () => {
 
   it('shows the refusal and does not rename', () => {
     const onRename = vi.fn();
-    open({ onRename, renameRefusal: (n: string) => renameRefusal('Dave', n, ['Dave', 'Amy'], []) });
+    open({ onRename, renameRefusal: (n: string) => renameRefusal('Dave', n, ['Dave', 'Amy'], ['Dave']) });
     fireEvent.click(screen.getByLabelText('Rename Dave'));
-    fireEvent.change(screen.getByLabelText('Player name'), { target: { value: 'amy' } });
+    fireEvent.change(screen.getByLabelText('Player name'), { target: { value: 'David' } });
     fireEvent.click(screen.getByText('Save'));
-    expect(screen.getByRole('alert').textContent).toMatch(/already called/);
+    expect(screen.getByRole('alert').textContent).toMatch(/Edit results/);
     expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it("another player's name becomes a Merge, says so, and merges on press", async () => {
+    const onRename = vi.fn().mockResolvedValue(undefined);
+    open({
+      onRename,
+      renameRefusal: (n: string) => renameRefusal('Dave', n, ['Dave', 'Amy'], []),
+      renameMerges: (n: string) => renameMerges('Dave', n, ['Dave', 'Amy']),
+    });
+    fireEvent.click(screen.getByLabelText('Rename Dave'));
+    fireEvent.change(screen.getByLabelText('Player name'), { target: { value: 'Amy' } });
+    expect(screen.getByTestId('rename-merge-note').textContent).toMatch(/same person/);
+    fireEvent.click(screen.getByText('Merge'));
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith('Amy'));
   });
 });

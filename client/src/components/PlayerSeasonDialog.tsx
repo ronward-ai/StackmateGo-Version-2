@@ -40,10 +40,16 @@ interface PlayerSeasonDialogProps {
   onRename?: (next: string) => Promise<void>;
   /** Why a rename to `next` is refused, or null — lib/leaguePlayerRename.ts. */
   renameRefusal?: (next: string) => string | null;
+  /**
+   * Whether a rename to `next` MERGES this player into another — the name is
+   * theirs already (lib/leaguePlayerRename.ts, renameMerges). The save then
+   * becomes a Merge the director has to confirm.
+   */
+  renameMerges?: (next: string) => boolean;
 }
 
 export default function PlayerSeasonDialog({
-  isOpen, onClose, playerName, seasonName, results, currencySymbol, prices, onRename, renameRefusal,
+  isOpen, onClose, playerName, seasonName, results, currencySymbol, prices, onRename, renameRefusal, renameMerges,
 }: PlayerSeasonDialogProps) {
   const rows = seasonGames(results, prices);
   const summary = seasonSummary(results, prices);
@@ -53,6 +59,7 @@ export default function PlayerSeasonDialog({
   const [saving, setSaving] = useState(false);
   useEffect(() => { setEditing(false); setError(null); setDraft(playerName); }, [playerName, isOpen]);
 
+  const merging = editing && !!renameMerges?.(draft);
   const save = async () => {
     if (!onRename) return;
     const refusal = renameRefusal?.(draft) ?? (draft.trim() ? null : 'A name cannot be empty.');
@@ -91,7 +98,7 @@ export default function PlayerSeasonDialog({
                   onChange={e => { setDraft(e.target.value); setError(null); }}
                   className="h-8 w-48"
                 />
-                <Button type="submit" size="sm" disabled={saving}>Save</Button>
+                <Button type="submit" size="sm" disabled={saving}>{merging ? 'Merge' : 'Save'}</Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => { setEditing(false); setError(null); setDraft(playerName); }}>
                   Cancel
                 </Button>
@@ -113,6 +120,12 @@ export default function PlayerSeasonDialog({
             )}
           </DialogTitle>
           {error && <p role="alert" className="text-caption text-destructive">{error}</p>}
+          {merging && !error && (
+            <p className="text-caption text-amber-400" data-testid="rename-merge-note">
+              {draft.trim()} is already in this league. Merging puts both rows together — only do this
+              if they are the same person.
+            </p>
+          )}
           <DialogDescription>
             {seasonName ? `${seasonName} · ` : ''}
             {summary.games} game{summary.games === 1 ? '' : 's'} played

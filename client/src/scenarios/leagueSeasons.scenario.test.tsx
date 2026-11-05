@@ -457,3 +457,47 @@ describe('a night on a network that blocked the league (game 5, reported)', () =
     expect(league.results.every(r => r.seasonId === 'spring')).toBe(true);
   });
 });
+
+describe('a misspelt player renamed from their season card (reported: a row for each spelling)', () => {
+  it('reopening the old game afterwards records nothing new — one row, the night counted once', () => {
+    const league = createLeague();
+    const n = night(league, 'g1', 'spring', ['Amy', 'Dave Smyth', 'Cat']);
+    n.bust('Cat', 'Amy'); n.bust('Dave Smyth', 'Amy');
+    const finished = n.s();
+    n.done();
+
+    league.renamePlayer('Dave Smyth', 'Dave Smith');
+
+    // The game still says "Dave Smyth". A fresh console opens it.
+    league.forgetTab();
+    league.sync(finished, 'g1', 'spring');
+    league.sync(finished, 'g1', 'spring');
+
+    expectCleanGame(league, 'g1', 3);
+    expect(league.playerDocs.map(p => p.name).sort()).toEqual(['Amy', 'Cat', 'Dave Smith']);
+    expect(league.table('spring').map(r => r.name).sort()).toEqual(['Amy', 'Cat', 'Dave Smith']);
+  });
+
+  it('the damage as it stands — two rows, both carrying the night — merges into one, counted once', () => {
+    const league = createLeague();
+    const n = night(league, 'g1', 'spring', ['Amy', 'Dave Smyth', 'Cat']);
+    n.bust('Cat', 'Amy'); n.bust('Dave Smyth', 'Amy');
+    n.done();
+    const n2 = night(league, 'g2', 'spring', ['Amy', 'Dave Smith', 'Cat']);
+    n2.bust('Cat', 'Amy'); n2.bust('Dave Smith', 'Amy');
+    n2.done();
+    // What last week left: the misspelling recorded again for g2 under a second player.
+    const smyth = league.playerDocs.find(p => p.name === 'Dave Smyth')!.id;
+    const dup = { ...league.results.find(r => r.tournamentId === 'g2' && r.leaguePlayerId !== smyth && league.playerDocs.find(p => p.id === r.leaguePlayerId)!.name === 'Dave Smith')!, id: 'dup', leaguePlayerId: smyth };
+    league.results.push(dup);
+    expect(league.table('spring').map(r => r.name).sort()).toEqual(['Amy', 'Cat', 'Dave Smith', 'Dave Smyth']);
+
+    league.renamePlayer('Dave Smyth', 'Dave Smith');
+
+    const rows = league.table('spring');
+    expect(rows.map(r => r.name).sort()).toEqual(['Amy', 'Cat', 'Dave Smith']);
+    const dave = rows.find(r => r.name === 'Dave Smith')!;
+    expect(dave.games).toBe(2);
+    expect(league.results.filter(r => r.tournamentId === 'g2').length).toBe(3);
+  });
+});

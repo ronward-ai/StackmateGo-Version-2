@@ -19,7 +19,7 @@
 import { nameKey } from '@/lib/leagueRecorder';
 
 export function standingsFromDocs(cloudPlayers: readonly any[], cloudResults: readonly any[]): any[] {
-  const byName = new Map<string, { primaryPlayer: any; mergedResults: any[] }>();
+  const byName = new Map<string, { primaryPlayer: any; mergedResults: any[]; aliases: Set<string> }>();
 
   cloudPlayers.forEach((player: any) => {
     const key = nameKey(player.name);
@@ -27,6 +27,7 @@ export function standingsFromDocs(cloudPlayers: readonly any[], cloudResults: re
 
     if (byName.has(key)) {
       const entry = byName.get(key)!;
+      for (const a of player.aliases ?? []) if (a) entry.aliases.add(a);
       playerResults.forEach(r => {
         const alreadyPresent = r.tournamentId
           ? entry.mergedResults.some(existing => existing.tournamentId === r.tournamentId)
@@ -34,15 +35,18 @@ export function standingsFromDocs(cloudPlayers: readonly any[], cloudResults: re
         if (!alreadyPresent) entry.mergedResults.push(r);
       });
     } else {
-      byName.set(key, { primaryPlayer: player, mergedResults: [...playerResults] });
+      byName.set(key, { primaryPlayer: player, mergedResults: [...playerResults], aliases: new Set((player.aliases ?? []).filter(Boolean)) });
     }
   });
 
-  return Array.from(byName.values()).map(({ primaryPlayer, mergedResults }) => {
+  return Array.from(byName.values()).map(({ primaryPlayer, mergedResults, aliases }) => {
     const totalPoints = mergedResults.reduce((sum, r) => sum + (r.points || 0), 0);
     return {
       id: primaryPlayer.id.toString(),
       name: primaryPlayer.name,
+      // Every spelling this player was renamed from, across the documents merged
+      // into this row — the recorder matches names through them (nameKeysOf).
+      aliases: Array.from(aliases),
       totalPoints,
       tournamentResults: mergedResults.map((result: any) => ({
         id: result.id.toString(),

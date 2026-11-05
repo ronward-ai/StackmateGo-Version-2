@@ -27,7 +27,7 @@ import { STAT_LABELS } from '@/types/leagueSettings';
 import { csvFilename, downloadCsv, toCsv } from '@/lib/csv';
 import { useToast } from '@/hooks/use-toast';
 import PlayerSeasonDialog from '@/components/PlayerSeasonDialog';
-import { renameRefusal } from '@/lib/leaguePlayerRename';
+import { renameRefusal, renameMerges } from '@/lib/leaguePlayerRename';
 import StandingsSheet, { type StandingsSheetRow } from '@/components/export/StandingsSheet';
 import { captureSheet, sheetFilename } from '@/components/export/captureSheet';
 // html2canvas is ~200 kB and only runs when the user exports a PNG, so it is
@@ -774,13 +774,21 @@ function RealTimeLeagueTable({
         onRename={canRename ? async (next: string) => {
           await (leagueData as any).renameLeaguePlayer(openPlayer.name, next);
           setOpenPlayer((p: any) => (p ? { ...p, name: next } : p));
-          toast({ title: 'Player renamed', description: `${openPlayer.name} is now ${next}.` });
+          const merged = renameMerges(openPlayer.name, next, (leaguePlayers as any[]).map(p => p?.name));
+          toast(merged
+            ? { title: 'Players merged', description: `${openPlayer.name} is now part of ${next}.` }
+            : { title: 'Player renamed', description: `${openPlayer.name} is now ${next}.` });
         } : undefined}
         renameRefusal={openPlayer ? (next: string) => renameRefusal(
           openPlayer.name,
           next,
           (leaguePlayers as any[]).map(p => p?.name),
           (tournament?.state?.players ?? []).map((p: any) => p?.name),
+        ) : undefined}
+        renameMerges={openPlayer ? (next: string) => renameMerges(
+          openPlayer.name,
+          next,
+          (leaguePlayers as any[]).map(p => p?.name),
         ) : undefined}
       />
     </Card>

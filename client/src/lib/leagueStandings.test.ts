@@ -38,3 +38,15 @@ describe('standingsFromDocs (Oct coverage)', () => {
     expect(standingsFromDocs([{ id: 'p', name: 'New' }], [])[0]).toMatchObject({ name: 'New', totalPoints: 0, tournamentResults: [] });
   });
 });
+
+describe('aliases — the spellings a player was renamed from', () => {
+  it('each row carries the union of its documents\' aliases, so the recorder can match them', async () => {
+    const { standingsFromDocs } = await import('./leagueStandings');
+    const rows = standingsFromDocs(
+      [{ id: 'a', name: 'Dave Smith', aliases: ['Dave Smyth'] }, { id: 'b', name: 'dave smith', aliases: ['D Smith'] }, { id: 'c', name: 'Amy' }],
+      [],
+    );
+    expect(rows.find(r => r.name === 'Dave Smith')!.aliases.sort()).toEqual(['D Smith', 'Dave Smyth']);
+    expect(rows.find(r => r.name === 'Amy')!.aliases).toEqual([]);
+  });
+});

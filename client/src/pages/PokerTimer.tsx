@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { prizePoolFor } from '@/lib/prizePool';
 import { isLeagueGame } from '@/lib/tournamentMode';
-import { recordedForGame, removalsDue, renamesDue, renameKey, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats, seasonForRecording, misfiledDue, pendingLeagueResults } from '@/lib/leagueRecorder';
+import { recordedForGame, removalsDue, renamesDue, renameKey, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats, seasonForRecording, misfiledDue, pendingLeagueResults, samePerson } from '@/lib/leagueRecorder';
 import { withDeadline, isDeadlineExceeded } from '@/lib/deadline';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
@@ -1232,7 +1232,7 @@ function PokerTimerInner({
         // 0. Renamed in the results editor: the night's result is still filed
         //    under the old name. Withdraw it and forget this tab's claim, so the
         //    player is recorded afresh under the name they have now (step 3).
-        for (const { player, formerName } of renamesDue(players, cloud, withdrawnRenamesRef.current)) {
+        for (const { player, formerName } of renamesDue(players, cloud, withdrawnRenamesRef.current, (a, b) => samePerson(leaguePlayers, a, b))) {
           if (!gameId) break;
           try {
             await withDeadline(removeTournamentResultForPlayer(formerName, gameId), undefined, 'league removal');

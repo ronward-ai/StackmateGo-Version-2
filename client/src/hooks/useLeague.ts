@@ -7,7 +7,8 @@ import { useLeagueSettings } from '@/hooks/useLeagueSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { lastSignedInUid, readScoped, writeScoped } from '@/lib/scopedStorage';
 import { db, collections } from '@/lib/firebase';
-import { query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, onSnapshot, arrayUnion } from 'firebase/firestore';
+import { duplicateResultsOnMerge } from '@/lib/leaguePlayerRename';
 import { PLACEHOLDER_LEAGUE_ID } from '@/lib/seasonProgress';
 import { sanitizeForFirestore } from '@/lib/utils';
 import { useSharedSnapshot } from '@/lib/sharedSnapshot';
@@ -172,10 +173,27 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
   const renameLeaguePlayer = useCallback(async (current: string, next: string) => {
     const trimmed = next.trim();
     if (!trimmed) throw new Error('A name cannot be empty.');
-    const ids = playerIdsForName(cloudPlayersRef.current, current);
+    const docs = cloudPlayersRef.current;
+    // The documents CALLED this now — not ones that merely answer to it.
+    const ids = docs.filter(p => nameKey(p.name) === nameKey(current)).map(p => String(p.id));
     if (ids.length === 0) throw new Error(`No league player called ${current}.`);
+    // A merge: the name is another player's already. A night both carry is
+    // deleted from the source first, so the merged row counts it once
+    // (lib/leaguePlayerRename.ts).
+    const targetIds = docs.filter(p => nameKey(p.name) === nameKey(trimmed) && !ids.includes(String(p.id))).map(p => String(p.id));
+    if (targetIds.length > 0) {
+      for (const r of duplicateResultsOnMerge(cloudResultsRef.current, ids, targetIds)) {
+        await deleteDoc(doc(db, 'tournamentResults', String(r.id)));
+      }
+    }
+    // The old spelling stays behind as an ALIAS, because games already played
+    // still list the player under it — and the recorder, matching by name, would
+    // otherwise record that night again as a brand-new player (nameKeysOf in
+    // lib/leagueRecorder.ts). Reported: a row for each spelling.
+    const oldName = docs.find(p => ids.includes(String(p.id)))?.name ?? current;
     await Promise.all(ids.map(id => updateDoc(doc(db, 'leaguePlayers', id), {
       name: trimmed,
+      ...(nameKey(oldName) !== nameKey(trimmed) ? { aliases: arrayUnion(oldName) } : {}),
       updatedAt: serverTimestamp(),
     })));
   }, []);

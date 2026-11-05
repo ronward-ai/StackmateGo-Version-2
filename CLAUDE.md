@@ -2354,6 +2354,22 @@ the merge match by name), and **a player in tonight's roster** — the recorder 
 by name, so that rename belongs in Edit results. Mutants on the refusals, the gate and the prices are
 caught; `renameLeaguePlayer` itself has no test (`useLeague` has no test file).
 
+**A rename leaves the old spelling behind as an ALIAS, and a taken name MERGES.** Reported: a misspelt
+player renamed from the card came back as a second row. The rename changed the league player and not
+the GAME, so last week's roster still said the old spelling — and when that game was next open on a
+console (a reopen, or a reload on a device still on it) the recorder, matching by name, found no result
+under it and recorded the night again as a new player. `renameLeaguePlayer` now writes
+`aliases: arrayUnion(oldName)` (a new field on `leaguePlayers`, which the rules already allow), and every
+"is this the same person" check reads it through `nameKeysOf` / `answersTo` in `lib/leagueRecorder.ts`:
+`findPlayerByName` (a current name beats an alias), `playerIdsForName` and so `alreadyRecorded` and the
+withdrawal, `recordedForGame` and `recordedStatsForGame`; `standingsFromDocs` carries each row's aliases;
+and `renamesDue` takes `samePerson` so an Edit-results former name that is now the same player's alias is
+not withdrawn. **A name another league player already has is no longer refused** — `renameMerges` makes
+the card's Save a confirmed **Merge** ("only do this if they are the same person"), which first deletes
+the source's results for games the target already has (`duplicateResultsOnMerge`), so a night both
+spellings carry counts once. `leagueSeasons.scenario.test.tsx` plays the rename-then-reopen and the
+merge; nine mutants are caught.
+
 ### A league result is written once, from a whitelist, and read through another
 
 `tournamentResults` has exactly one writer — `addResultMutation` in `useLeague.ts` — and the read
@@ -4810,11 +4826,9 @@ season, so the screen and the database cannot disagree.
   cannot catch this — the emulator has anonymous auth on by default. Any new environment this app is
   deployed to needs that provider enabled, or nobody can check in.
 
-- **A misspelt league name with a recorded result has no in-app fix.** It stays as its own row in
-  the standings. The roster admin that could rename it was built and removed on request — see
-  "Recent Players is the one list of names". The data can be corrected by hand in the Firebase
-  console: rename the `leaguePlayers` document, and never delete it, for the roster-outer reason
-  recorded in that section.
+- **A misspelt league name is fixed from the player's season card** — rename it, or rename it onto
+  the real player's name to MERGE the two rows (see "One player's season"). Never delete a
+  `leaguePlayers` document, for the roster-outer reason recorded under Recent Players.
 
 ---
 

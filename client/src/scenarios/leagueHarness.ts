@@ -17,13 +17,15 @@
  * mirrored below line for line because they live inside a page effect and a
  * Firebase hook. If either of those changes shape, change this with it.
  */
-import { removalsDue, renamesDue, renameKey, recordsDue, recordedForGame, recordedStatsForGame, statsOfPlayer, type RecordedStats, findPlayerByName, alreadyRecorded, resultsToWithdraw, seasonForRecording, misfiledDue } from '@/lib/leagueRecorder';
+import { removalsDue, renamesDue, renameKey, recordsDue, recordedForGame, recordedStatsForGame, statsOfPlayer, type RecordedStats, findPlayerByName, alreadyRecorded, resultsToWithdraw, seasonForRecording, misfiledDue, samePerson } from '@/lib/leagueRecorder';
 import { standingsFromDocs } from '@/lib/leagueStandings';
 import { seasonRoster } from '@/lib/playerSeason';
 import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
 import { recordedStatsFor, buyInOf, investedIn } from '@/lib/resultStats';
 import { prizePoolFor } from '@/lib/prizePool';
 import { pointsFor } from '@/lib/points';
+import { duplicateResultsOnMerge } from '@/lib/leaguePlayerRename';
+import { nameKey } from '@/lib/leagueRecorder';
 import type { PointsFormula } from '@/types/leagueSettings';
 
 export interface StoredResult {
@@ -47,7 +49,7 @@ export interface StoredResult {
 }
 
 export function createLeague(formula: PointsFormula = { type: 'linear', baseMultiplier: 10, winnerMultiplier: 1 }) {
-  const playerDocs: { id: string; name: string }[] = [];
+  const playerDocs: { id: string; name: string; aliases?: string[] }[] = [];
   const results: StoredResult[] = [];
   let seq = 0;
   /** This tab's memory (PokerTimer's processedEliminationsRef). A new tab, or a reload, starts empty. */
@@ -100,7 +102,7 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
     const active = players.filter(p => p.isActive !== false);
     const isFinished = active.length <= 1 && players.length > 1;
     const cloud = recordedForGame(standings(), gameId);
-    for (const { player, formerName } of renamesDue(players, cloud, withdrawnRenames)) {
+    for (const { player, formerName } of renamesDue(players, cloud, withdrawnRenames, (a, b) => samePerson(standings(), a, b))) {
       removeResultForPlayer(formerName, gameId);
       withdrawnRenames.add(renameKey(player.id, formerName));
       memory.set(player.id, 0); statsMemory.delete(player.id);
@@ -123,6 +125,19 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
     }
   }
 
+  /** useLeague.renameLeaguePlayer, mirrored: the season card's rename, and its merge. */
+  function renamePlayer(current: string, next: string) {
+    const ids = playerDocs.filter(p => nameKey(p.name) === nameKey(current)).map(p => p.id);
+    const targetIds = playerDocs.filter(p => nameKey(p.name) === nameKey(next) && !ids.includes(p.id)).map(p => p.id);
+    if (targetIds.length) {
+      for (const r of duplicateResultsOnMerge(results, ids, targetIds)) results.splice(results.indexOf(r), 1);
+    }
+    for (const d of playerDocs) if (ids.includes(d.id)) {
+      if (nameKey(d.name) !== nameKey(next)) d.aliases = Array.from(new Set([...(d.aliases ?? []), d.name]));
+      d.name = next.trim();
+    }
+  }
+
   /** A reload or a second tab: the page's in-memory claims are gone. */
   function forgetTab() { memory = new Map(); statsMemory = new Map(); withdrawnRenames = new Set(); }
 
@@ -138,5 +153,5 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
       .sort(compareStandings);
   }
 
-  return { playerDocs, results, standings, sync, forgetTab, table, removeResultForPlayer, recordResultByName };
+  return { playerDocs, results, standings, sync, forgetTab, table, removeResultForPlayer, recordResultByName, renamePlayer };
 }

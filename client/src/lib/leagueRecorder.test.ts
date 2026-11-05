@@ -208,3 +208,34 @@ describe('pendingLeagueResults — what the league does not hold yet', () => {
     expect(pendingLeagueResults({ players, memory: new Map([['2', 3]]), cloud: new Map([['cat', 2]]), gameIsFinished: false, results: [], gameId: 'G' })).toBe(0);
   });
 });
+
+import { nameKeysOf, answersTo, samePerson } from './leagueRecorder';
+
+describe('a renamed player still answers to the old spelling (aliases)', () => {
+  // Reported: renaming a misspelt player from their season card left last week's
+  // game saying the old spelling, and reopening it recorded the night again as a
+  // brand-new player — a row for each spelling.
+  const smith = { id: 'p1', name: 'Dave Smith', aliases: ['Dave Smyth'], tournamentResults: [{ tournamentId: 'G', position: 3 }] };
+
+  it('nameKeysOf is the name and every alias', () => {
+    expect(nameKeysOf(smith)).toEqual(['dave smith', 'dave smyth']);
+    expect(answersTo(smith, ' DAVE SMYTH ')).toBe(true);
+  });
+  it("recordedForGame files the result under the old spelling too", () => {
+    expect(recordedForGame([smith], 'G').get('dave smyth')).toBe(3);
+  });
+  it('findPlayerByName and playerIdsForName find the player by an old spelling', () => {
+    expect(findPlayerByName([smith], 'Dave Smyth')?.id).toBe('p1');
+    expect(alreadyRecorded([smith], [{ leaguePlayerId: 'p1', tournamentId: 'G' }], 'Dave Smyth', 'G')).toBe(true);
+  });
+  it('a CURRENT name beats an alias when both exist', () => {
+    const other = { id: 'p2', name: 'Dave Smyth' };
+    expect(findPlayerByName([smith, other], 'Dave Smyth')?.id).toBe('p2');
+  });
+  it('samePerson, and renamesDue leaves a former name alone when it is the same player', () => {
+    expect(samePerson([smith], 'Dave Smyth', 'Dave Smith')).toBe(true);
+    const roster = [{ id: 'x', name: 'Dave Smith', isActive: false, position: 3, formerNames: ['Dave Smyth'] }];
+    const cloud = recordedForGame([smith], 'G');
+    expect(renamesDue(roster, cloud, new Set(), (a, b) => samePerson([smith], a, b))).toEqual([]);
+  });
+});

@@ -32,6 +32,8 @@ export interface RecorderPlayer {
 
 interface LeaguePlayerResults {
   name: string;
+  /** Former spellings, recorded by a rename — see `nameKeysOf`. */
+  aliases?: readonly (string | null | undefined)[] | null;
   tournamentResults?: Array<{
     tournamentId?: string | number | null;
     position?: number | null;
@@ -70,7 +72,7 @@ export function recordedStatsForGame(
   const num = (v: unknown) => (typeof v === 'number' ? v : undefined);
   for (const lp of leaguePlayers ?? []) {
     const hit = (lp.tournamentResults ?? []).find(r => String(r.tournamentId) === gameId);
-    if (hit) out.set(nameKey(lp.name), {
+    if (hit) for (const key of nameKeysOf(lp)) out.set(key, {
       knockouts: num(hit.playersEliminatedCount),
       rebuys: num(hit.rebuys),
       reEntries: num(hit.reEntries),
@@ -93,10 +95,41 @@ export function statsDiffer(recorded: RecordedStats | undefined, player: Recorde
  */
 export const nameKey = (name: string | null | undefined) => (name || '').toLowerCase().trim();
 
+/**
+ * Every name a league player answers to: their name, and each spelling they
+ * were RENAMED from (`aliases`, written by `renameLeaguePlayer`).
+ *
+ * Reported after a misspelt player was renamed from their season card: the
+ * league table then showed a row for each spelling. The rename changed the
+ * league player and not the game, so last week's roster still said the old
+ * spelling — and when that game was next open on a console the recorder,
+ * which matches by NAME, found no result under it and recorded the night
+ * again as a brand-new player. An alias makes the old spelling mean the same
+ * person everywhere a name is matched.
+ */
+export function nameKeysOf(p: { name?: string | null; aliases?: readonly (string | null | undefined)[] | null }): string[] {
+  const keys = [nameKey(p.name), ...(p.aliases ?? []).map(a => nameKey(a))].filter(Boolean);
+  return Array.from(new Set(keys));
+}
+
+/** Does this player answer to this name — as their name or a former spelling? */
+export const answersTo = (p: { name?: string | null; aliases?: readonly (string | null | undefined)[] | null }, name: string | null | undefined) =>
+  nameKeysOf(p).includes(nameKey(name));
+
+/** Do two names belong to one league player (one row of the standings)? */
+export function samePerson(
+  leaguePlayers: readonly { name?: string | null; aliases?: readonly (string | null | undefined)[] | null }[] | null | undefined,
+  a: string,
+  b: string,
+): boolean {
+  return (leaguePlayers ?? []).some(p => answersTo(p, a) && answersTo(p, b));
+}
+
 /** The league player a name belongs to, the way the standings merge them. */
-export function findPlayerByName<P extends { name?: string | null }>(players: readonly P[], name: string): P | undefined {
+export function findPlayerByName<P extends { name?: string | null; aliases?: readonly (string | null | undefined)[] | null }>(players: readonly P[], name: string): P | undefined {
   const key = nameKey(name);
-  return players.find(p => nameKey(p.name) === key);
+  // The name first: a former spelling only decides when nobody is called it now.
+  return players.find(p => nameKey(p.name) === key) ?? players.find(p => answersTo(p as any, name));
 }
 
 /**
@@ -110,7 +143,7 @@ export function findPlayerByName<P extends { name?: string | null }>(players: re
  * merge itself made.
  */
 export function alreadyRecorded(
-  playerDocs: readonly { id: string | number; name?: string | null }[],
+  playerDocs: readonly { id: string | number; name?: string | null; aliases?: readonly (string | null | undefined)[] | null }[],
   results: readonly { leaguePlayerId?: string | number | null; tournamentId?: string | number | null }[],
   name: string,
   tournamentId: string | number,
@@ -131,16 +164,16 @@ export function alreadyRecorded(
  * place stayed and counted twice. Found by the season scenario tests.
  */
 export function playerIdsForName(
-  playerDocs: readonly { id: string | number; name?: string | null }[],
+  playerDocs: readonly { id: string | number; name?: string | null; aliases?: readonly (string | null | undefined)[] | null }[],
   name: string,
 ): string[] {
   const key = nameKey(name);
-  return playerDocs.filter(p => nameKey(p.name) === key).map(p => String(p.id));
+  return playerDocs.filter(p => nameKey(p.name) === key || answersTo(p, name)).map(p => String(p.id));
 }
 
 /** The results to delete when this person's result for this game is withdrawn. */
 export function resultsToWithdraw<R extends { leaguePlayerId?: string | number | null; tournamentId?: string | number | null }>(
-  playerDocs: readonly { id: string | number; name?: string | null }[],
+  playerDocs: readonly { id: string | number; name?: string | null; aliases?: readonly (string | null | undefined)[] | null }[],
   results: readonly R[],
   name: string,
   tournamentId: string | number,
@@ -158,7 +191,11 @@ export function recordedForGame(
   if (!gameId) return out;
   for (const lp of leaguePlayers ?? []) {
     const hit = (lp.tournamentResults ?? []).find(r => String(r.tournamentId) === gameId);
-    if (hit && typeof hit.position === 'number' && hit.position > 0) out.set(nameKey(lp.name), hit.position);
+    // Under every name the player answers to, so a roster still carrying a
+    // spelling they were renamed from finds the result (see nameKeysOf).
+    if (hit && typeof hit.position === 'number' && hit.position > 0) {
+      for (const key of nameKeysOf(lp)) out.set(key, hit.position);
+    }
   }
   return out;
 }
@@ -241,6 +278,8 @@ export function renamesDue<P extends RecorderPlayer & { formerNames?: readonly s
   players: readonly P[],
   cloud: ReadonlyMap<string, number>,
   done: ReadonlySet<string> = new Set(),
+  /** True when two names are one league player — then the "former" result IS theirs. */
+  isSamePerson: (a: string, b: string) => boolean = () => false,
 ): { player: P; formerName: string }[] {
   const current = new Set(players.map(p => nameKey(p.name)));
   const out: { player: P; formerName: string }[] = [];
@@ -250,6 +289,7 @@ export function renamesDue<P extends RecorderPlayer & { formerNames?: readonly s
       if (!key || current.has(key)) continue;
       if (!cloud.has(key)) continue;
       if (done.has(renameKey(p.id, former))) continue;
+      if (isSamePerson(former, p.name)) continue;
       out.push({ player: p, formerName: former });
     }
   }
