@@ -704,6 +704,8 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     refileResult,
     /** This league's results as stored, each with `pendingWrite` — for the recorder's repairs. */
     leagueResults: cloudResults,
+    /** The raw player documents, duplicates and aliases included — for the League check. */
+    leaguePlayerDocs: cloudPlayers,
     removeTournamentResultForPlayer,
     calculatePoints: calculatePointsFromSettings,
     isLoading,

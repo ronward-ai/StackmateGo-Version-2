@@ -267,3 +267,44 @@ describe('seasonSplitOfGame — one game, more than one season', () => {
     expect(resultsToMoveInto(rs, 'G', 'autumn').map(r => r.id)).toEqual(['3', '4']);
   });
 });
+
+import { leagueCheck } from './leagueRecorder';
+
+describe('leagueCheck — what the league holds for the game on screen', () => {
+  const docs = [
+    { id: 'a', name: 'Amy' },
+    { id: 's', name: 'Dave Smith', aliases: ['Dave Smyth'] },
+    { id: 'b', name: 'Bob' },
+    { id: 'x', name: 'Stranger' },
+  ];
+  const results = [
+    { id: 'r1', leaguePlayerId: 'a', tournamentId: 'G', seasonId: 'S1', position: 1, t: 5 },
+    { id: 'r2', leaguePlayerId: 's', tournamentId: 'G', seasonId: null, position: 2, pendingWrite: true, t: 5 },
+    { id: 'r3', leaguePlayerId: 'b', tournamentId: 'OLD', seasonId: 'S1', position: 4, t: 1 },
+    { id: 'r4', leaguePlayerId: 'b', tournamentId: 'G2', seasonId: 'S1', position: 3, t: 6 },
+    { id: 'r5', leaguePlayerId: 'x', tournamentId: 'G', seasonId: 'S1', position: 3, t: 5 },
+  ];
+  const players = [
+    { name: 'Bob', position: 3 }, { name: 'Amy', position: 1 }, { name: 'Dave Smyth', position: 2 }, { name: 'Cat', position: 0 },
+  ];
+  const c = leagueCheck({ players, playerDocs: docs, results, gameId: 'G', timeOf: r => r.t });
+
+  it('one row per placed player, in finishing order', () => {
+    expect(c.rows.map(r => r.name)).toEqual(['Amy', 'Dave Smyth', 'Bob']);
+  });
+  it('finds this game\'s result under the name or an alias, with its season and pending state', () => {
+    expect(c.rows[0].thisGame.map(r => r.seasonId)).toEqual(['S1']);
+    expect(c.rows[1].thisGame[0]).toMatchObject({ id: 'r2', seasonId: null, pendingWrite: true, playerName: 'Dave Smith' });
+  });
+  it('a player with no result for this game shows none, and their latest other games', () => {
+    expect(c.rows[2].thisGame).toEqual([]);
+    expect(c.rows[2].recentOther.map(r => r.tournamentId)).toEqual(['G2', 'OLD']);
+  });
+  it('results for this game under nobody on the roster are strays', () => {
+    expect(c.strays.map(r => r.playerName)).toEqual(['Stranger']);
+  });
+  it('counts this game\'s results by season, "no season" included', () => {
+    expect(c.total).toBe(3);
+    expect(c.bySeason).toEqual(expect.arrayContaining([{ seasonId: 'S1', count: 2 }, { seasonId: null, count: 1 }]));
+  });
+});

@@ -417,3 +417,81 @@ export function resultsToMoveInto<R extends { id?: string | number; tournamentId
   if (!gameId) return [];
   return (results ?? []).filter(r => r.id != null && String(r.tournamentId) === String(gameId) && String(r.seasonId) !== String(seasonId));
 }
+
+export interface LeagueCheckResult {
+  id: string;
+  leaguePlayerId: string;
+  playerName: string;
+  tournamentId: string | null;
+  seasonId: string | null;
+  position: number | null;
+  pendingWrite: boolean;
+  time: number | null;
+}
+
+export interface LeagueCheckRow {
+  name: string;
+  position: number;
+  /** League documents this name (or alias) resolves to. */
+  playerIds: string[];
+  /** Results for THIS game under those documents. */
+  thisGame: LeagueCheckResult[];
+  /** Their three most recent results for OTHER games — catches a different game id. */
+  recentOther: LeagueCheckResult[];
+}
+
+/**
+ * What the league holds for the game on screen, player by player — the read-only
+ * "League check" on the console. Built after two guesses about a night whose
+ * results were missing from the table turned out wrong: it shows the data
+ * rather than inferring it. Nothing here writes.
+ */
+export function leagueCheck(input: {
+  players: readonly { name: string; position?: number | null }[];
+  playerDocs: readonly { id: string | number; name?: string | null; aliases?: readonly (string | null | undefined)[] | null }[];
+  results: readonly any[];
+  gameId: string | null | undefined;
+  timeOf?: (r: any) => number | null;
+}): { rows: LeagueCheckRow[]; bySeason: { seasonId: string | null; count: number }[]; strays: LeagueCheckResult[]; total: number } {
+  const { players, playerDocs, results, gameId } = input;
+  const timeOf = input.timeOf ?? (() => null);
+  const nameOfDoc = new Map(playerDocs.map(d => [String(d.id), d.name ?? '']));
+  const view = (r: any): LeagueCheckResult => ({
+    id: String(r.id),
+    leaguePlayerId: String(r.leaguePlayerId),
+    playerName: nameOfDoc.get(String(r.leaguePlayerId)) ?? '(unknown player)',
+    tournamentId: r.tournamentId != null && r.tournamentId !== '' ? String(r.tournamentId) : null,
+    seasonId: r.seasonId != null && r.seasonId !== '' ? String(r.seasonId) : null,
+    position: typeof r.position === 'number' ? r.position : null,
+    pendingWrite: !!r.pendingWrite,
+    time: timeOf(r),
+  });
+  const forGame = gameId ? results.filter(r => String(r.tournamentId) === String(gameId)) : [];
+  const claimed = new Set<string>();
+  const rows: LeagueCheckRow[] = players
+    .filter(p => typeof p.position === 'number' && p.position > 0)
+    .sort((a, b) => (a.position as number) - (b.position as number))
+    .map(p => {
+      const ids = playerIdsForName(playerDocs, p.name);
+      const idSet = new Set(ids);
+      const thisGame = forGame.filter(r => idSet.has(String(r.leaguePlayerId))).map(view);
+      thisGame.forEach(r => claimed.add(r.id));
+      const recentOther = results
+        .filter(r => idSet.has(String(r.leaguePlayerId)) && !(gameId && String(r.tournamentId) === String(gameId)))
+        .map(view)
+        .sort((a, b) => (b.time ?? 0) - (a.time ?? 0))
+        .slice(0, 3);
+      return { name: p.name, position: p.position as number, playerIds: ids, thisGame, recentOther };
+    });
+  const counts = new Map<string | null, number>();
+  for (const r of forGame) {
+    const s = r.seasonId != null && r.seasonId !== '' ? String(r.seasonId) : null;
+    counts.set(s, (counts.get(s) ?? 0) + 1);
+  }
+  return {
+    rows,
+    bySeason: Array.from(counts, ([seasonId, count]) => ({ seasonId, count })),
+    strays: forGame.filter(r => !claimed.has(String(r.id))).map(view),
+    total: forGame.length,
+  };
+}

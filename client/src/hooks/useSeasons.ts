@@ -382,6 +382,7 @@ export function useSeasons(options: UseSeasonsOptions = {}) {
     seasons,
     currentSeason,
     currentSeasonConfirmed,
+    activeSeasonId,
     isLoading,
     formatSeasonDateRange,
     addSeason,

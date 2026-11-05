@@ -27,6 +27,7 @@ import NextGameControl from '@/components/NextGameControl';
 import TournamentTemplatesDialog from '@/components/TournamentTemplatesDialog';
 import TournamentHistoryDialog from '@/components/TournamentHistoryDialog';
 import NightSummaryDialog from '@/components/NightSummary';
+import LeagueCheckDialog from '@/components/LeagueCheckDialog';
 import SeasonGameBar from '@/components/SeasonGameBar';
 import { barSeasonFor } from '@/lib/seasonGames';
 import ResultsEditor from '@/components/ResultsEditor';
@@ -277,8 +278,8 @@ function PokerTimerInner({
   const readOnlyConsole = !mayDrive(control);
 
 
-  const { recordResultByName, removeTournamentResultForPlayer, refileResult, leagueResults, league, switchLeague, userLeagues, leaguePlayers, isLoading: leagueLoading } = useLeague();
-  const { currentSeason, seasons, currentSeasonConfirmed } = useSeasons({ leagueId: league?.id });
+  const { recordResultByName, removeTournamentResultForPlayer, refileResult, leagueResults, leaguePlayerDocs, league, switchLeague, userLeagues, leaguePlayers, isLoading: leagueLoading } = useLeague();
+  const { currentSeason, seasons, currentSeasonConfirmed, activeSeasonId } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);
   useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
   // The season the UI displays — settings.seasonId when set, else currentSeason.
@@ -396,6 +397,9 @@ function PokerTimerInner({
   // returning player, so a result already written can become stale and must
   // be rewritten — see lib/eliminationOrder.ts.
   const processedEliminationsRef = useRef(new Map<string, number>());
+  // Why the league recorder last stopped, for the League check (read-only).
+  const recorderStatusRef = useRef<string>('not run yet');
+  const [leagueCheckOpen, setLeagueCheckOpen] = useState(false);
   // The counts this tab recorded beside each position, so an edited night is
   // corrected once and a lagging snapshot cannot trigger it again.
   const recordedStatsRef = useRef(new Map<string, RecordedStats>());
@@ -1182,6 +1186,7 @@ function PokerTimerInner({
         const isSeasonTournament = isLeagueGame(tournament?.state);
 
         if (!isSeasonTournament) {
+          recorderStatusRef.current = 'not a league game';
           return;
         }
 
@@ -1194,12 +1199,14 @@ function PokerTimerInner({
         // night was recorded into their own league, silently"), which is why the
         // gate is here and not only on the live document.
         if (readOnlyConsole) {
+          recorderStatusRef.current = 'read-only console';
           return;
         }
 
         // What is already recorded is read from the league's results, so it
         // must not decide anything before they have arrived.
         if (leagueLoading) {
+          recorderStatusRef.current = 'waiting for the league to load';
           return;
         }
 
@@ -1216,6 +1223,7 @@ function PokerTimerInner({
         const gameLeagueExists = !!gameLeagueId
           && (userLeagues ?? []).some((l: any) => String(l.id) === String(gameLeagueId));
         if (gameLeagueExists && league?.id && String(league.id) !== String(gameLeagueId)) {
+          recorderStatusRef.current = `a different league is selected (${league.id}, game is in ${gameLeagueId})`;
           return;
         }
 
@@ -1303,7 +1311,11 @@ function PokerTimerInner({
         // written with no season: in the league, counted by no standings table.
         const gameSeasonId = tournament?.state?.settings?.seasonId;
         const recordingSeason = seasonForRecording(gameSeasonId, displaySeasonRef.current?.id);
-        if (!recordingSeason) return;
+        if (!recordingSeason) {
+          recorderStatusRef.current = 'waiting for a season';
+          return;
+        }
+        recorderStatusRef.current = `ran at ${new Date().toLocaleTimeString()}`;
 
         // 2b. A result for this game filed under NO season (written before the
         //     wait above existed) is moved into the game's season. Nothing else
@@ -1685,6 +1697,35 @@ function PokerTimerInner({
               onViewSeason={setViewedSeasonId}
               nextGame={<NextGameControl tournament={tournament} league={league} userLeagues={userLeagues} switchLeague={switchLeague} leaguePlayers={leaguePlayers} currentSeason={currentSeason} seasons={seasons} otherLiveGame={accountLiveGame} />}
             />
+            {/* Read-only: what the league holds for this game (LeagueCheckDialog). */}
+            {!readOnlyConsole && (
+              <div className="mt-1 text-right">
+                <button type="button" className="text-caption text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  onClick={() => setLeagueCheckOpen(true)}>
+                  Check league results
+                </button>
+              </div>
+            )}
+            {leagueCheckOpen && (
+              <LeagueCheckDialog
+                open
+                onClose={() => setLeagueCheckOpen(false)}
+                players={tournament.state.players || []}
+                playerDocs={leaguePlayerDocs || []}
+                results={leagueResults || []}
+                gameId={gameIdOf(tournament.state.details) ?? null}
+                seasonName={(id) => id ? `${seasonNameOf(id)} (${id})` : 'no season'}
+                facts={[
+                  { label: 'Build', value: String(__BUILD_ID__) },
+                  { label: 'Game', value: String(gameIdOf(tournament.state.details) ?? '—') },
+                  { label: "Game's season", value: String(tournament.state.settings?.seasonId ?? '—') },
+                  { label: "League's current season", value: `${activeSeasonId ?? '—'}${currentSeasonConfirmed ? ' (confirmed)' : ' (not confirmed)'}` },
+                  { label: 'Season shown', value: String(currentSeason?.id ?? '—') },
+                  { label: 'League selected / game', value: `${league?.id ?? '—'} / ${tournament.state.settings?.leagueId ?? '—'}` },
+                  { label: 'Recorder', value: recorderStatusRef.current },
+                ]}
+              />
+            )}
           </div>
         )}
 
