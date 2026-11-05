@@ -399,3 +399,61 @@ describe('a misspelt regular corrected in the results editor', () => {
     n3.done();
   });
 });
+
+describe('a night on a network that blocked the league (game 5, reported)', () => {
+  // Some players had the night counted next day and some did not. Two causes,
+  // each depending on WHEN a player busted: a result written with no season
+  // (the seasons had not loaded), and a result never written at all (the write
+  // never settled). Reopening the game on a good connection must heal both.
+  it('reopening the game re-files a seasonless result and records a missing one — every player counted once', () => {
+    const league = createLeague();
+    const n1 = night(league, 'g1', 'spring', ['Amy', 'Bob', 'Cat', 'Dan']);
+    n1.bust('Dan', 'Amy'); n1.bust('Cat', 'Amy'); n1.bust('Bob', 'Amy');
+    n1.done();
+
+    const n2 = night(league, 'g2', 'spring', ['Amy', 'Bob', 'Cat', 'Dan']);
+    n2.bust('Dan', 'Amy'); n2.bust('Cat', 'Amy'); n2.bust('Bob', 'Amy');
+    const finished = n2.s();
+    n2.done();
+
+    // What the blocked night left behind: Dan's result in no season, Cat's never written.
+    const id = (name: string) => league.playerDocs.find(p => p.name === name)!.id;
+    league.results.find(r => r.tournamentId === 'g2' && r.leaguePlayerId === id('Dan'))!.seasonId = null;
+    const cat = league.results.findIndex(r => r.tournamentId === 'g2' && r.leaguePlayerId === id('Cat'));
+    league.results.splice(cat, 1);
+    expect(league.table('spring').map(r => [r.name, r.games])).toEqual(
+      expect.arrayContaining([['Amy', 2], ['Bob', 2], ['Cat', 1], ['Dan', 1]]));
+
+    // Reopened next day: a fresh console, nothing in memory, the game names its season.
+    league.forgetTab();
+    league.sync(finished, 'g2', 'spring');
+    league.sync(finished, 'g2', 'spring'); // the page runs again — nothing more may move
+
+    expectCleanGame(league, 'g2', 4);
+    expect(league.table('spring').every(r => r.games === 2)).toBe(true);
+    expect(countGamesPlayed('spring', league.standings())).toBe(2);
+  });
+
+  it('with no season known yet it writes nothing, then records everyone once the season arrives', () => {
+    const league = createLeague();
+    const n = night(league, 'g1', 'default-season', ['Amy', 'Bob', 'Cat']);
+    n.bust('Cat', 'Amy'); n.bust('Bob', 'Amy');
+    expect(league.results).toHaveLength(0);
+
+    league.sync(n.s(), 'g1', null, 'spring'); // the season on screen has loaded
+    n.done();
+    expectCleanGame(league, 'g1', 3);
+    expect(league.results.every(r => r.seasonId === 'spring')).toBe(true);
+  });
+
+  it('never moves a result that already has a REAL season — an old night keeps its own', () => {
+    const league = createLeague();
+    const n = night(league, 'g1', 'spring', ['Amy', 'Bob']);
+    n.bust('Bob', 'Amy');
+    const finished = n.s();
+    n.done();
+    league.forgetTab();
+    league.sync(finished, 'g1', 'summer');
+    expect(league.results.every(r => r.seasonId === 'spring')).toBe(true);
+  });
+});

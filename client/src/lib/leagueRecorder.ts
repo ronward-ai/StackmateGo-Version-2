@@ -21,6 +21,8 @@
  * either.
  */
 
+import { isRealSeasonId } from './seasonProgress';
+
 export interface RecorderPlayer {
   id: string;
   name: string;
@@ -255,3 +257,82 @@ export function renamesDue<P extends RecorderPlayer & { formerNames?: readonly s
 }
 
 export const renameKey = (playerId: string, formerName: string) => `${playerId}:${nameKey(formerName)}`;
+
+/**
+ * Which season tonight's results are filed under — or null for "not known yet,
+ * so write nothing".
+ *
+ * Reported from game 5 of a league, played on a venue network that blocked
+ * Google's sign-in servers: next day some players had the game counted and some
+ * did not. The recorder waited for the league's players and results, but NOT
+ * for its seasons or the league document, and the season came from the loaded
+ * seasons list, then `currentSeason`, then `activeSeasonId` — each of which is
+ * absent while those reads have not landed. So a result could be written with
+ * `seasonId: null`, and the standings (`seasonRoster`, `countGamesPlayed`) do
+ * not count a result that belongs to no season.
+ *
+ * The GAME's own stored season wins: the console writes it onto every league
+ * game and it travels in the game document, so it is known as soon as the game
+ * is. The season on screen is the fallback, for a game that has not had one
+ * written yet. Neither real means wait — results are recorded on a later pass,
+ * never filed into nothing.
+ */
+export function seasonForRecording(
+  gameSeasonId: unknown,
+  displaySeasonId: unknown,
+): string | null {
+  if (isRealSeasonId(gameSeasonId)) return String(gameSeasonId);
+  if (isRealSeasonId(displaySeasonId)) return String(displaySeasonId);
+  return null;
+}
+
+/**
+ * This game's results that were filed under NO season, to be moved into the
+ * game's own season.
+ *
+ * The other half of the game-5 repair. `recordedForGame` ignores the season,
+ * so a result written with `seasonId: null` reads as recorded and the recorder
+ * never looked at it again — reopening the game could not bring it back.
+ *
+ * Only a MISSING season is corrected, never a different real one: a game whose
+ * stored season was itself only a guess must not drag an older night's results
+ * into the season on screen. And only when the game names its season itself
+ * (`gameSeasonId`), for the same reason. Only `seasonId` is rewritten, so
+ * nothing is rescored.
+ */
+export function misfiledDue<R extends { id?: string | number; tournamentId?: string | number | null; seasonId?: string | number | null }>(
+  results: readonly R[] | null | undefined,
+  gameId: string | null | undefined,
+  gameSeasonId: unknown,
+): R[] {
+  if (!gameId || !isRealSeasonId(gameSeasonId)) return [];
+  return (results ?? []).filter(r =>
+    r.id != null
+    && String(r.tournamentId) === String(gameId)
+    && !isRealSeasonId(r.seasonId));
+}
+
+/**
+ * How many of tonight's results the league does not hold yet: finished players
+ * the recorder has not recorded, plus results this device has written that the
+ * server has not acknowledged (Firestore shows them locally at once, which is
+ * why the screen can look right while nothing has been saved).
+ *
+ * Nothing said so before. The recorder stands down silently while the league is
+ * loading, the season is unknown or a write is stuck, and on the game-5 night
+ * the director had no way to tell the standings were not being saved.
+ */
+export function pendingLeagueResults<P extends RecorderPlayer>(input: {
+  players: readonly P[];
+  memory: ReadonlyMap<string, number>;
+  cloud: ReadonlyMap<string, number>;
+  gameIsFinished: boolean;
+  results?: readonly { tournamentId?: string | number | null; pendingWrite?: boolean }[] | null;
+  gameId?: string | null;
+}): number {
+  const notRecorded = recordsDue(input.players, input.memory, input.cloud, input.gameIsFinished).length;
+  const unsent = input.gameId
+    ? (input.results ?? []).filter(r => r.pendingWrite && String(r.tournamentId) === String(input.gameId)).length
+    : 0;
+  return notRecorded + unsent;
+}

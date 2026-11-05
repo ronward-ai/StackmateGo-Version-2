@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { withDeadline } from './deadline';
+import { withDeadline, isDeadlineExceeded } from './deadline';
 
 describe('withDeadline (Oct Low)', () => {
   it('rejects a write that never settles', async () => {
@@ -17,5 +17,17 @@ describe('withDeadline (Oct Low)', () => {
 
   it('passes a rejection straight through', async () => {
     await expect(withDeadline(Promise.reject(new Error('denied')), 8000)).rejects.toThrow('denied');
+  });
+});
+
+describe('isDeadlineExceeded — "not landed yet" is not "failed"', () => {
+  it('names a missed deadline, and only that', async () => {
+    vi.useFakeTimers();
+    const p = withDeadline(new Promise(() => {}), 8000).catch(e => e);
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(isDeadlineExceeded(await p)).toBe(true);
+    vi.useRealTimers();
+    const denied = await withDeadline(Promise.reject(new Error('denied')), 8000).catch(e => e);
+    expect(isDeadlineExceeded(denied)).toBe(false);
   });
 });

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { prizePoolFor } from '@/lib/prizePool';
 import { isLeagueGame } from '@/lib/tournamentMode';
-import { recordedForGame, removalsDue, renamesDue, renameKey, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats } from '@/lib/leagueRecorder';
+import { recordedForGame, removalsDue, renamesDue, renameKey, recordsDue, recordedStatsForGame, statsOfPlayer, type RecordedStats, seasonForRecording, misfiledDue, pendingLeagueResults } from '@/lib/leagueRecorder';
+import { withDeadline, isDeadlineExceeded } from '@/lib/deadline';
 import { useAccountChangeIsALogout } from '@/hooks/useAccountChangeIsALogout';
 import { playerIdsOf } from '@/lib/seatClaims';
 import { gameIdOf } from '@/lib/localGameId';
@@ -11,7 +12,7 @@ import { useTournament } from '@/hooks/useTournament';
 import { useLeague } from '@/hooks/useLeague';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useCompletedTournaments } from '@/hooks/useCompletedTournaments';
-import { gameNumberFor, isRealSeasonId } from '@/lib/seasonProgress';
+import { gameNumberFor } from '@/lib/seasonProgress';
 import { eventNameOf } from '@/lib/eventName';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
@@ -276,7 +277,7 @@ function PokerTimerInner({
   const readOnlyConsole = !mayDrive(control);
 
 
-  const { recordResultByName, removeTournamentResultForPlayer, league, switchLeague, userLeagues, leaguePlayers, isLoading: leagueLoading } = useLeague();
+  const { recordResultByName, removeTournamentResultForPlayer, refileResult, leagueResults, league, switchLeague, userLeagues, leaguePlayers, isLoading: leagueLoading } = useLeague();
   const { currentSeason, seasons } = useSeasons({ leagueId: league?.id });
   const currentSeasonRef = useRef(currentSeason);
   useEffect(() => { currentSeasonRef.current = currentSeason; }, [currentSeason]);
@@ -1234,7 +1235,7 @@ function PokerTimerInner({
         for (const { player, formerName } of renamesDue(players, cloud, withdrawnRenamesRef.current)) {
           if (!gameId) break;
           try {
-            await removeTournamentResultForPlayer(formerName, gameId);
+            await withDeadline(removeTournamentResultForPlayer(formerName, gameId), undefined, 'league removal');
             withdrawnRenamesRef.current.add(renameKey(player.id, formerName));
             memory.set(player.id, 0);
             statsMemory.delete(player.id);
@@ -1254,10 +1255,11 @@ function PokerTimerInner({
         for (const player of back) {
           if (!gameId) break;
           try {
-            await removeTournamentResultForPlayer(player.name, gameId);
+            await withDeadline(removeTournamentResultForPlayer(player.name, gameId), undefined, 'league removal');
             memory.set(player.id, 0);
           } catch (rebuyError) {
             reportWriteFailure(`${player.name}'s rebuy`, rebuyError);
+            if (isDeadlineExceeded(rebuyError)) continue;
             toast({
               title: 'League result not cleared',
               description: `${player.name} bought back in, but their old result could not be removed from the league. It will be retried automatically.`,
@@ -1277,11 +1279,32 @@ function PokerTimerInner({
         for (const player of [...moved, ...changed]) {
           if (!gameId) break;
           try {
-            await removeTournamentResultForPlayer(player.name, gameId);
+            await withDeadline(removeTournamentResultForPlayer(player.name, gameId), undefined, 'league removal');
             memory.set(player.id, 0);
             statsMemory.delete(player.id);
           } catch (shiftError) {
             reportWriteFailure(`${player.name}'s corrected place`, shiftError);
+          }
+        }
+
+        // Which season tonight's results belong to — the GAME's own, else the
+        // one on screen — and if neither is known yet, WAIT (lib/leagueRecorder.ts,
+        // seasonForRecording). Game 5 of a league was played on a network where
+        // the seasons and the league document had not loaded, and results were
+        // written with no season: in the league, counted by no standings table.
+        const gameSeasonId = tournament?.state?.settings?.seasonId;
+        const recordingSeason = seasonForRecording(gameSeasonId, displaySeasonRef.current?.id);
+        if (!recordingSeason) return;
+
+        // 2b. A result for this game filed under NO season (written before the
+        //     wait above existed) is moved into the game's season. Nothing else
+        //     on it changes, so nothing is rescored.
+        for (const r of misfiledDue(leagueResults, gameId, gameSeasonId)) {
+          if (cancelled) return;
+          try {
+            await withDeadline(refileResult(String(r.id), String(gameSeasonId)), undefined, 'league re-file');
+          } catch (refileError) {
+            if (!isDeadlineExceeded(refileError)) reportWriteFailure('a league result\'s season', refileError);
           }
         }
 
@@ -1301,11 +1324,10 @@ function PokerTimerInner({
           // via the Next Game dialog therefore filed its results under Season 1
           // while the screen said Season 2.
           //
-          // isRealSeasonId also blocks the synthetic 'default-season' used
-          // before Firestore resolves — results tagged with it match no season
-          // and vanish from every season-filtered view.
-          const attributedSeason = displaySeasonRef.current?.id;
-          const seasonId = isRealSeasonId(attributedSeason) ? String(attributedSeason) : undefined;
+          // The game's own stored season now comes first, and a season that is
+          // not real yet ('default-season', or nothing loaded) makes the whole
+          // pass wait above rather than write a result no season counts.
+          const seasonId = recordingSeason;
 
           // Claim the slot BEFORE awaiting. The effect re-runs on every players
           // change, so without a synchronous claim a second run could start
@@ -1324,7 +1346,12 @@ function PokerTimerInner({
             // forEach, with the player marked processed regardless — so a
             // permission or network failure lost that result silently and it
             // was never retried. The claim above is released again on failure.
-            await recordResultByName(
+            // Bounded (lib/deadline.ts): on a blocked network the write never
+            // settles, and this loop runs one pass at a time — so one stuck
+            // write used to stop every later bust-out being recorded for the
+            // rest of the session. It may still land; if it does, the snapshot
+            // shows it and the next pass sees it recorded.
+            await withDeadline(recordResultByName(
               player.name,
               player.position,
               players.length,
@@ -1358,12 +1385,15 @@ function PokerTimerInner({
                 // same lib/prizePool.ts — the same figure resultRows scores with.
                 prizePool: prizePoolFor(players, tournament.state.prizeStructure).net,
               },
-            );
+            ), undefined, 'league result');
           } catch (playerError) {
             console.error('Error recording individual player to league:', player.name, playerError);
             // Released to what it was, so the next pass retries it.
             if (previousClaim === undefined) memory.delete(player.id);
             else memory.set(player.id, previousClaim);
+            // Not landed yet is not failed: the waiting line on the League
+            // panel says so, rather than a red toast every eight seconds.
+            if (isDeadlineExceeded(playerError)) continue;
             toast({
               title: 'League result not saved',
               description: `${player.name}'s result could not be saved to the league. It will be retried automatically.`,
@@ -1403,7 +1433,24 @@ function PokerTimerInner({
       if (retryTimer) clearTimeout(retryTimer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, readOnlyConsole, leaguePlayers, leagueLoading, league?.id, tournament?.state?.settings?.leagueId, userLeagues]);
+  }, [tournament?.state?.players, tournament?.state?.details?.type, tournament?.state?.details?.id, tournament?.state?.prizeStructure?.buyIn, recordResultByName, removeTournamentResultForPlayer, readOnlyConsole, leaguePlayers, leagueLoading, league?.id, tournament?.state?.settings?.leagueId, userLeagues, tournament?.state?.settings?.seasonId, leagueResults, refileResult]);
+
+  // How many of tonight's results the league does not hold yet (see the line
+  // above the League panel). Worked out in render — this page renders every
+  // second, which is often enough to notice a write that has not landed.
+  const leagueResultsWaiting = (() => {
+    if (readOnlyConsole || !isLeagueGame(tournament.state)) return 0;
+    const players = tournament.state.players || [];
+    const gameId = gameIdOf(tournament.state.details) ?? null;
+    return pendingLeagueResults({
+      players,
+      memory: processedEliminationsRef.current,
+      cloud: recordedForGame(leaguePlayers, gameId),
+      gameIsFinished: players.filter(p => p.isActive !== false).length <= 1 && players.length > 1,
+      results: leagueResults,
+      gameId,
+    });
+  })();
 
   // Reset processed eliminations only when it's a genuine tournament reset (all active, no positions).
   // Guarding on positions prevents mid-game Firestore snapshots during handover from wiping the set.
@@ -1558,6 +1605,18 @@ function PokerTimerInner({
             info card's wrapper it had no gap above it and a doubled one below. */}
         {isLeagueMode && (
           <div className="mb-6">
+            {/* Results the league does not hold yet — finished players the
+                recorder has not written, or writes the server has not
+                acknowledged. Silent before: on game 5 of a league, played on a
+                network that blocked the league's reads, the standings simply
+                did not move and nothing said why. Amber, not red: the game is
+                open and the recorder retries, so nothing is lost yet. */}
+            {leagueResultsWaiting > 0 && (
+              <p className="mb-2 text-label text-amber-400" data-testid="league-results-waiting">
+                League results waiting to save — {leagueResultsWaiting} {leagueResultsWaiting === 1 ? 'player' : 'players'}.
+                {' '}They will save once this device can reach the league. Keep this game open.
+              </p>
+            )}
             {/* Next Game rides in the panel's header. In league mode it is the
                 league's business and it is not rendered in the setup card
                 below, so it still exists exactly once. */}

@@ -270,7 +270,12 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
       (currentLeagueId && isUserAuthenticated) ? `tournamentResults:${currentLeagueId}` : null,
       (emit, fail) => onSnapshot(
         query(collections.tournamentResults, where('leagueId', '==', String(currentLeagueId))),
-        snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        // With metadata changes, so a result this device wrote is seen to LAND:
+        // Firestore shows a local write at once, and on a blocked network that
+        // is all it ever does. `pendingWrite` is how the console says results
+        // are still waiting to save (lib/leagueRecorder.ts, pendingLeagueResults).
+        { includeMetadataChanges: true },
+        snap => emit(snap.docs.map(d => ({ id: d.id, ...d.data(), pendingWrite: d.metadata.hasPendingWrites }))),
         error => { console.error('Error fetching tournament results:', error); fail(error); },
       ),
       EMPTY_DOCS,
@@ -548,6 +553,15 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     }
   }, [currentLeagueId, calculatePointsFromSettings, leaguePlayers, createPlayerMutation, addResultMutation, waitForLeague, activeSeasonId]);
 
+  /**
+   * Move one result into a season — `seasonId` and nothing else, so nothing is
+   * rescored. The recorder's repair for a result written with no season
+   * (lib/leagueRecorder.ts, misfiledDue).
+   */
+  const refileResult = useCallback(async (resultId: string, seasonId: string) => {
+    await updateDoc(doc(db, 'tournamentResults', String(resultId)), { seasonId: String(seasonId) });
+  }, []);
+
   const removeTournamentResultForPlayer = useCallback(async (playerName: string, tournamentId: string) => {
     if (!currentLeagueId) return;
     try {
@@ -669,6 +683,9 @@ export function useLeague(overrideOwnerId?: string, directLeagueId?: string | nu
     deleteLeague,
     leaguePlayers,
     recordResultByName,
+    refileResult,
+    /** This league's results as stored, each with `pendingWrite` — for the recorder's repairs. */
+    leagueResults: cloudResults,
     removeTournamentResultForPlayer,
     calculatePoints: calculatePointsFromSettings,
     isLoading,

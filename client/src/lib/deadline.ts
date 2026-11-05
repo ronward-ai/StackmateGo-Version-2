@@ -13,10 +13,19 @@
  */
 export const WRITE_DEADLINE_MS = 8000;
 
+/**
+ * The rejection a deadline produces. A write that missed its deadline has not
+ * FAILED — it may still land — so a caller that retries must not also raise a
+ * destructive toast every eight seconds while a network is down.
+ */
+export class DeadlineExceeded extends Error {}
+
+export const isDeadlineExceeded = (e: unknown): boolean => e instanceof DeadlineExceeded;
+
 export function withDeadline<T>(promise: Promise<T>, ms: number = WRITE_DEADLINE_MS, what = 'write'): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`The ${what} did not complete within ${Math.round(ms / 1000)}s`)), ms);
+    timer = setTimeout(() => reject(new DeadlineExceeded(`The ${what} did not complete within ${Math.round(ms / 1000)}s`)), ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }

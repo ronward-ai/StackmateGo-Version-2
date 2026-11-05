@@ -147,3 +147,64 @@ describe('renamesDue — a result still filed under a name the player was rename
     expect(renamesDue([dave, other], new Map([['dave smyth', 3]]))).toEqual([]);
   });
 });
+
+import { seasonForRecording, misfiledDue, pendingLeagueResults } from './leagueRecorder';
+
+describe('seasonForRecording — the game\'s own season, else the one on screen, else wait', () => {
+  it('prefers the season stored on the game', () => {
+    expect(seasonForRecording('s2', 's1')).toBe('s2');
+  });
+  it('falls back to the season on screen', () => {
+    expect(seasonForRecording(undefined, 's1')).toBe('s1');
+    expect(seasonForRecording('default-season', 7)).toBe('7');
+  });
+  it('is null — write nothing — when neither is real', () => {
+    expect(seasonForRecording(undefined, undefined)).toBeNull();
+    expect(seasonForRecording('default-season', 'default-season')).toBeNull();
+    expect(seasonForRecording('', null)).toBeNull();
+  });
+});
+
+describe('misfiledDue — this game\'s results filed under no season', () => {
+  const rows = [
+    { id: 'a', tournamentId: 'G', seasonId: null },
+    { id: 'b', tournamentId: 'G', seasonId: 'default-season' },
+    { id: 'c', tournamentId: 'G', seasonId: 's1' },
+    { id: 'd', tournamentId: 'G', seasonId: 's0' },
+    { id: 'e', tournamentId: 'OTHER', seasonId: null },
+    { id: 'f', tournamentId: 'G' },
+  ];
+  it('finds a missing or synthetic season for THIS game only', () => {
+    expect(misfiledDue(rows, 'G', 's1').map(r => r.id)).toEqual(['a', 'b', 'f']);
+  });
+  it('never moves a result that has another REAL season', () => {
+    expect(misfiledDue(rows, 'G', 's1').some(r => r.id === 'd')).toBe(false);
+  });
+  it('does nothing unless the game names a real season itself', () => {
+    expect(misfiledDue(rows, 'G', undefined)).toEqual([]);
+    expect(misfiledDue(rows, 'G', 'default-season')).toEqual([]);
+    expect(misfiledDue(rows, null, 's1')).toEqual([]);
+  });
+});
+
+describe('pendingLeagueResults — what the league does not hold yet', () => {
+  const players = [
+    { id: '1', name: 'Amy', isActive: true },
+    { id: '2', name: 'Bob', isActive: false, position: 3 },
+    { id: '3', name: 'Cat', isActive: false, position: 2 },
+  ];
+  it('counts finished players nobody has recorded', () => {
+    expect(pendingLeagueResults({ players, memory: new Map(), cloud: new Map([['cat', 2]]), gameIsFinished: false })).toBe(1);
+  });
+  it('counts this game\'s writes the server has not acknowledged', () => {
+    const results = [
+      { tournamentId: 'G', pendingWrite: true },
+      { tournamentId: 'G', pendingWrite: false },
+      { tournamentId: 'OTHER', pendingWrite: true },
+    ];
+    expect(pendingLeagueResults({ players, memory: new Map(), cloud: new Map([['bob', 3], ['cat', 2]]), gameIsFinished: false, results, gameId: 'G' })).toBe(1);
+  });
+  it('is zero when everything is recorded and acknowledged', () => {
+    expect(pendingLeagueResults({ players, memory: new Map([['2', 3]]), cloud: new Map([['cat', 2]]), gameIsFinished: false, results: [], gameId: 'G' })).toBe(0);
+  });
+});

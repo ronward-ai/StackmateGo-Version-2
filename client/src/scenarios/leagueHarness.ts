@@ -17,7 +17,7 @@
  * mirrored below line for line because they live inside a page effect and a
  * Firebase hook. If either of those changes shape, change this with it.
  */
-import { removalsDue, renamesDue, renameKey, recordsDue, recordedForGame, recordedStatsForGame, statsOfPlayer, type RecordedStats, findPlayerByName, alreadyRecorded, resultsToWithdraw } from '@/lib/leagueRecorder';
+import { removalsDue, renamesDue, renameKey, recordsDue, recordedForGame, recordedStatsForGame, statsOfPlayer, type RecordedStats, findPlayerByName, alreadyRecorded, resultsToWithdraw, seasonForRecording, misfiledDue } from '@/lib/leagueRecorder';
 import { standingsFromDocs } from '@/lib/leagueStandings';
 import { seasonRoster } from '@/lib/playerSeason';
 import { compareStandings, bestFinishOf } from '@/lib/standingsOrder';
@@ -91,8 +91,11 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
   /**
    * One pass of PokerTimer's syncLeagueResults, mirrored. The page runs it on
    * every roster change; scenario tests call it after each step that matters.
+   *
+   * `seasonId` is the GAME's stored season (`settings.seasonId`), and
+   * `displaySeasonId` the one on screen — the page's two sources, in its order.
    */
-  function sync(state: { players: any[]; prizeStructure?: any }, gameId: string, seasonId: string | null) {
+  function sync(state: { players: any[]; prizeStructure?: any }, gameId: string, seasonId: string | null, displaySeasonId: string | null = null) {
     const players = state.players || [];
     const active = players.filter(p => p.isActive !== false);
     const isFinished = active.length <= 1 && players.length > 1;
@@ -107,12 +110,15 @@ export function createLeague(formula: PointsFormula = { type: 'linear', baseMult
     for (const p of [...back, ...moved, ...changed]) {
       removeResultForPlayer(p.name, gameId); memory.set(p.id, 0); statsMemory.delete(p.id);
     }
+    const recordingSeason = seasonForRecording(seasonId, displaySeasonId);
+    if (!recordingSeason) return;
+    for (const r of misfiledDue(results, gameId, seasonId)) r.seasonId = String(seasonId);
     for (const p of recordsDue(players, memory, cloud, isFinished)) {
       const replacing = memory.get(p.id) === 0;
       memory.set(p.id, p.position);
       statsMemory.set(p.id, statsOfPlayer(p));
       recordResultByName(p.name, p.position, players.length, p.knockouts || 0, p.prizeMoney || 0,
-        state.prizeStructure?.buyIn ?? 10, gameId, seasonId, replacing,
+        state.prizeStructure?.buyIn ?? 10, gameId, recordingSeason, replacing,
         { ...recordedStatsFor(p, state.prizeStructure), prizePool: prizePoolFor(players, state.prizeStructure).net });
     }
   }

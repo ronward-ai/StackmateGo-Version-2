@@ -329,6 +329,39 @@ browser also gets a standing **"Not syncing"** chip on the StackMate Live card, 
 condition rather than an event, and the director had no connection indicator at all while the
 *participant* view has had a Live/Offline badge all along.
 
+### A league result waits for its season, and a stuck write does not stop the night
+
+Reported the day after game 5 of 13, played on venue Wi-Fi that blocked Google's sign-in servers: some
+players had the game counted and some did not. Two causes in `syncLeagueResults`, each depending on WHEN
+a player busted — which is why the damage was per player:
+
+- **A result filed in no season.** The recorder waited on `leagueLoading` (players and results) but not
+  on the seasons or the league document, and the season came from the loaded list, then
+  `currentSeason`, then `activeSeasonId` — all absent while those reads had not landed. So a result was
+  written with `seasonId: null`, and `seasonRoster` / `countGamesPlayed` do not count it. Worse,
+  `recordedForGame` ignores the season, so the recorder thought it done and reopening never fixed it.
+- **A result never written.** The awaited `addDoc` never settles on a blocked network, and the recorder
+  runs one pass at a time (`syncRunningRef`) — so ONE stuck write stopped every later bust-out being
+  recorded for the rest of the session, and a reload lost them.
+
+`lib/leagueRecorder.ts` now owns three answers. **`seasonForRecording`**: the GAME's stored
+`settings.seasonId` first, the season on screen second, and neither real means the pass WAITS — nothing
+is ever filed into no season. **`misfiledDue`**: this game's results with no season are moved into the
+game's season (`refileResult` in `useLeague` — `seasonId` only, so nothing is rescored; the update rule
+already allowed it, no rules deploy). It moves only a MISSING season, never a different real one, and
+only when the game names its own season — an old night reopened must not be dragged into the season on
+screen. **`pendingLeagueResults`**: finished players not recorded, plus this game's writes the server has
+not acknowledged (`pendingWrite`, from `hasPendingWrites` — the results listener now takes
+`includeMetadataChanges`), shown as an amber **"League results waiting to save"** line above the League
+panel. Every recorder write goes through `withDeadline`; a missed deadline (`isDeadlineExceeded`)
+releases the claim for a retry WITHOUT the destructive toast, since the write may still land and
+`alreadyRecorded` sees it in the local cache when it does.
+
+**Repairing a night already damaged: reopen it on a good connection** (season bar → the game → Reopen
+to correct). `leagueSeasons.scenario.test.tsx` plays exactly that — one result seasonless, one missing,
+a fresh console — and every player comes out counted once. Six mutants are caught. The deadline itself
+sits in the page effect and has no test by construction; `isDeadlineExceeded` does.
+
 ### Resume only reopens a game that is plausibly current
 
 Nothing deletes an `activeTournaments` document, so every game an account has ever taken live is a
